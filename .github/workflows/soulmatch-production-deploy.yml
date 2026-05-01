@@ -67,6 +67,7 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x android/gradlew
+          sed -i '/^org.gradle.java.home=/d' android/gradle.properties
           echo "sdk.dir=$ANDROID_HOME" > android/local.properties
           cd android
           ./gradlew :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest --no-daemon
