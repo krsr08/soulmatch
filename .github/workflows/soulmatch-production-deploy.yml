@@ -16,6 +16,15 @@ jobs:
     name: Build and Test
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      APP_PUBLIC_API_BASE_URL: ${{ secrets.APP_PUBLIC_API_BASE_URL || 'http://20.204.142.19/api/v1/' }}
+      FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID || 'soul-match-2ead9' }}
+      FIREBASE_APP_ID_ANDROID: ${{ secrets.FIREBASE_APP_ID_ANDROID || '1:253330028301:android:4a4647b92b64d0ebec6244' }}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      FIREBASE_DISTRIBUTION_GROUPS: ${{ secrets.FIREBASE_DISTRIBUTION_GROUPS }}
+      FIREBASE_TESTERS: ${{ secrets.FIREBASE_TESTERS }}
+      RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
+      GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
 
     steps:
       - name: Checkout
@@ -68,9 +77,29 @@ jobs:
           set -euo pipefail
           chmod +x android/gradlew
           sed -i '/^org.gradle.java.home=/d' android/gradle.properties
-          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          app_base="${APP_PUBLIC_API_BASE_URL%/}/"
+          {
+            echo "sdk.dir=$ANDROID_HOME"
+            echo "AUTH_BASE_URL=$app_base"
+            echo "PROFILE_BASE_URL=$app_base"
+            echo "MATCHING_BASE_URL=$app_base"
+            echo "SEARCH_BASE_URL=$app_base"
+            echo "CHAT_BASE_URL=$app_base"
+            echo "NOTIFICATION_BASE_URL=$app_base"
+            echo "PAYMENT_BASE_URL=$app_base"
+            echo "CONTROL_PLANE_BASE_URL=$app_base"
+            echo "RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID:-rzp_test_placeholder}"
+            echo "GOOGLE_WEB_CLIENT_ID=${GOOGLE_WEB_CLIENT_ID:-}"
+          } > android/local.properties
           cd android
           ./gradlew :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest --no-daemon
+
+      - name: Upload Android debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: soulmatch-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
 
       - name: Upload Android release APK artifact
         uses: actions/upload-artifact@v4
@@ -78,6 +107,50 @@ jobs:
           name: soulmatch-release-unsigned-apk
           path: android/app/build/outputs/apk/release/app-release-unsigned.apk
           if-no-files-found: error
+
+      - name: Distribute Android debug APK to Firebase App Distribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]; then
+            echo "Skipping Firebase App Distribution: FIREBASE_SERVICE_ACCOUNT_JSON is not configured."
+            exit 0
+          fi
+          if [ -z "${FIREBASE_DISTRIBUTION_GROUPS:-}" ] && [ -z "${FIREBASE_TESTERS:-}" ]; then
+            echo "Skipping Firebase App Distribution: set FIREBASE_DISTRIBUTION_GROUPS or FIREBASE_TESTERS."
+            exit 0
+          fi
+
+          credentials_file="$RUNNER_TEMP/firebase-service-account.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$credentials_file"
+          export GOOGLE_APPLICATION_CREDENTIALS="$credentials_file"
+
+          release_notes_file="$RUNNER_TEMP/firebase-release-notes.txt"
+          {
+            echo "SoulMatch automated test build"
+            echo "Commit: ${GITHUB_SHA}"
+            echo "Branch: ${GITHUB_REF_NAME}"
+            echo "Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "Backend: ${APP_PUBLIC_API_BASE_URL}"
+          } > "$release_notes_file"
+
+          command=(
+            npx -y firebase-tools@latest
+            appdistribution:distribute
+            android/app/build/outputs/apk/debug/app-debug.apk
+            --project "$FIREBASE_PROJECT_ID"
+            --app "$FIREBASE_APP_ID_ANDROID"
+            --release-notes-file "$release_notes_file"
+          )
+
+          if [ -n "${FIREBASE_DISTRIBUTION_GROUPS:-}" ]; then
+            command+=(--groups "$FIREBASE_DISTRIBUTION_GROUPS")
+          fi
+          if [ -n "${FIREBASE_TESTERS:-}" ]; then
+            command+=(--testers "$FIREBASE_TESTERS")
+          fi
+
+          "${command[@]}"
 
   deploy:
     name: Deploy to Azure VM
