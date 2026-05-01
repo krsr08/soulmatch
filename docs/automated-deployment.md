@@ -52,6 +52,8 @@ Set at least one of `FIREBASE_DISTRIBUTION_GROUPS` or `FIREBASE_TESTERS`. If the
 
 For Google Sign-In to work on Firebase App Distribution builds, the distributed APK must be signed with a stable keystore. Add that keystore's SHA-1 and SHA-256 fingerprints to the Firebase Android app, then download a fresh `google-services.json`.
 
+If Google Sign-In returns code `10`, open the latest GitHub Actions run and copy the SHA-1/SHA-256 from the `Print distributed APK signing fingerprints` step. Those exact fingerprints must exist on the Firebase Android app or on an Android OAuth client in Google Cloud for package `com.soulmatch.app`.
+
 ## VM Requirements
 
 The Azure VM must already have:
