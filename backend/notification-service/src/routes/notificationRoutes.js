@@ -1,0 +1,12 @@
+const express = require('express');
+const controller = require('../controllers/notificationController');
+const { authenticate } = require('../middleware/authMiddleware');
+const { authenticateService } = require('../middleware/serviceAuthMiddleware');
+const router = express.Router();
+router.get('/', authenticate, controller.getNotifications);
+router.put('/mark-all-read', authenticate, controller.markAllRead);
+router.put('/:id/read', authenticate, controller.markRead);
+router.post('/devices/fcm-token', authenticate, controller.registerFcmToken);
+router.post('/send', authenticateService, controller.sendPush);
+router.post('/template', authenticateService, controller.sendTemplate);
+module.exports = router;

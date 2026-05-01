@@ -1,0 +1,223 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: soulmatch-postgres
+    environment:
+      POSTGRES_USER: soulmatch_user
+      POSTGRES_PASSWORD: soulmatch_pass
+      POSTGRES_DB: soulmatch_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ../database/seeds/seed_data.sql:/docker-entrypoint-initdb.d/02_seed.sql
+      - ../database/seeds/seed_500_profiles.sql:/docker-entrypoint-initdb.d/03_seed_500_profiles.sql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U soulmatch_user']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:7
+    container_name: soulmatch-mongo
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    container_name: soulmatch-redis
+    ports:
+      - '6379:6379'
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+  auth-service:
+    build:
+      context: ../backend/auth-service
+      dockerfile: Dockerfile
+    container_name: soulmatch-auth
+    ports:
+      - '3001:3001'
+    env_file:
+      - ../backend/auth-service/.env
+    environment:
+      - DB_HOST=postgres
+      - REDIS_HOST=redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: npm start
+
+  profile-service:
+    build:
+      context: ../backend/profile-service
+      dockerfile: Dockerfile
+    container_name: soulmatch-profile
+    ports:
+      - '3002:3002'
+    env_file:
+      - ../backend/profile-service/.env
+    environment:
+      - DB_HOST=postgres
+      - REDIS_HOST=redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: npm start
+
+  matching-service:
+    build:
+      context: ../backend/matching-service
+      dockerfile: Dockerfile
+    container_name: soulmatch-matching
+    ports:
+      - '3003:3003'
+    env_file:
+      - ../backend/matching-service/.env
+    environment:
+      - DB_HOST=postgres
+      - REDIS_HOST=redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: uvicorn app.main:app --host 0.0.0.0 --port 3003
+
+  search-service:
+    build:
+      context: ../backend/search-service
+      dockerfile: Dockerfile
+    container_name: soulmatch-search
+    ports:
+      - '3004:3004'
+    env_file:
+      - ../backend/search-service/.env
+    environment:
+      - DB_HOST=postgres
+      - ADMIN_ROLE=super_admin
+      - ADMIN_REALTIME_INTERVAL_MS=10000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npm start
+
+  chat-service:
+    build:
+      context: ../backend/chat-service
+      dockerfile: Dockerfile
+    container_name: soulmatch-chat
+    ports:
+      - '3005:3005'
+    env_file:
+      - ../backend/chat-service/.env
+    environment:
+      - DB_HOST=postgres
+      - REDIS_HOST=redis
+      - MONGO_URI=mongodb://mongodb:27017/soulmatch_chat
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+      redis:
+        condition: service_started
+    command: npm start
+
+  notification-service:
+    build:
+      context: ../backend/notification-service
+      dockerfile: Dockerfile
+    container_name: soulmatch-notification
+    ports:
+      - '3006:3006'
+    env_file:
+      - ../backend/notification-service/.env
+    environment:
+      - DB_HOST=postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npm start
+
+  payment-service:
+    build:
+      context: ../backend/payment-service
+      dockerfile: Dockerfile
+    container_name: soulmatch-payment
+    ports:
+      - '3007:3007'
+    env_file:
+      - ../backend/payment-service/.env
+    environment:
+      - DB_HOST=postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npm start
+
+  admin-service:
+    build:
+      context: ../backend/admin-service
+      dockerfile: Dockerfile
+    container_name: soulmatch-admin-api
+    ports:
+      - '3011:3011'
+    env_file:
+      - ../backend/admin-service/.env
+    environment:
+      - DB_HOST=postgres
+      - ADMIN_ROLE=super_admin
+      - ADMIN_REALTIME_INTERVAL_MS=10000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npm start
+
+  admin-web:
+    build:
+      context: ../admin-web
+      dockerfile: Dockerfile
+    container_name: soulmatch-admin-web
+    ports:
+      - '3000:3000'
+    environment:
+      - REACT_APP_ADMIN_API_URL=http://localhost:3011/api/v1/admin
+    depends_on:
+      - admin-service
+    command: npm start
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: soulmatch-prometheus
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - admin-service
+
+  grafana:
+    image: grafana/grafana:10.4.3
+    container_name: soulmatch-grafana
+    ports:
+      - '3030:3000'
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:

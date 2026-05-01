@@ -1,0 +1,134 @@
+// 1. REMOVE the "apply plugin" lines from the very top. 
+// They are now handled in the plugins block below.
+
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'com.google.dagger.hilt.android'
+    id 'kotlin-kapt'
+    id 'com.google.gms.google-services' // This is all you need to activate Firebase
+}
+
+android {
+    namespace 'com.soulmatch.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.soulmatch.app"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+        manifestPlaceholders = [usesCleartextTraffic: "false"]
+
+        // Your local.properties logic is correct! 
+        // It helps the app find your Docker backend at 10.0.2.2
+        def props = new Properties()
+        def lpf = rootProject.file('local.properties')
+        if (lpf.exists()) { lpf.withInputStream { props.load(it) } }
+        
+        def serviceBaseFrom = { String baseUrl, int port ->
+            try {
+                def uri = new URI(baseUrl)
+                return "${uri.scheme}://${uri.host}:${port}/api/v1/"
+            } catch (ignored) {
+                return "http://10.0.2.2:${port}/api/v1/"
+            }
+        }
+
+        def authBase = props.getProperty('AUTH_BASE_URL', props.getProperty('BASE_URL', 'http://10.0.2.2:3001/api/v1/'))
+        buildConfigField "String", "AUTH_BASE_URL", '"' + authBase + '"'
+        buildConfigField "String", "PROFILE_BASE_URL", '"' + (props.getProperty('PROFILE_BASE_URL','http://10.0.2.2:3002/api/v1/')) + '"'
+        buildConfigField "String", "MATCHING_BASE_URL", '"' + (props.getProperty('MATCHING_BASE_URL','http://10.0.2.2:3003/api/v1/')) + '"'
+        buildConfigField "String", "SEARCH_BASE_URL", '"' + (props.getProperty('SEARCH_BASE_URL','http://10.0.2.2:3004/api/v1/')) + '"'
+        buildConfigField "String", "CHAT_BASE_URL", '"' + (props.getProperty('CHAT_BASE_URL','http://10.0.2.2:3005/api/v1/')) + '"'
+        buildConfigField "String", "NOTIFICATION_BASE_URL", '"' + (props.getProperty('NOTIFICATION_BASE_URL','http://10.0.2.2:3006/api/v1/')) + '"'
+        buildConfigField "String", "PAYMENT_BASE_URL", '"' + (props.getProperty('PAYMENT_BASE_URL','http://10.0.2.2:3007/api/v1/')) + '"'
+        buildConfigField "String", "CONTROL_PLANE_BASE_URL", '"' + (props.getProperty('CONTROL_PLANE_BASE_URL', serviceBaseFrom(authBase, 3011))) + '"'
+        buildConfigField "String", "RAZORPAY_KEY", '"' + (props.getProperty('RAZORPAY_KEY_ID','rzp_test_placeholder')) + '"'
+        def googleWebClientId = props.getProperty('GOOGLE_WEB_CLIENT_ID', props.getProperty('GOOGLE_CLIENT_ID', '')).trim()
+        buildConfigField "String", "GOOGLE_WEB_CLIENT_ID", '"' + googleWebClientId + '"'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            manifestPlaceholders = [usesCleartextTraffic: "false"]
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            debuggable true
+            manifestPlaceholders = [usesCleartextTraffic: "true"]
+        }
+    }
+
+    buildFeatures {
+        compose true
+        buildConfig true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion '1.5.11'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+        freeCompilerArgs += ['-opt-in=kotlin.RequiresOptIn']
+    }
+}
+
+dependencies {
+    implementation 'com.google.android.material:material:1.11.0'
+    
+    // UI & Compose
+    implementation platform('androidx.compose:compose-bom:2023.10.01')
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.material:material-icons-extended'
+    implementation 'androidx.activity:activity-compose:1.8.1'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+    implementation "androidx.navigation:navigation-compose:$nav_version"
+
+    // Dependency Injection (Hilt)
+    implementation "com.google.dagger:hilt-android:$hilt_version"
+    kapt "com.google.dagger:hilt-compiler:$hilt_version"
+    implementation 'androidx.hilt:hilt-navigation-compose:1.1.0'
+
+    // Lifecycle
+    implementation "androidx.lifecycle:lifecycle-viewmodel-compose:$lifecycle_version"
+    implementation "androidx.lifecycle:lifecycle-runtime-compose:$lifecycle_version"
+
+    // Networking
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
+    implementation('io.socket:socket.io-client:2.1.0') { exclude group: 'org.json', module: 'json' }
+    implementation 'io.coil-kt:coil-compose:2.5.0'
+
+    // Database (Room)
+    implementation 'androidx.room:room-runtime:2.6.1'
+    kapt 'androidx.room:room-compiler:2.6.1'
+    implementation 'androidx.room:room-ktx:2.6.1'
+    implementation 'androidx.datastore:datastore-preferences:1.0.0'
+
+    // Firebase (Cleaned up duplicates - using the newer 33.1.0 version)
+    implementation platform('com.google.firebase:firebase-bom:33.1.0')
+    implementation 'com.google.firebase:firebase-messaging-ktx'
+    implementation 'com.google.android.gms:play-services-auth:20.7.0'
+
+    // Payments & Coroutines
+    implementation 'com.razorpay:checkout:1.6.33'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    testImplementation 'junit:junit:4.13.2'
+}
+
+kapt {
+    correctErrorTypes true
+}

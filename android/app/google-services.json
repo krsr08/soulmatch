@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "253330028301",
+    "project_id": "soul-match-2ead9",
+    "storage_bucket": "soul-match-2ead9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:253330028301:android:4a4647b92b64d0ebec6244",
+        "android_client_info": {
+          "package_name": "com.soulmatch.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDaNUgpw4-bs6kXg0Y3mEyvgl5ZGRMb7qQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

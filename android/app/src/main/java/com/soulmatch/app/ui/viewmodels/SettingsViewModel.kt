@@ -1,0 +1,198 @@
+package com.soulmatch.app.ui.viewmodels
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.soulmatch.app.data.api.AuthApiService
+import com.soulmatch.app.data.api.ProfileApiService
+import com.soulmatch.app.data.config.AppEnvironment
+import com.soulmatch.app.data.local.UserPreferences
+import com.soulmatch.app.data.local.ProfileInteractionStore
+import com.soulmatch.app.data.mock.MarketFixtures
+import com.soulmatch.app.data.models.PrivacySettingsRequest
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+
+data class SettingsUiState(
+    val pushEnabled: Boolean = true,
+    val photoPrivacyEnabled: Boolean = true,
+    val contactFilterEnabled: Boolean = false,
+    val profileVisible: Boolean = true
+)
+
+data class PrivacyMemberUi(
+    val profileId: String,
+    val name: String,
+    val detail: String
+)
+
+data class ReportedConcernUi(
+    val profileId: String,
+    val name: String,
+    val detail: String,
+    val concern: String
+)
+
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    private val prefs: UserPreferences,
+    private val profileApi: ProfileApiService,
+    private val authApi: AuthApiService
+) : ViewModel() {
+    private val _settings = MutableStateFlow(SettingsUiState())
+    private val _status = MutableStateFlow<String?>(null)
+    private val removedHiddenProfileIds = mutableSetOf<String>()
+    private val removedBlockedProfileIds = mutableSetOf<String>()
+    private val starterHiddenMembers = if (AppEnvironment.allowDemoFallback) MarketFixtures.matches.drop(5).take(1).map {
+        PrivacyMemberUi(it.profileId, it.name, "${it.location} | ${it.community}")
+    } else emptyList()
+    private val starterBlockedMembers = if (AppEnvironment.allowDemoFallback) MarketFixtures.matches.drop(9).take(1).map {
+        PrivacyMemberUi(it.profileId, it.name, "${it.location} | ${it.community}")
+    } else emptyList()
+    private val _hiddenMembers = MutableStateFlow(starterHiddenMembers)
+    private val _blockedMembers = MutableStateFlow(starterBlockedMembers)
+    private val _reportedConcerns = MutableStateFlow<List<ReportedConcernUi>>(emptyList())
+
+    val settings: StateFlow<SettingsUiState> = _settings.asStateFlow()
+    val status: StateFlow<String?> = _status.asStateFlow()
+    val hiddenMembers: StateFlow<List<PrivacyMemberUi>> = _hiddenMembers.asStateFlow()
+    val blockedMembers: StateFlow<List<PrivacyMemberUi>> = _blockedMembers.asStateFlow()
+    val reportedConcerns: StateFlow<List<ReportedConcernUi>> = _reportedConcerns.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            combine(
+                prefs.pushNotifications,
+                prefs.photoPrivacy,
+                prefs.contactFilters,
+                prefs.profileVisibility
+            ) { push, photoPrivacy, contactFilters, visibility ->
+                SettingsUiState(
+                    pushEnabled = push,
+                    photoPrivacyEnabled = photoPrivacy == "matches_only",
+                    contactFilterEnabled = contactFilters,
+                    profileVisible = visibility == "all"
+                )
+            }.collect { _settings.value = it }
+        }
+        viewModelScope.launch {
+            ProfileInteractionStore.state.collect { interaction ->
+                _hiddenMembers.value = (
+                    starterHiddenMembers.filterNot { it.profileId in removedHiddenProfileIds } +
+                        interaction.hiddenProfileIds.map(::memberForProfileId)
+                    ).distinctBy { it.profileId }
+                _blockedMembers.value = (
+                    starterBlockedMembers.filterNot { it.profileId in removedBlockedProfileIds } +
+                        interaction.blockedProfileIds.map(::memberForProfileId)
+                    ).distinctBy { it.profileId }
+                _reportedConcerns.value = interaction.reportedConcerns.values
+                    .sortedByDescending { it.updatedMillis }
+                    .map { concern ->
+                        val member = memberForProfileId(concern.profileId)
+                        ReportedConcernUi(
+                            profileId = concern.profileId,
+                            name = member.name,
+                            detail = member.detail,
+                            concern = concern.concern
+                        )
+                    }
+            }
+        }
+    }
+
+    fun setPushNotifications(enabled: Boolean) {
+        viewModelScope.launch {
+            prefs.savePushNotifications(enabled)
+            _status.value = "Push notification preference updated."
+        }
+    }
+
+    fun setContactFilters(enabled: Boolean) {
+        viewModelScope.launch {
+            prefs.saveContactFilters(enabled)
+            _status.value = "Contact filter preference updated."
+        }
+    }
+
+    fun setPrivacy(photoPrivate: Boolean, visible: Boolean) {
+        viewModelScope.launch {
+            val photoPrivacy = if (photoPrivate) "matches_only" else "all"
+            val profileVisibility = if (visible) "all" else "hidden"
+            prefs.savePhotoPrivacy(photoPrivacy)
+            prefs.saveProfileVisibility(profileVisibility)
+            val profileId = prefs.profileId.first()
+            if (!profileId.isNullOrEmpty()) {
+                runCatching {
+                    profileApi.updatePrivacy(
+                        profileId,
+                        PrivacySettingsRequest(
+                            photoPrivacy = photoPrivacy,
+                            profileVisibility = profileVisibility
+                        )
+                    )
+                }
+            }
+            _status.value = "Privacy settings saved."
+        }
+    }
+
+    fun logout(onLoggedOut: () -> Unit) {
+        viewModelScope.launch {
+            val userId = prefs.userId.first()
+            if (!userId.isNullOrBlank()) {
+                runCatching { authApi.logout(mapOf("userId" to userId)) }
+            }
+            prefs.clearAll()
+            _status.value = null
+            onLoggedOut()
+        }
+    }
+
+    fun showHiddenMemberAgain(profileId: String) {
+        removedHiddenProfileIds += profileId
+        ProfileInteractionStore.showProfileAgain(profileId)
+        _hiddenMembers.value = _hiddenMembers.value.filterNot { it.profileId == profileId }
+        _status.value = "This member can appear in your matches again."
+    }
+
+    fun unblockMember(profileId: String) {
+        removedBlockedProfileIds += profileId
+        ProfileInteractionStore.unblockProfile(profileId)
+        _blockedMembers.value = _blockedMembers.value.filterNot { it.profileId == profileId }
+        _status.value = "This member is unblocked."
+    }
+
+    fun updateConcern(profileId: String, concern: String) {
+        ProfileInteractionStore.reportConcern(profileId, concern)
+        _status.value = "Concern updated."
+    }
+
+    fun deleteConcern(profileId: String) {
+        ProfileInteractionStore.deleteConcern(profileId)
+        _status.value = "Concern deleted."
+    }
+
+    fun clearStatus() {
+        _status.value = null
+    }
+
+    private fun memberForProfileId(profileId: String): PrivacyMemberUi {
+        if (!AppEnvironment.allowDemoFallback) return PrivacyMemberUi(profileId, "Member", "Private profile")
+        val summary = MarketFixtures.matchSeed(profileId)
+        if (summary != null) {
+            return PrivacyMemberUi(summary.profileId, summary.name, "${summary.location} | ${summary.community}")
+        }
+        val detail = MarketFixtures.profileDetails(profileId)
+        return PrivacyMemberUi(
+            detail.profileId,
+            detail.firstName + " " + detail.lastName,
+            "${detail.workingCity} | ${detail.religion}, ${detail.caste}"
+        )
+    }
+}

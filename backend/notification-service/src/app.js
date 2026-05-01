@@ -1,0 +1,16 @@
+require('dotenv').config();
+const express = require('express');
+const helmet = require('helmet');
+const cors = require('cors');
+const notifRoutes = require('./routes/notificationRoutes');
+const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
+const logger = require('./utils/logger');
+const app = express();
+app.use(helmet()); app.use(cors()); app.use(express.json());
+app.use('/api/v1/notifications', notifRoutes);
+app.get('/health', (req, res) => res.json({ status:'ok', service:'notification-service' }));
+app.use(notFoundHandler);
+app.use(errorHandler);
+const PORT = process.env.PORT || 3006;
+app.listen(PORT, () => logger.info('Notification Service on port ' + PORT));
+module.exports = app;

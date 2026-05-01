@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp"
+    android:height="240dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:fillColor="#C5164D"
+        android:pathData="M23,14 H85 C90,14 94,18 94,23 V85 C94,90 90,94 85,94 H23 C18,94 14,90 14,85 V23 C14,18 18,14 23,14 Z" />
+    <path
+        android:strokeColor="#F5D777"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M23,14 H85 C90,14 94,18 94,23 V85 C94,90 90,94 85,94 H23 C18,94 14,90 14,85 V23 C14,18 18,14 23,14 Z" />
+    <path
+        android:strokeColor="#F5D777"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M24,58 C25,42 40,35 54,51 C68,35 83,42 84,58 C85,73 67,82 54,92 C41,82 23,73 24,58 Z" />
+    <path
+        android:strokeColor="#F5D777"
+        android:strokeWidth="4.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M38,52 H70 M42,58 H66 M38,64 C35,72 38,82 45,87 H63 C70,82 73,72 70,64 Z M40,76 H68 M45,88 H63" />
+    <path
+        android:strokeColor="#F5D777"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M54,24 C46,35 46,45 54,52 C62,45 62,35 54,24 Z M45,39 C35,38 30,44 26,51 C36,50 42,47 49,53 M63,39 C73,38 78,44 82,51 C72,50 66,47 59,53" />
+    <path
+        android:strokeColor="#F5D777"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M50,35 C49,39 49,43 51,47 M58,35 C59,39 59,43 57,47" />
+</vector>

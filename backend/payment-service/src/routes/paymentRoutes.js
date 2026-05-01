@@ -1,0 +1,11 @@
+const express = require('express');
+const controller = require('../controllers/paymentController');
+const { authenticate } = require('../middleware/authMiddleware');
+const router = express.Router();
+router.get('/plans', controller.getPlans);
+router.get('/upgrade-packages', controller.getUpgradePackages);
+router.post('/create-order', authenticate, controller.createOrder);
+router.post('/verify', authenticate, controller.verifyPayment);
+router.get('/subscription', authenticate, controller.getSubscription);
+router.get('/invoices', authenticate, controller.getInvoices);
+module.exports = router;

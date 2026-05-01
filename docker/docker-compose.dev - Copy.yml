@@ -1,0 +1,124 @@
+
+
+version: '3.8'
+services:
+postgres:
+image: postgres:15
+container_name: soulmatch-postgres
+environment:
+POSTGRES_USER: soulmatch_user
+POSTGRES_PASSWORD: soulmatch_pass
+POSTGRES_DB: soulmatch_db
+ports:
+- "5432:5432"
+volumes:
+- postgres_data:/var/lib/postgresql/data
+- ../database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+- ../database/seeds/seed_data.sql:/docker-entrypoint-initdb.d/02_seed.sql
+healthcheck:
+test: ["CMD-SHELL", "pg_isready -U soulmatch_user"]
+interval: 10s
+timeout: 5s
+retries: 5
+mongodb:
+image: mongo:7
+container_name: soulmatch-mongo
+ports:
+- "27017:27017"
+volumes:
+- mongo_data:/data/db
+redis:
+image: redis:7-alpine
+container_name: soulmatch-redis
+ports:
+- "6379:6379"
+command: redis-server --appendonly yes
+volumes:
+- redis_data:/data
+auth-service:
+build: ../backend/auth-service
+container_name: soulmatch-auth
+ports:
+- "3001:3001"
+env_file: ../backend/auth-service/.env
+depends_on:
+postgres:
+condition: service_healthy
+redis:
+condition: service_started
+command: npm run dev
+profile-service:
+build: ../backend/profile-service
+container_name: soulmatch-profile
+ports:
+- "3002:3002"
+env_file: ../backend/profile-service/.env
+depends_on:
+- postgres
+- redis
+command: npm run dev
+matching-service:
+build: ../backend/matching-service
+container_name: soulmatch-matching
+ports:
+- "3003:3003"
+env_file: ../backend/matching-service/.env
+depends_on:
+- postgres
+command: uvicorn app.main:app --reload --host 0.0.0.0 --port 3003
+chat-service:
+build: ../backend/chat-service
+container_name: soulmatch-chat
+ports:
+- "3005:3005"
+env_file: ../backend/chat-service/.env
+depends_on:
+- mongodb
+- redis
+command: npm run dev
+payment-service:
+build: ../backend/payment-service
+container_name: soulmatch-payment
+ports:
+- "3007:3007"
+env_file: ../backend/payment-service/.env
+depends_on:
+- postgres
+command: npm run dev
+notification-service:
+build: ../backend/notification-service
+container_name: soulmatch-notification
+ports:
+- "3006:3006"
+env_file: ../backend/notification-service/.env
+depends_on:
+- redis
+command: npm run dev
+search-service:
+build: ../backend/search-service
+container_name: soulmatch-search
+ports:
+- "3004:3004"
+env_file: ../backend/search-service/.env
+depends_on:
+- postgres
+command: npm run dev
+admin-service:
+build: ../backend/admin-service
+container_name: soulmatch-admin-api
+ports:
+- "3011:3011"
+env_file: ../backend/admin-service/.env
+depends_on:
+- postgres
+command: npm run dev
+admin-web:
+build: ../admin-web
+container_name: soulmatch-admin-web
+ports:
+- "3000:3000"
+command: npm start
+volumes:
+postgres_data:
+mongo_data:
+redis_data:

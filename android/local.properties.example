@@ -1,0 +1,13 @@
+# Copy to local.properties - do NOT commit to git
+sdk.dir=/path/to/your/Android/sdk
+AUTH_BASE_URL=http://10.0.2.2:3001/api/v1/
+PROFILE_BASE_URL=http://10.0.2.2:3002/api/v1/
+MATCHING_BASE_URL=http://10.0.2.2:3003/api/v1/
+SEARCH_BASE_URL=http://10.0.2.2:3004/api/v1/
+CHAT_BASE_URL=http://10.0.2.2:3005/api/v1/
+PAYMENT_BASE_URL=http://10.0.2.2:3007/api/v1/
+CONTROL_PLANE_BASE_URL=http://10.0.2.2:3011/api/v1/
+RAZORPAY_KEY_ID=rzp_test_your_key_here
+GOOGLE_WEB_CLIENT_ID=your_firebase_web_oauth_client_id.apps.googleusercontent.com
+# Backward-compatible alias also supported by app/build.gradle:
+# GOOGLE_CLIENT_ID=your_firebase_web_oauth_client_id.apps.googleusercontent.com

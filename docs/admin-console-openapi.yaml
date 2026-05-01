@@ -1,0 +1,177 @@
+openapi: 3.0.3
+info:
+  title: SoulMatch Admin Console API
+  version: 1.0.0
+servers:
+  - url: http://localhost:3011/api/v1/admin
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+    ProfileCreate:
+      type: object
+      properties:
+        firstName: { type: string }
+        lastName: { type: string }
+        phone: { type: string }
+        email: { type: string }
+        gender: { type: string }
+        religion: { type: string }
+        caste: { type: string }
+        motherTongue: { type: string }
+        occupation: { type: string }
+        workingCity: { type: string }
+        educationLevel: { type: string }
+        familyCity: { type: string }
+        aboutMe: { type: string }
+paths:
+  /login:
+    post:
+      security: []
+      summary: Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: JWT and role
+  /dashboard:
+    get:
+      summary: Dashboard KPI snapshot
+      responses:
+        "200": { description: Metrics }
+  /realtime/snapshot:
+    get:
+      summary: Realtime aggregate snapshot
+      responses:
+        "200": { description: Live users, approvals, payments, reports }
+  /profiles:
+    get:
+      summary: Search profiles
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: religion
+          schema: { type: string }
+        - in: query
+          name: caste
+          schema: { type: string }
+        - in: query
+          name: location
+          schema: { type: string }
+        - in: query
+          name: profession
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string, enum: [all, published, pending, suspended] }
+      responses:
+        "200": { description: Profile list }
+    post:
+      summary: Create a profile from admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProfileCreate" }
+      responses:
+        "201": { description: Created profile }
+  /profiles/bulk:
+    post:
+      summary: Bulk create profiles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                profiles:
+                  type: array
+                  items: { $ref: "#/components/schemas/ProfileCreate" }
+      responses:
+        "200": { description: Bulk import result }
+  /profiles/{id}/status:
+    put:
+      summary: Approve, reject, suspend, or restore profile
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action: { type: string, enum: [approve, reject, suspend, restore] }
+                reason: { type: string }
+      responses:
+        "200": { description: Updated profile }
+  /verifications:
+    get:
+      summary: Pending verification queue
+      responses:
+        "200": { description: Verification list }
+  /payments:
+    get:
+      summary: Payment transactions and plan aggregates
+      responses:
+        "200": { description: Payment dashboard data }
+  /payments/refunds:
+    post:
+      summary: Queue refund request
+      responses:
+        "200": { description: Refund queued }
+  /moderation/reports:
+    get:
+      summary: Abuse reports queue
+      responses:
+        "200": { description: Reports }
+  /alerts:
+    get:
+      summary: Fraud and operational alerts
+      responses:
+        "200": { description: Alert list }
+  /config/{key}:
+    put:
+      summary: Update dynamic configuration section
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Updated config }
+  /campaigns:
+    post:
+      summary: Create marketing campaign draft
+      responses:
+        "201": { description: Campaign draft }
+  /audit-logs:
+    get:
+      summary: Admin audit trail
+      responses:
+        "200": { description: Audit log list }

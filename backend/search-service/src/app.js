@@ -1,0 +1,16 @@
+require('dotenv').config();
+const express = require('express');
+const helmet = require('helmet');
+const cors = require('cors');
+const searchRoutes = require('./routes/searchRoutes');
+const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
+const logger = require('./utils/logger');
+const app = express();
+app.use(helmet()); app.use(cors()); app.use(express.json());
+app.use('/api/v1/search', searchRoutes);
+app.get('/health', (req, res) => res.json({ status:'ok', service:'search-service' }));
+app.use(notFoundHandler);
+app.use(errorHandler);
+const PORT = process.env.PORT || 3004;
+app.listen(PORT, () => logger.info('Search Service on port ' + PORT));
+module.exports = app;

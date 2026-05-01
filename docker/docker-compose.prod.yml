@@ -1,0 +1,185 @@
+services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    env_file:
+      - ./production.env
+    expose:
+      - '5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ../database/seeds/seed_data.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    expose:
+      - '27017'
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    expose:
+      - '6379'
+    volumes:
+      - redis_data:/data
+
+  auth-service:
+    build:
+      context: ../backend/auth-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./production.env
+    ports:
+      - '127.0.0.1:3001:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  profile-service:
+    build:
+      context: ../backend/profile-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./production.env
+    ports:
+      - '127.0.0.1:3002:3002'
+    volumes:
+      - profile_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  matching-service:
+    build:
+      context: ../backend/matching-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./production.env
+    ports:
+      - '127.0.0.1:3003:3003'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      notification-service:
+        condition: service_started
+
+  search-service:
+    build:
+      context: ../backend/search-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./production.env
+    ports:
+      - '127.0.0.1:3004:3004'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  chat-service:
+    build:
+      context: ../backend/chat-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./production.env
+    ports:
+      - '127.0.0.1:3005:3005'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+      redis:
+        condition: service_started
+
+  notification-service:
+    build:
+      context: ../backend/notification-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./production.env
+    ports:
+      - '127.0.0.1:3006:3006'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  payment-service:
+    build:
+      context: ../backend/payment-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./production.env
+    ports:
+      - '127.0.0.1:3007:3007'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  admin-service:
+    build:
+      context: ../backend/admin-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./production.env
+    ports:
+      - '127.0.0.1:3011:3011'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      profile-service:
+        condition: service_started
+      matching-service:
+        condition: service_started
+      search-service:
+        condition: service_started
+      chat-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+
+  admin-web:
+    build:
+      context: ../admin-web
+      dockerfile: Dockerfile.prod
+      args:
+        REACT_APP_ADMIN_API_URL: ${ADMIN_API_PUBLIC_URL:-http://localhost:3011/api/v1/admin}
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:3000:80'
+    depends_on:
+      admin-service:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:
+  profile_uploads:

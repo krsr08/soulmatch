@@ -1,0 +1,21 @@
+{
+  "project_info": {
+    "project_number": "123456789000",
+    "project_id": "soulmatch-dev",
+    "storage_bucket": "soulmatch-dev.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123456789000:android:abcdef1234567890",
+        "android_client_info": {
+          "package_name": "com.soulmatch.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [{ "current_key": "AIzaSyDummy_Key_For_Development_Only" }],
+      "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+    }
+  ],
+  "configuration_version": "1"
+}
