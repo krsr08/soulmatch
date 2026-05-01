@@ -12,6 +12,18 @@ plugins {
 android {
     namespace 'com.soulmatch.app'
     compileSdk 34
+    def props = new Properties()
+    def lpf = rootProject.file('local.properties')
+    if (lpf.exists()) { lpf.withInputStream { props.load(it) } }
+    def ciDebugKeystorePath = props.getProperty('CI_DEBUG_KEYSTORE_PATH', '').trim()
+    def ciDebugKeystorePassword = props.getProperty('CI_DEBUG_KEYSTORE_PASSWORD', '').trim()
+    def ciDebugKeyAlias = props.getProperty('CI_DEBUG_KEY_ALIAS', '').trim()
+    def ciDebugKeyPassword = props.getProperty('CI_DEBUG_KEY_PASSWORD', '').trim()
+    def hasCiDebugSigning = ciDebugKeystorePath &&
+        ciDebugKeystorePassword &&
+        ciDebugKeyAlias &&
+        ciDebugKeyPassword &&
+        file(ciDebugKeystorePath).exists()
 
     defaultConfig {
         applicationId "com.soulmatch.app"
@@ -23,10 +35,6 @@ android {
 
         // Your local.properties logic is correct! 
         // It helps the app find your Docker backend at 10.0.2.2
-        def props = new Properties()
-        def lpf = rootProject.file('local.properties')
-        if (lpf.exists()) { lpf.withInputStream { props.load(it) } }
-        
         def serviceBaseFrom = { String baseUrl, int port ->
             try {
                 def uri = new URI(baseUrl)
@@ -50,6 +58,17 @@ android {
         buildConfigField "String", "GOOGLE_WEB_CLIENT_ID", '"' + googleWebClientId + '"'
     }
 
+    signingConfigs {
+        ciDebug {
+            if (hasCiDebugSigning) {
+                storeFile file(ciDebugKeystorePath)
+                storePassword ciDebugKeystorePassword
+                keyAlias ciDebugKeyAlias
+                keyPassword ciDebugKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled true
@@ -59,6 +78,9 @@ android {
         debug {
             debuggable true
             manifestPlaceholders = [usesCleartextTraffic: "true"]
+            if (hasCiDebugSigning) {
+                signingConfig signingConfigs.ciDebug
+            }
         }
     }
 

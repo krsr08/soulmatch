@@ -25,6 +25,10 @@ jobs:
       FIREBASE_TESTERS: ${{ secrets.FIREBASE_TESTERS }}
       RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
       GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+      ANDROID_DISTRIBUTION_KEYSTORE_BASE64: ${{ secrets.ANDROID_DISTRIBUTION_KEYSTORE_BASE64 }}
+      ANDROID_DISTRIBUTION_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_DISTRIBUTION_KEYSTORE_PASSWORD }}
+      ANDROID_DISTRIBUTION_KEY_ALIAS: ${{ secrets.ANDROID_DISTRIBUTION_KEY_ALIAS }}
+      ANDROID_DISTRIBUTION_KEY_PASSWORD: ${{ secrets.ANDROID_DISTRIBUTION_KEY_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -78,6 +82,11 @@ jobs:
           chmod +x android/gradlew
           sed -i '/^org.gradle.java.home=/d' android/gradle.properties
           app_base="${APP_PUBLIC_API_BASE_URL%/}/"
+          ci_debug_keystore_path=""
+          if [ -n "${ANDROID_DISTRIBUTION_KEYSTORE_BASE64:-}" ]; then
+            ci_debug_keystore_path="$RUNNER_TEMP/soulmatch-distribution.jks"
+            printf '%s' "$ANDROID_DISTRIBUTION_KEYSTORE_BASE64" | base64 --decode > "$ci_debug_keystore_path"
+          fi
           {
             echo "sdk.dir=$ANDROID_HOME"
             echo "AUTH_BASE_URL=$app_base"
@@ -90,7 +99,27 @@ jobs:
             echo "CONTROL_PLANE_BASE_URL=$app_base"
             echo "RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID:-rzp_test_placeholder}"
             echo "GOOGLE_WEB_CLIENT_ID=${GOOGLE_WEB_CLIENT_ID:-}"
+            if [ -n "$ci_debug_keystore_path" ]; then
+              echo "CI_DEBUG_KEYSTORE_PATH=$ci_debug_keystore_path"
+              echo "CI_DEBUG_KEYSTORE_PASSWORD=${ANDROID_DISTRIBUTION_KEYSTORE_PASSWORD:-}"
+              echo "CI_DEBUG_KEY_ALIAS=${ANDROID_DISTRIBUTION_KEY_ALIAS:-}"
+              echo "CI_DEBUG_KEY_PASSWORD=${ANDROID_DISTRIBUTION_KEY_PASSWORD:-}"
+            fi
           } > android/local.properties
+
+          if [ -n "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]; then
+            test -n "$GOOGLE_WEB_CLIENT_ID" || {
+              echo "GOOGLE_WEB_CLIENT_ID is required for Firebase-distributed builds with Google Sign-In."
+              exit 1
+            }
+            test -n "$ci_debug_keystore_path" || {
+              echo "ANDROID_DISTRIBUTION_KEYSTORE_BASE64 is required so Firebase-distributed APKs use a stable SHA key."
+              exit 1
+            }
+            test -n "${ANDROID_DISTRIBUTION_KEYSTORE_PASSWORD:-}" || { echo "ANDROID_DISTRIBUTION_KEYSTORE_PASSWORD is required."; exit 1; }
+            test -n "${ANDROID_DISTRIBUTION_KEY_ALIAS:-}" || { echo "ANDROID_DISTRIBUTION_KEY_ALIAS is required."; exit 1; }
+            test -n "${ANDROID_DISTRIBUTION_KEY_PASSWORD:-}" || { echo "ANDROID_DISTRIBUTION_KEY_PASSWORD is required."; exit 1; }
+          fi
           cd android
           ./gradlew :app:assembleDebug :app:assembleRelease :app:testDebugUnitTest --no-daemon
 

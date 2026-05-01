@@ -17,6 +17,8 @@ local.properties
 *.aab
 *.hprof
 java_pid*.hprof
+*.jks
+*.p12
 __pycache__/
 **/__pycache__/
 *.pyc

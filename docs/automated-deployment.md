@@ -42,9 +42,15 @@ Add these repository secrets:
 - `FIREBASE_TESTERS`: optional comma-separated tester emails, for example `qa1@example.com,qa2@example.com`.
 - `APP_PUBLIC_API_BASE_URL`: optional, defaults to `http://20.204.142.19/api/v1/`.
 - `RAZORPAY_KEY_ID`: optional Android test checkout key.
-- `GOOGLE_WEB_CLIENT_ID`: optional Google Sign-In web client ID.
+- `GOOGLE_WEB_CLIENT_ID`: Google Sign-In Web client ID. This must be the Web OAuth client ID, not the Android client ID.
+- `ANDROID_DISTRIBUTION_KEYSTORE_BASE64`: base64 of the stable App Distribution signing keystore.
+- `ANDROID_DISTRIBUTION_KEYSTORE_PASSWORD`: App Distribution keystore password.
+- `ANDROID_DISTRIBUTION_KEY_ALIAS`: App Distribution key alias.
+- `ANDROID_DISTRIBUTION_KEY_PASSWORD`: App Distribution key password.
 
 Set at least one of `FIREBASE_DISTRIBUTION_GROUPS` or `FIREBASE_TESTERS`. If the Firebase service account secret is missing, the workflow skips App Distribution but still builds the APK artifact.
+
+For Google Sign-In to work on Firebase App Distribution builds, the distributed APK must be signed with a stable keystore. Add that keystore's SHA-1 and SHA-256 fingerprints to the Firebase Android app, then download a fresh `google-services.json`.
 
 ## VM Requirements
 
