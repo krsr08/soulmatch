@@ -24,7 +24,7 @@ jobs:
       FIREBASE_DISTRIBUTION_GROUPS: ${{ secrets.FIREBASE_DISTRIBUTION_GROUPS }}
       FIREBASE_TESTERS: ${{ secrets.FIREBASE_TESTERS }}
       RAZORPAY_KEY_ID: ${{ secrets.RAZORPAY_KEY_ID }}
-      GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+      GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID || '253330028301-46qp0puk1rj2nvpmoklagv4njcta6do7.apps.googleusercontent.com' }}
       ANDROID_DISTRIBUTION_KEYSTORE_BASE64: ${{ secrets.ANDROID_DISTRIBUTION_KEYSTORE_BASE64 }}
       ANDROID_DISTRIBUTION_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_DISTRIBUTION_KEYSTORE_PASSWORD }}
       ANDROID_DISTRIBUTION_KEY_ALIAS: ${{ secrets.ANDROID_DISTRIBUTION_KEY_ALIAS }}
@@ -112,6 +112,14 @@ jobs:
               echo "GOOGLE_WEB_CLIENT_ID is required for Firebase-distributed builds with Google Sign-In."
               exit 1
             }
+            case "$GOOGLE_WEB_CLIENT_ID" in
+              253330028301-*.apps.googleusercontent.com) ;;
+              *)
+                echo "GOOGLE_WEB_CLIENT_ID must belong to Firebase project soul-match-2ead9/project number 253330028301."
+                echo "Use the Web OAuth client ID from that same Google Cloud project, not an Android client ID or an old project."
+                exit 1
+                ;;
+            esac
             test -n "$ci_debug_keystore_path" || {
               echo "ANDROID_DISTRIBUTION_KEYSTORE_BASE64 is required so Firebase-distributed APKs use a stable SHA key."
               exit 1

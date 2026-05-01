@@ -42,7 +42,7 @@ Add these repository secrets:
 - `FIREBASE_TESTERS`: optional comma-separated tester emails, for example `qa1@example.com,qa2@example.com`.
 - `APP_PUBLIC_API_BASE_URL`: optional, defaults to `http://20.204.142.19/api/v1/`.
 - `RAZORPAY_KEY_ID`: optional Android test checkout key.
-- `GOOGLE_WEB_CLIENT_ID`: Google Sign-In Web client ID. This must be the Web OAuth client ID, not the Android client ID.
+- `GOOGLE_WEB_CLIENT_ID`: `253330028301-46qp0puk1rj2nvpmoklagv4njcta6do7.apps.googleusercontent.com`. This must be the Web OAuth client ID from Firebase project `soul-match-2ead9`, not the Android client ID and not an old `996358802555-*` client.
 - `ANDROID_DISTRIBUTION_KEYSTORE_BASE64`: base64 of the stable App Distribution signing keystore.
 - `ANDROID_DISTRIBUTION_KEYSTORE_PASSWORD`: App Distribution keystore password.
 - `ANDROID_DISTRIBUTION_KEY_ALIAS`: App Distribution key alias.
