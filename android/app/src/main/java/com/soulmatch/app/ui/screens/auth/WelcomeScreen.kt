@@ -1,5 +1,8 @@
 package com.soulmatch.app.ui.screens.auth
 
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -75,6 +78,8 @@ import com.soulmatch.app.data.models.AuthContentData
 import com.soulmatch.app.data.models.BrandingConfig
 import com.soulmatch.app.ui.viewmodels.AuthUiState
 import com.soulmatch.app.ui.viewmodels.AuthViewModel
+import java.security.MessageDigest
+import java.util.Locale
 
 @Composable
 @Suppress("UNUSED_PARAMETER")
@@ -109,8 +114,9 @@ fun WelcomeScreen(
             vm.googleLogin(account.idToken)
         } catch (error: ApiException) {
             val statusName = GoogleSignInStatusCodes.getStatusCodeString(error.statusCode)
-            Log.e("WelcomeScreen", "Google sign-in failed: statusCode=${error.statusCode}, status=$statusName", error)
-            vm.reportError(googleSignInErrorMessage(error.statusCode, statusName))
+            val diagnostics = googleSignInDiagnostics(context, webClientId)
+            Log.e("WelcomeScreen", "Google sign-in failed: statusCode=${error.statusCode}, status=$statusName, $diagnostics", error)
+            vm.reportError("${googleSignInErrorMessage(error.statusCode, statusName)}\n$diagnostics")
         }
     }
 
@@ -187,7 +193,7 @@ private fun googleSignInErrorMessage(statusCode: Int, statusName: String): Strin
         GoogleSignInStatusCodes.SIGN_IN_CANCELLED -> "Google sign-in was cancelled."
         GoogleSignInStatusCodes.SIGN_IN_CURRENTLY_IN_PROGRESS -> "Google sign-in is already in progress. Please wait."
         GoogleSignInStatusCodes.SIGN_IN_FAILED,
-        CommonStatusCodes.DEVELOPER_ERROR -> "Google sign-in setup needs fixing. Check Firebase SHA keys and Web client ID. Code: $statusCode"
+        CommonStatusCodes.DEVELOPER_ERROR -> "Google sign-in setup needs fixing. Check Android OAuth SHA and Web client ID. Code: $statusCode"
         else -> "Google sign-in failed. Code: $statusCode $statusName"
     }
 }
@@ -569,12 +575,35 @@ private fun WaveBottom(modifier: Modifier = Modifier) {
 @Composable
 private fun rememberGoogleWebClientId(configuredClientId: String): String {
     val context = LocalContext.current
-    return configuredClientId.ifBlank {
-        BuildConfig.GOOGLE_WEB_CLIENT_ID.ifBlank {
-            val id = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
-            if (id != 0) context.getString(id) else ""
+    return BuildConfig.GOOGLE_WEB_CLIENT_ID.ifBlank {
+        configuredClientId.ifBlank {
+            val defaultWebClientId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+            if (defaultWebClientId != 0) context.getString(defaultWebClientId) else ""
         }
     }
+}
+
+private fun googleSignInDiagnostics(context: Context, webClientId: String): String {
+    val resolvedClient = webClientId.ifBlank { "blank" }
+    return "Package: ${context.packageName}\nWeb client: $resolvedClient\nSHA-1: ${currentSigningSha1(context)}"
+}
+
+@Suppress("DEPRECATION")
+private fun currentSigningSha1(context: Context): String {
+    return runCatching {
+        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+        } else {
+            context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
+        }
+        val signatureBytes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo.signingInfo?.apkContentsSigners?.firstOrNull()?.toByteArray()
+        } else {
+            packageInfo.signatures?.firstOrNull()?.toByteArray()
+        } ?: return "unavailable"
+        val digest = MessageDigest.getInstance("SHA-1").digest(signatureBytes)
+        digest.joinToString(":") { "%02X".format(Locale.US, it) }
+    }.getOrElse { "unavailable" }
 }
 
 private val LoginCream = Color(0xFFFFF8EF)
