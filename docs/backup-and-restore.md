@@ -64,6 +64,15 @@ AZURE_BACKUP_CONTAINER="soulmatch-backups"
 
 Without those variables, backups stay local on the VM.
 
+Current Azure backup target:
+
+```bash
+Storage account: soulmatchbkb1bbhwbi
+Container: soulmatch-backups
+```
+
+The production VM is configured to upload each daily backup to that private container.
+
 ## Restore
 
 Restores are destructive. Stop and think before running.
