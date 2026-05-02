@@ -27,6 +27,10 @@ __pycache__/
 .DS_Store
 .idea/
 *.log
+backups/
+*.dump
+*.archive.gz
+profile_uploads.tar.gz
 client_secret*.json
 key.txt
 *.keystore
