@@ -1,4 +1,7 @@
 package com.soulmatch.app.ui.screens.auth
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -33,6 +37,7 @@ fun OTPVerificationScreen(phone: String, onVerified: (String) -> Unit, onBack: (
     var countdown by remember { mutableIntStateOf(30) }
     var canResend by remember { mutableStateOf(false) }
     var resendCycle by remember { mutableIntStateOf(0) }
+    val activity = LocalContext.current.findActivity()
     LaunchedEffect(resendCycle) { while (countdown > 0) { delay(1000); countdown-- }; canResend = true }
     LaunchedEffect(state) { when (state) { is AuthUiState.Verified -> onVerified((state as AuthUiState.Verified).route); is AuthUiState.Error -> { boxes.forEachIndexed { i, _ -> boxes[i] = "" }; focusers[0].requestFocus() }; else -> {} } }
     LaunchedEffect(Unit) { delay(200); focusers[0].requestFocus() }
@@ -50,10 +55,25 @@ fun OTPVerificationScreen(phone: String, onVerified: (String) -> Unit, onBack: (
             }
             if (state is AuthUiState.Error) Text((state as AuthUiState.Error).message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top=8.dp))
             Spacer(Modifier.height(32.dp))
-            if (canResend) TextButton(onClick = { vm.sendOTP(phone); countdown=30; canResend=false; resendCycle++ }) { Text("Resend OTP", color = Primary) }
+            if (canResend) TextButton(onClick = {
+                if (activity == null) {
+                    vm.reportError("This screen needs an active Android activity to resend the OTP.")
+                } else {
+                    vm.sendFirebaseOTP(activity, phone)
+                    countdown=30
+                    canResend=false
+                    resendCycle++
+                }
+            }) { Text("Resend OTP", color = Primary) }
             else Text("Resend in 00:${countdown.toString().padStart(2,'0')}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.5f))
             Spacer(Modifier.height(16.dp))
             if (state is AuthUiState.Loading) CircularProgressIndicator(color = Primary)
         }
     }
+}
+
+private fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

@@ -137,6 +137,9 @@ fun AppNavigation(
             PhoneEntryScreen(
                 content = content.phoneEntry,
                 onOTPSent = { phone -> nav.navigate("otp/$phone") },
+                onVerified = { route ->
+                    nav.navigate(route) { popUpTo("welcome") { inclusive = true } }
+                },
                 onBack = { nav.popBackStack() }
             )
         }

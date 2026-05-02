@@ -141,12 +141,14 @@ dependencies {
 
     // Firebase (Cleaned up duplicates - using the newer 33.1.0 version)
     implementation platform('com.google.firebase:firebase-bom:33.1.0')
+    implementation 'com.google.firebase:firebase-auth-ktx'
     implementation 'com.google.firebase:firebase-messaging-ktx'
     implementation 'com.google.android.gms:play-services-auth:20.7.0'
 
     // Payments & Coroutines
     implementation 'com.razorpay:checkout:1.6.33'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3'
 
     testImplementation 'junit:junit:4.13.2'
 }

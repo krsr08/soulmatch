@@ -17,6 +17,12 @@ data class ErrorData(
 data class SendOTPRequest(val phone: String)
 data class VerifyOTPRequest(val phone: String, val otp: String)
 data class GoogleLoginRequest(val googleToken: String)
+data class FirebasePhoneLoginRequest(
+    val firebaseToken: String,
+    val phone: String? = null,
+    val inviteCode: String? = null,
+    val acquisitionSource: String? = null
+)
 data class RefreshTokenRequest(val refreshToken: String)
 data class FcmTokenRequest(val token: String)
 data class AnalyticsEventRequest(

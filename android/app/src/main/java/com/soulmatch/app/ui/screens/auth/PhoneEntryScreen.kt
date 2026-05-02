@@ -1,5 +1,8 @@
 package com.soulmatch.app.ui.screens.auth
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -35,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -59,6 +63,7 @@ import com.soulmatch.app.ui.viewmodels.AuthViewModel
 fun PhoneEntryScreen(
     content: PhoneEntryContentData = PhoneEntryContentData(),
     onOTPSent: (String) -> Unit,
+    onVerified: (String) -> Unit = {},
     onBack: () -> Unit,
     vm: AuthViewModel = hiltViewModel()
 ) {
@@ -71,7 +76,9 @@ fun PhoneEntryScreen(
 
     LaunchedEffect(state) {
         if (state is AuthUiState.OTPSent) onOTPSent(countryCode + phone)
+        if (state is AuthUiState.Verified) onVerified((state as AuthUiState.Verified).route)
     }
+    val activity = LocalContext.current.findActivity()
 
     Scaffold(
         topBar = {
@@ -160,7 +167,13 @@ fun PhoneEntryScreen(
                         )
 
                         Button(
-                            onClick = { vm.sendOTP(countryCode + phone) },
+                            onClick = {
+                                if (activity == null) {
+                                    vm.reportError("This screen needs an active Android activity to verify your phone.")
+                                } else {
+                                    vm.sendFirebaseOTP(activity, countryCode + phone)
+                                }
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(54.dp),
@@ -196,6 +209,12 @@ fun PhoneEntryScreen(
             }
         }
     }
+}
+
+private fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 @Composable
