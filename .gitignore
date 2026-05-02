@@ -34,5 +34,6 @@ profile_uploads.tar.gz
 client_secret*.json
 key.txt
 *.keystore
+soulmatch-github-secrets.local.json
 backend/*/uploads/*
 !backend/*/uploads/.gitkeep
