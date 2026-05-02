@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
@@ -219,7 +218,9 @@ fun MyProfileScreen(
                                 photos = photos,
                                 verifications = verifications,
                                 isSubmitting = submittingVerification,
-                                onSubmit = vm::submitProfileVerification
+                                onSubmit = vm::submitProfileVerification,
+                                onCompleteProfile = { editSection(checklist.firstOrNull { !it.isComplete }?.editStep ?: 1) },
+                                onAddPhoto = { photoPicker.launch("image/*") }
                             )
                         }
                         item {
@@ -240,9 +241,6 @@ fun MyProfileScreen(
                             PartnerPreferencesCard(preferences = preferences, onSave = { ageMin, ageMax, religion, manglikPref ->
                                 vm.updatePartnerPreferences(ageMin, ageMax, religion, manglikPref)
                             })
-                        }
-                        item {
-                            EditSectionsCard(onEditSection = editSection)
                         }
                         if (viewers.isNotEmpty()) {
                             item {
@@ -463,7 +461,9 @@ private fun VerificationStatusCard(
     photos: List<ProfilePhoto>,
     verifications: List<VerificationRequestData>,
     isSubmitting: Boolean,
-    onSubmit: () -> Unit
+    onSubmit: () -> Unit,
+    onCompleteProfile: () -> Unit,
+    onAddPhoto: () -> Unit
 ) {
     val latest = verifications.maxByOrNull { it.createdAt }
     val pending = verifications.firstOrNull { it.status.equals("pending", ignoreCase = true) }
@@ -479,8 +479,6 @@ private fun VerificationStatusCard(
     val isCompleteEnough = profile.completionScore >= 60
     val canSubmit = state != ProfileVerificationState.Verified &&
         state != ProfileVerificationState.Pending &&
-        hasPhoto &&
-        isCompleteEnough &&
         !isSubmitting
     val title = when (state) {
         ProfileVerificationState.Verified -> "Verified profile"
@@ -548,6 +546,14 @@ private fun VerificationStatusCard(
                     Icon(Icons.Filled.Verified, contentDescription = null, modifier = Modifier.size(18.dp))
                 }
                 Text(buttonLabel)
+            }
+            if (!hasPhoto || !isCompleteEnough) {
+                OutlinedButton(
+                    onClick = if (!hasPhoto) onAddPhoto else onCompleteProfile,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (!hasPhoto) "Add photos first" else "Complete profile first")
+                }
             }
         }
     }
@@ -728,46 +734,6 @@ private fun PartnerPreferencesCard(
             }
             Button(onClick = { onSave(ageMin, ageMax, religion, manglikPref) }, modifier = Modifier.fillMaxWidth()) {
                 Text("Save preferences")
-            }
-        }
-    }
-}
-
-@Composable
-private fun EditSectionsCard(onEditSection: (Int) -> Unit) {
-    val sections = listOf(
-        1 to "Basic details",
-        2 to "Physical",
-        3 to "Career",
-        4 to "Family",
-        5 to "Lifestyle",
-        6 to "Horoscope"
-    )
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionTitle("Edit sections", "Jump straight to the part that needs polish")
-            sections.chunked(2).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    row.forEach { (step, label) ->
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(58.dp)
-                                .clickable { onEditSection(step) },
-                            shape = RoundedCornerShape(18.dp),
-                            color = SurfaceSoft,
-                            border = BorderStroke(1.dp, Divider)
-                        ) {
-                            Row(Modifier.padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.Edit, contentDescription = null, tint = PrimaryDark, modifier = Modifier.size(18.dp))
-                                Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    }
-                    if (row.size == 1) {
-                        Box(Modifier.weight(1f))
-                    }
-                }
             }
         }
     }
