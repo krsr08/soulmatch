@@ -48,8 +48,10 @@ import com.soulmatch.app.ui.screens.profile.MyProfileScreen
 import com.soulmatch.app.ui.screens.profile.ProfileDetailScreen
 import com.soulmatch.app.ui.screens.search.SearchScreen
 import com.soulmatch.app.ui.screens.settings.SettingsScreen
+import com.soulmatch.app.ui.screens.success.SuccessStoriesScreen
 import com.soulmatch.app.ui.screens.subscription.SubscriptionScreen
 import com.soulmatch.app.ui.viewmodels.AnalyticsViewModel
+import com.soulmatch.app.ui.components.ProfileDrawerRoutes
 
 @Composable
 fun AppNavigation(
@@ -186,6 +188,20 @@ fun AppNavigation(
                 onOpenBestMatches = { nav.navigate("best_matches") },
                 onOpenNotifications = { nav.navigate("notifications") },
                 onOpenProfile = { nav.navigate("my_profile") },
+                onProfileMenuDestination = { destination ->
+                    when (destination) {
+                        ProfileDrawerRoutes.EditProfile -> nav.navigate("my_profile")
+                        ProfileDrawerRoutes.PartnerPreference -> nav.navigate("my_profile")
+                        ProfileDrawerRoutes.Spotlight -> nav.navigate("subscription?routeCode=33")
+                        ProfileDrawerRoutes.AstrologyServices -> nav.navigate("subscription?routeCode=18")
+                        ProfileDrawerRoutes.AccountSettings -> nav.navigate("settings")
+                        ProfileDrawerRoutes.SafetyCenter -> nav.navigate("settings")
+                        ProfileDrawerRoutes.HelpSupport -> nav.navigate("settings")
+                        ProfileDrawerRoutes.SuccessStories2026 -> nav.navigate("success_stories/2026")
+                        ProfileDrawerRoutes.SuccessStories2025 -> nav.navigate("success_stories/2025")
+                        ProfileDrawerRoutes.SuccessStories2024 -> nav.navigate("success_stories/2024")
+                    }
+                },
                 onOpenSubscription = { nav.navigate("subscription") }
             )
         }
@@ -200,6 +216,7 @@ fun AppNavigation(
         composable("best_matches") {
             BestMatchesScreen(
                 onViewProfile = { nav.navigate("profile/$it") },
+                onSubscribe = { nav.navigate("subscription") },
                 onBack = { nav.popBackStack() }
             )
         }
@@ -284,6 +301,15 @@ fun AppNavigation(
             SettingsScreen(
                 onBack = { nav.popBackStack() },
                 onLogout = { nav.navigate("welcome") { popUpTo(0) { inclusive = true } } }
+            )
+        }
+        composable(
+            "success_stories/{year}",
+            arguments = listOf(navArgument("year") { type = NavType.StringType })
+        ) { backStack ->
+            SuccessStoriesScreen(
+                year = backStack.arguments?.getString("year") ?: "2026",
+                onBack = { nav.popBackStack() }
             )
         }
     }

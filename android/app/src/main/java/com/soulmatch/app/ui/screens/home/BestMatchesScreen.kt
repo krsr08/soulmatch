@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -45,6 +46,7 @@ import com.soulmatch.app.data.models.ProfileSummary
 import com.soulmatch.app.ui.components.PremiumCard
 import com.soulmatch.app.ui.components.PremiumScreen
 import com.soulmatch.app.ui.components.ProfileCard
+import com.soulmatch.app.ui.components.UpgradePlanGate
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.SurfaceSoft
 import com.soulmatch.app.ui.theme.SurfaceWarm
@@ -64,6 +66,7 @@ private enum class BestMatchFilter(val label: String) {
 fun BestMatchesScreen(
     onBack: () -> Unit = {},
     onViewProfile: (String) -> Unit,
+    onSubscribe: () -> Unit = {},
     vm: DashboardViewModel = hiltViewModel()
 ) {
     val matches by vm.matches.collectAsStateWithLifecycle()
@@ -146,13 +149,23 @@ fun BestMatchesScreen(
                             }
                         }
                     } else {
-                        items(rankedMatches, key = { it.profileId }) { profile ->
+                        itemsIndexed(rankedMatches, key = { _, profile -> profile.profileId }) { index, profile ->
                             ProfileCard(
                                 profile = profile,
                                 onSendInterest = { vm.sendInterest(it) },
                                 onViewProfile = onViewProfile,
                                 onShortlist = { vm.toggleShortlist(it) }
                             )
+                            if ((index + 1) % 5 == 0 && index != rankedMatches.lastIndex) {
+                                UpgradePlanGate(
+                                    title = "Upgrade for more match actions",
+                                    detail = "Unlock contact views, profile highlights, and stronger visibility while browsing.",
+                                    actionLabel = "Upgrade",
+                                    onUpgrade = onSubscribe,
+                                    compact = true,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                            }
                         }
                     }
                 }

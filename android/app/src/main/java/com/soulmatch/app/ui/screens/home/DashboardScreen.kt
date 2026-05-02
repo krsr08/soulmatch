@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Bookmark
@@ -36,15 +37,24 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +63,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,11 +71,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.HomeContentData
 import com.soulmatch.app.data.models.InterestListItem
+import com.soulmatch.app.data.models.PartnerPreferencesData
 import com.soulmatch.app.data.models.ProfileSummary
 import com.soulmatch.app.data.models.fullName
 import com.soulmatch.app.ui.components.MemberPhoto
 import com.soulmatch.app.ui.components.PremiumCard
 import com.soulmatch.app.ui.components.PremiumScreen
+import com.soulmatch.app.ui.components.ProfileSideDrawer
 import com.soulmatch.app.ui.components.ProfileStrengthAdvisor
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.PrimaryDark
@@ -73,6 +86,7 @@ import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.viewmodels.DashboardViewModel
 import com.soulmatch.app.ui.viewmodels.NotificationsViewModel
+import kotlinx.coroutines.launch
 
 private val HomeBackground = Color(0xFFFFF9F2)
 private val HomePrimary = Color(0xFFD12E5E)
@@ -89,6 +103,7 @@ fun DashboardScreen(
     onOpenBestMatches: () -> Unit = onOpenSearch,
     onOpenNotifications: () -> Unit = onOpenMessages,
     onOpenProfile: () -> Unit,
+    onProfileMenuDestination: (String) -> Unit = {},
     onOpenSubscription: () -> Unit = {},
     vm: DashboardViewModel = hiltViewModel(),
     notificationsVm: NotificationsViewModel = hiltViewModel()
@@ -98,9 +113,15 @@ fun DashboardScreen(
     val myProfile by vm.myProfile.collectAsStateWithLifecycle()
     val loading by vm.isLoading.collectAsStateWithLifecycle()
     val notifications by notificationsVm.notifications.collectAsStateWithLifecycle()
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    var partnerPromptSkipped by rememberSaveable(myProfile.profileId) { mutableStateOf(false) }
     val unreadNotificationCount = notifications.count {
         it.readAt.isNullOrBlank() && !it.status.equals("read", ignoreCase = true)
     }
+    val shouldPromptPartnerPreference = myProfile.profileId.isNotBlank() &&
+        myProfile.completionScore >= 60 &&
+        !myProfile.isPartnerPrefSet
     val rankedMatches = matches.sortedWith(
         compareByDescending<ProfileSummary> { it.compatibilityScore }
             .thenBy { it.name }
@@ -108,115 +129,141 @@ fun DashboardScreen(
     val bestMatches = rankedMatches.take(2)
     val newProfiles = rankedMatches.drop(2).take(8).ifEmpty { rankedMatches.take(6) }
 
-    Scaffold(
-        topBar = {
-            HomeTopBar(
-                profilePhoto = myProfile.primaryPhotoUrl,
-                unreadCount = unreadNotificationCount,
-                onOpenProfile = onOpenProfile,
-                onOpenNotifications = onOpenNotifications
-            )
-        },
-        containerColor = HomeBackground
-    ) { padding ->
-        PremiumScreen(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(HomeBackground)
-        ) {
-            if (loading && matches.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    androidx.compose.material3.CircularProgressIndicator(color = HomePrimary)
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 24.dp)
-                ) {
-                    item {
-                        WelcomeSection(firstName = myProfile.firstName.ifBlank { "Aarav" })
+    ProfileSideDrawer(
+        drawerState = drawerState,
+        profileName = myProfile.fullName(),
+        profilePhotoUrl = myProfile.primaryPhotoUrl,
+        isVerified = myProfile.verificationStatus.equals("verified", ignoreCase = true),
+        onDestinationSelected = { destination ->
+            scope.launch { drawerState.close() }
+            onProfileMenuDestination(destination)
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                HomeTopBar(
+                    profilePhoto = myProfile.primaryPhotoUrl,
+                    unreadCount = unreadNotificationCount,
+                    onOpenProfile = { scope.launch { drawerState.open() } },
+                    onOpenNotifications = onOpenNotifications
+                )
+            },
+            containerColor = HomeBackground
+        ) { padding ->
+            PremiumScreen(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .background(HomeBackground)
+            ) {
+                if (loading && matches.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        androidx.compose.material3.CircularProgressIndicator(color = HomePrimary)
                     }
-                    item {
-                        ProfileStrengthCard(
-                            score = myProfile.completionScore.coerceIn(0, 100),
-                            detail = ProfileStrengthAdvisor.summary(myProfile),
-                            onClick = onOpenProfile
-                        )
-                    }
-                    item {
-                        HomeSectionHeader(
-                            title = content.bestMatchesTitle.ifBlank { "Best Matches" }.let {
-                                if (it.equals("Best matches", ignoreCase = true)) "Best Matches" else it
-                            },
-                            modifier = Modifier.padding(top = 26.dp),
-                            actionText = "View All",
-                            onAction = onOpenBestMatches
-                        )
-                    }
-                    if (bestMatches.isEmpty()) {
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 24.dp)
+                    ) {
                         item {
-                            EmptyHomeCard(
-                                title = content.emptyTitle.ifBlank { "Your profile needs a little more detail" },
-                                body = content.emptyBody.ifBlank { "Complete family, lifestyle, and preference details to unlock stronger recommendations." },
-                                action = content.emptyCta.ifBlank { "Improve my profile" },
-                                onAction = onOpenProfile
+                            WelcomeSection(firstName = myProfile.firstName.ifBlank { "Aarav" })
+                        }
+                        item {
+                            ProfileStrengthCard(
+                                score = myProfile.completionScore.coerceIn(0, 100),
+                                detail = ProfileStrengthAdvisor.summary(myProfile),
+                                onClick = onOpenProfile
                             )
                         }
-                    } else {
-                        items(bestMatches, key = { it.profileId }) { profile ->
-                            HomeMatchCard(
-                                profile = profile,
-                                onOpen = { onViewProfile(profile.profileId) },
-                                onInterest = { vm.sendInterest(profile.profileId) },
-                                onShortlist = { vm.toggleShortlist(profile.profileId) }
+                        if (shouldPromptPartnerPreference && partnerPromptSkipped) {
+                            item {
+                                PartnerPreferenceReminderBanner(onOpen = { partnerPromptSkipped = false })
+                            }
+                        }
+                        item {
+                            HomeSectionHeader(
+                                title = content.bestMatchesTitle.ifBlank { "Best Matches" }.let {
+                                    if (it.equals("Best matches", ignoreCase = true)) "Best Matches" else it
+                                },
+                                modifier = Modifier.padding(top = 26.dp),
+                                actionText = "View All",
+                                onAction = onOpenBestMatches
                             )
                         }
-                    }
-                    item {
-                        HomeSectionHeader(
-                            title = "New Profiles",
-                            modifier = Modifier.padding(top = 24.dp),
-                            actionText = "View All",
-                            onAction = onOpenSearch
-                        )
-                    }
-                    item {
-                        NewProfilesCarousel(
-                            profiles = newProfiles,
-                            onOpenProfile = onViewProfile
-                        )
-                    }
-                    item {
-                        HomeSectionHeader(
-                            title = "Pending Invitations (${pendingInvitations.size})",
-                            modifier = Modifier.padding(top = 24.dp),
-                            actionText = "Activity",
-                            onAction = onOpenInterests
-                        )
-                    }
-                    if (pendingInvitations.isEmpty()) {
+                        if (bestMatches.isEmpty()) {
+                            item {
+                                EmptyHomeCard(
+                                    title = content.emptyTitle.ifBlank { "Your profile needs a little more detail" },
+                                    body = content.emptyBody.ifBlank { "Complete family, lifestyle, and preference details to unlock stronger recommendations." },
+                                    action = content.emptyCta.ifBlank { "Improve my profile" },
+                                    onAction = onOpenProfile
+                                )
+                            }
+                        } else {
+                            items(bestMatches, key = { it.profileId }) { profile ->
+                                HomeMatchCard(
+                                    profile = profile,
+                                    onOpen = { onViewProfile(profile.profileId) },
+                                    onInterest = { vm.sendInterest(profile.profileId) },
+                                    onShortlist = { vm.toggleShortlist(profile.profileId) }
+                                )
+                            }
+                        }
                         item {
-                            EmptyHomeCard(
-                                title = "No pending invitations",
-                                body = "New invitations will appear here with quick accept and decline actions.",
-                                action = "Browse matches",
+                            HomeSectionHeader(
+                                title = "New Profiles",
+                                modifier = Modifier.padding(top = 24.dp),
+                                actionText = "View All",
                                 onAction = onOpenSearch
                             )
                         }
-                    } else {
-                        items(pendingInvitations.take(2), key = { it.interestId }) { invitation ->
-                            PendingInvitationCard(
-                                invitation = invitation,
-                                onOpen = { onViewProfile(invitation.profileId) },
-                                onAccept = { vm.respondToInvitation(invitation.interestId, "accepted") },
-                                onDecline = { vm.respondToInvitation(invitation.interestId, "declined") }
+                        item {
+                            NewProfilesCarousel(
+                                profiles = newProfiles,
+                                onOpenProfile = onViewProfile
                             )
+                        }
+                        item {
+                            HomeSectionHeader(
+                                title = "Pending Invitations (${pendingInvitations.size})",
+                                modifier = Modifier.padding(top = 24.dp),
+                                actionText = "Activity",
+                                onAction = onOpenInterests
+                            )
+                        }
+                        if (pendingInvitations.isEmpty()) {
+                            item {
+                                EmptyHomeCard(
+                                    title = "No pending invitations",
+                                    body = "New invitations will appear here with quick accept and decline actions.",
+                                    action = "Browse matches",
+                                    onAction = onOpenSearch
+                                )
+                            }
+                        } else {
+                            items(pendingInvitations.take(2), key = { it.interestId }) { invitation ->
+                                PendingInvitationCard(
+                                    invitation = invitation,
+                                    onOpen = { onViewProfile(invitation.profileId) },
+                                    onAccept = { vm.respondToInvitation(invitation.interestId, "accepted") },
+                                    onDecline = { vm.respondToInvitation(invitation.interestId, "declined") }
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+    }
+    if (shouldPromptPartnerPreference && !partnerPromptSkipped) {
+        PartnerPreferencePromptDialog(
+            onSkip = { partnerPromptSkipped = true },
+            onSave = { preferences ->
+                vm.savePartnerPreferences(preferences) {
+                    partnerPromptSkipped = false
+                }
+            }
+        )
     }
 }
 
@@ -349,6 +396,132 @@ private fun ProfileStrengthCard(score: Int, detail: String, onClick: () -> Unit)
 }
 
 @Composable
+private fun PartnerPreferenceReminderBanner(onOpen: () -> Unit) {
+    PremiumCard(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+        containerColor = Color(0xFFFFF0F3),
+        contentPadding = PaddingValues(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    "Set Your Partner Preferences",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = PrimaryDark
+                )
+                Text(
+                    "Add age, religion, and manglik preference to improve match ranking.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+            }
+            Button(onClick = onOpen) {
+                Text("Update")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PartnerPreferencePromptDialog(
+    onSkip: () -> Unit,
+    onSave: (PartnerPreferencesData) -> Unit
+) {
+    var ageMin by rememberSaveable { mutableStateOf("24") }
+    var ageMax by rememberSaveable { mutableStateOf("32") }
+    var religion by rememberSaveable { mutableStateOf("") }
+    var manglikPref by rememberSaveable { mutableStateOf("any") }
+    val min = ageMin.toIntOrNull()
+    val max = ageMax.toIntOrNull()
+    val canSave = min != null && max != null && min in 18..80 && max in min..80
+
+    AlertDialog(
+        onDismissRequest = onSkip,
+        title = { Text("Set Your Partner Preferences") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "You can skip this now, but SoulMatch will remind you until preferences are saved.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = ageMin,
+                        onValueChange = { ageMin = it.filter(Char::isDigit).take(2) },
+                        label = { Text("Min age") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    OutlinedTextField(
+                        value = ageMax,
+                        onValueChange = { ageMax = it.filter(Char::isDigit).take(2) },
+                        label = { Text("Max age") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                }
+                OutlinedTextField(
+                    value = religion,
+                    onValueChange = { religion = it },
+                    label = { Text("Preferred religion") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("any", "yes", "no").forEach { option ->
+                        Surface(
+                            modifier = Modifier.clickable { manglikPref = option },
+                            shape = RoundedCornerShape(999.dp),
+                            color = if (manglikPref == option) HomePrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, if (manglikPref == option) HomePrimary else Divider)
+                        ) {
+                            Text(
+                                option.replaceFirstChar { it.uppercaseChar() },
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (manglikPref == option) HomePrimary else TextSecondary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = canSave,
+                onClick = {
+                    onSave(
+                        PartnerPreferencesData(
+                            ageMin = min ?: 24,
+                            ageMax = max ?: 32,
+                            religion = religion.trim().ifBlank { null },
+                            manglikPref = manglikPref
+                        )
+                    )
+                }
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onSkip) {
+                Text("Skip")
+            }
+        }
+    )
+}
+
+@Composable
 private fun HomeSectionHeader(
     title: String,
     modifier: Modifier = Modifier,
@@ -474,13 +647,14 @@ private fun HomeMatchCard(
                     }
                 }
                 Text(
-                    "${profile.occupation.ifBlank { "Profession not added" }} • ${profile.location.ifBlank { "Location not added" }}",
+                    "${profile.occupation.ifBlank { "Profession not added" }} | ${profile.location.ifBlank { "Location not added" }}",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    HomeTag("Created by ${profileOwnerLabel(profile.profileCreatedBy)}")
                     profile.matchReasons.take(3).ifEmpty { listOf(profile.education, profile.community) }
                         .filter { it.isNotBlank() }
                         .forEach { label -> HomeTag(label) }
@@ -489,6 +663,9 @@ private fun HomeMatchCard(
         }
     }
 }
+
+private fun profileOwnerLabel(profileCreatedBy: String): String =
+    if (profileCreatedBy.equals("mediator", ignoreCase = true)) "Mediator" else "Self"
 
 @Composable
 private fun RoundImageAction(

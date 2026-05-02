@@ -36,6 +36,7 @@ const searchProfiles = async (filters, userId) => {
   const conditions = [
     'p.is_published=true',
     "COALESCE(p.admin_status,'active')='active'",
+    "COALESCE(p.profile_status,'active')='active'",
     "COALESCE(p.profile_visibility,'all')!='hidden'",
     `p.user_id != $1`,
     `NOT EXISTS (
@@ -63,10 +64,10 @@ const searchProfiles = async (filters, userId) => {
   if (filters.verifiedOnly) conditions.push("COALESCE(p.verification_status,'pending')='verified'");
   if (filters.photoOnly) conditions.push("NULLIF(p.primary_photo_url,'') IS NOT NULL");
   if (filters.recentlyActiveOnly) conditions.push("u.last_login >= NOW() - INTERVAL '30 days'");
-  const page = Math.max(parseInt(filters.page, 10)||1, 1); const limit = Math.min(Math.max(parseInt(filters.limit, 10)||20, 1), 100); const offset = (page-1)*limit;
+  const page = Math.max(parseInt(filters.page, 10)||1, 1); const limit = Math.min(Math.max(parseInt(filters.limit, 10)||20, 15), 100); const offset = (page-1)*limit;
   const where = conditions.join(' AND ');
   const from = ' FROM profiles p JOIN users u ON u.user_id=p.user_id LEFT JOIN education_career ec ON p.profile_id=ec.profile_id LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id LEFT JOIN family_details fd ON p.profile_id=fd.profile_id LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id ';
-  const query = 'SELECT p.profile_id,p.user_id,p.first_name,p.last_name,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,p.religion,p.caste,p.mother_tongue,p.primary_photo_url,pd.height_cm,ec.occupation,ec.working_city,ec.education_level,ec.annual_income,fd.family_type,ld.diet,hd.is_manglik FROM profiles p JOIN users u ON u.user_id=p.user_id LEFT JOIN education_career ec ON p.profile_id=ec.profile_id LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id LEFT JOIN family_details fd ON p.profile_id=fd.profile_id LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id WHERE ' + where + ' ORDER BY p.completion_score DESC, u.last_login DESC NULLS LAST LIMIT $' + idx++ + ' OFFSET $' + idx++;
+  const query = 'SELECT p.profile_id,p.user_id,p.first_name,p.last_name,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,p.religion,p.caste,p.mother_tongue,p.primary_photo_url,p.profile_created_by,pd.height_cm,ec.occupation,ec.working_city,ec.education_level,ec.annual_income,fd.family_type,ld.diet,hd.is_manglik FROM profiles p JOIN users u ON u.user_id=p.user_id LEFT JOIN education_career ec ON p.profile_id=ec.profile_id LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id LEFT JOIN family_details fd ON p.profile_id=fd.profile_id LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id WHERE ' + where + ' ORDER BY p.completion_score DESC, u.last_login DESC NULLS LAST LIMIT $' + idx++ + ' OFFSET $' + idx++;
   values.push(limit, offset);
   const countQ = 'SELECT COUNT(*)' + from + 'WHERE ' + where;
   const [results, count] = await Promise.all([db.query(query, values), db.query(countQ, values.slice(0,-2))]);

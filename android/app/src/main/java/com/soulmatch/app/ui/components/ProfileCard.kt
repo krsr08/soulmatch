@@ -103,6 +103,7 @@ fun ProfileCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    ProfileOwnerTag(profile.profileCreatedBy)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         LabeledInlineValue(label = "Age", value = "${profile.age.coerceAtLeast(0)} yrs")
                         Box(
@@ -180,6 +181,26 @@ fun ProfileCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ProfileOwnerTag(profileCreatedBy: String) {
+    val owner = if (profileCreatedBy.equals("mediator", ignoreCase = true)) "Mediator" else "Self"
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+    ) {
+        Text(
+            text = "Profile created by: $owner",
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = PrimaryDark,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

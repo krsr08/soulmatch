@@ -10,6 +10,7 @@ import com.soulmatch.app.data.local.ProfileInteractionStore
 import com.soulmatch.app.data.mock.MarketFixtures
 import com.soulmatch.app.data.models.InterestRequest
 import com.soulmatch.app.data.models.InterestListItem
+import com.soulmatch.app.data.models.PartnerPreferencesData
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.ProfileSummary
 import com.soulmatch.app.data.models.RespondRequest
@@ -175,6 +176,18 @@ class DashboardViewModel @Inject constructor(
                 invitations.filterNot { it.interestId == interestId }
             }
             interestSyncManager.notifyChanged()
+        }
+    }
+
+    fun savePartnerPreferences(preferences: PartnerPreferencesData, onSaved: () -> Unit = {}) {
+        viewModelScope.launch {
+            val profileId = _myProfile.value.profileId
+            if (profileId.isBlank()) return@launch
+            val response = runCatching { profileApi.updatePreferences(profileId, preferences) }.getOrNull()
+            if (response?.isSuccessful == true && response.body()?.success == true) {
+                _myProfile.update { it.copy(isPartnerPrefSet = true) }
+                onSaved()
+            }
         }
     }
 

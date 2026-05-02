@@ -55,6 +55,10 @@ data class PrivacySettingsRequest(
     @SerializedName("profileVisibility") val profileVisibility: String
 )
 
+data class ProfileStatusRequest(
+    @SerializedName("profileStatus") val profileStatus: String
+)
+
 data class VerificationSubmitRequest(
     val type: String = "profile",
     @SerializedName("documentUrl") val documentUrl: String? = null
@@ -106,6 +110,9 @@ data class ProfileData(
     @SerializedName("mother_tongue") val motherTongue: String = "",
     @SerializedName("marital_status") val maritalStatus: String = "",
     @SerializedName("completion_score") val completionScore: Int = 0,
+    @SerializedName("is_partner_pref_set") val isPartnerPrefSet: Boolean = false,
+    @SerializedName("profile_status") val profileStatus: String = "active",
+    @SerializedName("profile_created_by") val profileCreatedBy: String = "self",
     @SerializedName("verification_status") val verificationStatus: String = "pending",
     @SerializedName("primary_photo_url") val primaryPhotoUrl: String? = null,
     @SerializedName("photo_privacy") val photoPrivacy: String = "all",
@@ -160,7 +167,8 @@ data class ProfileSummary(
     val lastActiveLabel: String = "Recently active",
     val matchReasons: List<String> = emptyList(),
     val interestSent: Boolean = false,
-    val shortlisted: Boolean = false
+    val shortlisted: Boolean = false,
+    @SerializedName("profileCreatedBy") val profileCreatedBy: String = "self"
 )
 
 data class MatchesData(
@@ -210,7 +218,8 @@ data class SearchProfileItem(
     @SerializedName("education_level") val educationLevel: String = "",
     @SerializedName("annual_income") val annualIncome: String = "",
     @SerializedName("height_cm") val heightCm: Int? = null,
-    val diet: String = ""
+    val diet: String = "",
+    @SerializedName("profile_created_by") val profileCreatedBy: String = "self"
 )
 
 data class SearchResultsData(
@@ -615,6 +624,7 @@ fun SearchProfileItem.toProfileSummary(seed: ProfileSummary? = null): ProfileSum
         lastActiveLabel = seed?.lastActiveLabel ?: "Recently active",
         matchReasons = seed?.matchReasons ?: emptyList(),
         interestSent = seed?.interestSent ?: false,
-        shortlisted = seed?.shortlisted ?: false
+        shortlisted = seed?.shortlisted ?: false,
+        profileCreatedBy = if (safeString(profileCreatedBy).isNotBlank()) safeString(profileCreatedBy) else seed?.profileCreatedBy ?: "self"
     )
 }

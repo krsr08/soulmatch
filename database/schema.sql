@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS profiles (
     marital_status VARCHAR(30) DEFAULT 'never_married',
     completion_score INTEGER DEFAULT 0,
     is_published BOOLEAN DEFAULT FALSE,
+    is_partner_pref_set BOOLEAN DEFAULT FALSE,
+    profile_status VARCHAR(16) DEFAULT 'active' CHECK (profile_status IN ('active', 'inactive')),
+    profile_created_by VARCHAR(16) DEFAULT 'self' CHECK (profile_created_by IN ('self', 'mediator')),
     verification_status VARCHAR(24) DEFAULT 'pending',
     admin_status VARCHAR(24) DEFAULT 'active',
     moderation_score NUMERIC(5,2) DEFAULT 0,
@@ -375,7 +378,8 @@ CREATE INDEX IF NOT EXISTS idx_analytics_created_at ON analytics_events(created_
 CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_admin_alerts_status ON admin_alerts(status, severity);
 CREATE INDEX IF NOT EXISTS idx_profiles_admin_status ON profiles(admin_status, verification_status);
-CREATE INDEX IF NOT EXISTS idx_profiles_match_search ON profiles(gender, is_published, admin_status, verification_status, religion, caste);
+CREATE INDEX IF NOT EXISTS idx_profiles_profile_status ON profiles(profile_status);
+CREATE INDEX IF NOT EXISTS idx_profiles_match_search ON profiles(gender, is_published, admin_status, profile_status, verification_status, religion, caste);
 
 INSERT INTO app_config (config_key, config_value, is_public, updated_by)
 VALUES

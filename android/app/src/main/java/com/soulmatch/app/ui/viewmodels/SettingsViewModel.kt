@@ -9,6 +9,7 @@ import com.soulmatch.app.data.local.UserPreferences
 import com.soulmatch.app.data.local.ProfileInteractionStore
 import com.soulmatch.app.data.mock.MarketFixtures
 import com.soulmatch.app.data.models.PrivacySettingsRequest
+import com.soulmatch.app.data.models.ProfileStatusRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +24,8 @@ data class SettingsUiState(
     val pushEnabled: Boolean = true,
     val photoPrivacyEnabled: Boolean = true,
     val contactFilterEnabled: Boolean = false,
-    val profileVisible: Boolean = true
+    val profileVisible: Boolean = true,
+    val profileActive: Boolean = true
 )
 
 data class PrivacyMemberUi(
@@ -47,6 +49,7 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
     private val _settings = MutableStateFlow(SettingsUiState())
     private val _status = MutableStateFlow<String?>(null)
+    private val _profileStatus = MutableStateFlow("active")
     private val removedHiddenProfileIds = mutableSetOf<String>()
     private val removedBlockedProfileIds = mutableSetOf<String>()
     private val starterHiddenMembers = if (AppEnvironment.allowDemoFallback) MarketFixtures.matches.drop(5).take(1).map {
@@ -71,15 +74,25 @@ class SettingsViewModel @Inject constructor(
                 prefs.pushNotifications,
                 prefs.photoPrivacy,
                 prefs.contactFilters,
-                prefs.profileVisibility
-            ) { push, photoPrivacy, contactFilters, visibility ->
+                prefs.profileVisibility,
+                _profileStatus
+            ) { push, photoPrivacy, contactFilters, visibility, profileStatus ->
                 SettingsUiState(
                     pushEnabled = push,
                     photoPrivacyEnabled = photoPrivacy == "matches_only",
                     contactFilterEnabled = contactFilters,
-                    profileVisible = visibility == "all"
+                    profileVisible = visibility == "all",
+                    profileActive = !profileStatus.equals("inactive", ignoreCase = true)
                 )
             }.collect { _settings.value = it }
+        }
+        viewModelScope.launch {
+            val response = runCatching { profileApi.getMyProfile() }.getOrNull()
+            val profile = response
+                ?.body()
+                ?.takeIf { response.isSuccessful && it.success }
+                ?.data
+            _profileStatus.value = profile?.profileStatus?.ifBlank { "active" } ?: "active"
         }
         viewModelScope.launch {
             ProfileInteractionStore.state.collect { interaction ->
@@ -139,6 +152,25 @@ class SettingsViewModel @Inject constructor(
                 }
             }
             _status.value = "Privacy settings saved."
+        }
+    }
+
+    fun setProfileStatus(active: Boolean) {
+        viewModelScope.launch {
+            val previous = _profileStatus.value
+            val next = if (active) "active" else "inactive"
+            _profileStatus.value = next
+            val response = runCatching { profileApi.updateProfileStatus(ProfileStatusRequest(next)) }.getOrNull()
+            if (response?.isSuccessful == true && response.body()?.success == true) {
+                _status.value = if (active) {
+                    "Profile is active and eligible for search and matches."
+                } else {
+                    "Profile is inactive and hidden from search and matches."
+                }
+            } else {
+                _profileStatus.value = previous
+                _status.value = "Could not update profile status. Please try again."
+            }
         }
     }
 

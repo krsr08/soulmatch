@@ -189,6 +189,13 @@ private fun ContactAndVisibilityCard(settings: SettingsUiState, vm: SettingsView
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             SectionTitle("Who can see your profile?", "Hide your profile when you want to pause matching")
             SettingToggle(
+                icon = if (settings.profileActive) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                title = if (settings.profileActive) "Profile status: Active" else "Profile status: Inactive",
+                description = if (settings.profileActive) "Your profile can appear in search and match recommendations" else "Your profile is paused and hidden from search and matches",
+                checked = settings.profileActive,
+                onCheckedChange = { vm.setProfileStatus(it) }
+            )
+            SettingToggle(
                 icon = if (settings.profileVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
                 title = if (settings.profileVisible) "Everyone can see my profile" else "Hide my profile",
                 description = if (settings.profileVisible) "Your profile appears in search and matches" else "Your profile is hidden from new people",

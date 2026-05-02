@@ -330,9 +330,10 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
     var motherTongue by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.motherTongue.orEmpty()) }
     var maritalStatus by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.maritalStatus?.ifBlank { "never_married" } ?: "never_married") }
     var gender by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.gender?.ifBlank { "male" } ?: "male") }
+    var profileCreatedBy by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.profileCreatedBy?.ifBlank { "self" } ?: "self") }
 
     val isValid = listOf(firstName, lastName, dob, gender, religion, caste, motherTongue, maritalStatus).all { it.isNotBlank() }
-    LaunchedEffect(firstName, lastName, dob, gender, religion, caste, motherTongue, maritalStatus) {
+    LaunchedEffect(firstName, lastName, dob, gender, religion, caste, motherTongue, maritalStatus, profileCreatedBy) {
         vm.updateStep1Data(
             mapOf(
                 "firstName" to firstName,
@@ -342,7 +343,8 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
                 "religion" to religion,
                 "caste" to caste,
                 "motherTongue" to motherTongue,
-                "maritalStatus" to maritalStatus
+                "maritalStatus" to maritalStatus,
+                "profileCreatedBy" to profileCreatedBy
             )
         )
         onValidityChange(isValid)
@@ -363,6 +365,7 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             }
             RequiredTextField(motherTongue, { motherTongue = it }, "Mother tongue")
             ChipRow("Marital status", listOf("never_married", "divorced", "widowed"), maritalStatus) { maritalStatus = it }
+            ChipRow("Profile created by", listOf("self", "mediator"), profileCreatedBy) { profileCreatedBy = it }
         }
     }
 }

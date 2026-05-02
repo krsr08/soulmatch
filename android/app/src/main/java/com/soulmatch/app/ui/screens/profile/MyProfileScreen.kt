@@ -369,7 +369,11 @@ private fun ProfileOwnerHeader(
                 MetricPill("Plan", titleCase(subscription.planId), modifier = Modifier.weight(1f), accent = Success, background = SuccessSoft)
             }
             SignalChips(
-                labels = listOf("OTP verified", "Photo privacy ready", "Preferences synced"),
+                labels = listOf(
+                    if (profile.profileStatus.equals("inactive", ignoreCase = true)) "Profile inactive" else "Profile active",
+                    "Created by ${titleCase(profile.profileCreatedBy)}",
+                    if (profile.isPartnerPrefSet) "Preferences synced" else "Preferences pending"
+                ),
                 tone = ChipTone.Success
             )
             UpgradePlanGate(
