@@ -48,6 +48,18 @@ compose() {
   docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
 
+application_services=(
+  auth-service
+  profile-service
+  matching-service
+  search-service
+  chat-service
+  notification-service
+  payment-service
+  admin-service
+  admin-web
+)
+
 log "Validating Compose configuration."
 compose config >/tmp/soulmatch-compose.resolved.yml
 
@@ -57,8 +69,11 @@ compose pull postgres mongodb redis || true
 log "Building application images."
 compose build --pull
 
-log "Starting application stack."
-compose up -d --remove-orphans
+log "Stopping application services for a migration-safe rollout."
+compose stop "${application_services[@]}" >/dev/null 2>&1 || true
+
+log "Starting infrastructure services."
+compose up -d postgres mongodb redis
 
 postgres_container="$(compose ps -q postgres)"
 if [ -z "$postgres_container" ]; then
@@ -103,6 +118,9 @@ if [ -d database/migrations ]; then
     psql_exec -c "INSERT INTO schema_migrations (filename) VALUES ('${filename//\'/\'\'}') ON CONFLICT DO NOTHING;" >/dev/null
   done < <(find database/migrations -maxdepth 1 -type f -name '*.sql' | sort)
 fi
+
+log "Starting application services."
+compose up -d --remove-orphans "${application_services[@]}"
 
 log "Waiting for application health checks."
 health_check() {

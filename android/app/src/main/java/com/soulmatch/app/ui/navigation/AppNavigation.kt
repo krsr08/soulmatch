@@ -45,7 +45,11 @@ import com.soulmatch.app.ui.screens.home.NotificationsScreen
 import com.soulmatch.app.ui.screens.interests.InterestsScreen
 import com.soulmatch.app.ui.screens.legal.LegalContentScreen
 import com.soulmatch.app.ui.screens.profile.MyProfileScreen
+import com.soulmatch.app.ui.screens.profile.SafetyCenterScreen
+import com.soulmatch.app.ui.screens.profile.HelpSupportScreen
+import com.soulmatch.app.ui.screens.profile.AstrologyServicesScreen
 import com.soulmatch.app.ui.screens.profile.ProfileDetailScreen
+import com.soulmatch.app.ui.screens.profile.SpotlightScreen
 import com.soulmatch.app.ui.screens.search.SearchScreen
 import com.soulmatch.app.ui.screens.settings.SettingsScreen
 import com.soulmatch.app.ui.screens.success.SuccessStoriesScreen
@@ -192,11 +196,11 @@ fun AppNavigation(
                     when (destination) {
                         ProfileDrawerRoutes.EditProfile -> nav.navigate("my_profile")
                         ProfileDrawerRoutes.PartnerPreference -> nav.navigate("my_profile")
-                        ProfileDrawerRoutes.Spotlight -> nav.navigate("subscription?routeCode=33")
-                        ProfileDrawerRoutes.AstrologyServices -> nav.navigate("subscription?routeCode=18")
+                        ProfileDrawerRoutes.Spotlight -> nav.navigate("spotlight")
+                        ProfileDrawerRoutes.AstrologyServices -> nav.navigate("astrology_services")
                         ProfileDrawerRoutes.AccountSettings -> nav.navigate("settings")
-                        ProfileDrawerRoutes.SafetyCenter -> nav.navigate("settings")
-                        ProfileDrawerRoutes.HelpSupport -> nav.navigate("settings")
+                        ProfileDrawerRoutes.SafetyCenter -> nav.navigate("safety_center")
+                        ProfileDrawerRoutes.HelpSupport -> nav.navigate("help_support")
                         ProfileDrawerRoutes.SuccessStories2026 -> nav.navigate("success_stories/2026")
                         ProfileDrawerRoutes.SuccessStories2025 -> nav.navigate("success_stories/2025")
                         ProfileDrawerRoutes.SuccessStories2024 -> nav.navigate("success_stories/2024")
@@ -303,6 +307,36 @@ fun AppNavigation(
                 onLogout = { nav.navigate("welcome") { popUpTo(0) { inclusive = true } } }
             )
         }
+        composable("spotlight") {
+            SpotlightScreen(
+                onBack = { nav.popBackStack() },
+                onOpenSettings = { nav.navigate("settings") },
+                onUpgrade = { nav.navigate("subscription?routeCode=33") }
+            )
+        }
+        composable("astrology_services") {
+            AstrologyServicesScreen(
+                onBack = { nav.popBackStack() },
+                onCompleteHoroscope = { nav.navigate("profile_wizard/6?returnToProfile=true") },
+                onUpgrade = { nav.navigate("subscription?routeCode=18") }
+            )
+        }
+        composable("safety_center") {
+            SafetyCenterScreen(
+                onBack = { nav.popBackStack() },
+                onOpenSettings = { nav.navigate("settings") },
+                onOpenVerification = { nav.navigate("my_profile") },
+                onOpenHelp = { nav.navigate("help_support") }
+            )
+        }
+        composable("help_support") {
+            HelpSupportScreen(
+                onBack = { nav.popBackStack() },
+                onOpenSafetyCenter = { nav.navigate("safety_center") },
+                onOpenPrivacy = { nav.navigate("legal/privacy") },
+                onOpenTerms = { nav.navigate("legal/terms") }
+            )
+        }
         composable(
             "success_stories/{year}",
             arguments = listOf(navArgument("year") { type = NavType.StringType })
@@ -328,7 +362,12 @@ private val bottomNavItems = listOf(
     BottomNavItem("search", "search", listOf("search"), Icons.Filled.Search),
     BottomNavItem("activity", "interests", listOf("interests"), Icons.Filled.Favorite),
     BottomNavItem("chat", "chat_list", listOf("chat_list", "chat/"), Icons.Filled.Chat),
-    BottomNavItem("profile", "my_profile", listOf("my_profile", "settings", "profile/"), Icons.Filled.Person)
+    BottomNavItem(
+        "profile",
+        "my_profile",
+        listOf("my_profile", "settings", "profile/", "spotlight", "astrology_services", "safety_center", "help_support", "success_stories/"),
+        Icons.Filled.Person
+    )
 )
 
 @Composable
