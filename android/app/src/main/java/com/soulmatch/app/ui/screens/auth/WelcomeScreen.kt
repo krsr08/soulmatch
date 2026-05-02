@@ -1,8 +1,5 @@
 package com.soulmatch.app.ui.screens.auth
 
-import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -78,8 +75,6 @@ import com.soulmatch.app.data.models.AuthContentData
 import com.soulmatch.app.data.models.BrandingConfig
 import com.soulmatch.app.ui.viewmodels.AuthUiState
 import com.soulmatch.app.ui.viewmodels.AuthViewModel
-import java.security.MessageDigest
-import java.util.Locale
 
 @Composable
 @Suppress("UNUSED_PARAMETER")
@@ -114,9 +109,8 @@ fun WelcomeScreen(
             vm.googleLogin(account.idToken)
         } catch (error: ApiException) {
             val statusName = GoogleSignInStatusCodes.getStatusCodeString(error.statusCode)
-            val diagnostics = googleSignInDiagnostics(context, webClientId)
-            Log.e("WelcomeScreen", "Google sign-in failed: statusCode=${error.statusCode}, status=$statusName, $diagnostics", error)
-            vm.reportError("${googleSignInErrorMessage(error.statusCode, statusName)}\n$diagnostics")
+            Log.e("WelcomeScreen", "Google sign-in failed: statusCode=${error.statusCode}, status=$statusName", error)
+            vm.reportError(googleSignInErrorMessage(error.statusCode, statusName))
         }
     }
 
@@ -581,29 +575,6 @@ private fun rememberGoogleWebClientId(configuredClientId: String): String {
             if (defaultWebClientId != 0) context.getString(defaultWebClientId) else ""
         }
     }
-}
-
-private fun googleSignInDiagnostics(context: Context, webClientId: String): String {
-    val resolvedClient = webClientId.ifBlank { "blank" }
-    return "Package: ${context.packageName}\nWeb client: $resolvedClient\nSHA-1: ${currentSigningSha1(context)}"
-}
-
-@Suppress("DEPRECATION")
-private fun currentSigningSha1(context: Context): String {
-    return runCatching {
-        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-        } else {
-            context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
-        }
-        val signatureBytes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            packageInfo.signingInfo?.apkContentsSigners?.firstOrNull()?.toByteArray()
-        } else {
-            packageInfo.signatures?.firstOrNull()?.toByteArray()
-        } ?: return "unavailable"
-        val digest = MessageDigest.getInstance("SHA-1").digest(signatureBytes)
-        digest.joinToString(":") { "%02X".format(Locale.US, it) }
-    }.getOrElse { "unavailable" }
 }
 
 private val LoginCream = Color(0xFFFFF8EF)
