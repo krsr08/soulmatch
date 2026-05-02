@@ -89,6 +89,7 @@ else
 fi
 
 log "Writing backup manifest."
+manifest_tmp="$run_dir/manifest.json.tmp"
 {
   printf '{\n'
   printf '  "timestamp": "%s",\n' "$timestamp"
@@ -99,6 +100,9 @@ log "Writing backup manifest."
   for file in "$run_dir"/*; do
     [ -f "$file" ] || continue
     name="$(basename "$file")"
+    if [ "$name" = "manifest.json" ] || [ "$name" = "manifest.json.tmp" ]; then
+      continue
+    fi
     size="$(wc -c <"$file" | tr -d '[:space:]')"
     sha="$(sha256sum "$file" | awk '{print $1}')"
     if [ "$first" -eq 0 ]; then
@@ -109,7 +113,8 @@ log "Writing backup manifest."
   done
   printf '\n  ]\n'
   printf '}\n'
-} >"$run_dir/manifest.json"
+} >"$manifest_tmp"
+mv "$manifest_tmp" "$run_dir/manifest.json"
 
 if [ -n "$AZURE_STORAGE_CONNECTION_STRING" ] && [ -n "$AZURE_BACKUP_CONTAINER" ]; then
   if command -v az >/dev/null 2>&1; then
