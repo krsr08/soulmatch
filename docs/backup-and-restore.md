@@ -73,6 +73,31 @@ Container: soulmatch-backups
 
 The production VM is configured to upload each daily backup to that private container.
 
+## Offline Laptop or External Drive Copy
+
+For a third backup layer, sync Azure Blob backups to your Windows laptop or an external drive:
+
+```powershell
+cd C:\Users\ANIRUDH\Documents\soulmatch
+powershell -ExecutionPolicy Bypass -File .\tools\sync-azure-backups-to-windows.ps1 -Verify
+```
+
+Default destination:
+
+```text
+C:\Users\ANIRUDH\Documents\soulmatch-backups
+```
+
+To store backups on an external drive, pass `-Destination`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\sync-azure-backups-to-windows.ps1 `
+  -Destination "E:\SoulMatchBackups" `
+  -Verify
+```
+
+The script downloads all backups from Azure Blob, verifies SHA-256 checksums from each `manifest.json`, and keeps local copies for 180 days by default.
+
 ## Restore
 
 Restores are destructive. Stop and think before running.
