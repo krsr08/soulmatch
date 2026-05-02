@@ -393,6 +393,19 @@ Download offline backup:
 powershell -ExecutionPolicy Bypass -File .\tools\soulmatch-master-setup.ps1 -Mode OfflineBackup
 ```
 
+Open database UI tools safely:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\start-db-ui-tunnel.ps1
+```
+
+Keep that PowerShell window open, then connect:
+
+| Tool | Host / URI | Notes |
+|---|---|---|
+| pgAdmin | `localhost`, port `15432`, database `soulmatch_db`, user `soulmatch_user` | Password is `POSTGRES_PASSWORD` from VM `docker/production.env` |
+| MongoDB Compass | `mongodb://localhost:27018/soulmatch_chat` | No public MongoDB port is opened |
+
 Deploy after a code change:
 
 ```powershell
