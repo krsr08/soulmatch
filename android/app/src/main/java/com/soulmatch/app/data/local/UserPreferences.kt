@@ -24,6 +24,8 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
         val CONTACT_FILTERS = booleanPreferencesKey("contact_filters")
         val PHOTO_PRIVACY = stringPreferencesKey("photo_privacy")
         val PROFILE_VISIBILITY = stringPreferencesKey("profile_visibility")
+        val PENDING_OTP_PHONE = stringPreferencesKey("pending_otp_phone")
+        val PENDING_OTP_VERIFICATION_ID = stringPreferencesKey("pending_otp_verification_id")
     }
     val authToken: Flow<String?> = store.data.map { it[AUTH_TOKEN] }
     val refreshToken: Flow<String?> = store.data.map { it[REFRESH_TOKEN] }
@@ -36,6 +38,8 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
     val contactFilters: Flow<Boolean> = store.data.map { it[CONTACT_FILTERS] ?: false }
     val photoPrivacy: Flow<String> = store.data.map { it[PHOTO_PRIVACY] ?: "matches_only" }
     val profileVisibility: Flow<String> = store.data.map { it[PROFILE_VISIBILITY] ?: "all" }
+    val pendingOtpPhone: Flow<String?> = store.data.map { it[PENDING_OTP_PHONE] }
+    val pendingOtpVerificationId: Flow<String?> = store.data.map { it[PENDING_OTP_VERIFICATION_ID] }
     suspend fun saveAuthToken(t: String) { store.edit { it[AUTH_TOKEN] = t } }
     suspend fun saveRefreshToken(t: String) { store.edit { it[REFRESH_TOKEN] = t } }
     suspend fun saveUserId(id: String) { store.edit { it[USER_ID] = id } }
@@ -47,6 +51,18 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
     suspend fun saveContactFilters(enabled: Boolean) { store.edit { it[CONTACT_FILTERS] = enabled } }
     suspend fun savePhotoPrivacy(value: String) { store.edit { it[PHOTO_PRIVACY] = value } }
     suspend fun saveProfileVisibility(value: String) { store.edit { it[PROFILE_VISIBILITY] = value } }
+    suspend fun savePendingOtpSession(phone: String, verificationId: String) {
+        store.edit {
+            it[PENDING_OTP_PHONE] = phone
+            it[PENDING_OTP_VERIFICATION_ID] = verificationId
+        }
+    }
+    suspend fun clearPendingOtpSession() {
+        store.edit {
+            it.remove(PENDING_OTP_PHONE)
+            it.remove(PENDING_OTP_VERIFICATION_ID)
+        }
+    }
     suspend fun clearProfileProgress() {
         store.edit {
             it.remove(PROFILE_ID)

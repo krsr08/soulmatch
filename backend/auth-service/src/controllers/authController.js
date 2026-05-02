@@ -1,6 +1,7 @@
 const { validationResult } = require('express-validator');
 const otpService = require('../services/otpService');
 const tokenService = require('../services/tokenService');
+const firebaseAuthService = require('../services/firebaseAuthService');
 const userRepo = require('../repositories/userRepository');
 const logger = require('../utils/logger');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
@@ -44,6 +45,7 @@ exports.verifyOTP = async (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, errors.array()[0].msg));
     const { phone, otp, inviteCode, acquisitionSource } = req.body;
+    const normalizedPhone = userRepo.normalizePhone(phone) || phone;
     if (!await otpService.hasOTP(phone)) return next(new AppError(400, ErrorCodes.OTP_EXPIRED, 'OTP expired. Request new one.'));
     const validOtp = await otpService.verifyStoredOTP(phone, otp);
     if (!validOtp) {
@@ -54,7 +56,7 @@ exports.verifyOTP = async (req, res, next) => {
     }
     await otpService.clearOTP(phone);
     await otpService.clearAttempts(phone);
-    let user = await userRepo.findByPhone(phone);
+    let user = await userRepo.findByPhone(normalizedPhone);
     const isNewUser = !user;
     let referral = null;
     if (inviteCode) {
@@ -63,7 +65,7 @@ exports.verifyOTP = async (req, res, next) => {
     }
     if (isNewUser) {
       user = await userRepo.create({
-        phone,
+        phone: normalizedPhone,
         is_verified: true,
         referred_by_code: referral?.code || null,
         acquisition_source: acquisitionSource || referral?.channel || null,
@@ -74,7 +76,7 @@ exports.verifyOTP = async (req, res, next) => {
           referralCodeId: referral.referral_code_id,
           referredUserId: user.user_id,
           referrerUserId: referral.owner_user_id,
-          metadata: { phone, acquisitionSource: acquisitionSource || null }
+          metadata: { phone: normalizedPhone, acquisitionSource: acquisitionSource || null }
         });
       }
     }
@@ -146,6 +148,71 @@ exports.googleLogin = async (req, res, next) => {
         }
       });
     }
+    res.json({ success: true, data: { accessToken, refreshToken, userId: user.user_id, isNewUser } });
+  } catch (err) { next(err); }
+};
+
+exports.firebasePhoneLogin = async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, errors.array()[0].msg));
+    const { firebaseToken, phone, inviteCode, acquisitionSource } = req.body;
+    if (!firebaseToken) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'firebaseToken required'));
+
+    const decoded = await firebaseAuthService.verifyPhoneToken(firebaseToken);
+    const verifiedPhone = userRepo.normalizePhone(decoded.phone_number) || String(decoded.phone_number || '').trim();
+    if (!verifiedPhone) {
+      return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Verified phone number not found in Firebase token.'));
+    }
+    if (phone && (userRepo.normalizePhone(phone) || String(phone).trim()) !== verifiedPhone) {
+      return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Phone number does not match Firebase verification.'));
+    }
+
+    let user = await userRepo.findByPhone(verifiedPhone);
+    const isNewUser = !user;
+    let referral = null;
+    if (inviteCode) {
+      referral = await userRepo.findReferralCode(String(inviteCode).toUpperCase());
+      if (!referral) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Invite code is invalid or expired'));
+    }
+
+    if (isNewUser) {
+      user = await userRepo.create({
+        phone: verifiedPhone,
+        is_verified: true,
+        referred_by_code: referral?.code || null,
+        acquisition_source: acquisitionSource || referral?.channel || null,
+        referred_at: referral ? new Date() : null
+      });
+      if (referral) {
+        await userRepo.recordReferralRedemption({
+          referralCodeId: referral.referral_code_id,
+          referredUserId: user.user_id,
+          referrerUserId: referral.owner_user_id,
+          metadata: { phone: verifiedPhone, acquisitionSource: acquisitionSource || null, method: 'firebase_phone' }
+        });
+      }
+    } else {
+      await userRepo.updateLastLogin(user.user_id);
+    }
+
+    const { accessToken, refreshToken } = tokenService.generatePair({ userId: user.user_id, phone: user.phone });
+    await tokenService.storeRefresh(user.user_id, refreshToken);
+
+    if (isNewUser) {
+      const db = await getDB();
+      await recordAnalyticsEvent(db, {
+        eventType: 'sign_up',
+        serviceName: 'auth-service',
+        userId: user.user_id,
+        payload: {
+          method: 'firebase_phone',
+          inviteCode: referral?.code || null,
+          acquisitionSource: acquisitionSource || referral?.channel || null
+        }
+      });
+    }
+
     res.json({ success: true, data: { accessToken, refreshToken, userId: user.user_id, isNewUser } });
   } catch (err) { next(err); }
 };

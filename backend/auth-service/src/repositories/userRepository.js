@@ -1,17 +1,66 @@
 const { getDB } = require('../config/database');
 const { randomUUID } = require('crypto');
-exports.findByPhone = async (phone) => { const db = await getDB(); const r = await db.query('SELECT * FROM users WHERE phone=$1 AND is_active=true LIMIT 1', [phone]); return r.rows[0] || null; };
+
+function cleanPhone(phone) {
+  return String(phone || '').trim().replace(/[\s()-]/g, '');
+}
+
+function normalizePhone(phone) {
+  const raw = cleanPhone(phone);
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+  if (raw.startsWith('+')) return `+${digits}`;
+  if (raw.startsWith('00')) return `+${digits.slice(2)}`;
+  if (digits.length === 10) return `+91${digits}`;
+  return `+${digits}`;
+}
+
+function buildPhoneCandidates(phone) {
+  const raw = cleanPhone(phone);
+  const digits = raw.replace(/\D/g, '');
+  const candidates = [];
+
+  const push = (value) => {
+    if (value && !candidates.includes(value)) candidates.push(value);
+  };
+
+  push(raw);
+  if (digits) {
+    push(digits);
+    push(`+${digits}`);
+    if (digits.startsWith('00') && digits.length > 2) push(`+${digits.slice(2)}`);
+    if (digits.length === 10) push(`+91${digits}`);
+    if (digits.startsWith('91') && digits.length === 12) push(digits.slice(2));
+    if (digits.length > 10) push(digits.slice(-10));
+  }
+
+  return candidates;
+}
+
+exports.normalizePhone = normalizePhone;
+exports.findByPhone = async (phone) => {
+  const db = await getDB();
+  const candidates = buildPhoneCandidates(phone);
+  if (candidates.length === 0) return null;
+  const r = await db.query(
+    'SELECT * FROM users WHERE phone = ANY($1::varchar[]) AND is_active=true LIMIT 1',
+    [candidates]
+  );
+  return r.rows[0] || null;
+};
 exports.findByGoogleId = async (googleId) => { const db = await getDB(); const r = await db.query('SELECT * FROM users WHERE google_id=$1 AND is_active=true LIMIT 1', [googleId]); return r.rows[0] || null; };
 exports.findById = async (userId) => { const db = await getDB(); const r = await db.query('SELECT * FROM users WHERE user_id=$1 LIMIT 1', [userId]); return r.rows[0] || null; };
 exports.create = async (data) => {
   const db = await getDB();
+  const normalizedPhone = normalizePhone(data.phone);
   const r = await db.query(
     `INSERT INTO users (
        user_id, phone, email, google_id, is_verified, referred_by_code, acquisition_source, referred_at
      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
     [
       randomUUID(),
-      data.phone || null,
+      normalizedPhone || null,
       data.email || null,
       data.google_id || null,
       data.is_verified || false,
