@@ -61,6 +61,11 @@ function normalizeDocumentUrl(body) {
   return false;
 }
 
+function normalizeProfileStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['active', 'inactive'].includes(normalized) ? normalized : null;
+}
+
 exports.createOrUpdateStep = async (req, res, next) => {
   try {
     const { step, ...data } = req.body;
@@ -174,6 +179,24 @@ exports.updatePrivacy = async (req, res, next) => {
     await requireOwnedProfile(req.params.profileId, req.user.userId);
     await repo.updatePrivacy(req.params.profileId, req.body);
     res.json({ success: true });
+  } catch (err) { next(err); }
+};
+exports.updateProfileStatus = async (req, res, next) => {
+  try {
+    const status = normalizeProfileStatus(req.body?.profileStatus || req.body?.profile_status || req.body?.status);
+    if (!status) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Profile status must be active or inactive.'));
+    const profile = await repo.findByUserId(req.user.userId);
+    if (!profile) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
+    const updated = await repo.updateProfileStatus(profile.profile_id, status);
+    if (!updated) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Profile status could not be updated.'));
+    res.json({
+      success: true,
+      data: {
+        profileId: updated.profile_id,
+        profileStatus: updated.profile_status,
+        profileVisibility: updated.profile_visibility
+      }
+    });
   } catch (err) { next(err); }
 };
 exports.recordView = async (req, res, next) => { try { await repo.recordView(req.params.profileId, req.user.userId); res.json({ success: true }); } catch (err) { next(err); } };

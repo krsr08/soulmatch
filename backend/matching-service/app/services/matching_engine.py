@@ -35,7 +35,7 @@ async def get_recommended_matches(user_id: str, page: int, limit: int) -> dict:
         gender = (user.get("gender") or "").lower()
         opp_gender = "female" if gender == "male" else "male" if gender == "female" else None
         page = max(int(page or 1), 1)
-        limit = min(max(int(limit or 25), 1), 100)
+        limit = min(max(int(limit or 25), 15), 100)
         candidates = await conn.fetch(
             """
             SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,ec.education_level,ec.annual_income,
@@ -49,6 +49,7 @@ async def get_recommended_matches(user_id: str, page: int, limit: int) -> dict:
             WHERE ($2::text IS NULL OR p.gender=$2)
               AND p.is_published=true
               AND COALESCE(p.admin_status,'active')='active'
+              AND COALESCE(p.profile_status,'active')='active'
               AND COALESCE(p.profile_visibility,'all')!='hidden'
               AND p.user_id!=$1
               AND NOT EXISTS (
@@ -68,7 +69,7 @@ async def get_recommended_matches(user_id: str, page: int, limit: int) -> dict:
             vec_s = cosine_sim(user_vec, cv) * 100
             pre_s = pref_score(cd, user); hor_s = horoscope_score(user, cd)
             total = int(vec_s*0.35 + pre_s*0.40 + hor_s*0.25)
-            scored.append({"profileId":str(cd["profile_id"]),"userId":str(cd["user_id"]),"name":cd["first_name"]+" "+cd["last_name"][:1]+".","age":cd.get("age",0),"heightCm":cd.get("height_cm"),"location":cd.get("working_city",""),"occupation":cd.get("occupation",""),"primaryPhoto":cd.get("primary_photo_url",""),"isVerified":bool(cd.get("is_verified")),"isPhotoPrivate":cd.get("photo_privacy")=="matches_only","compatibilityScore":min(99,total),"compatibilityBreakdown":{"preferences":int(pre_s),"personality":int(vec_s),"horoscope":int(hor_s)}})
+            scored.append({"profileId":str(cd["profile_id"]),"userId":str(cd["user_id"]),"name":cd["first_name"]+" "+cd["last_name"][:1]+".","age":cd.get("age",0),"heightCm":cd.get("height_cm"),"location":cd.get("working_city",""),"occupation":cd.get("occupation",""),"primaryPhoto":cd.get("primary_photo_url",""),"isVerified":bool(cd.get("is_verified")),"isPhotoPrivate":cd.get("photo_privacy")=="matches_only","profileCreatedBy":cd.get("profile_created_by") or "self","compatibilityScore":min(99,total),"compatibilityBreakdown":{"preferences":int(pre_s),"personality":int(vec_s),"horoscope":int(hor_s)}})
         scored.sort(key=lambda x: x["compatibilityScore"], reverse=True)
         start = (page-1)*limit
         return {"matches":scored[start:start+limit],"total":len(scored),"page":page,"limit":limit}
@@ -87,6 +88,7 @@ async def get_compatibility(user_id: str, target_profile_id: str) -> dict:
             WHERE p.profile_id=$1
               AND p.is_published=true
               AND COALESCE(p.admin_status,'active')='active'
+              AND COALESCE(p.profile_status,'active')='active'
               AND COALESCE(p.profile_visibility,'all')!='hidden'
               AND NOT EXISTS (
                 SELECT 1 FROM blocks b

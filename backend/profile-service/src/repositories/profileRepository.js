@@ -101,6 +101,7 @@ exports.canViewProfile = async (profileId, viewerUserId) => {
   const db = await getDB();
   const r = await db.query(
     `SELECT p.profile_id,p.user_id,p.is_published,p.admin_status,p.profile_visibility,
+            COALESCE(p.profile_status,'active') AS profile_status,
             EXISTS (
               SELECT 1 FROM blocks b
               WHERE (b.blocker_id=$2 AND b.blocked_id=p.user_id)
@@ -116,6 +117,7 @@ exports.canViewProfile = async (profileId, viewerUserId) => {
   if (profile.user_id === viewerUserId) return { allowed: true, owner: true, profile };
   if (profile.blocked) return { allowed: false, reason: 'blocked', profile };
   if (!profile.is_published || profile.admin_status !== 'active') return { allowed: false, reason: 'not_available', profile };
+  if (profile.profile_status === 'inactive') return { allowed: false, reason: 'inactive', profile };
   if (profile.profile_visibility === 'hidden') return { allowed: false, reason: 'hidden', profile };
   return { allowed: true, owner: false, profile };
 };
@@ -149,11 +151,14 @@ exports.getPhotos = async (profileId) => {
   );
   return r.rows;
 };
+const normalizeProfileCreatedBy = (value) => ['self', 'mediator'].includes(String(value || '').toLowerCase()) ? String(value).toLowerCase() : 'self';
+const normalizeProfileStatus = (value) => ['active', 'inactive'].includes(String(value || '').toLowerCase()) ? String(value).toLowerCase() : null;
 exports.upsertBasicInfo = async (userId, data) => {
   const db = await getDB();
   const ex = await exports.findByUserId(userId);
-  if (ex) { await db.query('UPDATE profiles SET first_name=$1,last_name=$2,dob=$3,gender=$4,religion=$5,caste=$6,mother_tongue=$7,marital_status=$8,updated_at=NOW() WHERE user_id=$9', [data.firstName,data.lastName,data.dob,data.gender,data.religion,data.caste,data.motherTongue,data.maritalStatus||'never_married',userId]); return ex; }
-  const r = await db.query('INSERT INTO profiles (profile_id,user_id,first_name,last_name,dob,gender,religion,caste,mother_tongue,marital_status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *', [randomUUID(),userId,data.firstName,data.lastName,data.dob,data.gender,data.religion,data.caste,data.motherTongue,data.maritalStatus||'never_married']);
+  const profileCreatedBy = normalizeProfileCreatedBy(data.profileCreatedBy || data.profile_created_by);
+  if (ex) { await db.query('UPDATE profiles SET first_name=$1,last_name=$2,dob=$3,gender=$4,religion=$5,caste=$6,mother_tongue=$7,marital_status=$8,profile_created_by=$9,updated_at=NOW() WHERE user_id=$10', [data.firstName,data.lastName,data.dob,data.gender,data.religion,data.caste,data.motherTongue,data.maritalStatus||'never_married',profileCreatedBy,userId]); return ex; }
+  const r = await db.query('INSERT INTO profiles (profile_id,user_id,first_name,last_name,dob,gender,religion,caste,mother_tongue,marital_status,profile_created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *', [randomUUID(),userId,data.firstName,data.lastName,data.dob,data.gender,data.religion,data.caste,data.motherTongue,data.maritalStatus||'never_married',profileCreatedBy]);
   return r.rows[0];
 };
 exports.upsertPhysical = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO physical_details (profile_id,height_cm,weight_kg,complexion,body_type,blood_group) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (profile_id) DO UPDATE SET height_cm=$2,weight_kg=$3,complexion=$4,body_type=$5,blood_group=$6', [p.profile_id,data.heightCm,data.weightKg,data.complexion,data.bodyType,data.bloodGroup]); return p; };
@@ -161,11 +166,15 @@ exports.upsertEducation = async (userId, data) => { const db = await getDB(); co
 exports.upsertFamily = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO family_details (profile_id,father_occupation,mother_occupation,num_brothers,num_sisters,family_type,family_city) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (profile_id) DO UPDATE SET father_occupation=$2,mother_occupation=$3,num_brothers=$4,num_sisters=$5,family_type=$6,family_city=$7', [p.profile_id,data.fatherOccupation,data.motherOccupation,data.numBrothers||0,data.numSisters||0,data.familyType,data.familyCity]); return p; };
 exports.upsertLifestyle = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO lifestyle_details (profile_id,diet,smoking,drinking,about_me) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (profile_id) DO UPDATE SET diet=$2,smoking=$3,drinking=$4,about_me=$5', [p.profile_id,data.diet,data.smoking||'never',data.drinking||'never',data.aboutMe]); return p; };
 exports.upsertHoroscope = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO horoscope_details (profile_id,rashi,nakshatra,is_manglik,birth_city,gotra) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (profile_id) DO UPDATE SET rashi=$2,nakshatra=$3,is_manglik=$4,birth_city=$5,gotra=$6', [p.profile_id,data.rashi,data.nakshatra,data.isManglik||false,data.birthCity,data.gotra]); return p; };
-exports.upsertPreferences = async (profileId, data) => { const db = await getDB(); await db.query('INSERT INTO partner_preferences (profile_id,age_min,age_max,religion,manglik_pref) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (profile_id) DO UPDATE SET age_min=$2,age_max=$3,religion=$4,manglik_pref=$5,updated_at=NOW()', [profileId,data.ageMin||18,data.ageMax||50,data.religion,data.manglikPref||'any']); };
+exports.upsertPreferences = async (profileId, data) => { const db = await getDB(); await db.query('INSERT INTO partner_preferences (profile_id,age_min,age_max,religion,manglik_pref) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (profile_id) DO UPDATE SET age_min=$2,age_max=$3,religion=$4,manglik_pref=$5,updated_at=NOW()', [profileId,data.ageMin||18,data.ageMax||50,data.religion,data.manglikPref||'any']); await db.query('UPDATE profiles SET is_partner_pref_set=true,updated_at=NOW() WHERE profile_id=$1', [profileId]); };
 exports.getPreferences = async (profileId) => { const db = await getDB(); const r = await db.query('SELECT * FROM partner_preferences WHERE profile_id=$1', [profileId]); return r.rows[0] || null; };
 exports.findFullByUserId = async (userId) => { const db = await getDB(); const r = await db.query('SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,pd.height_cm,pd.weight_kg,pd.complexion,pd.body_type,pd.blood_group,ec.education_level,ec.occupation,ec.annual_income,ec.working_city,fd.father_occupation,fd.mother_occupation,fd.num_brothers,fd.num_sisters,fd.family_type,fd.family_city,ld.diet,ld.smoking,ld.drinking,ld.about_me,hd.rashi,hd.nakshatra,hd.is_manglik,hd.birth_city,hd.gotra FROM profiles p LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id LEFT JOIN education_career ec ON p.profile_id=ec.profile_id LEFT JOIN family_details fd ON p.profile_id=fd.profile_id LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id WHERE p.user_id=$1 LIMIT 1', [userId]); return r.rows[0] || null; };
 exports.findFullById = async (profileId) => { const db = await getDB(); const r = await db.query('SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,pd.height_cm,pd.weight_kg,pd.complexion,pd.body_type,pd.blood_group,ec.education_level,ec.occupation,ec.annual_income,ec.working_city,fd.father_occupation,fd.mother_occupation,fd.num_brothers,fd.num_sisters,fd.family_type,fd.family_city,ld.diet,ld.smoking,ld.drinking,ld.about_me,hd.rashi,hd.nakshatra,hd.is_manglik,hd.birth_city,hd.gotra FROM profiles p LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id LEFT JOIN education_career ec ON p.profile_id=ec.profile_id LEFT JOIN family_details fd ON p.profile_id=fd.profile_id LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id WHERE p.profile_id=$1 LIMIT 1', [profileId]); return r.rows[0] || null; };
-exports.update = async (profileId, data) => { const db = await getDB(); await db.query('UPDATE profiles SET first_name=COALESCE($1,first_name),last_name=COALESCE($2,last_name),updated_at=NOW() WHERE profile_id=$3', [data.firstName,data.lastName,profileId]); };
+exports.update = async (profileId, data) => {
+  const db = await getDB();
+  const profileCreatedBy = data.profileCreatedBy || data.profile_created_by ? normalizeProfileCreatedBy(data.profileCreatedBy || data.profile_created_by) : null;
+  await db.query('UPDATE profiles SET first_name=COALESCE($1,first_name),last_name=COALESCE($2,last_name),profile_created_by=COALESCE($3,profile_created_by),updated_at=NOW() WHERE profile_id=$4', [data.firstName,data.lastName,profileCreatedBy,profileId]);
+};
 exports.updatePrivacy = async (profileId, data) => {
   const db = await getDB();
   const allowedPhoto = ['all', 'matches_only', 'private'];
@@ -173,6 +182,16 @@ exports.updatePrivacy = async (profileId, data) => {
   const photoPrivacy = allowedPhoto.includes(data.photoPrivacy) ? data.photoPrivacy : null;
   const profileVisibility = allowedVisibility.includes(data.profileVisibility) ? data.profileVisibility : null;
   await db.query('UPDATE profiles SET photo_privacy=COALESCE($1,photo_privacy),profile_visibility=COALESCE($2,profile_visibility),updated_at=NOW() WHERE profile_id=$3', [photoPrivacy,profileVisibility,profileId]);
+};
+exports.updateProfileStatus = async (profileId, status) => {
+  const normalized = normalizeProfileStatus(status);
+  if (!normalized) return null;
+  const db = await getDB();
+  const r = await db.query(
+    'UPDATE profiles SET profile_status=$1, updated_at=NOW() WHERE profile_id=$2 RETURNING profile_id, profile_status, profile_visibility',
+    [normalized, profileId]
+  );
+  return r.rows[0] || null;
 };
 exports.setPublished = async (profileId, published) => { const db = await getDB(); await db.query('UPDATE profiles SET is_published=$1,updated_at=NOW() WHERE profile_id=$2', [published, profileId]); };
 exports.updateVideoUrl = async (profileId, url) => { const db = await getDB(); await db.query('UPDATE profiles SET video_url=$1 WHERE profile_id=$2', [url,profileId]); };

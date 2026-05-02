@@ -354,6 +354,8 @@ private fun ProfileHero(profile: ProfileData, compatibilityScore: Int) {
                 SignalChips(
                     labels = listOf(
                         "$compatibilityScore% compatibility",
+                        "Created by ${titleCase(profile.profileCreatedBy)}",
+                        if (profile.profileStatus.equals("inactive", ignoreCase = true)) "Inactive" else "Active",
                         if (profile.completionScore >= 80) "Complete profile" else "Profile in progress",
                         if (profile.photoPrivacy == "matches_only") "Selective photo privacy" else "Photo visible"
                     ),

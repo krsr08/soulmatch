@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -127,15 +127,6 @@ fun SearchScreen(
                     )
                 }
                 item {
-                    UpgradePlanGate(
-                        title = "Upgrade for advanced discovery",
-                        detail = "Unlock contact views, profile highlights, and richer match signals while searching.",
-                        onUpgrade = openSubscription,
-                        compact = true,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                }
-                item {
                     SearchSummaryPanel(
                         filters = filters,
                         resultCount = results.size,
@@ -210,13 +201,22 @@ fun SearchScreen(
                         }
                     }
                 } else {
-                    items(results, key = { it.profileId }) { profile ->
+                    itemsIndexed(results, key = { _, profile -> profile.profileId }) { index, profile ->
                         ProfileCard(
                             profile = profile,
                             onSendInterest = { vm.sendInterest(it) },
                             onViewProfile = viewProfile,
                             onShortlist = { vm.toggleShortlist(it) }
                         )
+                        if ((index + 1) % 5 == 0 && index != results.lastIndex) {
+                            UpgradePlanGate(
+                                title = "Upgrade for advanced discovery",
+                                detail = "Unlock contact views, profile highlights, and richer match signals while searching.",
+                                onUpgrade = openSubscription,
+                                compact = true,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
                     }
                 }
                 if (!loading && results.isEmpty()) {

@@ -707,6 +707,7 @@ object MarketFixtures {
             motherTongue = region.motherTongue,
             maritalStatus = generatedMaritalStatuses[index % generatedMaritalStatuses.size],
             completionScore = 72 + (index % 28),
+            profileCreatedBy = if (index % 7 == 0) "mediator" else "self",
             primaryPhotoUrl = generatedProfileImages[index % generatedProfileImages.size],
             photoPrivacy = if (index % 9 == 0) "matches_only" else "all",
             educationLevel = generatedEducation[(index * 3) % generatedEducation.size],
@@ -776,7 +777,8 @@ object MarketFixtures {
             },
             matchReasons = reasons,
             interestSent = index % 13 == 0,
-            shortlisted = index % 17 == 0
+            shortlisted = index % 17 == 0,
+            profileCreatedBy = profile.profileCreatedBy
         )
     }
 }
