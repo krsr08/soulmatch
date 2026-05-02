@@ -14,6 +14,8 @@ router.post('/create', authenticate, ctrl.createOrUpdateStep);
 router.get('/me', authenticate, ctrl.getMyProfile);
 router.get('/:profileId', authenticate, ctrl.getProfile);
 router.put('/:profileId', authenticate, ctrl.updateProfile);
+router.get('/:profileId/verifications', authenticate, ctrl.getVerifications);
+router.post('/:profileId/verifications', authenticate, ctrl.submitVerification);
 router.get('/:profileId/photos', authenticate, ctrl.getPhotos);
 router.post('/:profileId/photos', authenticate, photoUpload.array('photos', 10), ctrl.uploadPhotos);
 router.delete('/:profileId/photos/:photoId', authenticate, ctrl.deletePhoto);

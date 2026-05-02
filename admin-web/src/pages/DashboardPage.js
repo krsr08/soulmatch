@@ -276,7 +276,7 @@ function Table({ columns, rows, empty = 'No records found.' }) {
         </thead>
         <tbody>
           {rows.length ? rows.map((row, index) => (
-            <tr key={row.id || row.profile_id || row.user_id || row.transaction_id || row.audit_id || index}>
+            <tr key={row.id || row.verification_id || row.profile_id || row.user_id || row.transaction_id || row.audit_id || index}>
               {columns.map((column) => <td key={column.key}>{column.render ? column.render(row) : row[column.key]}</td>)}
             </tr>
           )) : (
@@ -543,15 +543,36 @@ function ProfilesPanel({
 }
 
 function VerificationPanel({ verifications, onApprove, onReject }) {
+  const [notes, setNotes] = useState({});
+  const noteFor = (id) => notes[id] || '';
+  const updateNote = (id, value) => setNotes((current) => ({ ...current, [id]: value }));
   const columns = [
-    { key: 'member', label: 'Member', render: (v) => <><strong>{`${v.first_name || ''} ${v.last_name || ''}`.trim() || v.user_id}</strong><small>{v.phone}</small></> },
-    { key: 'type', label: 'Type' },
-    { key: 'document_url', label: 'Document', render: (v) => v.document_url ? <a href={v.document_url} target="_blank" rel="noreferrer">Open</a> : '-' },
+    { key: 'member', label: 'Member', render: (v) => <><strong>{`${v.first_name || ''} ${v.last_name || ''}`.trim() || v.user_id}</strong><small>{[v.phone, v.email].filter(Boolean).join(' | ')}</small><small>{v.occupation || v.working_city ? [v.occupation, v.working_city].filter(Boolean).join(', ') : 'Profile review'}</small></> },
+    { key: 'type', label: 'Type', render: (v) => (v.type || 'profile').replace(/_/g, ' ') },
+    { key: 'document_url', label: 'Evidence', render: (v) => {
+      const documentUrl = v.document_url || v.primary_photo_url;
+      return documentUrl ? <a href={documentUrl} target="_blank" rel="noreferrer">{v.document_url ? 'Open document' : 'Open photo'}</a> : <span>Profile-only review</span>;
+    } },
     { key: 'status', label: 'Status', render: (v) => <StatusBadge tone="amber">{v.status}</StatusBadge> },
-    { key: 'actions', label: 'Actions', render: (v) => <div className="inline-actions"><button onClick={() => onApprove(v.verification_id)} type="button">Approve</button><button onClick={() => onReject(v.verification_id)} type="button">Reject</button></div> }
+    { key: 'created_at', label: 'Requested', render: (v) => new Date(v.created_at).toLocaleString() },
+    { key: 'review_note', label: 'Review note', render: (v) => (
+      <TextArea
+        rows={2}
+        style={{ minHeight: 72 }}
+        value={noteFor(v.verification_id)}
+        onChange={(event) => updateNote(v.verification_id, event.target.value)}
+        placeholder="Reason, document checked, or next step for member"
+      />
+    ) },
+    { key: 'actions', label: 'Actions', render: (v) => (
+      <div className="inline-actions">
+        <button onClick={() => onApprove(v.verification_id, noteFor(v.verification_id))} type="button">Approve</button>
+        <button onClick={() => onReject(v.verification_id, noteFor(v.verification_id))} type="button">Reject</button>
+      </div>
+    ) }
   ];
   return (
-    <Section eyebrow="KYC workflow" title="Document Review Queue" detail="Approve or reject identity, photo, and document verification requests.">
+    <Section eyebrow="KYC workflow" title="Profile Verification Queue" detail="Review member-submitted verification requests, add a note, then approve or reject. Decisions update the verified badge and notify the member.">
       <Table columns={columns} rows={verifications} empty="No pending verification requests." />
     </Section>
   );
@@ -1080,7 +1101,7 @@ export default function DashboardPage() {
 
           {activeTab === 'overview' ? <OverviewPanel stats={stats} live={live} analyticsRows={events} alerts={alerts} setActiveTab={setActiveTab} /> : null}
           {activeTab === 'profiles' ? <ProfilesPanel profiles={profiles} profileMeta={profileMeta} profileFilters={profileFilters} setProfileFilters={setProfileFilters} profileForm={profileForm} setProfileForm={setProfileForm} photoForm={photoForm} setPhotoForm={setPhotoForm} csvText={csvText} setCsvText={setCsvText} onCreate={handleCreateProfile} onAttachPhoto={handleAttachPhoto} onBulk={handleBulk} onStatus={handleStatus} onBulkStatus={handleBulkStatus} onDelete={handleDeleteProfile} /> : null}
-          {activeTab === 'verification' ? <VerificationPanel verifications={verifications} onApprove={async (id) => { await approveVerification(id); await loadAll(); }} onReject={async (id) => { await rejectVerification(id); await loadAll(); }} /> : null}
+          {activeTab === 'verification' ? <VerificationPanel verifications={verifications} onApprove={async (id, note) => { await approveVerification(id, note); await loadAll(); }} onReject={async (id, note) => { await rejectVerification(id, note); await loadAll(); }} /> : null}
           {activeTab === 'payments' ? <PaymentsPanel payments={payments} config={configState} patchConfig={patchConfig} onSave={saveConfig} onRefund={async (t) => { await createRefund({ transactionId: t.transaction_id, amount: t.amount }); setMessage('Refund request queued.'); }} /> : null}
           {activeTab === 'cms' ? <CmsPanel config={configState} patchConfig={patchConfig} onSave={saveConfig} /> : null}
           {activeTab === 'engagement' ? <EngagementPanel config={configState} patchConfig={patchConfig} onSave={saveConfig} campaign={campaign} setCampaign={setCampaign} onCampaign={handleCampaign} /> : null}

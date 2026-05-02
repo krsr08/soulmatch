@@ -2,6 +2,7 @@ const repo = require('../repositories/profileRepository');
 const media = require('../services/mediaService');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 
+const ALLOWED_VERIFICATION_TYPES = new Set(['profile', 'identity', 'photo', 'education', 'income', 'family']);
 const isBlank = (value) => typeof value !== 'string' || !value.trim();
 const hasPositiveNumber = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
 
@@ -45,6 +46,21 @@ function validateStepData(step, data) {
       return 'Step must be 1-6';
   }
 }
+
+function normalizeVerificationType(type) {
+  const normalized = String(type || 'profile').trim().toLowerCase().replace(/\s+/g, '_');
+  return ALLOWED_VERIFICATION_TYPES.has(normalized) ? normalized : null;
+}
+
+function normalizeDocumentUrl(body) {
+  const raw = body?.documentUrl || body?.document_url || null;
+  if (!raw) return null;
+  const value = String(raw).trim();
+  if (!value) return null;
+  if (/^https?:\/\//i.test(value) || value.startsWith('/uploads/')) return value;
+  return false;
+}
+
 exports.createOrUpdateStep = async (req, res, next) => {
   try {
     const { step, ...data } = req.body;
@@ -179,5 +195,33 @@ exports.reportProfile = async (req, res, next) => {
     const ok = await repo.reportProfile(req.user.userId, req.params.profileId, req.body?.reason, req.body?.description);
     if (!ok) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
     res.json({ success: true });
+  } catch (err) { next(err); }
+};
+exports.getVerifications = async (req, res, next) => {
+  try {
+    const profile = await requireOwnedProfile(req.params.profileId, req.user.userId);
+    res.json({ success: true, data: await repo.getVerificationRequests(profile.user_id) });
+  } catch (err) { next(err); }
+};
+exports.submitVerification = async (req, res, next) => {
+  try {
+    const profile = await requireOwnedProfile(req.params.profileId, req.user.userId);
+    const type = normalizeVerificationType(req.body?.type);
+    if (!type) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Verification type must be profile, identity, photo, education, income, or family.'));
+    const documentUrl = normalizeDocumentUrl(req.body);
+    if (documentUrl === false) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Document URL must be an HTTPS URL or a SoulMatch upload path.'));
+    const photoCount = await repo.getPhotoCount(req.params.profileId);
+    if (photoCount < 1) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Add at least one profile photo before requesting verification.'));
+    const completionScore = await repo.calcCompletion(req.params.profileId);
+    if (completionScore < 60) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Complete your profile to at least 60% before requesting verification.'));
+
+    const result = await repo.createVerificationRequest(profile, { type, documentUrl });
+    if (result.status === 'already_verified') {
+      return res.json({ success: true, data: null, message: 'Your profile is already verified.' });
+    }
+    if (result.status === 'already_pending') {
+      return res.json({ success: true, data: result.verification, message: 'Your verification request is already in review.' });
+    }
+    res.json({ success: true, data: result.verification, message: 'Verification request submitted for admin review.' });
   } catch (err) { next(err); }
 };

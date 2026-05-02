@@ -360,6 +360,8 @@ CREATE INDEX IF NOT EXISTS idx_payment_orders_user_status ON payment_orders(user
 CREATE INDEX IF NOT EXISTS idx_payment_orders_provider ON payment_orders(provider_order_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_status ON notifications(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_verifications_status_created ON verifications(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_verifications_user_status ON verifications(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_blocks_blocker ON blocks(blocker_id);
 CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id);
 CREATE INDEX IF NOT EXISTS idx_profile_photos_profile ON profile_photos(profile_id);

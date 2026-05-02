@@ -195,7 +195,7 @@ Problems:
 | Abuse/fraud | Reports table and admin tab partial | Report misuse, decline blocks, customer service follow-up | Add moderation queues, fraud scoring, evidence, SLA dashboards |
 | Monetization | Plans and Razorpay start | Multi-tier plans, spotlight/bold listing, guarantees | Add plan catalog, boosts, renewals, refunds, guarantees |
 | Notifications | FCM send only, stubs | Multi-channel user engagement | Add persisted inbox, SMS/email/push queues, retries |
-| Admin ops | Broad UI prototype | Verification, fraud, analytics, support operations | Add RBAC, audit, workflow states, analytics correctness |
+| Admin ops | Broad UI prototype with profile verification queue | Verification, fraud, analytics, support operations | Profile verification submit/review/notify flow is now implemented; still add admin user table, MFA, fraud scoring, SLA queues, and analytics correctness |
 
 ## Good Implementations
 
@@ -234,8 +234,8 @@ Missing tests:
 - [~] API gateway/WAF, TLS, allowed CORS origins, service-to-service auth. Notification `/send` and `/template` now require `x-internal-service-secret`; matching service sends that header. Still required: gateway, WAF, TLS termination, strict CORS on every service.
 - [x] No mock fixture fallback in release apps for main production flows. Android dashboard/search/profile/detail/interests/chat/subscription/settings now gates fixture fallbacks behind `BuildConfig.DEBUG`.
 - [~] Payment order ledger, webhooks, refunds, idempotency. Added `payment_orders`, order reconciliation, strict Razorpay signature verification, webhook endpoint, idempotent already-paid response. Still required: real refund gateway integration, renewal jobs, invoice/tax workflow.
-- [~] Privacy/block/report enforcement in profile, search, match, chat, admin. Added profile visibility checks, reciprocal block exclusion in search/matching/profile, chat participant check, server block/report APIs, admin verification status propagation. Still required: full hide/unhide API, contact entitlement enforcement, complete admin moderation workflow.
-- [~] Notification persistence, queues, retries, provider logs. Added `notifications` table, inbox/read APIs, FCM token registration, persisted push attempts, service-authenticated dispatch. Still required: queue worker, retry/DLQ, SMS/email providers, delivery dashboards.
+- [~] Privacy/block/report enforcement in profile, search, match, chat, admin. Added profile visibility checks, reciprocal block exclusion in search/matching/profile, chat participant check, server block/report APIs, and member-submitted profile verification workflow with admin approve/reject decisions. Still required: full hide/unhide API, contact entitlement enforcement, complete admin moderation workflow.
+- [~] Notification persistence, queues, retries, provider logs. Added `notifications` table, inbox/read APIs, FCM token registration, persisted push attempts, service-authenticated dispatch, and verification decision notifications. Still required: queue worker, retry/DLQ, SMS/email providers, delivery dashboards.
 - [~] Real RBAC/MFA/admin users/permission middleware. Added per-route role gates and disabled plaintext admin password in production. Still required: admin user table, MFA, lockout, session store, permission editor.
 - [~] Migration discipline and schema ownership. Added `004_enterprise_hardening.sql` and schema updates for orders/notifications/indexes. Still required: consolidate duplicate migrations/runtime DDL into one migration tool.
 - [ ] Observability: metrics, logs, traces, alerts, SLOs. Not implemented in this pass.

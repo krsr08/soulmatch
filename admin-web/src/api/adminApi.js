@@ -18,7 +18,7 @@ export const updateProfile = (id, payload) => api.put('/profiles/' + id, payload
 export const deleteProfile = id => api.delete('/profiles/' + id);
 export const updateProfileStatus = (id, action, reason = '') => api.put('/profiles/' + id + '/status', { action, reason });
 export const getVerifications = () => api.get('/verifications');
-export const approveVerification = id => api.put('/verifications/' + id + '/approve');
+export const approveVerification = (id, note = '') => api.put('/verifications/' + id + '/approve', { note });
 export const rejectVerification = (id, note = '') => api.put('/verifications/' + id + '/reject', { note });
 export const getReports = () => api.get('/moderation/reports');
 export const resolveReport = id => api.put('/reports/' + id + '/resolve');

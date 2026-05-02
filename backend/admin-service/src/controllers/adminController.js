@@ -88,6 +88,36 @@ async function auditLog(db, req, action, entityType, entityId = null, metadata =
   }
 }
 
+async function notifyMember(db, userId, title, body, data = {}) {
+  const payload = { userId, title, body, data };
+  const notificationUrl = process.env.NOTIFICATION_API_URL;
+  const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
+  if (notificationUrl && internalSecret) {
+    try {
+      const response = await fetch(`${notificationUrl.replace(/\/$/, '')}/send`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-internal-service-secret': internalSecret
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(5000)
+      });
+      if (response.ok) return true;
+      logger.warn(`Notification service rejected member notification: ${response.status}`);
+    } catch (error) {
+      logger.warn(`Notification service unavailable for member notification: ${error.message}`);
+    }
+  }
+
+  await db.query(
+    `INSERT INTO notifications (notification_id,user_id,title,body,data,status,created_at)
+     VALUES ($1,$2,$3,$4,$5::jsonb,'queued',NOW())`,
+    [crypto.randomUUID(), userId, title, body, JSON.stringify(data || {})]
+  );
+  return false;
+}
+
 function profileScore(body) {
   const checks = [
     body.firstName || body.first_name,
@@ -612,10 +642,23 @@ exports.getPendingVerifications = async (req, res) => {
   try {
     const db = await getDB();
     const result = await db.query(
-      `SELECT v.*, u.phone, p.first_name, p.last_name
+      `SELECT
+         v.*,
+         u.phone,
+         u.email,
+         p.profile_id,
+         p.first_name,
+         p.last_name,
+         p.primary_photo_url,
+         p.completion_score,
+         COALESCE(p.verification_status,'pending') AS profile_verification_status,
+         COALESCE(p.admin_status,'active') AS admin_status,
+         ec.occupation,
+         ec.working_city
        FROM verifications v
        JOIN users u ON v.user_id = u.user_id
        LEFT JOIN profiles p ON p.user_id = v.user_id
+       LEFT JOIN education_career ec ON ec.profile_id = p.profile_id
        WHERE v.status='pending'
        ORDER BY v.created_at ASC`
     );
@@ -626,37 +669,79 @@ exports.getPendingVerifications = async (req, res) => {
 };
 
 exports.approveVerification = async (req, res) => {
+  const db = await getDB();
+  const client = await db.connect();
   try {
-    const db = await getDB();
-    const result = await db.query(
+    await client.query('BEGIN');
+    const result = await client.query(
       "UPDATE verifications SET status='verified', reviewer_email=$2, review_note=$3, reviewed_at=NOW() WHERE verification_id=$1 RETURNING *",
       [req.params.id, req.admin?.email || 'admin', req.body?.note || null]
     );
-    if (!result.rows[0]) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Verification request not found.' } });
-    await db.query("UPDATE users SET is_verified=true, updated_at=NOW() WHERE user_id=$1", [result.rows[0].user_id]);
-    await db.query("UPDATE profiles SET verification_status='verified', updated_at=NOW() WHERE user_id=$1", [result.rows[0].user_id]);
-    await auditLog(db, req, 'verification.approve', 'verification', req.params.id, {});
+    if (!result.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Verification request not found.' } });
+    }
+    await client.query("UPDATE users SET is_verified=true, updated_at=NOW() WHERE user_id=$1", [result.rows[0].user_id]);
+    await client.query("UPDATE profiles SET verification_status='verified', updated_at=NOW() WHERE user_id=$1", [result.rows[0].user_id]);
+    await auditLog(client, req, 'verification.approve', 'verification', req.params.id, { type: result.rows[0].type });
+    await client.query('COMMIT');
+    await notifyMember(
+      db,
+      result.rows[0].user_id,
+      'Profile verified',
+      'Your SoulMatch profile verification is approved. The verified badge is now active.',
+      {
+        type: 'profile_verification',
+        status: 'verified',
+        verificationId: result.rows[0].verification_id
+      }
+    );
     broadcastAdminEvent('admin:verification_updated', { action: 'approve', verification: result.rows[0] });
-    res.json({ success: true });
+    res.json({ success: true, data: result.rows[0] });
   } catch (err) {
-    respondDegraded(res, err, [], 'Reports store is unavailable. Showing an empty report queue.');
+    await client.query('ROLLBACK').catch(() => {});
+    respondServerError(res, err, 'Unable to approve this verification request right now.');
+  } finally {
+    client.release();
   }
 };
 
 exports.rejectVerification = async (req, res) => {
+  const db = await getDB();
+  const client = await db.connect();
   try {
-    const db = await getDB();
-    const result = await db.query(
+    await client.query('BEGIN');
+    const note = String(req.body?.note || '').trim();
+    const result = await client.query(
       "UPDATE verifications SET status='rejected', reviewer_email=$2, review_note=$3, reviewed_at=NOW() WHERE verification_id=$1 RETURNING *",
-      [req.params.id, req.admin?.email || 'admin', req.body?.note || null]
+      [req.params.id, req.admin?.email || 'admin', note || null]
     );
-    if (!result.rows[0]) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Verification request not found.' } });
-    await db.query("UPDATE profiles SET verification_status='rejected', updated_at=NOW() WHERE user_id=$1", [result.rows[0].user_id]);
-    await auditLog(db, req, 'verification.reject', 'verification', req.params.id, { note: req.body?.note || null });
+    if (!result.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Verification request not found.' } });
+    }
+    await client.query("UPDATE users SET is_verified=false, updated_at=NOW() WHERE user_id=$1", [result.rows[0].user_id]);
+    await client.query("UPDATE profiles SET verification_status='rejected', updated_at=NOW() WHERE user_id=$1", [result.rows[0].user_id]);
+    await auditLog(client, req, 'verification.reject', 'verification', req.params.id, { type: result.rows[0].type, note: note || null });
+    await client.query('COMMIT');
+    await notifyMember(
+      db,
+      result.rows[0].user_id,
+      'Verification needs attention',
+      note || 'Your SoulMatch profile verification was declined. You can update your profile and request review again.',
+      {
+        type: 'profile_verification',
+        status: 'rejected',
+        verificationId: result.rows[0].verification_id
+      }
+    );
     broadcastAdminEvent('admin:verification_updated', { action: 'reject', verification: result.rows[0] });
-    res.json({ success: true });
+    res.json({ success: true, data: result.rows[0] });
   } catch (err) {
-    res.status(500).json({ success: false, error: { message: err.message } });
+    await client.query('ROLLBACK').catch(() => {});
+    respondServerError(res, err, 'Unable to reject this verification request right now.');
+  } finally {
+    client.release();
   }
 };
 

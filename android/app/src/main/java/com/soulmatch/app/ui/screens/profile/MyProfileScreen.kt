@@ -65,6 +65,7 @@ import com.soulmatch.app.data.models.PartnerPreferencesData
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.ProfilePhoto
 import com.soulmatch.app.data.models.SubscriptionData
+import com.soulmatch.app.data.models.VerificationRequestData
 import com.soulmatch.app.data.models.ViewerData
 import com.soulmatch.app.data.models.fullName
 import com.soulmatch.app.ui.components.AvatarInitial
@@ -121,8 +122,10 @@ fun MyProfileScreen(
     val preferences by vm.preferences.collectAsStateWithLifecycle()
     val viewers by vm.viewers.collectAsStateWithLifecycle()
     val photos by vm.photos.collectAsStateWithLifecycle()
+    val verifications by vm.verifications.collectAsStateWithLifecycle()
     val loading by vm.isLoading.collectAsStateWithLifecycle()
     val uploadingPhotos by vm.isUploadingPhotos.collectAsStateWithLifecycle()
+    val submittingVerification by vm.isSubmittingVerification.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     val loadMessage by vm.loadMessage.collectAsStateWithLifecycle()
     val editSection: (Int) -> Unit = onEditSection ?: { _ -> }
@@ -209,6 +212,15 @@ fun MyProfileScreen(
                             item {
                                 StatusCard(status = status ?: "")
                             }
+                        }
+                        item {
+                            VerificationStatusCard(
+                                profile = data,
+                                photos = photos,
+                                verifications = verifications,
+                                isSubmitting = submittingVerification,
+                                onSubmit = vm::submitProfileVerification
+                            )
                         }
                         item {
                             PhotoGalleryCard(
@@ -418,7 +430,9 @@ private fun StatusCard(status: String) {
     val isSuccess = status.contains("updated", ignoreCase = true) ||
         status.contains("uploaded", ignoreCase = true) ||
         status.contains("removed", ignoreCase = true) ||
-        status.contains("saved", ignoreCase = true)
+        status.contains("saved", ignoreCase = true) ||
+        status.contains("submitted", ignoreCase = true) ||
+        status.contains("review", ignoreCase = true)
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         containerColor = if (isSuccess) SuccessSoft else ErrorSoft
@@ -429,6 +443,109 @@ private fun StatusCard(status: String) {
             color = if (isSuccess) Success else Error,
             fontWeight = FontWeight.SemiBold
         )
+    }
+}
+
+private enum class ProfileVerificationState {
+    Verified,
+    Pending,
+    Rejected,
+    NotRequested
+}
+
+@Composable
+private fun VerificationStatusCard(
+    profile: ProfileData,
+    photos: List<ProfilePhoto>,
+    verifications: List<VerificationRequestData>,
+    isSubmitting: Boolean,
+    onSubmit: () -> Unit
+) {
+    val latest = verifications.maxByOrNull { it.createdAt }
+    val pending = verifications.firstOrNull { it.status.equals("pending", ignoreCase = true) }
+    val state = when {
+        profile.verificationStatus.equals("verified", ignoreCase = true) ||
+            latest?.status.equals("verified", ignoreCase = true) -> ProfileVerificationState.Verified
+        pending != null -> ProfileVerificationState.Pending
+        latest?.status.equals("rejected", ignoreCase = true) ||
+            profile.verificationStatus.equals("rejected", ignoreCase = true) -> ProfileVerificationState.Rejected
+        else -> ProfileVerificationState.NotRequested
+    }
+    val hasPhoto = photos.isNotEmpty() || !profile.primaryPhotoUrl.isNullOrBlank()
+    val isCompleteEnough = profile.completionScore >= 60
+    val canSubmit = state != ProfileVerificationState.Verified &&
+        state != ProfileVerificationState.Pending &&
+        hasPhoto &&
+        isCompleteEnough &&
+        !isSubmitting
+    val title = when (state) {
+        ProfileVerificationState.Verified -> "Verified profile"
+        ProfileVerificationState.Pending -> "Verification in review"
+        ProfileVerificationState.Rejected -> "Verification needs update"
+        ProfileVerificationState.NotRequested -> "Verification not requested"
+    }
+    val detail = when {
+        state == ProfileVerificationState.Verified -> "Your verified badge is active across SoulMatch."
+        state == ProfileVerificationState.Pending -> "Admin review is pending. You will get a notification once a decision is made."
+        !hasPhoto -> "Add at least one clear profile photo before requesting verification."
+        !isCompleteEnough -> "Complete your profile to at least 60% before requesting verification."
+        state == ProfileVerificationState.Rejected -> "Update your profile or photos, then request verification again."
+        else -> "Request admin review to activate the verified badge on your profile."
+    }
+    val statusColor = when (state) {
+        ProfileVerificationState.Verified -> SuccessSoft
+        ProfileVerificationState.Pending -> SurfaceWarm
+        ProfileVerificationState.Rejected -> ErrorSoft
+        ProfileVerificationState.NotRequested -> SurfaceSoft
+    }
+    val iconTint = when (state) {
+        ProfileVerificationState.Verified -> Success
+        ProfileVerificationState.Rejected -> Error
+        else -> PrimaryDark
+    }
+    val buttonLabel = when {
+        isSubmitting -> "Submitting"
+        state == ProfileVerificationState.Verified -> "Verified"
+        state == ProfileVerificationState.Pending -> "Review pending"
+        state == ProfileVerificationState.Rejected -> "Request again"
+        else -> "Request verification"
+    }
+
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SectionTitle("Profile verification", "Admin-reviewed trust badge for member safety")
+            Surface(shape = RoundedCornerShape(16.dp), color = statusColor, border = BorderStroke(1.dp, Divider)) {
+                Row(
+                    Modifier.padding(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.Verified, contentDescription = null, tint = iconTint)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text(detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        if (latest?.status.equals("rejected", ignoreCase = true) && !latest?.reviewNote.isNullOrBlank()) {
+                            Text("Admin note: ${latest?.reviewNote}", style = MaterialTheme.typography.bodySmall, color = Error)
+                        }
+                        if (!latest?.createdAt.isNullOrBlank()) {
+                            Text("Last request: ${formatDate(latest?.createdAt ?: "")}", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        }
+                    }
+                }
+            }
+            Button(
+                onClick = onSubmit,
+                enabled = canSubmit,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (isSubmitting) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
+                } else {
+                    Icon(Icons.Filled.Verified, contentDescription = null, modifier = Modifier.size(18.dp))
+                }
+                Text(buttonLabel)
+            }
+        }
     }
 }
 

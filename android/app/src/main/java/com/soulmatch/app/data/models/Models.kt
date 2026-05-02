@@ -5,7 +5,8 @@ import com.google.gson.annotations.SerializedName
 data class GenericResponse<T>(
     val success: Boolean,
     val data: T? = null,
-    val error: ErrorData? = null
+    val error: ErrorData? = null,
+    val message: String? = null
 )
 
 data class ErrorData(
@@ -54,6 +55,23 @@ data class PrivacySettingsRequest(
     @SerializedName("profileVisibility") val profileVisibility: String
 )
 
+data class VerificationSubmitRequest(
+    val type: String = "profile",
+    @SerializedName("documentUrl") val documentUrl: String? = null
+)
+
+data class VerificationRequestData(
+    @SerializedName("verification_id") val verificationId: String = "",
+    @SerializedName("user_id") val userId: String = "",
+    val type: String = "profile",
+    val status: String = "pending",
+    @SerializedName("document_url") val documentUrl: String? = null,
+    @SerializedName("reviewer_email") val reviewerEmail: String? = null,
+    @SerializedName("review_note") val reviewNote: String? = null,
+    @SerializedName("reviewed_at") val reviewedAt: String? = null,
+    @SerializedName("created_at") val createdAt: String = ""
+)
+
 data class ViewerData(
     @SerializedName("profile_id") val profileId: String = "",
     @SerializedName("user_id") val userId: String = "",
@@ -88,6 +106,7 @@ data class ProfileData(
     @SerializedName("mother_tongue") val motherTongue: String = "",
     @SerializedName("marital_status") val maritalStatus: String = "",
     @SerializedName("completion_score") val completionScore: Int = 0,
+    @SerializedName("verification_status") val verificationStatus: String = "pending",
     @SerializedName("primary_photo_url") val primaryPhotoUrl: String? = null,
     @SerializedName("photo_privacy") val photoPrivacy: String = "all",
     @SerializedName("profile_visibility") val profileVisibility: String = "all",

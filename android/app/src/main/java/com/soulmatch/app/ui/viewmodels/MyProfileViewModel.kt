@@ -10,6 +10,8 @@ import com.soulmatch.app.data.models.PartnerPreferencesData
 import com.soulmatch.app.data.models.ProfilePhoto
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.SubscriptionData
+import com.soulmatch.app.data.models.VerificationRequestData
+import com.soulmatch.app.data.models.VerificationSubmitRequest
 import com.soulmatch.app.data.models.ViewerData
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -39,8 +41,10 @@ class MyProfileViewModel @Inject constructor(
     private val _preferences = MutableStateFlow(PartnerPreferencesData())
     private val _viewers = MutableStateFlow<List<ViewerData>>(emptyList())
     private val _photos = MutableStateFlow<List<ProfilePhoto>>(emptyList())
+    private val _verifications = MutableStateFlow<List<VerificationRequestData>>(emptyList())
     private val _isLoading = MutableStateFlow(false)
     private val _isUploadingPhotos = MutableStateFlow(false)
+    private val _isSubmittingVerification = MutableStateFlow(false)
     private val _status = MutableStateFlow<String?>(null)
     private val _loadMessage = MutableStateFlow<String?>(null)
 
@@ -50,8 +54,10 @@ class MyProfileViewModel @Inject constructor(
     val preferences: StateFlow<PartnerPreferencesData> = _preferences.asStateFlow()
     val viewers: StateFlow<List<ViewerData>> = _viewers.asStateFlow()
     val photos: StateFlow<List<ProfilePhoto>> = _photos.asStateFlow()
+    val verifications: StateFlow<List<VerificationRequestData>> = _verifications.asStateFlow()
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     val isUploadingPhotos: StateFlow<Boolean> = _isUploadingPhotos.asStateFlow()
+    val isSubmittingVerification: StateFlow<Boolean> = _isSubmittingVerification.asStateFlow()
     val status: StateFlow<String?> = _status.asStateFlow()
     val loadMessage: StateFlow<String?> = _loadMessage.asStateFlow()
 
@@ -86,6 +92,7 @@ class MyProfileViewModel @Inject constructor(
                     _preferences.value = PartnerPreferencesData()
                     _viewers.value = emptyList()
                     _photos.value = emptyList()
+                    _verifications.value = emptyList()
                     _loadMessage.value = "Start with your basic details to build your profile."
                     return@launch
                 }
@@ -116,6 +123,12 @@ class MyProfileViewModel @Inject constructor(
                     ?.data
                     .orEmpty()
                     .ifEmpty { if (AppEnvironment.allowDemoFallback) MarketFixtures.profilePhotos else emptyList() }
+                _verifications.value = runCatching { profileApi.getVerifications(resolvedProfile.profileId) }
+                    .getOrNull()
+                    ?.body()
+                    ?.takeIf { it.success }
+                    ?.data
+                    .orEmpty()
             } catch (error: Exception) {
                 if (AppEnvironment.allowDemoFallback) {
                     applyMockProfileFallback(
@@ -127,6 +140,7 @@ class MyProfileViewModel @Inject constructor(
                 } else {
                     _profile.value = null
                     _checklist.value = buildChecklist(null)
+                    _verifications.value = emptyList()
                     _loadMessage.value = when (error) {
                         is IOException -> "Couldn't reach the server to load your profile."
                         else -> "Couldn't load your saved profile right now."
@@ -146,6 +160,7 @@ class MyProfileViewModel @Inject constructor(
         _preferences.value = PartnerPreferencesData(religion = fallback.religion, manglikPref = "any")
         _viewers.value = MarketFixtures.recentViewers
         _photos.value = MarketFixtures.profilePhotos
+        _verifications.value = emptyList()
         _checklist.value = buildChecklist(fallback)
         _loadMessage.value = message
     }
@@ -241,6 +256,34 @@ class MyProfileViewModel @Inject constructor(
                 }
             } finally {
                 _isLoading.value = false
+            }
+        }
+    }
+
+    fun submitProfileVerification() {
+        val profileId = _profile.value?.profileId ?: return
+        viewModelScope.launch {
+            _isSubmittingVerification.value = true
+            _status.value = null
+            try {
+                val response = profileApi.submitVerification(profileId, VerificationSubmitRequest(type = "profile"))
+                val body = response.body()
+                if (response.isSuccessful && body?.success == true) {
+                    body.data?.let { verification ->
+                        _verifications.value = listOf(verification) + _verifications.value.filterNot { it.verificationId == verification.verificationId }
+                    }
+                    _status.value = body.message ?: "Verification request submitted."
+                    load()
+                } else {
+                    _status.value = body?.error?.message ?: "Couldn't submit verification right now."
+                }
+            } catch (error: Exception) {
+                _status.value = when (error) {
+                    is IOException -> "Couldn't reach the server. Check your connection and try again."
+                    else -> "Couldn't submit verification right now. Please try again."
+                }
+            } finally {
+                _isSubmittingVerification.value = false
             }
         }
     }

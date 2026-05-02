@@ -16,18 +16,22 @@ async function deliverPush(db, { userId, title, body, data }) {
      RETURNING notification_id`,
     [userId, title, body, JSON.stringify(data || {})]
   );
+  const notificationId = notification.rows[0].notification_id;
   const fcmToken = await resolveToken(db, userId);
   if (fcmToken) {
     try {
       await fcmService.sendToDevice(fcmToken, title, body, data || {});
-      await db.query("UPDATE notifications SET status='sent', delivered_at=NOW() WHERE notification_id=$1", [notification.rows[0].notification_id]);
+      await db.query("UPDATE notifications SET status='sent', delivered_at=NOW() WHERE notification_id=$1", [notificationId]);
+      return { notificationId, status: 'sent' };
     } catch (err) {
-      await db.query("UPDATE notifications SET status='failed' WHERE notification_id=$1", [notification.rows[0].notification_id]);
-      throw err;
+      await db.query("UPDATE notifications SET status='failed' WHERE notification_id=$1", [notificationId]);
+      logger.error('FCM delivery failed for notification ' + notificationId + ': ' + err.message);
+      return { notificationId, status: 'failed', error: err.message };
     }
   } else {
-    await db.query("UPDATE notifications SET status='no_token' WHERE notification_id=$1", [notification.rows[0].notification_id]);
+    await db.query("UPDATE notifications SET status='no_token' WHERE notification_id=$1", [notificationId]);
     logger.info('No FCM token for user ' + userId);
+    return { notificationId, status: 'no_token' };
   }
 }
 
@@ -83,8 +87,8 @@ exports.sendPush = async (req, res, next) => {
       return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'userId, title, and body are required.'));
     }
     const db = await getDB();
-    await deliverPush(db, { userId, title, body, data });
-    res.json({ success:true, message:'Notification queued' });
+    const delivery = await deliverPush(db, { userId, title, body, data });
+    res.json({ success:true, data: delivery, message:'Notification queued' });
   } catch (err) { next(err); }
 };
 
@@ -102,8 +106,8 @@ exports.sendTemplate = async (req, res, next) => {
     }
     const title = renderTemplate(template.title, variables || {});
     const body = renderTemplate(template.body, variables || {});
-    await deliverPush(db, { userId, title, body, data });
-    res.json({ success:true, data:{ title, body }, message:'Notification queued' });
+    const delivery = await deliverPush(db, { userId, title, body, data });
+    res.json({ success:true, data:{ title, body, delivery }, message:'Notification queued' });
   } catch (err) {
     next(err);
   }

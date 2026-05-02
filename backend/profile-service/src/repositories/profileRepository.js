@@ -2,6 +2,101 @@ const { getDB } = require('../config/database');
 const { randomUUID } = require('crypto');
 exports.findByUserId = async (userId) => { const db = await getDB(); const r = await db.query('SELECT * FROM profiles WHERE user_id=$1 LIMIT 1', [userId]); return r.rows[0] || null; };
 exports.findById = async (profileId) => { const db = await getDB(); const r = await db.query('SELECT * FROM profiles WHERE profile_id=$1 LIMIT 1', [profileId]); return r.rows[0] || null; };
+exports.getVerificationRequests = async (userId) => {
+  const db = await getDB();
+  const r = await db.query(
+    `SELECT
+       verification_id,
+       user_id,
+       type,
+       status,
+       document_url,
+       reviewer_email,
+       review_note,
+       reviewed_at,
+       created_at
+     FROM verifications
+     WHERE user_id=$1
+     ORDER BY created_at DESC`,
+    [userId]
+  );
+  return r.rows;
+};
+exports.createVerificationRequest = async (profile, data) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const lockedProfile = await client.query(
+      'SELECT profile_id,user_id,verification_status,completion_score,primary_photo_url FROM profiles WHERE profile_id=$1 AND user_id=$2 FOR UPDATE',
+      [profile.profile_id, profile.user_id]
+    );
+    const current = lockedProfile.rows[0];
+    if (!current) {
+      await client.query('ROLLBACK');
+      return { status: 'not_found' };
+    }
+    if (current.verification_status === 'verified') {
+      await client.query('COMMIT');
+      return { status: 'already_verified' };
+    }
+    const pending = await client.query(
+      `SELECT
+         verification_id,
+         user_id,
+         type,
+         status,
+         document_url,
+         reviewer_email,
+         review_note,
+         reviewed_at,
+         created_at
+       FROM verifications
+       WHERE user_id=$1 AND status='pending'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [profile.user_id]
+    );
+    if (pending.rows[0]) {
+      await client.query('COMMIT');
+      return { status: 'already_pending', verification: pending.rows[0] };
+    }
+    const verificationId = randomUUID();
+    const documentUrl = data.documentUrl || current.primary_photo_url || null;
+    const inserted = await client.query(
+      `INSERT INTO verifications (verification_id,user_id,type,status,document_url,created_at)
+       VALUES ($1,$2,$3,'pending',$4,NOW())
+       RETURNING verification_id,user_id,type,status,document_url,reviewer_email,review_note,reviewed_at,created_at`,
+      [verificationId, profile.user_id, data.type, documentUrl]
+    );
+    await client.query(
+      "UPDATE profiles SET verification_status='pending', updated_at=NOW() WHERE profile_id=$1",
+      [profile.profile_id]
+    );
+    await client.query(
+      `INSERT INTO admin_alerts (alert_id,severity,title,body,source,metadata,created_at)
+       VALUES ($1,'medium','Profile verification requested',$2,'profile-service',$3::jsonb,NOW())`,
+      [
+        randomUUID(),
+        `${profile.first_name || 'A member'} ${profile.last_name || ''}`.trim() + ' submitted a profile verification request.',
+        JSON.stringify({
+          type: 'profile_verification',
+          verificationId,
+          profileId: profile.profile_id,
+          userId: profile.user_id,
+          verificationType: data.type
+        })
+      ]
+    );
+    await client.query('COMMIT');
+    return { status: 'created', verification: inserted.rows[0] };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+};
 exports.canViewProfile = async (profileId, viewerUserId) => {
   const db = await getDB();
   const r = await db.query(
