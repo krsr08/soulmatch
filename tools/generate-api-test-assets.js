@@ -30,23 +30,27 @@ const request = ({
   query = [],
   tests = '',
   description = ''
-}) => ({
-  name,
-  event: tests ? [{ listen: 'test', script: { type: 'text/javascript', exec: tests.split('\n') } }] : [],
-  request: {
-    auth,
-    method,
-    header: body && body.mode === 'raw' ? [jsonHeader, ...headers] : headers,
-    body,
-    url: {
-      raw: path.startsWith('http') ? path : `{{base_url}}${path}`,
-      host: path.startsWith('http') ? [path] : ['{{base_url}}'],
-      path: path.startsWith('http') ? [] : path.replace(/^\//, '').split('/'),
-      query
-    },
-    description
-  }
-});
+}) => {
+  const isAbsolute = path.startsWith('http://') || path.startsWith('https://') || path.startsWith('{{public_origin}}');
+  const rawUrl = isAbsolute ? path : `{{base_url}}${path}`;
+  return {
+    name,
+    event: tests ? [{ listen: 'test', script: { type: 'text/javascript', exec: tests.split('\n') } }] : [],
+    request: {
+      auth,
+      method,
+      header: body && body.mode === 'raw' ? [jsonHeader, ...headers] : headers,
+      body,
+      url: query.length ? {
+        raw: rawUrl,
+        host: isAbsolute ? [] : ['{{base_url}}'],
+        path: isAbsolute ? [] : path.replace(/^\//, '').split('/'),
+        query
+      } : rawUrl,
+      description
+    }
+  };
+};
 
 const folder = (name, items) => ({ name, item: items });
 

@@ -37,17 +37,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/public/config",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "public",
-                "config"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/public/config",
             "description": ""
           }
         },
@@ -74,17 +64,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/public/analytics",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "public",
-                "analytics"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/public/analytics",
             "description": ""
           }
         },
@@ -97,18 +77,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/public/profiles/{{target_profile_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "public",
-                "profiles",
-                "{{target_profile_id}}"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/public/profiles/{{target_profile_id}}",
             "description": ""
           }
         },
@@ -121,18 +90,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/public/landing-pages/home",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "public",
-                "landing-pages",
-                "home"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/public/landing-pages/home",
             "description": ""
           }
         },
@@ -145,19 +103,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}{{public_origin}}/share/profile/{{target_profile_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "{{public_origin}}",
-                "share",
-                "profile",
-                "{{target_profile_id}}"
-              ],
-              "query": []
-            },
+            "url": "{{public_origin}}/share/profile/{{target_profile_id}}",
             "description": ""
           }
         },
@@ -170,19 +116,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}{{public_origin}}/share/landing/home",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "{{public_origin}}",
-                "share",
-                "landing",
-                "home"
-              ],
-              "query": []
-            },
+            "url": "{{public_origin}}/share/landing/home",
             "description": ""
           }
         }
@@ -214,17 +148,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/auth/send-otp",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "auth",
-                "send-otp"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/auth/send-otp",
             "description": ""
           }
         },
@@ -267,17 +191,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/auth/verify-otp",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "auth",
-                "verify-otp"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/auth/verify-otp",
             "description": ""
           }
         },
@@ -320,17 +234,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/auth/google-login",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "auth",
-                "google-login"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/auth/google-login",
             "description": ""
           }
         },
@@ -373,17 +277,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/auth/firebase-phone-login",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "auth",
-                "firebase-phone-login"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/auth/firebase-phone-login",
             "description": ""
           }
         },
@@ -424,17 +318,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/auth/refresh-token",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "auth",
-                "refresh-token"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/auth/refresh-token",
             "description": ""
           }
         },
@@ -458,17 +342,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/auth/logout",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "auth",
-                "logout"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/auth/logout",
             "description": ""
           }
         }
@@ -497,17 +371,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/profile/create",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "create"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/create",
             "description": ""
           }
         },
@@ -530,17 +394,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/profile/me",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "me"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/me",
             "description": ""
           }
         },
@@ -550,17 +404,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/profile/{{target_profile_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{target_profile_id}}"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{target_profile_id}}",
             "description": ""
           }
         },
@@ -584,17 +428,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/profile/{{profile_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{profile_id}}"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{profile_id}}",
             "description": ""
           }
         },
@@ -604,18 +438,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/profile/{{profile_id}}/completion",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{profile_id}}",
-                "completion"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{profile_id}}/completion",
             "description": ""
           }
         },
@@ -639,17 +462,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/profile/status",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "status"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/status",
             "description": ""
           }
         },
@@ -659,18 +472,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/profile/{{profile_id}}/preferences",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{profile_id}}",
-                "preferences"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{profile_id}}/preferences",
             "description": ""
           }
         },
@@ -694,18 +496,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/profile/{{profile_id}}/preferences",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{profile_id}}",
-                "preferences"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{profile_id}}/preferences",
             "description": ""
           }
         },
@@ -729,18 +520,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/profile/{{profile_id}}/privacy",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{profile_id}}",
-                "privacy"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{profile_id}}/privacy",
             "description": ""
           }
         },
@@ -764,18 +544,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/profile/{{target_profile_id}}/view",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{target_profile_id}}",
-                "view"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{target_profile_id}}/view",
             "description": ""
           }
         },
@@ -785,18 +554,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/profile/{{profile_id}}/viewers",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{profile_id}}",
-                "viewers"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{profile_id}}/viewers",
             "description": ""
           }
         },
@@ -820,18 +578,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/profile/{{profile_id}}/verifications",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{profile_id}}",
-                "verifications"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{profile_id}}/verifications",
             "description": ""
           }
         },
@@ -841,18 +588,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/profile/{{profile_id}}/verifications",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{profile_id}}",
-                "verifications"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{profile_id}}/verifications",
             "description": ""
           }
         },
@@ -862,18 +598,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/profile/{{profile_id}}/photos",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{profile_id}}",
-                "photos"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{profile_id}}/photos",
             "description": ""
           }
         },
@@ -893,18 +618,7 @@
                 }
               ]
             },
-            "url": {
-              "raw": "{{base_url}}/profile/{{profile_id}}/photos",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{profile_id}}",
-                "photos"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{profile_id}}/photos",
             "description": ""
           }
         },
@@ -914,20 +628,7 @@
           "request": {
             "method": "PUT",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/profile/{{profile_id}}/photos/{{photo_id}}/primary",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{profile_id}}",
-                "photos",
-                "{{photo_id}}",
-                "primary"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{profile_id}}/photos/{{photo_id}}/primary",
             "description": ""
           }
         },
@@ -937,19 +638,7 @@
           "request": {
             "method": "DELETE",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/profile/{{profile_id}}/photos/{{photo_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{profile_id}}",
-                "photos",
-                "{{photo_id}}"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{profile_id}}/photos/{{photo_id}}",
             "description": ""
           }
         },
@@ -973,19 +662,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/profile/{{target_profile_id}}/photo-access/request",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{target_profile_id}}",
-                "photo-access",
-                "request"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{target_profile_id}}/photo-access/request",
             "description": ""
           }
         },
@@ -995,18 +672,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/profile/photo-access/requests",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "photo-access",
-                "requests"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/photo-access/requests",
             "description": ""
           }
         },
@@ -1030,19 +696,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/profile/photo-access/requests/{{photo_access_request_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "photo-access",
-                "requests",
-                "{{photo_access_request_id}}"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/photo-access/requests/{{photo_access_request_id}}",
             "description": ""
           }
         },
@@ -1052,17 +706,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/profile/family-decisions",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "family-decisions"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/family-decisions",
             "description": ""
           }
         },
@@ -1086,18 +730,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/profile/family-decisions/{{target_profile_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "family-decisions",
-                "{{target_profile_id}}"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/family-decisions/{{target_profile_id}}",
             "description": ""
           }
         },
@@ -1121,19 +754,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/profile/family-decisions/{{family_decision_id}}/comments",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "family-decisions",
-                "{{family_decision_id}}",
-                "comments"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/family-decisions/{{family_decision_id}}/comments",
             "description": ""
           }
         },
@@ -1143,18 +764,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/profile/assist/status",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "assist",
-                "status"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/assist/status",
             "description": ""
           }
         },
@@ -1178,18 +788,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/profile/assist/status",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "assist",
-                "status"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/assist/status",
             "description": ""
           }
         },
@@ -1213,18 +812,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/profile/{{target_profile_id}}/match-feedback",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{target_profile_id}}",
-                "match-feedback"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{target_profile_id}}/match-feedback",
             "description": ""
           }
         },
@@ -1248,18 +836,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/profile/{{target_profile_id}}/block",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{target_profile_id}}",
-                "block"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{target_profile_id}}/block",
             "description": ""
           }
         },
@@ -1283,18 +860,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/profile/{{target_profile_id}}/report",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "profile",
-                "{{target_profile_id}}",
-                "report"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/profile/{{target_profile_id}}/report",
             "description": ""
           }
         }
@@ -1322,17 +888,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/matches/recommended?page=1&limit=25&verifiedOnly=false",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "matches",
-                "recommended?page=1&limit=25&verifiedOnly=false"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/matches/recommended?page=1&limit=25&verifiedOnly=false",
             "description": ""
           }
         },
@@ -1342,17 +898,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/matches/recommended?page=1&limit=25&verifiedOnly=true",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "matches",
-                "recommended?page=1&limit=25&verifiedOnly=true"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/matches/recommended?page=1&limit=25&verifiedOnly=true",
             "description": ""
           }
         },
@@ -1362,18 +908,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/matches/compatibility/{{target_profile_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "matches",
-                "compatibility",
-                "{{target_profile_id}}"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/matches/compatibility/{{target_profile_id}}",
             "description": ""
           }
         },
@@ -1397,17 +932,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/search/basic",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "search",
-                "basic"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/search/basic",
             "description": ""
           }
         },
@@ -1431,17 +956,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/search/advanced",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "search",
-                "advanced"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/search/advanced",
             "description": ""
           }
         },
@@ -1451,17 +966,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/search/saved",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "search",
-                "saved"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/search/saved",
             "description": ""
           }
         },
@@ -1485,17 +990,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/search/save",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "search",
-                "save"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/search/save",
             "description": ""
           }
         }
@@ -1524,17 +1019,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/interests/send",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "interests",
-                "send"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/interests/send",
             "description": ""
           }
         },
@@ -1544,17 +1029,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/interests/received",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "interests",
-                "received"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/interests/received",
             "description": ""
           }
         },
@@ -1564,17 +1039,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/interests/sent",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "interests",
-                "sent"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/interests/sent",
             "description": ""
           }
         },
@@ -1598,18 +1063,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/interests/{{interest_id}}/respond",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "interests",
-                "{{interest_id}}",
-                "respond"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/interests/{{interest_id}}/respond",
             "description": ""
           }
         },
@@ -1619,18 +1073,7 @@
           "request": {
             "method": "POST",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/interests/shortlist/{{target_profile_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "interests",
-                "shortlist",
-                "{{target_profile_id}}"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/interests/shortlist/{{target_profile_id}}",
             "description": ""
           }
         },
@@ -1640,17 +1083,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/interests/shortlist",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "interests",
-                "shortlist"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/interests/shortlist",
             "description": ""
           }
         }
@@ -1665,17 +1098,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/chat/conversations",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "chat",
-                "conversations"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/chat/conversations",
             "description": ""
           }
         },
@@ -1685,18 +1108,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/chat/{{chat_id}}/messages?page=1&limit=50",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "chat",
-                "{{chat_id}}",
-                "messages?page=1&limit=50"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/chat/{{chat_id}}/messages?page=1&limit=50",
             "description": ""
           }
         },
@@ -1706,18 +1118,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/chat/eligibility/{{target_user_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "chat",
-                "eligibility",
-                "{{target_user_id}}"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/chat/eligibility/{{target_user_id}}",
             "description": ""
           }
         },
@@ -1741,19 +1142,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/chat/messages/{{message_id}}/report",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "chat",
-                "messages",
-                "{{message_id}}",
-                "report"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/chat/messages/{{message_id}}/report",
             "description": ""
           }
         }
@@ -1768,16 +1157,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/notifications",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "notifications"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/notifications",
             "description": ""
           }
         },
@@ -1801,18 +1181,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/notifications/devices/fcm-token",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "notifications",
-                "devices",
-                "fcm-token"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/notifications/devices/fcm-token",
             "description": ""
           }
         },
@@ -1822,18 +1191,7 @@
           "request": {
             "method": "PUT",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/notifications/{{notification_id}}/read",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "notifications",
-                "{{notification_id}}",
-                "read"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/notifications/{{notification_id}}/read",
             "description": ""
           }
         },
@@ -1843,17 +1201,7 @@
           "request": {
             "method": "PUT",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/notifications/mark-all-read",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "notifications",
-                "mark-all-read"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/notifications/mark-all-read",
             "description": ""
           }
         },
@@ -1884,17 +1232,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/notifications/send",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "notifications",
-                "send"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/notifications/send",
             "description": ""
           }
         },
@@ -1925,17 +1263,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/notifications/template",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "notifications",
-                "template"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/notifications/template",
             "description": ""
           }
         }
@@ -1953,17 +1281,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/payment/plans",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "payment",
-                "plans"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/payment/plans",
             "description": ""
           }
         },
@@ -1976,17 +1294,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/payment/upgrade-packages",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "payment",
-                "upgrade-packages"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/payment/upgrade-packages",
             "description": ""
           }
         },
@@ -2024,17 +1332,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/payment/create-order",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "payment",
-                "create-order"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/payment/create-order",
             "description": ""
           }
         },
@@ -2058,17 +1356,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/payment/verify",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "payment",
-                "verify"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/payment/verify",
             "description": ""
           }
         },
@@ -2078,17 +1366,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/payment/subscription",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "payment",
-                "subscription"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/payment/subscription",
             "description": ""
           }
         },
@@ -2098,17 +1376,7 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/payment/invoices",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "payment",
-                "invoices"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/payment/invoices",
             "description": ""
           }
         },
@@ -2139,17 +1407,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/payment/webhook",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "payment",
-                "webhook"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/payment/webhook",
             "description": "Requires valid Razorpay webhook signature. This request is for endpoint visibility, not normal manual execution."
           }
         }
@@ -2192,17 +1450,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/login",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "login"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/login",
             "description": ""
           }
         },
@@ -2222,17 +1470,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/dashboard",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "dashboard"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/dashboard",
             "description": ""
           }
         },
@@ -2252,18 +1490,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/realtime/snapshot",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "realtime",
-                "snapshot"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/realtime/snapshot",
             "description": ""
           }
         },
@@ -2283,17 +1510,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/users",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "users"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/users",
             "description": ""
           }
         },
@@ -2313,17 +1530,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/profiles",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "profiles"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/profiles",
             "description": ""
           }
         },
@@ -2343,17 +1550,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/advisors",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "advisors"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/advisors",
             "description": ""
           }
         },
@@ -2373,17 +1570,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/assisted-assignments",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "assisted-assignments"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/assisted-assignments",
             "description": ""
           }
         },
@@ -2403,17 +1590,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/verifications",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "verifications"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/verifications",
             "description": ""
           }
         },
@@ -2433,17 +1610,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/reports",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "reports"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/reports",
             "description": ""
           }
         },
@@ -2463,18 +1630,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/moderation/reports",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "moderation",
-                "reports"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/moderation/reports",
             "description": ""
           }
         },
@@ -2494,18 +1650,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/moderation/chat-logs",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "moderation",
-                "chat-logs"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/moderation/chat-logs",
             "description": ""
           }
         },
@@ -2525,17 +1670,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/payments",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "payments"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/payments",
             "description": ""
           }
         },
@@ -2555,17 +1690,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/alerts",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "alerts"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/alerts",
             "description": ""
           }
         },
@@ -2585,17 +1710,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/audit-logs",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "audit-logs"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/audit-logs",
             "description": ""
           }
         },
@@ -2615,17 +1730,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/roles",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "roles"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/roles",
             "description": ""
           }
         },
@@ -2645,17 +1750,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/stories",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "stories"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/stories",
             "description": ""
           }
         },
@@ -2675,17 +1770,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/config",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "config"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/config",
             "description": ""
           }
         },
@@ -2705,17 +1790,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/landing-pages",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "landing-pages"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/landing-pages",
             "description": ""
           }
         },
@@ -2735,17 +1810,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/referrals",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "referrals"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/referrals",
             "description": ""
           }
         },
@@ -2765,18 +1830,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/analytics/funnel",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "analytics",
-                "funnel"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/analytics/funnel",
             "description": ""
           }
         },
@@ -2796,18 +1850,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/analytics/events",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "analytics",
-                "events"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/analytics/events",
             "description": ""
           }
         },
@@ -2827,17 +1870,7 @@
             },
             "method": "GET",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/service-health",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "service-health"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/service-health",
             "description": ""
           }
         },
@@ -2871,19 +1904,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/users/{{target_user_id}}/ban",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "users",
-                "{{target_user_id}}",
-                "ban"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/users/{{target_user_id}}/ban",
             "description": ""
           }
         },
@@ -2903,19 +1924,7 @@
             },
             "method": "PUT",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/users/{{target_user_id}}/unban",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "users",
-                "{{target_user_id}}",
-                "unban"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/users/{{target_user_id}}/unban",
             "description": ""
           }
         },
@@ -2949,17 +1958,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/profiles",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "profiles"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/profiles",
             "description": ""
           }
         },
@@ -2993,18 +1992,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/profiles/bulk",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "profiles",
-                "bulk"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/profiles/bulk",
             "description": ""
           }
         },
@@ -3038,18 +2026,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/profiles/{{target_profile_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "profiles",
-                "{{target_profile_id}}"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/profiles/{{target_profile_id}}",
             "description": ""
           }
         },
@@ -3069,18 +2046,7 @@
             },
             "method": "DELETE",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/profiles/{{target_profile_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "profiles",
-                "{{target_profile_id}}"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/profiles/{{target_profile_id}}",
             "description": ""
           }
         },
@@ -3114,19 +2080,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/profiles/{{target_profile_id}}/status",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "profiles",
-                "{{target_profile_id}}",
-                "status"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/profiles/{{target_profile_id}}/status",
             "description": ""
           }
         },
@@ -3160,17 +2114,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/advisors",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "advisors"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/advisors",
             "description": ""
           }
         },
@@ -3204,18 +2148,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/advisors/{{advisor_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "advisors",
-                "{{advisor_id}}"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/advisors/{{advisor_id}}",
             "description": ""
           }
         },
@@ -3249,19 +2182,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/advisors/{{advisor_id}}/status",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "advisors",
-                "{{advisor_id}}",
-                "status"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/advisors/{{advisor_id}}/status",
             "description": ""
           }
         },
@@ -3295,18 +2216,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/assisted-assignments/{{assignment_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "assisted-assignments",
-                "{{assignment_id}}"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/assisted-assignments/{{assignment_id}}",
             "description": ""
           }
         },
@@ -3340,19 +2250,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/verifications/{{verification_id}}/approve",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "verifications",
-                "{{verification_id}}",
-                "approve"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/verifications/{{verification_id}}/approve",
             "description": ""
           }
         },
@@ -3386,19 +2284,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/verifications/{{verification_id}}/reject",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "verifications",
-                "{{verification_id}}",
-                "reject"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/verifications/{{verification_id}}/reject",
             "description": ""
           }
         },
@@ -3432,19 +2318,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/reports/{{report_id}}/resolve",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "reports",
-                "{{report_id}}",
-                "resolve"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/reports/{{report_id}}/resolve",
             "description": ""
           }
         },
@@ -3478,18 +2352,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/payments/refunds",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "payments",
-                "refunds"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/payments/refunds",
             "description": ""
           }
         },
@@ -3509,19 +2372,7 @@
             },
             "method": "PUT",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/alerts/{{alert_id}}/ack",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "alerts",
-                "{{alert_id}}",
-                "ack"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/alerts/{{alert_id}}/ack",
             "description": ""
           }
         },
@@ -3555,17 +2406,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/campaigns",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "campaigns"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/campaigns",
             "description": ""
           }
         },
@@ -3585,19 +2426,7 @@
             },
             "method": "PUT",
             "header": [],
-            "url": {
-              "raw": "{{base_url}}/admin/stories/{{story_id}}/approve",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "stories",
-                "{{story_id}}",
-                "approve"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/stories/{{story_id}}/approve",
             "description": ""
           }
         },
@@ -3631,18 +2460,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/config/{{config_key}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "config",
-                "{{config_key}}"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/config/{{config_key}}",
             "description": ""
           }
         },
@@ -3676,17 +2494,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/landing-pages",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "landing-pages"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/landing-pages",
             "description": ""
           }
         },
@@ -3720,18 +2528,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/landing-pages/{{landing_slug}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "landing-pages",
-                "{{landing_slug}}"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/landing-pages/{{landing_slug}}",
             "description": ""
           }
         },
@@ -3765,18 +2562,7 @@
                 }
               }
             },
-            "url": {
-              "raw": "{{base_url}}/admin/referrals/codes",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "admin",
-                "referrals",
-                "codes"
-              ],
-              "query": []
-            },
+            "url": "{{base_url}}/admin/referrals/codes",
             "description": ""
           }
         }
