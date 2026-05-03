@@ -98,6 +98,23 @@ powershell -ExecutionPolicy Bypass -File .\tools\sync-azure-backups-to-windows.p
 
 The script downloads all backups from Azure Blob, verifies SHA-256 checksums from each `manifest.json`, and keeps local copies for 180 days by default.
 
+## Local Cloud Recovery Package
+
+After syncing backups to the laptop, create a recovery package:
+
+```powershell
+cd C:\Users\ANIRUDH\Documents\soulmatch
+powershell -ExecutionPolicy Bypass -File .\tools\create-local-recovery-package.ps1
+```
+
+For complete disaster recovery, keep a private package with production secrets:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\create-local-recovery-package.ps1 -IncludeProductionEnv
+```
+
+Use `docs/local-cloud-sync-and-recovery.md` for the full rebuild procedure.
+
 ## Restore
 
 Restores are destructive. Stop and think before running.
@@ -118,4 +135,4 @@ The restore script:
 
 ## Current Limitation
 
-Local VM backups protect against accidental app/database corruption but not VM loss. Before real production, add Azure Blob Storage upload plus a monthly restore drill.
+Backups and recovery scripts are in place, but you should still run a monthly restore drill on a temporary VM before heavy production traffic.

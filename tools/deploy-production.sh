@@ -95,27 +95,57 @@ for attempt in $(seq 1 "$HEALTH_RETRIES"); do
   sleep "$HEALTH_SLEEP_SECONDS"
 done
 
-psql_exec() {
-  docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" -i "$postgres_container" \
+psql_cmd() {
+  docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" "$postgres_container" \
     psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 "$@"
 }
 
+psql_file() {
+  docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" -i "$postgres_container" \
+    psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1
+}
+
+write_deployment_version() {
+  local source_commit="${DEPLOYED_SOURCE_COMMIT:-}"
+  local source_branch="${DEPLOYED_SOURCE_BRANCH:-}"
+  local deployed_at
+
+  deployed_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+  if [ -z "$source_commit" ] && command -v git >/dev/null 2>&1 && [ -d .git ]; then
+    source_commit="$(git rev-parse HEAD 2>/dev/null || true)"
+  fi
+  if [ -z "$source_branch" ] && command -v git >/dev/null 2>&1 && [ -d .git ]; then
+    source_branch="$(git branch --show-current 2>/dev/null || true)"
+  fi
+
+  cat >.soulmatch-deployed-version.json <<EOF
+{
+  "sourceCommit": "${source_commit:-unknown}",
+  "sourceBranch": "${source_branch:-unknown}",
+  "deployedAt": "$deployed_at",
+  "appDir": "$APP_DIR",
+  "composeFile": "$COMPOSE_FILE"
+}
+EOF
+}
+
 log "Ensuring migration tracking table exists."
-psql_exec -c "CREATE TABLE IF NOT EXISTS schema_migrations (filename TEXT PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT NOW());" >/dev/null
+psql_cmd -c "CREATE TABLE IF NOT EXISTS schema_migrations (filename TEXT PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT NOW());" >/dev/null
 
 if [ -d database/migrations ]; then
   log "Applying pending database migrations."
   while IFS= read -r migration; do
     filename="$(basename "$migration")"
-    applied="$(psql_exec -t -A -c "SELECT 1 FROM schema_migrations WHERE filename='${filename//\'/\'\'}';" | tr -d '[:space:]')"
+    applied="$(psql_cmd -t -A -c "SELECT 1 FROM schema_migrations WHERE filename='${filename//\'/\'\'}';" | tr -d '[:space:]')"
     if [ "$applied" = "1" ]; then
       log "Skipping already applied migration: $filename"
       continue
     fi
 
     log "Applying migration: $filename"
-    psql_exec <"$migration"
-    psql_exec -c "INSERT INTO schema_migrations (filename) VALUES ('${filename//\'/\'\'}') ON CONFLICT DO NOTHING;" >/dev/null
+    psql_file <"$migration"
+    psql_cmd -c "INSERT INTO schema_migrations (filename) VALUES ('${filename//\'/\'\'}') ON CONFLICT DO NOTHING;" >/dev/null
   done < <(find database/migrations -maxdepth 1 -type f -name '*.sql' | sort)
 fi
 
@@ -157,4 +187,5 @@ compose ps
 log "Pruning unused Docker build cache."
 docker builder prune -f >/dev/null || true
 
+write_deployment_version
 log "SoulMatch production deployment completed successfully."

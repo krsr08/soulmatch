@@ -28,7 +28,10 @@ __pycache__/
 .idea/
 *.log
 backups/
+soulmatch-recovery/
+recovery-packages/
 *.dump
+*.tar.gz
 *.archive.gz
 profile_uploads.tar.gz
 client_secret*.json

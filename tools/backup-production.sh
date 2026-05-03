@@ -88,6 +88,11 @@ else
   log "Profile service container not found; skipping uploads backup."
 fi
 
+if [ -f "$APP_DIR/.soulmatch-deployed-version.json" ]; then
+  log "Copying deployed source version into backup."
+  cp "$APP_DIR/.soulmatch-deployed-version.json" "$run_dir/deployed-version.json"
+fi
+
 log "Writing backup manifest."
 manifest_tmp="$run_dir/manifest.json.tmp"
 {
