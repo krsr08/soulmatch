@@ -34,10 +34,22 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
-set -a
-# shellcheck disable=SC1090
-. "$ENV_FILE"
-set +a
+read_env_value() {
+  local key="$1"
+  local line value
+  line="$(grep -m 1 -E "^${key}=" "$ENV_FILE" || true)"
+  value="${line#*=}"
+  value="${value%$'\r'}"
+  value="${value%\"}"
+  value="${value#\"}"
+  value="${value%\'}"
+  value="${value#\'}"
+  printf '%s' "$value"
+}
+
+POSTGRES_USER="$(read_env_value POSTGRES_USER)"
+POSTGRES_PASSWORD="$(read_env_value POSTGRES_PASSWORD)"
+POSTGRES_DB="$(read_env_value POSTGRES_DB)"
 
 if [ -z "${POSTGRES_USER:-}" ] || [ -z "${POSTGRES_PASSWORD:-}" ] || [ -z "${POSTGRES_DB:-}" ]; then
   log "POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB must be set in $ENV_FILE."
@@ -46,6 +58,98 @@ fi
 
 compose() {
   docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+}
+
+configure_nginx() {
+  if ! command -v nginx >/dev/null 2>&1; then
+    log "Nginx is not installed; skipping reverse proxy configuration."
+    return 0
+  fi
+  if ! sudo -n true >/dev/null 2>&1; then
+    log "Passwordless sudo is not available; skipping reverse proxy configuration."
+    return 0
+  fi
+
+  log "Configuring Nginx reverse proxy."
+  cat >/tmp/soulmatch-nginx.conf <<'NGINX'
+server {
+    listen 80 default_server;
+    server_name _;
+    client_max_body_size 25m;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    location /uploads/ {
+        proxy_pass http://127.0.0.1:3002/uploads/;
+    }
+
+    location /api/v1/admin/ {
+        proxy_pass http://127.0.0.1:3011/api/v1/admin/;
+    }
+
+    location /api/v1/public/ {
+        proxy_pass http://127.0.0.1:3011/api/v1/public/;
+    }
+
+    location /api/v1/auth/ {
+        proxy_pass http://127.0.0.1:3001/api/v1/auth/;
+    }
+
+    location /api/v1/profile/ {
+        proxy_pass http://127.0.0.1:3002/api/v1/profile/;
+    }
+
+    location /api/v1/matches/ {
+        proxy_pass http://127.0.0.1:3003/api/v1/matches/;
+    }
+
+    location /api/v1/interests/ {
+        proxy_pass http://127.0.0.1:3003/api/v1/interests/;
+    }
+
+    location /api/v1/matching/ {
+        proxy_pass http://127.0.0.1:3003/api/v1/matching/;
+    }
+
+    location /api/v1/search/ {
+        proxy_pass http://127.0.0.1:3004/api/v1/search/;
+    }
+
+    location /api/v1/chat/ {
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_pass http://127.0.0.1:3005/api/v1/chat/;
+    }
+
+    location /socket.io/ {
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_pass http://127.0.0.1:3005/socket.io/;
+    }
+
+    location /api/v1/notifications/ {
+        proxy_pass http://127.0.0.1:3006/api/v1/notifications/;
+    }
+
+    location /api/v1/payment/ {
+        proxy_pass http://127.0.0.1:3007/api/v1/payment/;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+    }
+}
+NGINX
+  sudo mv /tmp/soulmatch-nginx.conf /etc/nginx/sites-available/soulmatch
+  sudo rm -f /etc/nginx/sites-enabled/default
+  sudo ln -sf /etc/nginx/sites-available/soulmatch /etc/nginx/sites-enabled/soulmatch
+  sudo nginx -t
+  sudo systemctl reload nginx || sudo systemctl restart nginx
 }
 
 application_services=(
@@ -180,6 +284,9 @@ health_check notification-service "http://127.0.0.1:3006/health"
 health_check payment-service "http://127.0.0.1:3007/health"
 health_check admin-service "http://127.0.0.1:3011/health"
 health_check admin-web "http://127.0.0.1:3000"
+
+configure_nginx
+health_check nginx-public-config "http://127.0.0.1/api/v1/public/config"
 
 log "Current service status:"
 compose ps

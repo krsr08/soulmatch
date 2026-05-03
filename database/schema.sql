@@ -511,6 +511,7 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_status_created ON transactions(user_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_payment_orders_user_status ON payment_orders(user_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_payment_orders_provider ON payment_orders(provider_order_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_transactions_razorpay_payment_id ON transactions(razorpay_payment_id) WHERE razorpay_payment_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_status ON notifications(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_verifications_status_created ON verifications(status, created_at DESC);

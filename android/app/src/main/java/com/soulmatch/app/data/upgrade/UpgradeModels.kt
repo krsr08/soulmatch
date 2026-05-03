@@ -55,6 +55,7 @@ data class UpgradePackageGroup(
 
 data class UpgradePackage(
     @SerializedName("pkgId") val pkgId: Int = 0,
+    @SerializedName("planId") val remotePlanId: String? = null,
     @SerializedName("pkgName") val pkgName: String = "",
     @SerializedName("pkgActualRate") val pkgActualRate: Int = 0,
     @SerializedName("pkgDiscountedRate") val pkgDiscountedRate: Int = 0,
@@ -74,7 +75,7 @@ data class UpgradePackage(
     @SerializedName("assistiveContent") val assistiveContent: String = ""
 ) {
     val planId: String
-        get() = pkgId.toString()
+        get() = remotePlanId?.takeIf { it.isNotBlank() } ?: pkgId.toString()
 
     val displayName: String
         get() {

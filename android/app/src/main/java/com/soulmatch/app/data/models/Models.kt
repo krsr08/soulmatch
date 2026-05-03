@@ -472,7 +472,8 @@ data class OrderData(
     val amount: Int = 0,
     val currency: String = "INR",
     val planId: String = "",
-    val gateway: String = "razorpay"
+    val gateway: String = "razorpay",
+    val keyId: String = ""
 )
 
 data class PaymentVerifyRequest(

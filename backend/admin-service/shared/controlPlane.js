@@ -1,3 +1,78 @@
+const DEFAULT_UPGRADE_PACKAGE_GROUPS = [
+  {
+    tabKey: 'one_month',
+    tabTitle: '1 Month',
+    bannerTitle: 'Start with verified discovery',
+    bannerText: 'A focused one-month plan for members who want verified contact access and better visibility.',
+    assistiveContent: 'Useful when you already have a shortlist and want faster introductions.',
+    packages: [
+      {
+        pkgId: 101,
+        planId: 'silver',
+        pkgName: 'Verified Plus 1 Month',
+        pkgActualRate: 799,
+        pkgDiscountedRate: 499,
+        pkgRate: 499,
+        pkgDuration: '30 days',
+        pkgDurationDays: 30,
+        pkgPhoneCount: 20,
+        pkgBenefit: 'Unlock verified contact views, advanced search, and visitor insights for one focused month.',
+        buyerChoice: true,
+        badge: 'Starter',
+        features: ['20 interests/day', 'Advanced search', 'See viewers']
+      }
+    ]
+  },
+  {
+    tabKey: 'three_months',
+    tabTitle: '3 Months',
+    bannerTitle: 'Most families start here',
+    bannerText: 'Three months gives enough time to shortlist, speak, and involve both families without rushing.',
+    assistiveContent: 'Best for families comparing matches seriously over a full quarter.',
+    packages: [
+      {
+        pkgId: 201,
+        planId: 'gold',
+        pkgName: 'Family Assist 3 Months',
+        pkgActualRate: 1499,
+        pkgDiscountedRate: 999,
+        pkgRate: 999,
+        pkgDuration: '90 days',
+        pkgDurationDays: 90,
+        pkgPhoneCount: 60,
+        pkgBenefit: 'Adds unlimited interests, video calling, priority search, and family decision support.',
+        buyerChoice: true,
+        badge: 'Recommended',
+        features: ['Unlimited interests', 'Video calling', 'Priority search']
+      }
+    ]
+  },
+  {
+    tabKey: 'elite',
+    tabTitle: 'Elite',
+    bannerTitle: 'High-touch assisted matching',
+    bannerText: 'A premium plan for members who want deeper visibility, anonymous browsing, and advisor-assisted discovery.',
+    assistiveContent: 'Best when the family wants guided support and a longer membership window.',
+    packages: [
+      {
+        pkgId: 301,
+        planId: 'platinum',
+        pkgName: 'Advisor Assisted Elite',
+        pkgActualRate: 2499,
+        pkgDiscountedRate: 1499,
+        pkgRate: 1499,
+        pkgDuration: '365 days',
+        pkgDurationDays: 365,
+        pkgPhoneCount: 150,
+        pkgBenefit: 'Includes all Gold features, anonymous browsing, premium boosts, and advisor-assisted discovery.',
+        buyerChoice: false,
+        badge: 'Elite',
+        features: ['All Gold features', 'Anonymous browsing', 'Unlimited boosts']
+      }
+    ]
+  }
+];
+
 const DEFAULT_CONFIG = {
   branding: {
     appTitle: 'SoulMatch',
@@ -60,8 +135,8 @@ const DEFAULT_CONFIG = {
     supportedLanguages: ['en-IN', 'hi-IN', 'ta-IN', 'te-IN', 'ml-IN', 'kn-IN', 'mr-IN', 'gu-IN', 'or-IN', 'pa-IN']
   },
   client_integrations: {
-    googleWebClientId: '',
-    razorpayKeyId: '',
+    googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID || '',
+    razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
     supportEmail: 'support@soulmatch.app'
   },
   payment_gateways: {
@@ -169,7 +244,7 @@ const DEFAULT_CONFIG = {
       { planId: 'gold', name: 'Gold', price: 999, duration: 'quarterly', durationDays: 90, features: ['Unlimited interests', 'Video calling', 'Priority search'] },
       { planId: 'platinum', name: 'Platinum', price: 1499, duration: 'yearly', durationDays: 365, features: ['All Gold features', 'Anonymous browsing', 'Unlimited boosts'] }
     ],
-    upgradePackageGroups: []
+    upgradePackageGroups: DEFAULT_UPGRADE_PACKAGE_GROUPS
   },
   notification_templates: {
     someone_liked_you: {
@@ -275,10 +350,10 @@ function getPlanById(monetization, planId) {
   if (directPlan) return directPlan;
   const upgradePackage = (monetization?.upgradePackageGroups || [])
     .flatMap((group) => group.packages || [])
-    .find((pkg) => String(pkg.pkgId) === String(planId));
+    .find((pkg) => String(pkg.planId || '') === String(planId) || String(pkg.pkgId) === String(planId));
   if (!upgradePackage) return null;
   return {
-    planId: String(upgradePackage.pkgId),
+    planId: String(upgradePackage.planId || upgradePackage.pkgId),
     name: upgradePackage.pkgName,
     price: upgradePackage.pkgRate || upgradePackage.pkgDiscountedRate || upgradePackage.pkgActualRate || 0,
     duration: upgradePackage.pkgDuration || '',
@@ -288,6 +363,11 @@ function getPlanById(monetization, planId) {
 }
 
 function getPublicRuntimeConfig(configMap) {
+  const clientIntegrations = {
+    ...configMap.client_integrations,
+    googleWebClientId: configMap.client_integrations?.googleWebClientId || process.env.GOOGLE_WEB_CLIENT_ID || '',
+    razorpayKeyId: configMap.client_integrations?.razorpayKeyId || process.env.RAZORPAY_KEY_ID || ''
+  };
   return {
     branding: configMap.branding,
     theme: configMap.theme,
@@ -295,7 +375,7 @@ function getPublicRuntimeConfig(configMap) {
     matching: configMap.matching,
     registration: configMap.registration,
     localization: configMap.localization,
-    clientIntegrations: configMap.client_integrations,
+    clientIntegrations,
     maintenance: configMap.maintenance,
     content: configMap.content,
     legal: configMap.legal,

@@ -316,7 +316,7 @@ private fun checkoutOptions(pending: PendingCheckout, razorpayKeyId: String): JS
         put("currency", pending.order.currency)
         put("amount", pending.order.amount)
         put("order_id", pending.order.orderId)
-        put("key", razorpayKeyId.ifBlank { BuildConfig.RAZORPAY_KEY })
+        put("key", pending.order.keyId.ifBlank { razorpayKeyId.ifBlank { BuildConfig.RAZORPAY_KEY } })
     }
 }
 

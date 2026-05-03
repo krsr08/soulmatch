@@ -20,6 +20,92 @@ function getRazorpayCredentials() {
 
 const getRazorpay = () => new Razorpay(getRazorpayCredentials());
 
+function paidUntilFromDays(days) {
+  return new Date(Date.now() + days * 86400000).toISOString();
+}
+
+async function activatePaidOrder(db, { order, plan, paymentId, signature = null, webhookPayload = null, source = 'client_verify' }) {
+  if (!order) {
+    throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Payment order was not found.');
+  }
+  if (!paymentId) {
+    throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Razorpay payment id is required to activate membership.');
+  }
+
+  const days = parseInt(plan.durationDays || 30, 10) || 30;
+  const client = await db.connect();
+  const subId = randomUUID();
+  try {
+    await client.query('BEGIN');
+    const locked = await client.query('SELECT * FROM payment_orders WHERE payment_order_id=$1 FOR UPDATE', [order.payment_order_id]);
+    const currentOrder = locked.rows[0];
+    if (!currentOrder) {
+      throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Payment order was not found.');
+    }
+
+    if (currentOrder.status === 'paid') {
+      const existing = await client.query(
+        `SELECT subscription_id, plan_id, end_date
+         FROM subscriptions
+         WHERE payment_id=$1 AND user_id=$2
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [currentOrder.provider_payment_id || paymentId, currentOrder.user_id]
+      );
+      await client.query('COMMIT');
+      return {
+        subscriptionId: existing.rows[0]?.subscription_id,
+        planId: existing.rows[0]?.plan_id || plan.planId,
+        planName: plan.name,
+        activeTill: existing.rows[0]?.end_date
+      };
+    }
+
+    await client.query('UPDATE subscriptions SET is_active=false WHERE user_id=$1 AND is_active=true', [currentOrder.user_id]);
+    await client.query(
+      `INSERT INTO subscriptions (subscription_id,user_id,plan_id,end_date,is_active,payment_id,amount_paid)
+       VALUES ($1,$2,$3,NOW() + ($4::text || ' days')::interval,true,$5,$6)`,
+      [subId, currentOrder.user_id, plan.planId, String(days), paymentId, currentOrder.amount]
+    );
+    await client.query(
+      `INSERT INTO transactions (transaction_id,user_id,subscription_id,razorpay_order_id,razorpay_payment_id,amount,currency,status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'success')`,
+      [randomUUID(), currentOrder.user_id, subId, currentOrder.provider_order_id, paymentId, currentOrder.amount, currentOrder.currency]
+    );
+    await client.query(
+      `UPDATE payment_orders
+       SET status='paid',
+           provider_payment_id=$1,
+           signature=COALESCE($2, signature),
+           webhook_payload=CASE WHEN $3::jsonb = '{}'::jsonb THEN webhook_payload ELSE $3::jsonb END,
+           metadata=COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('activationSource', $4),
+           updated_at=NOW()
+       WHERE payment_order_id=$5`,
+      [paymentId, signature, JSON.stringify(webhookPayload || {}), source, currentOrder.payment_order_id]
+    );
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  await recordAnalyticsEvent(db, {
+    eventType: 'payment_success',
+    serviceName: 'payment-service',
+    userId: order.user_id,
+    payload: { planId: plan.planId, gateway: 'razorpay', amount: Number(order.amount), subscriptionId: subId, source }
+  });
+
+  return {
+    subscriptionId: subId,
+    planId: plan.planId,
+    planName: plan.name,
+    activeTill: paidUntilFromDays(days)
+  };
+}
+
 async function loadRuntime(db) {
   const [monetization, gateways] = await Promise.all([
     getConfigSection(db, 'monetization'),
@@ -70,19 +156,24 @@ exports.createOrder = async (req, res, next) => {
     const amount = Number(plan.price);
     const currency = monetization.currency || 'INR';
     const receipt = 'rcpt_' + randomUUID().replace(/-/g, '').slice(0, 24);
-    const order = await getRazorpay().orders.create({ amount:amount*100, currency, receipt, notes:{ planId, userId:req.user.userId } });
+    const order = await getRazorpay().orders.create({
+      amount:amount*100,
+      currency,
+      receipt,
+      notes:{ planId: plan.planId, requestedPlanId: planId, userId:req.user.userId }
+    });
     await db.query(
       `INSERT INTO payment_orders (payment_order_id,user_id,plan_id,amount,currency,gateway,provider_order_id,status,metadata)
        VALUES ($1,$2,$3,$4,$5,'razorpay',$6,'created',$7::jsonb)`,
-      [randomUUID(), req.user.userId, planId, amount, currency, order.id, JSON.stringify({ receipt, gatewayOrder: order })]
+      [randomUUID(), req.user.userId, plan.planId, amount, currency, order.id, JSON.stringify({ receipt, gatewayOrder: order, requestedPlanId: planId })]
     );
     await recordAnalyticsEvent(db, {
       eventType: 'payment_click',
       serviceName: 'payment-service',
       userId: req.user.userId,
-      payload: { planId, gateway: 'razorpay', amount: plan.price }
+      payload: { planId: plan.planId, requestedPlanId: planId, gateway: 'razorpay', amount: plan.price }
     });
-    res.json({ success:true, data:{ orderId:order.id, amount:order.amount, currency:order.currency, planId, gateway:'razorpay' } });
+    res.json({ success:true, data:{ orderId:order.id, amount:order.amount, currency:order.currency, planId:plan.planId, gateway:'razorpay', keyId:getRazorpayCredentials().key_id } });
   } catch (err) { next(err); }
 };
 exports.verifyPayment = async (req, res, next) => {
@@ -123,43 +214,12 @@ exports.verifyPayment = async (req, res, next) => {
       );
       return res.json({ success:true, data:{ subscriptionId: existing.rows[0]?.subscription_id, planId: existing.rows[0]?.plan_id || planId, planName: plan.name, activeTill: existing.rows[0]?.end_date } });
     }
-    if (String(order.plan_id) !== String(planId) || Number(order.amount) !== Number(plan.price) || String(order.currency) !== String(monetization.currency || 'INR')) {
+    if (String(order.plan_id) !== String(plan.planId) || Number(order.amount) !== Number(plan.price) || String(order.currency) !== String(monetization.currency || 'INR')) {
       return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Payment order details do not match the selected plan.'));
     }
-    const days = parseInt(plan.durationDays || 30, 10) || 30;
-    const client = await db.connect();
-    const subId = randomUUID();
-    try {
-      await client.query('BEGIN');
-      await client.query('UPDATE subscriptions SET is_active=false WHERE user_id=$1 AND is_active=true', [userId]);
-      await client.query(
-        `INSERT INTO subscriptions (subscription_id,user_id,plan_id,end_date,is_active,payment_id,amount_paid)
-         VALUES ($1,$2,$3,NOW() + ($4::text || ' days')::interval,true,$5,$6)`,
-        [subId, userId, planId, String(days), paymentId, plan.price]
-      );
-      await client.query(
-        "INSERT INTO transactions (transaction_id,user_id,subscription_id,razorpay_order_id,razorpay_payment_id,amount,currency,status) VALUES ($1,$2,$3,$4,$5,$6,$7,'success')",
-        [randomUUID(), userId, subId, orderId, paymentId, plan.price, monetization.currency || 'INR']
-      );
-      await client.query(
-        "UPDATE payment_orders SET status='paid', provider_payment_id=$1, signature=$2, updated_at=NOW() WHERE provider_order_id=$3 AND user_id=$4",
-        [paymentId, signature, orderId, userId]
-      );
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-    await recordAnalyticsEvent(db, {
-      eventType: 'payment_success',
-      serviceName: 'payment-service',
-      userId,
-      payload: { planId, gateway: 'razorpay', amount: plan.price, subscriptionId: subId }
-    });
-    logger.info('Payment verified for user '+userId+' plan '+planId);
-    res.json({ success:true, data:{ subscriptionId:subId, planId, planName:plan.name, activeTill:new Date(Date.now()+days*86400000).toISOString() } });
+    const activation = await activatePaidOrder(db, { order, plan, paymentId, signature, source: 'client_verify' });
+    logger.info('Payment verified for user '+userId+' plan '+plan.planId);
+    res.json({ success:true, data: activation });
   } catch (err) { next(err); }
 };
 exports.handleWebhook = async (req, res, next) => {
@@ -179,13 +239,37 @@ exports.handleWebhook = async (req, res, next) => {
     const orderId = event?.payload?.payment?.entity?.order_id || event?.payload?.order?.entity?.id;
     const paymentId = event?.payload?.payment?.entity?.id || null;
     if (orderId) {
-      const status = event.event === 'payment.failed' ? 'failed' : event.event === 'payment.captured' ? 'captured' : 'updated';
-      await db.query(
-        `UPDATE payment_orders
-         SET status=$1, provider_payment_id=COALESCE($2, provider_payment_id), webhook_payload=$3::jsonb, updated_at=NOW()
-         WHERE provider_order_id=$4`,
-        [status, paymentId, JSON.stringify(event), orderId]
-      );
+      const orderResult = await db.query('SELECT * FROM payment_orders WHERE provider_order_id=$1 LIMIT 1', [orderId]);
+      const paymentOrder = orderResult.rows[0];
+      const paidEvents = new Set(['payment.captured', 'order.paid']);
+      if (paymentOrder && paidEvents.has(event.event)) {
+        const { monetization } = await loadRuntime(db);
+        const plan = getPlanById(monetization, paymentOrder.plan_id);
+        if (plan && paymentId) {
+          await activatePaidOrder(db, {
+            order: paymentOrder,
+            plan,
+            paymentId,
+            webhookPayload: event,
+            source: 'razorpay_webhook'
+          });
+        } else {
+          await db.query(
+            `UPDATE payment_orders
+             SET status='captured', provider_payment_id=COALESCE($1, provider_payment_id), webhook_payload=$2::jsonb, updated_at=NOW()
+             WHERE provider_order_id=$3`,
+            [paymentId, JSON.stringify(event), orderId]
+          );
+        }
+      } else {
+        const status = event.event === 'payment.failed' ? 'failed' : 'updated';
+        await db.query(
+          `UPDATE payment_orders
+           SET status=$1, provider_payment_id=COALESCE($2, provider_payment_id), webhook_payload=$3::jsonb, updated_at=NOW()
+           WHERE provider_order_id=$4`,
+          [status, paymentId, JSON.stringify(event), orderId]
+        );
+      }
     }
     res.json({ success:true });
   } catch (err) { next(err); }

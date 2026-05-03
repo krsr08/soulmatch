@@ -4,6 +4,7 @@ import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.soulmatch.app.data.api.PaymentApiService
+import com.soulmatch.app.data.config.AppEnvironment
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,7 +23,7 @@ class UpgradePackageRepository @Inject constructor(
             ?.takeIf { it.success }
             ?.data
             ?.takeIf { it.isNotEmpty() }
-        return remote ?: getMockPackageGroups()
+        return remote ?: if (AppEnvironment.allowDemoFallback) getMockPackageGroups() else emptyList()
     }
 
     fun getMockPackageGroups(): List<UpgradePackageGroup> {
