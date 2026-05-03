@@ -33,7 +33,43 @@ function paidUntilFromDays(days) {
   return new Date(Date.now() + days * 86400000).toISOString();
 }
 
-async function activatePaidOrder(db, { order, plan, paymentId, signature = null, webhookPayload = null, source = 'client_verify' }) {
+function summarizeRazorpayPayment(payment = {}) {
+  const method = String(payment.method || '').toLowerCase() || null;
+  const card = payment.card || {};
+  let instrument = null;
+  if (method === 'card') {
+    const parts = [card.network, card.type, card.last4 ? `ending ${card.last4}` : null].filter(Boolean);
+    instrument = parts.length ? parts.join(' ') : 'Card';
+  } else if (method === 'upi') {
+    instrument = payment.vpa || payment.upi?.vpa || 'UPI';
+  } else if (method === 'netbanking') {
+    instrument = payment.bank || 'Netbanking';
+  } else if (method === 'wallet') {
+    instrument = payment.wallet || 'Wallet';
+  } else if (method === 'emi') {
+    instrument = payment.emi?.bank || 'EMI';
+  } else if (method) {
+    instrument = method;
+  }
+
+  return {
+    gateway: 'razorpay',
+    paymentMethod: method,
+    paymentInstrument: instrument,
+    providerStatus: payment.status || null
+  };
+}
+
+async function fetchRazorpayPaymentDetails(paymentId) {
+  try {
+    return await getRazorpay().payments.fetch(paymentId, { 'expand[]': 'card' });
+  } catch (error) {
+    logger.error(`Unable to fetch Razorpay payment details ${paymentId}: ${error.message}`);
+    return null;
+  }
+}
+
+async function activatePaidOrder(db, { order, plan, paymentId, signature = null, webhookPayload = null, source = 'client_verify', paymentDetails = null }) {
   if (!order) {
     throw new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Payment order was not found.');
   }
@@ -42,6 +78,7 @@ async function activatePaidOrder(db, { order, plan, paymentId, signature = null,
   }
 
   const days = parseInt(plan.durationDays || 30, 10) || 30;
+  const paymentSummary = summarizeRazorpayPayment(paymentDetails || webhookPayload?.payload?.payment?.entity || webhookPayload?.razorpayPayment || {});
   const client = await db.connect();
   const subId = randomUUID();
   try {
@@ -77,9 +114,24 @@ async function activatePaidOrder(db, { order, plan, paymentId, signature = null,
       [subId, currentOrder.user_id, plan.planId, String(days), paymentId, currentOrder.amount]
     );
     await client.query(
-      `INSERT INTO transactions (transaction_id,user_id,subscription_id,razorpay_order_id,razorpay_payment_id,amount,currency,status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'success')`,
-      [randomUUID(), currentOrder.user_id, subId, currentOrder.provider_order_id, paymentId, currentOrder.amount, currentOrder.currency]
+      `INSERT INTO transactions (
+         transaction_id,user_id,subscription_id,razorpay_order_id,razorpay_payment_id,amount,currency,status,
+         gateway,payment_method,payment_instrument,provider_status
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'success',$8,$9,$10,$11)`,
+      [
+        randomUUID(),
+        currentOrder.user_id,
+        subId,
+        currentOrder.provider_order_id,
+        paymentId,
+        currentOrder.amount,
+        currentOrder.currency,
+        paymentSummary.gateway,
+        paymentSummary.paymentMethod,
+        paymentSummary.paymentInstrument,
+        paymentSummary.providerStatus
+      ]
     );
     await client.query(
       MARK_PAYMENT_ORDER_PAID_SQL,
@@ -161,11 +213,44 @@ async function reconcileUserPaidOrders(db, userId, monetization) {
             method: payment.method
           }
         },
-        source: 'subscription_reconcile'
+        source: 'subscription_reconcile',
+        paymentDetails: payment
       });
       logger.info(`Reconciled paid Razorpay order ${order.provider_order_id} for user ${userId}`);
     } catch (error) {
       logger.error(`Payment reconciliation failed for order ${order.provider_order_id}: ${error.message}`);
+    }
+  }
+}
+
+async function enrichUserTransactionHistory(db, userId) {
+  const missingDetails = await db.query(
+    `SELECT transaction_id, razorpay_payment_id
+     FROM transactions
+     WHERE user_id=$1
+       AND razorpay_payment_id IS NOT NULL
+       AND (payment_method IS NULL OR payment_instrument IS NULL OR provider_status IS NULL)
+     ORDER BY created_at DESC
+     LIMIT 10`,
+    [userId]
+  );
+
+  for (const row of missingDetails.rows) {
+    const paymentDetails = await fetchRazorpayPaymentDetails(row.razorpay_payment_id);
+    if (!paymentDetails) continue;
+    const summary = summarizeRazorpayPayment(paymentDetails);
+    try {
+      await db.query(
+        `UPDATE transactions
+         SET gateway=COALESCE(gateway, $1),
+             payment_method=COALESCE(payment_method, $2),
+             payment_instrument=COALESCE(payment_instrument, $3),
+             provider_status=COALESCE(provider_status, $4)
+         WHERE transaction_id=$5`,
+        [summary.gateway, summary.paymentMethod, summary.paymentInstrument, summary.providerStatus, row.transaction_id]
+      );
+    } catch (error) {
+      logger.error(`Payment history enrichment failed for transaction ${row.transaction_id}: ${error.message}`);
     }
   }
 }
@@ -273,7 +358,14 @@ exports.verifyPayment = async (req, res, next) => {
     if (String(order.plan_id) !== String(plan.planId) || Number(order.amount) !== Number(plan.price) || String(order.currency) !== String(monetization.currency || 'INR')) {
       return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Payment order details do not match the selected plan.'));
     }
-    const activation = await activatePaidOrder(db, { order, plan, paymentId, signature, source: 'client_verify' });
+    const paymentDetails = await fetchRazorpayPaymentDetails(paymentId);
+    if (paymentDetails?.order_id && paymentDetails.order_id !== orderId) {
+      return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Payment does not belong to this SoulMatch order.'));
+    }
+    if (paymentDetails?.status && !['captured', 'authorized'].includes(paymentDetails.status)) {
+      return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Razorpay has not confirmed this payment yet.'));
+    }
+    const activation = await activatePaidOrder(db, { order, plan, paymentId, signature, source: 'client_verify', paymentDetails });
     logger.info('Payment verified for user '+userId+' plan '+plan.planId);
     res.json({ success:true, data: activation });
   } catch (err) { next(err); }
@@ -346,12 +438,51 @@ exports.getSubscription = async (req, res, next) => {
 exports.getInvoices = async (req, res, next) => {
   try {
     const db = await getDB();
-    const r = await db.query("SELECT t.transaction_id,t.created_at,t.amount,s.plan_id FROM transactions t JOIN subscriptions s ON t.subscription_id=s.subscription_id WHERE t.user_id=$1 AND t.status='success' ORDER BY t.created_at DESC", [req.user.userId]);
-    res.json({ success:true, data:r.rows });
+    const { monetization } = await loadRuntime(db);
+    await enrichUserTransactionHistory(db, req.user.userId);
+    const r = await db.query(
+      `SELECT
+         t.transaction_id,
+         t.created_at,
+         t.amount,
+         t.currency,
+         t.status,
+         t.gateway,
+         COALESCE(t.payment_method, po.webhook_payload #>> '{payload,payment,entity,method}', po.webhook_payload #>> '{razorpayPayment,method}') AS payment_method,
+         COALESCE(t.payment_instrument, po.webhook_payload #>> '{payload,payment,entity,vpa}', po.webhook_payload #>> '{razorpayPayment,vpa}') AS payment_instrument,
+         COALESCE(t.provider_status, po.webhook_payload #>> '{payload,payment,entity,status}', po.webhook_payload #>> '{razorpayPayment,status}', po.status, t.status) AS provider_status,
+         t.razorpay_order_id,
+         t.razorpay_payment_id,
+         po.payment_order_id,
+         po.status AS payment_order_status,
+         s.subscription_id,
+         s.plan_id,
+         s.start_date,
+         s.end_date,
+         s.is_active
+       FROM transactions t
+       JOIN subscriptions s ON t.subscription_id=s.subscription_id
+       LEFT JOIN payment_orders po
+         ON po.provider_order_id=t.razorpay_order_id
+        AND po.user_id=t.user_id
+       WHERE t.user_id=$1
+       ORDER BY t.created_at DESC`,
+      [req.user.userId]
+    );
+    const data = r.rows.map((row) => {
+      const plan = getPlanById(monetization, row.plan_id);
+      return {
+        ...row,
+        plan_name: plan?.name || row.plan_id,
+        duration_days: plan?.durationDays || null
+      };
+    });
+    res.json({ success:true, data });
   } catch (err) { next(err); }
 };
 
 exports._test = {
   MARK_PAYMENT_ORDER_PAID_SQL,
-  findCapturedPaymentForOrder
+  findCapturedPaymentForOrder,
+  summarizeRazorpayPayment
 };

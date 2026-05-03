@@ -47,3 +47,28 @@ test('findCapturedPaymentForOrder rejects mismatched amount or currency', () => 
     null
   );
 });
+
+test('summarizeRazorpayPayment keeps safe card and UPI display details', () => {
+  assert.deepEqual(
+    _test.summarizeRazorpayPayment({
+      method: 'card',
+      status: 'captured',
+      card: { network: 'Visa', type: 'credit', last4: '1007' }
+    }),
+    {
+      gateway: 'razorpay',
+      paymentMethod: 'card',
+      paymentInstrument: 'Visa credit ending 1007',
+      providerStatus: 'captured'
+    }
+  );
+  assert.deepEqual(
+    _test.summarizeRazorpayPayment({ method: 'upi', status: 'captured', vpa: 'success@razorpay' }),
+    {
+      gateway: 'razorpay',
+      paymentMethod: 'upi',
+      paymentInstrument: 'success@razorpay',
+      providerStatus: 'captured'
+    }
+  );
+});

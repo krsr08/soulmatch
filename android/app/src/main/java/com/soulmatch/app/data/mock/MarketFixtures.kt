@@ -495,7 +495,24 @@ object MarketFixtures {
     )
 
     val invoices = listOf(
-        InvoiceItem(transactionId = "txn-3001", createdAt = "2026-03-10T09:30:00Z", amount = 5999.0, planId = "13")
+        InvoiceItem(
+            transactionId = "txn-3001",
+            createdAt = "2026-03-10T09:30:00Z",
+            amount = 5999.0,
+            currency = "INR",
+            status = "success",
+            gateway = "razorpay",
+            paymentMethod = "card",
+            paymentInstrument = "Visa credit ending 1007",
+            providerStatus = "captured",
+            razorpayOrderId = "order_demo_3001",
+            razorpayPaymentId = "pay_demo_3001",
+            planId = "13",
+            planName = "SoulMatch Elite",
+            startDate = "2026-03-10T09:30:00Z",
+            endDate = "2026-06-08T00:00:00Z",
+            isActive = true
+        )
     )
 
     val conversations = listOf(

@@ -60,6 +60,9 @@ import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.titleCase
 import com.soulmatch.app.ui.viewmodels.SubscriptionViewModel
 import org.json.JSONObject
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -380,7 +383,7 @@ private fun BillingHistoryCard(
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Billing history", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Subscription history", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             if (invoices.isEmpty()) {
                 Text("No successful payments yet.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
             } else {
@@ -392,8 +395,83 @@ private fun BillingHistoryCard(
 
 @Composable
 private fun BillingRow(invoice: InvoiceItem, packageName: String?) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(packageName ?: titleCase(invoice.planId), fontWeight = FontWeight.SemiBold)
-        Text("${formatCurrency(invoice.amount.toInt())} | ${invoice.createdAt.take(10)}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Divider.copy(alpha = 0.65f))
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(invoice.planName.ifBlank { packageName ?: titleCase(invoice.planId) }, fontWeight = FontWeight.SemiBold)
+                    Text("Paid on ${formatHistoryDate(invoice.createdAt)}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                }
+                SignalChip(paymentStatusLabel(invoice), tone = paymentStatusTone(invoice))
+            }
+            Text(
+                "${formatCurrency(invoice.amount.toInt())} ${invoice.currency.ifBlank { "INR" }}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            BillingDetail("Paid using", paidUsingLabel(invoice))
+            BillingDetail("Transaction ID", invoice.razorpayPaymentId.ifBlank { invoice.transactionId })
+            BillingDetail("Order ID", invoice.razorpayOrderId.ifBlank { invoice.paymentOrderId })
+            if (invoice.startDate.isNotBlank() || invoice.endDate.isNotBlank()) {
+                BillingDetail("Membership validity", "${formatHistoryDate(invoice.startDate)} to ${formatHistoryDate(invoice.endDate)}")
+            }
+        }
+    }
+}
+
+@Composable
+private fun BillingDetail(label: String, value: String) {
+    if (value.isBlank()) return
+    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+        Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+private fun paidUsingLabel(invoice: InvoiceItem): String {
+    val gateway = invoice.gateway.ifBlank { "Razorpay" }.replaceFirstChar { it.titlecase(Locale.getDefault()) }
+    val method = invoice.paymentMethod.ifBlank { "payment" }.replaceFirstChar { it.titlecase(Locale.getDefault()) }
+    return listOf(gateway, method, invoice.paymentInstrument)
+        .filter { it.isNotBlank() }
+        .joinToString(" | ")
+}
+
+private fun paymentStatusLabel(invoice: InvoiceItem): String {
+    return invoice.providerStatus
+        .ifBlank { invoice.paymentOrderStatus }
+        .ifBlank { invoice.status }
+        .ifBlank { if (invoice.isActive) "active" else "updated" }
+        .replace('_', ' ')
+        .replaceFirstChar { it.titlecase(Locale.getDefault()) }
+}
+
+private fun paymentStatusTone(invoice: InvoiceItem): ChipTone {
+    val status = paymentStatusLabel(invoice).lowercase(Locale.getDefault())
+    return when {
+        status.contains("success") || status.contains("paid") || status.contains("captured") || status.contains("active") -> ChipTone.Success
+        status.contains("fail") || status.contains("declin") || status.contains("cancel") -> ChipTone.Warm
+        else -> ChipTone.Neutral
+    }
+}
+
+private fun formatHistoryDate(value: String): String {
+    if (value.isBlank()) return "Not available"
+    return runCatching {
+        OffsetDateTime.parse(value).format(DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.getDefault()))
+    }.getOrElse {
+        value.take(10).ifBlank { "Not available" }
     }
 }

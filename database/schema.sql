@@ -171,6 +171,10 @@ CREATE TABLE IF NOT EXISTS transactions (
     razorpay_payment_id VARCHAR(255),
     amount DECIMAL(10, 2),
     currency VARCHAR(5) DEFAULT 'INR',
+    gateway VARCHAR(40) DEFAULT 'razorpay',
+    payment_method VARCHAR(40),
+    payment_instrument VARCHAR(120),
+    provider_status VARCHAR(40),
     status VARCHAR(20) DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT NOW()
 );

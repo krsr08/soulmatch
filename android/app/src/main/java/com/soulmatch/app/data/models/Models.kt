@@ -705,7 +705,23 @@ data class InvoiceItem(
     @SerializedName("transaction_id") val transactionId: String = "",
     @SerializedName("created_at") val createdAt: String = "",
     val amount: Double = 0.0,
-    @SerializedName("plan_id") val planId: String = ""
+    val currency: String = "INR",
+    val status: String = "",
+    val gateway: String = "",
+    @SerializedName("payment_method") val paymentMethod: String = "",
+    @SerializedName("payment_instrument") val paymentInstrument: String = "",
+    @SerializedName("provider_status") val providerStatus: String = "",
+    @SerializedName("razorpay_order_id") val razorpayOrderId: String = "",
+    @SerializedName("razorpay_payment_id") val razorpayPaymentId: String = "",
+    @SerializedName("payment_order_id") val paymentOrderId: String = "",
+    @SerializedName("payment_order_status") val paymentOrderStatus: String = "",
+    @SerializedName("subscription_id") val subscriptionId: String = "",
+    @SerializedName("plan_id") val planId: String = "",
+    @SerializedName("plan_name") val planName: String = "",
+    @SerializedName("start_date") val startDate: String = "",
+    @SerializedName("end_date") val endDate: String = "",
+    @SerializedName("is_active") val isActive: Boolean = false,
+    @SerializedName("duration_days") val durationDays: Int? = null
 )
 
 data class BotFlowMessage(
