@@ -22,7 +22,9 @@ sealed class PaymentOutcome {
 
     data class Failure(
         val order: OrderData?,
-        val message: String
+        val message: String,
+        val code: Int? = null,
+        val rawResponse: String? = null
     ) : PaymentOutcome()
 }
 
@@ -48,8 +50,8 @@ class PaymentCoordinator @Inject constructor() {
         pendingCheckout = null
     }
 
-    suspend fun completeFailure(message: String) {
-        _results.emit(PaymentOutcome.Failure(pendingCheckout?.order, message))
+    suspend fun completeFailure(message: String, code: Int? = null, rawResponse: String? = null) {
+        _results.emit(PaymentOutcome.Failure(pendingCheckout?.order, message, code, rawResponse))
         pendingCheckout = null
     }
 }

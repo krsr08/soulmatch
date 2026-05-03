@@ -73,7 +73,10 @@ class SubscriptionViewModel @Inject constructor(
                     is PaymentOutcome.Success -> verifyPayment(result)
                     is PaymentOutcome.Failure -> {
                         _isProcessingPayment.value = false
-                        _errorMessage.value = result.message
+                        _statusMessage.value = null
+                        _errorMessage.value = result.message.ifBlank {
+                            "Payment failed. No membership was activated, and you can try again safely."
+                        }
                     }
                 }
             }
@@ -187,7 +190,7 @@ class SubscriptionViewModel @Inject constructor(
                 ?: debugMockOrder(targetPackage)
             if (order == null) {
                 _isProcessingPayment.value = false
-                _errorMessage.value = response?.body()?.error?.message ?: "Could not start payment."
+                _errorMessage.value = orderStartFailureMessage(response?.body()?.error?.message)
                 return@launch
             }
             val checkout = PendingCheckout(order = order, planName = targetPackage.displayName)
@@ -262,6 +265,12 @@ class SubscriptionViewModel @Inject constructor(
 
     private fun verifyPayment(result: PaymentOutcome.Success) {
         viewModelScope.launch {
+            if (result.paymentId.isBlank() || result.signature.isBlank()) {
+                _isProcessingPayment.value = false
+                _statusMessage.value = null
+                _errorMessage.value = "Payment completed, but Razorpay confirmation was incomplete. Please refresh your membership before trying again."
+                return@launch
+            }
             val response = runCatching {
                 paymentApi.verifyPayment(
                     PaymentVerifyRequest(
@@ -274,12 +283,28 @@ class SubscriptionViewModel @Inject constructor(
             }.getOrNull()
             if (response?.isSuccessful == true && response.body()?.success == true) {
                 userPreferences.savePlanId(result.order.planId)
-                _statusMessage.value = "${result.planName} membership is now active."
+                _errorMessage.value = null
+                _statusMessage.value = "Payment successful. ${result.planName} membership is now active."
                 load(keepCurrentSelection = true)
             } else {
-                _errorMessage.value = response?.body()?.error?.message ?: "Payment verification failed."
+                _statusMessage.value = null
+                _errorMessage.value = paymentVerificationFailureMessage(response?.body()?.error?.message)
             }
             _isProcessingPayment.value = false
         }
+    }
+
+    private fun orderStartFailureMessage(serverMessage: String?): String {
+        val cleanMessage = serverMessage?.trim().orEmpty()
+        if (cleanMessage.isNotBlank()) return cleanMessage
+        return "Could not reach SoulMatch payments. Please check your connection and try again."
+    }
+
+    private fun paymentVerificationFailureMessage(serverMessage: String?): String {
+        val cleanMessage = serverMessage?.trim().orEmpty()
+        if (cleanMessage.isNotBlank()) {
+            return "Payment could not be verified: $cleanMessage"
+        }
+        return "Payment completed, but SoulMatch could not confirm it. Please refresh your membership before paying again."
     }
 }

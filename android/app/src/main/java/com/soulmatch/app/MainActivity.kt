@@ -37,6 +37,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
@@ -140,7 +141,35 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
 
     override fun onPaymentError(code: Int, response: String?, paymentData: PaymentData?) {
         lifecycleScope.launch {
-            paymentCoordinator.completeFailure(response ?: "Payment cancelled")
+            paymentCoordinator.completeFailure(
+                message = resolvePaymentFailureMessage(code, response),
+                code = code,
+                rawResponse = response
+            )
+        }
+    }
+
+    private fun resolvePaymentFailureMessage(code: Int, response: String?): String {
+        val error = runCatching {
+            response
+                ?.takeIf { it.isNotBlank() }
+                ?.let { JSONObject(it).optJSONObject("error") }
+        }.getOrNull()
+        val description = error?.optString("description").orEmpty()
+        val reason = error?.optString("reason").orEmpty()
+        val normalized = listOf(description, reason, response.orEmpty())
+            .joinToString(" ")
+            .lowercase()
+
+        return when {
+            code == 0 || normalized.contains("cancel") ->
+                "Payment was cancelled. No amount was charged by SoulMatch."
+            normalized.contains("network") || normalized.contains("timeout") ->
+                "Payment could not be completed because of a network issue. Please check your connection and try again."
+            description.isNotBlank() ->
+                "Payment failed in Razorpay: $description"
+            else ->
+                "Payment failed. No membership was activated, and you can try again safely."
         }
     }
 
