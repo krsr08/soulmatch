@@ -208,6 +208,10 @@ data class ProfileData(
     @SerializedName("profile_status") val profileStatus: String = "active",
     @SerializedName("profile_created_by") val profileCreatedBy: String = "self",
     @SerializedName("verification_status") val verificationStatus: String = "pending",
+    @SerializedName("trust_score") val trustScore: Int = 0,
+    @SerializedName("trust_level") val trustLevel: String = "low",
+    @SerializedName("trust_signals") val trustSignals: List<String> = emptyList(),
+    @SerializedName("trust_warnings") val trustWarnings: List<String> = emptyList(),
     @SerializedName("primary_photo_url") val primaryPhotoUrl: String? = null,
     @SerializedName("photo_privacy") val photoPrivacy: String = "all",
     @SerializedName("can_view_photo") val canViewPhoto: Boolean = true,
@@ -262,6 +266,9 @@ data class ProfileSummary(
     @SerializedName("heightCm") val heightCm: Int? = null,
     @SerializedName("isVerified") val isVerified: Boolean = false,
     @SerializedName("isPhotoPrivate") val isPhotoPrivate: Boolean = false,
+    @SerializedName("trustScore") val trustScore: Int = 0,
+    @SerializedName("trustLevel") val trustLevel: String = "low",
+    @SerializedName("trustSignals") val trustSignals: List<String> = emptyList(),
     val education: String = "",
     val community: String = "",
     val lastActiveLabel: String = "Recently active",
@@ -320,7 +327,39 @@ data class SearchProfileItem(
     @SerializedName("height_cm") val heightCm: Int? = null,
     val diet: String = "",
     @SerializedName("profile_created_by") val profileCreatedBy: String = "self",
-    @SerializedName("is_photo_private") val isPhotoPrivate: Boolean = false
+    @SerializedName("is_photo_private") val isPhotoPrivate: Boolean = false,
+    @SerializedName("is_verified") val isVerified: Boolean = false,
+    @SerializedName("trust_score") val trustScore: Int = 0,
+    @SerializedName("trust_level") val trustLevel: String = "low",
+    @SerializedName("trust_signals") val trustSignals: List<String> = emptyList(),
+    @SerializedName("match_reasons") val matchReasons: List<String> = emptyList()
+)
+
+data class FamilyDecisionRequest(
+    val status: String = "family_review",
+    val note: String = "",
+    @SerializedName("nextStep") val nextStep: String = "",
+    @SerializedName("nextStepAt") val nextStepAt: String? = null
+)
+
+data class FamilyDecisionData(
+    @SerializedName("familyDecisionId") val familyDecisionId: String = "",
+    @SerializedName("ownerProfileId") val ownerProfileId: String = "",
+    @SerializedName("targetProfileId") val targetProfileId: String = "",
+    val status: String = "considering",
+    val note: String = "",
+    @SerializedName("nextStep") val nextStep: String = "",
+    @SerializedName("nextStepAt") val nextStepAt: String? = null,
+    @SerializedName("updatedAt") val updatedAt: String = "",
+    @SerializedName("targetName") val targetName: String = "Member",
+    @SerializedName("targetAge") val targetAge: Int = 0,
+    @SerializedName("targetLocation") val targetLocation: String = "",
+    @SerializedName("targetOccupation") val targetOccupation: String = "",
+    @SerializedName("targetPhotoUrl") val targetPhotoUrl: String? = null,
+    @SerializedName("isVerified") val isVerified: Boolean = false,
+    @SerializedName("trustScore") val trustScore: Int = 0,
+    @SerializedName("trustLevel") val trustLevel: String = "low",
+    @SerializedName("trustSignals") val trustSignals: List<String> = emptyList()
 )
 
 data class SearchResultsData(
@@ -720,12 +759,15 @@ fun SearchProfileItem.toProfileSummary(seed: ProfileSummary? = null): ProfileSum
         compatibilityScore = seed?.compatibilityScore ?: 72,
         compatibilityBreakdown = seed?.compatibilityBreakdown,
         heightCm = heightCm ?: seed?.heightCm,
-        isVerified = seed?.isVerified ?: false,
+        isVerified = isVerified || seed?.isVerified == true,
         isPhotoPrivate = isPhotoPrivate || seed?.isPhotoPrivate == true,
+        trustScore = if (trustScore > 0) trustScore else seed?.trustScore ?: 0,
+        trustLevel = if (safeString(trustLevel).isNotBlank()) safeString(trustLevel) else seed?.trustLevel ?: "low",
+        trustSignals = if (trustSignals.isNotEmpty()) trustSignals else seed?.trustSignals ?: emptyList(),
         education = if (safeString(educationLevel).isNotBlank()) safeString(educationLevel) else seed?.education.orEmpty(),
         community = if (safeString(religion).isNotBlank()) safeString(religion) else seed?.community.orEmpty(),
         lastActiveLabel = seed?.lastActiveLabel ?: "Recently active",
-        matchReasons = seed?.matchReasons ?: emptyList(),
+        matchReasons = if (matchReasons.isNotEmpty()) matchReasons else seed?.matchReasons ?: emptyList(),
         interestSent = seed?.interestSent ?: false,
         shortlisted = seed?.shortlisted ?: false,
         profileCreatedBy = if (safeString(profileCreatedBy).isNotBlank()) safeString(profileCreatedBy) else seed?.profileCreatedBy ?: "self"

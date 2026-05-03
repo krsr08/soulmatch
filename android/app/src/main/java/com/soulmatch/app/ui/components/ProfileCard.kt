@@ -103,7 +103,10 @@ fun ProfileCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    ProfileOwnerTag(profile.profileCreatedBy)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        ProfileOwnerTag(profile.profileCreatedBy, modifier = Modifier.weight(1f, fill = false))
+                        TrustBadge(score = profile.trustScore, level = profile.trustLevel)
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         LabeledInlineValue(label = "Age", value = "${profile.age.coerceAtLeast(0)} yrs")
                         Box(
@@ -132,6 +135,15 @@ fun ProfileCard(
                         )
                     }
                     ProfileMatchSignal(score = profile.compatibilityScore)
+                    profile.matchReasons.take(2).forEach { reason ->
+                        Text(
+                            text = "- $reason",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
                 Box(
@@ -202,9 +214,10 @@ fun ProfileCard(
 }
 
 @Composable
-private fun ProfileOwnerTag(profileCreatedBy: String) {
+private fun ProfileOwnerTag(profileCreatedBy: String, modifier: Modifier = Modifier) {
     val owner = if (profileCreatedBy.equals("mediator", ignoreCase = true)) "Mediator" else "Self"
     Surface(
+        modifier = modifier,
         shape = RoundedCornerShape(999.dp),
         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
@@ -217,6 +230,30 @@ private fun ProfileOwnerTag(profileCreatedBy: String) {
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun TrustBadge(score: Int, level: String) {
+    val resolvedScore = score.coerceIn(0, 100)
+    val content = when {
+        resolvedScore >= 80 || level.equals("high", ignoreCase = true) -> Success
+        resolvedScore >= 55 || level.equals("medium", ignoreCase = true) -> Warning
+        else -> Error
+    }
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = content.copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, content.copy(alpha = 0.25f))
+    ) {
+        Text(
+            text = if (resolvedScore > 0) "Trust $resolvedScore%" else "Trust new",
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = content,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1
         )
     }
 }

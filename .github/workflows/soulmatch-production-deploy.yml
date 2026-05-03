@@ -60,6 +60,17 @@ jobs:
             npm --prefix "$service_dir" ci --ignore-scripts
           done
 
+      - name: Run backend unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t test_files < <(find backend -path '*/test/*.test.js' -type f | sort)
+          if [ "${#test_files[@]}" -eq 0 ]; then
+            echo "No backend unit tests found."
+            exit 0
+          fi
+          node --test "${test_files[@]}"
+
       - name: Validate matching service
         shell: bash
         run: |

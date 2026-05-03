@@ -1,36 +1,161 @@
 import numpy as np
 from app.config.database import get_db_pool
-RELIGION_MAP = {"Hindu":0,"Muslim":1,"Christian":2,"Sikh":3,"Buddhist":4,"Jain":5,"Other":6}
-EDUCATION_MAP = {"High School":1,"Graduate":2,"Post Graduate":3,"Doctorate":4,"Professional":5}
-INCOME_MAP = {"< 3 LPA":1,"3-5 LPA":2,"5-10 LPA":3,"10-20 LPA":4,"20+ LPA":5}
+
+RELIGION_MAP = {"Hindu": 0, "Muslim": 1, "Christian": 2, "Sikh": 3, "Buddhist": 4, "Jain": 5, "Other": 6}
+EDUCATION_MAP = {"High School": 1, "Graduate": 2, "Post Graduate": 3, "Doctorate": 4, "Professional": 5}
+INCOME_MAP = {"< 3 LPA": 1, "3-5 LPA": 2, "5-10 LPA": 3, "10-20 LPA": 4, "20+ LPA": 5}
+
 
 def number_or(value, fallback):
     return fallback if value is None else value
 
+
+def clamp_score(value):
+    return max(0, min(100, int(round(float(value or 0)))))
+
+
 def build_vector(p):
     age = number_or(p.get("age"), 25)
     height_cm = number_or(p.get("height_cm"), 165)
-    return np.array([max(0,min(1,(age-18)/42)), RELIGION_MAP.get(p.get("religion","Other"),6)/6.0, max(0,min(1,(height_cm-140)/60)), EDUCATION_MAP.get(p.get("education_level","Graduate"),2)/5.0, INCOME_MAP.get(p.get("annual_income","5-10 LPA"),3)/5.0, 1.0 if p.get("is_manglik") else 0.0, 1.0 if p.get("diet")=="vegetarian" else 0.0], dtype=np.float32)
+    return np.array(
+        [
+            max(0, min(1, (age - 18) / 42)),
+            RELIGION_MAP.get(p.get("religion", "Other"), 6) / 6.0,
+            max(0, min(1, (height_cm - 140) / 60)),
+            EDUCATION_MAP.get(p.get("education_level", "Graduate"), 2) / 5.0,
+            INCOME_MAP.get(p.get("annual_income", "5-10 LPA"), 3) / 5.0,
+            1.0 if p.get("is_manglik") else 0.0,
+            1.0 if p.get("diet") == "vegetarian" else 0.0,
+        ],
+        dtype=np.float32,
+    )
+
+
 def pref_score(candidate, prefs):
     score = 100.0
     age = number_or(candidate.get("age"), 25)
     age_min = number_or(prefs.get("age_min"), 18)
     age_max = number_or(prefs.get("age_max"), 50)
     preferred_religion = prefs.get("pref_religion") or prefs.get("religion")
-    if age < age_min or age > age_max: score -= 30
-    if preferred_religion and preferred_religion != candidate.get("religion"): score -= 15
+    if age < age_min or age > age_max:
+        score -= 30
+    if preferred_religion and preferred_religion != candidate.get("religion"):
+        score -= 15
     return max(0.0, score)
+
+
 def horoscope_score(p1, p2):
     return 60.0 if p1.get("is_manglik") != p2.get("is_manglik") else 80.0
+
+
 def cosine_sim(v1, v2):
     n1, n2 = np.linalg.norm(v1), np.linalg.norm(v2)
-    if n1 == 0 or n2 == 0: return 0.5
+    if n1 == 0 or n2 == 0:
+        return 0.5
     return float(np.dot(v1, v2) / (n1 * n2))
+
+
+def build_trust_summary(profile):
+    score = 0
+    signals = []
+    verification_status = str(profile.get("verification_status") or "pending").lower()
+    completion_score = clamp_score(profile.get("completion_score"))
+    photo_count = int(profile.get("photo_count") or 0)
+    approved_verifications = int(profile.get("approved_verifications") or 0)
+    pending_verifications = int(profile.get("pending_verifications") or 0)
+    report_count = int(profile.get("report_count") or 0)
+
+    if profile.get("is_phone_verified"):
+        score += 15
+        signals.append("Phone verified")
+    if completion_score >= 90:
+        score += 20
+        signals.append("Highly complete profile")
+    elif completion_score >= 70:
+        score += 15
+        signals.append("Strong profile detail")
+    elif completion_score >= 50:
+        score += 10
+    if verification_status == "verified":
+        score += 25
+        signals.append("Admin verified")
+    elif pending_verifications > 0 or verification_status == "pending":
+        score += 8
+    if approved_verifications > 0:
+        score += min(15, approved_verifications * 5)
+    if photo_count >= 3:
+        score += 12
+        signals.append("Multiple photos")
+    elif photo_count >= 1 or profile.get("primary_photo_url"):
+        score += 8
+        signals.append("Photo added")
+    if profile.get("family_city") or profile.get("family_pincode"):
+        score += 8
+        signals.append("Family location available")
+    if (profile.get("profile_status") or "active") == "active":
+        score += 5
+    if report_count == 0:
+        score += 10
+        signals.append("No open safety reports")
+    else:
+        score -= min(35, report_count * 12)
+
+    trust_score = clamp_score(score)
+    return {
+        "trustScore": trust_score,
+        "trustLevel": "high" if trust_score >= 80 else "medium" if trust_score >= 55 else "low",
+        "trustSignals": signals[:4],
+    }
+
+
+def build_match_reasons(user, candidate, preference_score, vector_score, horoscope, trust):
+    reasons = []
+    age = number_or(candidate.get("age"), 0)
+    age_min = number_or(user.get("age_min"), 18)
+    age_max = number_or(user.get("age_max"), 50)
+    preferred_religion = user.get("pref_religion")
+
+    if age_min <= age <= age_max:
+        reasons.append("Fits your preferred age range")
+    if preferred_religion and preferred_religion == candidate.get("religion"):
+        reasons.append("Matches your religion preference")
+    if user.get("working_city") and user.get("working_city") == candidate.get("working_city"):
+        reasons.append("Same working city")
+    if user.get("diet") and user.get("diet") == candidate.get("diet"):
+        reasons.append("Lifestyle preference aligned")
+    if horoscope >= 80:
+        reasons.append("Horoscope signal looks favorable")
+    if trust["trustScore"] >= 80:
+        reasons.append("High trust profile")
+    elif candidate.get("verification_status") == "verified":
+        reasons.append("Verified profile")
+    if vector_score >= 80 and preference_score >= 80:
+        reasons.append("Strong overall compatibility")
+    return reasons[:4]
+
+
 async def get_recommended_matches(user_id: str, page: int, limit: int) -> dict:
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        user_row = await conn.fetchrow('SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,ec.education_level,ec.annual_income,pd.height_cm,ld.diet,hd.is_manglik,pp.age_min,pp.age_max,pp.religion AS pref_religion FROM profiles p LEFT JOIN education_career ec ON p.profile_id=ec.profile_id LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id LEFT JOIN partner_preferences pp ON p.profile_id=pp.profile_id WHERE p.user_id=$1 LIMIT 1', user_id)
-        if not user_row: return {"matches":[],"total":0,"page":page}
+        user_row = await conn.fetchrow(
+            """
+            SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
+                   ec.education_level,ec.annual_income,ec.working_city,
+                   pd.height_cm,ld.diet,hd.is_manglik,
+                   pp.age_min,pp.age_max,pp.religion AS pref_religion
+            FROM profiles p
+            LEFT JOIN education_career ec ON p.profile_id=ec.profile_id
+            LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id
+            LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id
+            LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id
+            LEFT JOIN partner_preferences pp ON p.profile_id=pp.profile_id
+            WHERE p.user_id=$1
+            LIMIT 1
+            """,
+            user_id,
+        )
+        if not user_row:
+            return {"matches": [], "total": 0, "page": page}
         user = dict(user_row)
         gender = (user.get("gender") or "").lower()
         opp_gender = "female" if gender == "male" else "male" if gender == "female" else None
@@ -38,8 +163,14 @@ async def get_recommended_matches(user_id: str, page: int, limit: int) -> dict:
         limit = min(max(int(limit or 25), 15), 100)
         candidates = await conn.fetch(
             """
-            SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,ec.education_level,ec.annual_income,
-                   ec.occupation,ec.working_city,pd.height_cm,ld.diet,hd.is_manglik,
+            SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
+                   ec.education_level,ec.annual_income,ec.occupation,ec.working_city,
+                   pd.height_cm,ld.diet,hd.is_manglik,fd.family_city,fd.family_pincode,
+                   u.is_verified AS is_phone_verified,u.last_login,
+                   COALESCE((SELECT COUNT(*)::int FROM profile_photos pp WHERE pp.profile_id=p.profile_id), 0) AS photo_count,
+                   COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='approved'), 0) AS approved_verifications,
+                   COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='pending'), 0) AS pending_verifications,
+                   COALESCE((SELECT COUNT(*)::int FROM reports rp WHERE rp.reported_id=p.user_id AND rp.status IN ('pending','open','reviewing')), 0) AS report_count,
                    CASE
                      WHEN COALESCE(p.photo_privacy,'all')='all'
                        OR (
@@ -82,10 +213,12 @@ async def get_recommended_matches(user_id: str, page: int, limit: int) -> dict:
                    END AS is_photo_private,
                    p.photo_privacy,COALESCE(p.verification_status,'pending')='verified' AS is_verified
             FROM profiles p
+            JOIN users u ON u.user_id=p.user_id
             LEFT JOIN education_career ec ON p.profile_id=ec.profile_id
             LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id
             LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id
             LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id
+            LEFT JOIN family_details fd ON p.profile_id=fd.profile_id
             WHERE ($2::text IS NULL OR p.gender=$2)
               AND p.is_published=true
               AND COALESCE(p.admin_status,'active')='active'
@@ -97,27 +230,60 @@ async def get_recommended_matches(user_id: str, page: int, limit: int) -> dict:
                 WHERE (b.blocker_id=$1 AND b.blocked_id=p.user_id)
                    OR (b.blocker_id=p.user_id AND b.blocked_id=$1)
               )
-            ORDER BY p.completion_score DESC, p.updated_at DESC
+            ORDER BY p.completion_score DESC, u.last_login DESC NULLS LAST, p.updated_at DESC
             LIMIT 1000
             """,
             user_id,
             opp_gender,
-            user["profile_id"]
+            user["profile_id"],
         )
-        user_vec = build_vector(user); scored = []
+        user_vec = build_vector(user)
+        scored = []
         for c in candidates:
-            cd = dict(c); cv = build_vector(cd)
+            cd = dict(c)
+            cv = build_vector(cd)
             vec_s = cosine_sim(user_vec, cv) * 100
-            pre_s = pref_score(cd, user); hor_s = horoscope_score(user, cd)
-            total = int(vec_s*0.35 + pre_s*0.40 + hor_s*0.25)
-            scored.append({"profileId":str(cd["profile_id"]),"userId":str(cd["user_id"]),"name":cd["first_name"]+" "+cd["last_name"][:1]+".","age":cd.get("age",0),"heightCm":cd.get("height_cm"),"location":cd.get("working_city",""),"occupation":cd.get("occupation",""),"primaryPhoto":cd.get("visible_primary_photo_url") or "","isVerified":bool(cd.get("is_verified")),"isPhotoPrivate":bool(cd.get("is_photo_private")),"profileCreatedBy":cd.get("profile_created_by") or "self","compatibilityScore":min(99,total),"compatibilityBreakdown":{"preferences":int(pre_s),"personality":int(vec_s),"horoscope":int(hor_s)}})
-        scored.sort(key=lambda x: x["compatibilityScore"], reverse=True)
-        start = (page-1)*limit
-        return {"matches":scored[start:start+limit],"total":len(scored),"page":page,"limit":limit}
+            pre_s = pref_score(cd, user)
+            hor_s = horoscope_score(user, cd)
+            trust = build_trust_summary(cd)
+            total = int(vec_s * 0.35 + pre_s * 0.40 + hor_s * 0.25)
+            scored.append(
+                {
+                    "profileId": str(cd["profile_id"]),
+                    "userId": str(cd["user_id"]),
+                    "name": f"{cd.get('first_name') or 'Member'} {(cd.get('last_name') or '')[:1]}.".strip(),
+                    "age": cd.get("age", 0),
+                    "heightCm": cd.get("height_cm"),
+                    "location": cd.get("working_city", ""),
+                    "occupation": cd.get("occupation", ""),
+                    "primaryPhoto": cd.get("visible_primary_photo_url") or "",
+                    "isVerified": bool(cd.get("is_verified")),
+                    "isPhotoPrivate": bool(cd.get("is_photo_private")),
+                    "profileCreatedBy": cd.get("profile_created_by") or "self",
+                    "trustScore": trust["trustScore"],
+                    "trustLevel": trust["trustLevel"],
+                    "trustSignals": trust["trustSignals"],
+                    "matchReasons": build_match_reasons(user, cd, pre_s, vec_s, hor_s, trust),
+                    "compatibilityScore": min(99, total),
+                    "compatibilityBreakdown": {
+                        "preferences": int(pre_s),
+                        "personality": int(vec_s),
+                        "horoscope": int(hor_s),
+                    },
+                }
+            )
+        scored.sort(key=lambda x: (x["compatibilityScore"], x["trustScore"]), reverse=True)
+        start = (page - 1) * limit
+        return {"matches": scored[start : start + limit], "total": len(scored), "page": page, "limit": limit}
+
+
 async def get_compatibility(user_id: str, target_profile_id: str) -> dict:
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        user_row = await conn.fetchrow('SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,ec.education_level,ec.annual_income,pd.height_cm,ld.diet,hd.is_manglik FROM profiles p LEFT JOIN education_career ec ON p.profile_id=ec.profile_id LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id WHERE p.user_id=$1', user_id)
+        user_row = await conn.fetchrow(
+            "SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,ec.education_level,ec.annual_income,pd.height_cm,ld.diet,hd.is_manglik FROM profiles p LEFT JOIN education_career ec ON p.profile_id=ec.profile_id LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id WHERE p.user_id=$1",
+            user_id,
+        )
         target_row = await conn.fetchrow(
             """
             SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,ec.education_level,ec.annual_income,pd.height_cm,ld.diet,hd.is_manglik
@@ -138,11 +304,17 @@ async def get_compatibility(user_id: str, target_profile_id: str) -> dict:
               )
             """,
             target_profile_id,
-            user_id
+            user_id,
         )
-        if not user_row or not target_row: return {"overallScore":0}
-        u = dict(user_row); t = dict(target_row)
+        if not user_row or not target_row:
+            return {"overallScore": 0}
+        u = dict(user_row)
+        t = dict(target_row)
         vec_s = cosine_sim(build_vector(u), build_vector(t)) * 100
-        pre_s = pref_score(t, u); hor_s = horoscope_score(u, t)
-        total = int(vec_s*0.35 + pre_s*0.40 + hor_s*0.25)
-        return {"overallScore":min(99,total),"breakdown":{"preferences":int(pre_s),"personality":int(vec_s),"horoscope":int(hor_s)}}
+        pre_s = pref_score(t, u)
+        hor_s = horoscope_score(u, t)
+        total = int(vec_s * 0.35 + pre_s * 0.40 + hor_s * 0.25)
+        return {
+            "overallScore": min(99, total),
+            "breakdown": {"preferences": int(pre_s), "personality": int(vec_s), "horoscope": int(hor_s)},
+        }

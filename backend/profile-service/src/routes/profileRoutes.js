@@ -17,6 +17,8 @@ router.put('/assist/status', authenticate, ctrl.updateAssistStatus);
 router.patch('/status', authenticate, ctrl.updateProfileStatus);
 router.get('/photo-access/requests', authenticate, ctrl.getPhotoAccessRequests);
 router.put('/photo-access/requests/:requestId', authenticate, ctrl.respondPhotoAccessRequest);
+router.get('/family-decisions', authenticate, ctrl.getFamilyDecisions);
+router.put('/family-decisions/:targetProfileId', authenticate, ctrl.upsertFamilyDecision);
 router.get('/:profileId', authenticate, ctrl.getProfile);
 router.put('/:profileId', authenticate, ctrl.updateProfile);
 router.get('/:profileId/verifications', authenticate, ctrl.getVerifications);

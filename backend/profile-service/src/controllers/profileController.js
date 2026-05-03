@@ -88,6 +88,29 @@ function normalizeAssistSupportLevel(value) {
   return ALLOWED_ASSIST_SUPPORT_LEVELS.has(normalized) ? normalized : null;
 }
 
+function normalizeFamilyDecisionPayload(body = {}) {
+  const status = String(body.status || 'family_review').trim().toLowerCase();
+  if (!['considering', 'family_review', 'call_scheduled', 'spoken', 'accepted', 'declined', 'archived'].includes(status)) {
+    return null;
+  }
+  return {
+    status,
+    note: String(body.note || '').trim(),
+    nextStep: String(body.nextStep || body.next_step || '').trim(),
+    nextStepAt: body.nextStepAt || body.next_step_at || null
+  };
+}
+
+async function attachTrustSummary(profile) {
+  if (!profile?.profile_id) return profile;
+  const trust = await repo.getTrustSummary(profile.profile_id);
+  profile.trust_score = trust.score;
+  profile.trust_level = trust.level;
+  profile.trust_signals = trust.signals;
+  profile.trust_warnings = trust.warnings;
+  return profile;
+}
+
 function normalizeAssistPayload(body = {}) {
   const supportLevel = normalizeAssistSupportLevel(body.supportLevel || body.support_level || 'self_service');
   const isOptedIn = body.isOptedIn === true || body.is_opted_in === true || body.enabled === true;
@@ -140,6 +163,7 @@ exports.getMyProfile = async (req, res, next) => {
   try {
     const p = await repo.findFullByUserId(req.user.userId);
     if (p?.profile_id) p.completion_score = await repo.calcCompletion(p.profile_id);
+    await attachTrustSummary(p);
     res.json({ success: true, data: p, isNewProfile: !p });
   } catch (err) { next(err); }
 };
@@ -211,6 +235,7 @@ exports.getProfile = async (req, res, next) => {
       p.photo_access_status = 'owner';
     }
     p.completion_score = await repo.calcCompletion(p.profile_id);
+    await attachTrustSummary(p);
     repo.recordView(req.params.profileId, req.user.userId).catch(() => {});
     res.json({ success: true, data: p });
   } catch (err) { next(err); }
@@ -437,6 +462,49 @@ exports.respondPhotoAccessRequest = async (req, res, next) => {
         status: result.after.status
       },
       message: status === 'approved' ? 'Photo access approved.' : 'Photo access declined.'
+    });
+  } catch (err) { next(err); }
+};
+exports.getFamilyDecisions = async (req, res, next) => {
+  try {
+    const decisions = await repo.listFamilyDecisions(req.user.userId);
+    if (!decisions) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
+    res.json({ success: true, data: decisions });
+  } catch (err) { next(err); }
+};
+exports.upsertFamilyDecision = async (req, res, next) => {
+  try {
+    const payload = normalizeFamilyDecisionPayload(req.body);
+    if (!payload) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Family decision status is not valid.'));
+    const access = await repo.canViewProfile(req.params.targetProfileId, req.user.userId);
+    if (!access.allowed || access.owner) {
+      const status = access.reason === 'not_found' ? 404 : 403;
+      const code = access.reason === 'not_found' ? ErrorCodes.NOT_FOUND : ErrorCodes.FORBIDDEN;
+      return next(new AppError(status, code, access.reason === 'not_found' ? 'Profile not found' : 'This profile cannot be added to your family board.'));
+    }
+    const result = await repo.upsertFamilyDecision(req.user.userId, req.params.targetProfileId, payload);
+    if (result.status === 'owner_not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
+    if (result.status === 'target_not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Target profile not found'));
+    if (result.status === 'own_profile') return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Your own profile cannot be added to family review.'));
+    await auditUserChange(req, {
+      profileId: result.owner.profile_id,
+      entityType: 'family_match_decision',
+      entityId: result.after.family_decision_id,
+      action: `family_decision.${result.status}`,
+      beforeData: result.before || {},
+      afterData: result.after || {}
+    });
+    res.json({
+      success: true,
+      data: {
+        familyDecisionId: result.after.family_decision_id,
+        targetProfileId: result.after.target_profile_id,
+        status: result.after.status,
+        note: result.after.note || '',
+        nextStep: result.after.next_step || '',
+        updatedAt: result.after.updated_at
+      },
+      message: result.status === 'created' ? 'Added to your family decision board.' : 'Family decision updated.'
     });
   } catch (err) { next(err); }
 };

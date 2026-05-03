@@ -10,6 +10,7 @@ import com.soulmatch.app.data.config.AppEnvironment
 import com.soulmatch.app.data.local.ProfileInteractionStore
 import com.soulmatch.app.data.mock.MarketFixtures
 import com.soulmatch.app.data.models.CompatibilityData
+import com.soulmatch.app.data.models.FamilyDecisionRequest
 import com.soulmatch.app.data.models.InterestRequest
 import com.soulmatch.app.data.models.PhotoAccessRequestBody
 import com.soulmatch.app.data.models.ProfileData
@@ -139,6 +140,28 @@ class ProfileDetailViewModel @Inject constructor(
                 _status.value = body.message ?: "Photo access request sent."
             } else {
                 _status.value = body?.error?.message ?: "Couldn't request photo access right now."
+            }
+        }
+    }
+
+    fun addToFamilyBoard() {
+        val target = _profile.value?.profileId ?: return
+        viewModelScope.launch {
+            val response = runCatching {
+                profileApi.upsertFamilyDecision(
+                    target,
+                    FamilyDecisionRequest(
+                        status = "family_review",
+                        note = "Added from profile detail for family review.",
+                        nextStep = "Discuss with family"
+                    )
+                )
+            }.getOrNull()
+            val body = response?.body()
+            _status.value = if (response?.isSuccessful == true && body?.success == true) {
+                body.message ?: "Added to your family decision board."
+            } else {
+                body?.error?.message ?: "Couldn't add this profile to family board right now."
             }
         }
     }

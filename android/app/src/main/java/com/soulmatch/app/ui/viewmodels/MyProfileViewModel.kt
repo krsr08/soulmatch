@@ -12,6 +12,7 @@ import com.soulmatch.app.data.models.PhotoAccessActionRequest
 import com.soulmatch.app.data.models.PhotoAccessRequestData
 import com.soulmatch.app.data.models.AssistStatusData
 import com.soulmatch.app.data.models.AssistStatusRequest
+import com.soulmatch.app.data.models.FamilyDecisionData
 import com.soulmatch.app.data.models.ProfilePhoto
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.SubscriptionData
@@ -51,6 +52,7 @@ class MyProfileViewModel @Inject constructor(
     private val _photos = MutableStateFlow<List<ProfilePhoto>>(emptyList())
     private val _verifications = MutableStateFlow<List<VerificationRequestData>>(emptyList())
     private val _photoAccessRequests = MutableStateFlow<List<PhotoAccessRequestData>>(emptyList())
+    private val _familyDecisions = MutableStateFlow<List<FamilyDecisionData>>(emptyList())
     private val _isLoading = MutableStateFlow(false)
     private val _isUploadingPhotos = MutableStateFlow(false)
     private val _isSubmittingVerification = MutableStateFlow(false)
@@ -66,6 +68,7 @@ class MyProfileViewModel @Inject constructor(
     val photos: StateFlow<List<ProfilePhoto>> = _photos.asStateFlow()
     val verifications: StateFlow<List<VerificationRequestData>> = _verifications.asStateFlow()
     val photoAccessRequests: StateFlow<List<PhotoAccessRequestData>> = _photoAccessRequests.asStateFlow()
+    val familyDecisions: StateFlow<List<FamilyDecisionData>> = _familyDecisions.asStateFlow()
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     val isUploadingPhotos: StateFlow<Boolean> = _isUploadingPhotos.asStateFlow()
     val isSubmittingVerification: StateFlow<Boolean> = _isSubmittingVerification.asStateFlow()
@@ -110,6 +113,7 @@ class MyProfileViewModel @Inject constructor(
                     _photos.value = emptyList()
                     _verifications.value = emptyList()
                     _photoAccessRequests.value = emptyList()
+                    _familyDecisions.value = emptyList()
                     _loadMessage.value = "Start with your basic details to build your profile."
                     return@launch
                 }
@@ -166,6 +170,12 @@ class MyProfileViewModel @Inject constructor(
                     ?.takeIf { it.success }
                     ?.data
                     .orEmpty()
+                _familyDecisions.value = runCatching { profileApi.getFamilyDecisions() }
+                    .getOrNull()
+                    ?.body()
+                    ?.takeIf { it.success }
+                    ?.data
+                    .orEmpty()
             } catch (error: Exception) {
                 if (canUseFallback) {
                     applyMockProfileFallback(
@@ -208,6 +218,7 @@ class MyProfileViewModel @Inject constructor(
         _photos.value = MarketFixtures.profilePhotos
         _verifications.value = emptyList()
         _photoAccessRequests.value = emptyList()
+        _familyDecisions.value = emptyList()
         _checklist.value = buildChecklist(fallback)
         _loadMessage.value = message
     }

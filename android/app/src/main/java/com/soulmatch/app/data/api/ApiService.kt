@@ -18,6 +18,8 @@ interface ProfileApiService {
     @GET("profile/me") suspend fun getMyProfile(): Response<GenericResponse<ProfileData>>
     @GET("profile/assist/status") suspend fun getAssistStatus(): Response<GenericResponse<AssistStatusData>>
     @PUT("profile/assist/status") suspend fun updateAssistStatus(@Body req: AssistStatusRequest): Response<GenericResponse<AssistStatusData>>
+    @GET("profile/family-decisions") suspend fun getFamilyDecisions(): Response<GenericResponse<List<FamilyDecisionData>>>
+    @PUT("profile/family-decisions/{targetProfileId}") suspend fun upsertFamilyDecision(@Path("targetProfileId") id: String, @Body req: FamilyDecisionRequest): Response<GenericResponse<FamilyDecisionData>>
     @GET("profile/{profileId}") suspend fun getProfile(@Path("profileId") id: String): Response<GenericResponse<ProfileData>>
     @GET("profile/{profileId}/photos") suspend fun getPhotos(@Path("profileId") id: String): Response<GenericResponse<List<ProfilePhoto>>>
     @Multipart

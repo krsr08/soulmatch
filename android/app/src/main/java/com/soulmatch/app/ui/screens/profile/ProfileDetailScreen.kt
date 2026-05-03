@@ -210,6 +210,7 @@ fun ProfileDetailScreen(
                                 onSendInterest = { vm.sendInterest() },
                                 onOpenChat = { openChat(data.userId, data.fullName()) },
                                 onSave = { vm.toggleShortlist() },
+                                onAddFamilyReview = { vm.addToFamilyBoard() },
                                 onShare = { shareProfileWithFamily(context, data, compatibility.overallScore) }
                             )
                         }
@@ -230,6 +231,9 @@ fun ProfileDetailScreen(
                                     Text(actionNotice ?: "", style = MaterialTheme.typography.bodyMedium, color = PrimaryDark, fontWeight = FontWeight.SemiBold)
                                 }
                             }
+                        }
+                        item {
+                            TrustProfileSection(profile = data)
                         }
                         item {
                             ProfileOverview(profile = data, compatibility = compatibility)
@@ -397,6 +401,7 @@ private fun ProfileHero(profile: ProfileData, compatibilityScore: Int, onRequest
                         "Created by ${titleCase(profile.profileCreatedBy)}",
                         if (profile.profileStatus.equals("inactive", ignoreCase = true)) "Inactive" else "Active",
                         if (profile.completionScore >= 80) "Complete profile" else "Profile in progress",
+                        if (profile.trustScore > 0) "Trust ${profile.trustScore}%" else "Trust building",
                         when {
                             isPhotoBlocked -> "Photo approval required"
                             profile.photoPrivacy == "matches_only" -> "Selective photo privacy"
@@ -429,6 +434,7 @@ private fun PrimaryActionPanel(
     onSendInterest: () -> Unit,
     onOpenChat: () -> Unit,
     onSave: () -> Unit,
+    onAddFamilyReview: () -> Unit,
     onShare: () -> Unit
 ) {
     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp), containerColor = MaterialTheme.colorScheme.surface) {
@@ -464,6 +470,11 @@ private fun PrimaryActionPanel(
                     Spacer(Modifier.size(6.dp))
                     Text("Share family")
                 }
+            }
+            OutlinedButton(onClick = onAddFamilyReview, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                Icon(Icons.Filled.Bookmark, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(6.dp))
+                Text("Add to family board")
             }
         }
     }
@@ -508,6 +519,31 @@ private fun ProfileOverview(profile: ProfileData, compatibility: CompatibilityDa
                 labels = listOf("Verified path ready", "Family-share ready", "Privacy visible"),
                 tone = ChipTone.Info
             )
+        }
+    }
+}
+
+@Composable
+private fun TrustProfileSection(profile: ProfileData) {
+    val trustColor = when {
+        profile.trustScore >= 80 -> Success
+        profile.trustScore >= 55 -> Info
+        else -> Error
+    }
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SectionTitle("Trust profile", "Proof signals used before families invest time")
+            CompatibilityBar(score = profile.trustScore.coerceIn(0, 100))
+            DetailGrid(
+                rows = listOf(
+                    "Trust score" to if (profile.trustScore > 0) "${profile.trustScore}%" else "Building",
+                    "Trust level" to titleCase(profile.trustLevel),
+                    "Verification" to titleCase(profile.verificationStatus),
+                    "Photo privacy" to titleCase(profile.photoPrivacy.replace('_', ' '))
+                )
+            )
+            val labels = profile.trustSignals.ifEmpty { profile.trustWarnings.ifEmpty { listOf("No trust signals yet") } }
+            SignalChips(labels = labels.take(4), tone = if (trustColor == Success) ChipTone.Success else ChipTone.Info)
         }
     }
 }

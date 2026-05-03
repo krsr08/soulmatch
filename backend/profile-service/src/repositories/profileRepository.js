@@ -59,6 +59,142 @@ async function notifyMember(db, userId, title, body, data = {}) {
   return false;
 }
 
+function clampScore(value) {
+  return Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+}
+
+function trustLevelForScore(score) {
+  if (score >= 80) return 'high';
+  if (score >= 55) return 'medium';
+  return 'low';
+}
+
+function buildTrustSummary(signals = {}) {
+  const verificationStatus = String(signals.verification_status || signals.verificationStatus || 'pending').toLowerCase();
+  const completionScore = clampScore(signals.completion_score ?? signals.completionScore);
+  const photoCount = Number(signals.photo_count ?? signals.photoCount ?? 0);
+  const approvedVerifications = Number(signals.approved_verifications ?? signals.approvedVerifications ?? 0);
+  const pendingVerifications = Number(signals.pending_verifications ?? signals.pendingVerifications ?? 0);
+  const reportCount = Number(signals.report_count ?? signals.reportCount ?? 0);
+  const isPhoneVerified = signals.is_verified === true || signals.isPhoneVerified === true;
+  const hasFamilyLocation = Boolean(signals.family_city || signals.familyCity || signals.family_pincode || signals.familyPincode);
+  const profileStatus = String(signals.profile_status || signals.profileStatus || 'active').toLowerCase();
+  const lastLogin = signals.last_login || signals.lastLogin;
+  const recentlyActive = lastLogin ? Date.now() - new Date(lastLogin).getTime() <= 1000 * 60 * 60 * 24 * 30 : false;
+  const trustSignals = [];
+  const warnings = [];
+  let score = 0;
+
+  if (isPhoneVerified) {
+    score += 15;
+    trustSignals.push('Phone verified');
+  } else {
+    warnings.push('Phone is not verified');
+  }
+
+  if (completionScore >= 90) {
+    score += 20;
+    trustSignals.push('Profile is highly complete');
+  } else if (completionScore >= 70) {
+    score += 15;
+    trustSignals.push('Profile has strong detail');
+  } else if (completionScore >= 50) {
+    score += 10;
+  } else {
+    warnings.push('Profile details are still incomplete');
+  }
+
+  if (verificationStatus === 'verified') {
+    score += 25;
+    trustSignals.push('Admin verified profile');
+  } else if (pendingVerifications > 0 || verificationStatus === 'pending') {
+    score += 8;
+    trustSignals.push('Verification review pending');
+  } else {
+    warnings.push('Admin verification is not completed');
+  }
+
+  if (approvedVerifications > 0) {
+    score += Math.min(15, approvedVerifications * 5);
+    trustSignals.push(`${approvedVerifications} verification signal${approvedVerifications === 1 ? '' : 's'} approved`);
+  }
+
+  if (photoCount >= 3) {
+    score += 12;
+    trustSignals.push('Multiple photos added');
+  } else if (photoCount >= 1 || signals.primary_photo_url || signals.primaryPhotoUrl) {
+    score += 8;
+    trustSignals.push('Profile photo added');
+  } else {
+    warnings.push('No profile photo added');
+  }
+
+  if (hasFamilyLocation) {
+    score += 8;
+    trustSignals.push('Family location available');
+  }
+
+  if (profileStatus === 'active') {
+    score += 5;
+  } else {
+    warnings.push('Profile is currently inactive');
+  }
+
+  if (recentlyActive) {
+    score += 5;
+    trustSignals.push('Recently active');
+  }
+
+  if (reportCount === 0) {
+    score += 10;
+    trustSignals.push('No open safety reports');
+  } else {
+    score -= Math.min(35, reportCount * 12);
+    warnings.push(`${reportCount} open safety report${reportCount === 1 ? '' : 's'}`);
+  }
+
+  const finalScore = clampScore(score);
+  return {
+    score: finalScore,
+    level: trustLevelForScore(finalScore),
+    signals: trustSignals.slice(0, 8),
+    warnings: warnings.slice(0, 4)
+  };
+}
+
+function normalizeFamilyDecisionStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['considering', 'family_review', 'call_scheduled', 'spoken', 'accepted', 'declined', 'archived'].includes(normalized)
+    ? normalized
+    : null;
+}
+
+function mapFamilyDecision(row) {
+  if (!row) return null;
+  const trust = buildTrustSummary(row);
+  return {
+    familyDecisionId: row.family_decision_id,
+    ownerProfileId: row.owner_profile_id,
+    targetProfileId: row.target_profile_id,
+    status: row.status,
+    note: row.note || '',
+    nextStep: row.next_step || '',
+    nextStepAt: row.next_step_at || null,
+    updatedAt: row.updated_at,
+    targetName: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Member',
+    targetAge: row.age || 0,
+    targetLocation: row.working_city || row.family_city || '',
+    targetOccupation: row.occupation || '',
+    targetPhotoUrl: row.primary_photo_url || null,
+    isVerified: row.verification_status === 'verified',
+    trustScore: trust.score,
+    trustLevel: trust.level,
+    trustSignals: trust.signals
+  };
+}
+
+exports.buildTrustSummary = buildTrustSummary;
+
 exports.recordUserChange = async ({
   userId,
   profileId,
@@ -105,6 +241,33 @@ exports.recordUserChange = async ({
       userAgent
     ]
   );
+};
+
+exports.getTrustSummary = async (profileId) => {
+  const db = await getDB();
+  const r = await db.query(
+    `SELECT
+       p.profile_id,
+       p.completion_score,
+       p.verification_status,
+       p.profile_status,
+       p.primary_photo_url,
+       u.is_verified,
+       u.last_login,
+       fd.family_city,
+       fd.family_pincode,
+       COALESCE((SELECT COUNT(*)::int FROM profile_photos pp WHERE pp.profile_id=p.profile_id), 0) AS photo_count,
+       COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='approved'), 0) AS approved_verifications,
+       COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='pending'), 0) AS pending_verifications,
+       COALESCE((SELECT COUNT(*)::int FROM reports rp WHERE rp.reported_id=p.user_id AND rp.status IN ('pending','open','reviewing')), 0) AS report_count
+     FROM profiles p
+     JOIN users u ON u.user_id=p.user_id
+     LEFT JOIN family_details fd ON fd.profile_id=p.profile_id
+     WHERE p.profile_id=$1
+     LIMIT 1`,
+    [profileId]
+  );
+  return buildTrustSummary(r.rows[0] || {});
 };
 
 exports.findByUserId = async (userId) => { const db = await getDB(); const r = await db.query('SELECT * FROM profiles WHERE user_id=$1 LIMIT 1', [userId]); return r.rows[0] || null; };
@@ -847,6 +1010,109 @@ exports.upsertAssistStatus = async (userId, payload) => {
   } finally {
     client.release();
   }
+};
+
+exports.listFamilyDecisions = async (ownerUserId) => {
+  const db = await getDB();
+  const owner = await exports.findByUserId(ownerUserId);
+  if (!owner) return null;
+  const r = await db.query(
+    `SELECT
+       fmd.family_decision_id,
+       fmd.owner_profile_id,
+       fmd.target_profile_id,
+       fmd.status,
+       fmd.note,
+       fmd.next_step,
+       fmd.next_step_at,
+       fmd.updated_at,
+       p.first_name,
+       p.last_name,
+       EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
+       p.primary_photo_url,
+       p.completion_score,
+       p.verification_status,
+       p.profile_status,
+       u.is_verified,
+       u.last_login,
+       ec.occupation,
+       ec.working_city,
+       fd.family_city,
+       fd.family_pincode,
+       COALESCE((SELECT COUNT(*)::int FROM profile_photos pp WHERE pp.profile_id=p.profile_id), 0) AS photo_count,
+       COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='approved'), 0) AS approved_verifications,
+       COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='pending'), 0) AS pending_verifications,
+       COALESCE((SELECT COUNT(*)::int FROM reports rp WHERE rp.reported_id=p.user_id AND rp.status IN ('pending','open','reviewing')), 0) AS report_count
+     FROM family_match_decisions fmd
+     JOIN profiles p ON p.profile_id=fmd.target_profile_id
+     JOIN users u ON u.user_id=p.user_id
+     LEFT JOIN education_career ec ON ec.profile_id=p.profile_id
+     LEFT JOIN family_details fd ON fd.profile_id=p.profile_id
+     WHERE fmd.owner_profile_id=$1
+       AND fmd.status!='archived'
+     ORDER BY fmd.updated_at DESC
+     LIMIT 100`,
+    [owner.profile_id]
+  );
+  return r.rows.map(mapFamilyDecision);
+};
+
+exports.upsertFamilyDecision = async (ownerUserId, targetProfileId, payload = {}) => {
+  const status = normalizeFamilyDecisionStatus(payload.status) || 'family_review';
+  const note = String(payload.note || '').trim() || null;
+  const nextStep = String(payload.nextStep || payload.next_step || '').trim() || null;
+  const nextStepAt = payload.nextStepAt || payload.next_step_at || null;
+  const db = await getDB();
+  const owner = await exports.findByUserId(ownerUserId);
+  if (!owner) return { status: 'owner_not_found' };
+  const target = await exports.findById(targetProfileId);
+  if (!target) return { status: 'target_not_found' };
+  if (target.user_id === ownerUserId) return { status: 'own_profile' };
+
+  const beforeResult = await db.query(
+    'SELECT * FROM family_match_decisions WHERE owner_profile_id=$1 AND target_profile_id=$2 LIMIT 1',
+    [owner.profile_id, targetProfileId]
+  );
+  const before = beforeResult.rows[0] || null;
+  const saved = await db.query(
+    `INSERT INTO family_match_decisions (
+       family_decision_id,
+       owner_user_id,
+       owner_profile_id,
+       target_profile_id,
+       status,
+       note,
+       next_step,
+       next_step_at,
+       created_at,
+       updated_at
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())
+     ON CONFLICT (owner_profile_id, target_profile_id) DO UPDATE SET
+       status=$5,
+       note=COALESCE($6, family_match_decisions.note),
+       next_step=COALESCE($7, family_match_decisions.next_step),
+       next_step_at=COALESCE($8, family_match_decisions.next_step_at),
+       updated_at=NOW()
+     RETURNING *`,
+    [
+      randomUUID(),
+      ownerUserId,
+      owner.profile_id,
+      targetProfileId,
+      status,
+      note,
+      nextStep,
+      nextStepAt
+    ]
+  );
+  return {
+    status: before ? 'updated' : 'created',
+    owner,
+    target,
+    before,
+    after: saved.rows[0]
+  };
 };
 exports.findFullByUserId = async (userId) => {
   const db = await getDB();

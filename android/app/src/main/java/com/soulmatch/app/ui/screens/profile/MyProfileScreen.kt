@@ -62,6 +62,7 @@ import coil.compose.AsyncImage
 import com.soulmatch.app.R
 import com.soulmatch.app.data.models.PartnerPreferencesData
 import com.soulmatch.app.data.models.AssistStatusData
+import com.soulmatch.app.data.models.FamilyDecisionData
 import com.soulmatch.app.data.models.PhotoAccessRequestData
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.ProfilePhoto
@@ -113,6 +114,7 @@ fun MyProfileScreen(
     onLogout: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
     onOpenAssist: (() -> Unit)? = null,
+    onOpenFamilyBoard: (() -> Unit)? = null,
     profileId: String = "",
     chatId: String = "",
     participantName: String = "",
@@ -127,6 +129,7 @@ fun MyProfileScreen(
     val photos by vm.photos.collectAsStateWithLifecycle()
     val verifications by vm.verifications.collectAsStateWithLifecycle()
     val photoAccessRequests by vm.photoAccessRequests.collectAsStateWithLifecycle()
+    val familyDecisions by vm.familyDecisions.collectAsStateWithLifecycle()
     val loading by vm.isLoading.collectAsStateWithLifecycle()
     val uploadingPhotos by vm.isUploadingPhotos.collectAsStateWithLifecycle()
     val submittingVerification by vm.isSubmittingVerification.collectAsStateWithLifecycle()
@@ -135,6 +138,7 @@ fun MyProfileScreen(
     val editSection: (Int) -> Unit = onEditSection ?: { _ -> }
     val openSettings: () -> Unit = onOpenSettings ?: {}
     val openAssist: () -> Unit = onOpenAssist ?: {}
+    val openFamilyBoard: () -> Unit = onOpenFamilyBoard ?: {}
     val openSubscription: () -> Unit = onSubscribe ?: {}
     val viewProfile: (String) -> Unit = onViewProfile ?: { _ -> }
     val context = LocalContext.current
@@ -259,6 +263,13 @@ fun MyProfileScreen(
                             SoulMatchAssistSummaryCard(
                                 assistStatus = assistStatus,
                                 onOpenAssist = openAssist
+                            )
+                        }
+                        item {
+                            TrustAndFamilyBoardCard(
+                                profile = data,
+                                familyDecisions = familyDecisions,
+                                onOpenFamilyBoard = openFamilyBoard
                             )
                         }
                         if (viewers.isNotEmpty()) {
@@ -389,7 +400,8 @@ private fun ProfileOwnerHeader(
                 labels = listOf(
                     if (profile.profileStatus.equals("inactive", ignoreCase = true)) "Profile inactive" else "Profile active",
                     "Created by ${titleCase(profile.profileCreatedBy)}",
-                    if (profile.isPartnerPrefSet) "Preferences synced" else "Preferences pending"
+                    if (profile.isPartnerPrefSet) "Preferences synced" else "Preferences pending",
+                    if (profile.trustScore > 0) "Trust ${profile.trustScore}%" else "Trust building"
                 ),
                 tone = ChipTone.Success
             )
@@ -673,6 +685,42 @@ private fun PhotoAccessRequestsCard(
                     onApprove = {},
                     onDecline = {}
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrustAndFamilyBoardCard(
+    profile: ProfileData,
+    familyDecisions: List<FamilyDecisionData>,
+    onOpenFamilyBoard: () -> Unit
+) {
+    val activeDecisions = familyDecisions.filterNot { it.status.equals("archived", ignoreCase = true) }
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SectionTitle("Trust and family decisions", "Use proof signals and a shared shortlist before moving to calls")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                MetricPill(
+                    "Trust",
+                    if (profile.trustScore > 0) "${profile.trustScore}%" else "New",
+                    modifier = Modifier.weight(1f),
+                    background = if (profile.trustScore >= 80) SuccessSoft else SurfaceSoft,
+                    accent = if (profile.trustScore >= 80) Success else TextSecondary
+                )
+                MetricPill(
+                    "Family board",
+                    activeDecisions.size.toString(),
+                    modifier = Modifier.weight(1f),
+                    background = SurfaceSoft
+                )
+            }
+            val trustLabels = profile.trustSignals.ifEmpty {
+                listOf("Complete profile", "Add photos", "Request verification")
+            }
+            SignalChips(labels = trustLabels.take(3), tone = ChipTone.Info)
+            Button(onClick = onOpenFamilyBoard, modifier = Modifier.fillMaxWidth()) {
+                Text("Open family decision board")
             }
         }
     }

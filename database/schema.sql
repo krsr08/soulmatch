@@ -337,6 +337,31 @@ CREATE TABLE IF NOT EXISTS assisted_match_assignment_events (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS family_match_decisions (
+    family_decision_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    owner_profile_id UUID NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+    target_profile_id UUID NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+    status VARCHAR(24) NOT NULL DEFAULT 'considering',
+    note TEXT,
+    next_step VARCHAR(120),
+    next_step_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT family_match_decisions_status_check CHECK (
+        status IN (
+            'considering',
+            'family_review',
+            'call_scheduled',
+            'spoken',
+            'accepted',
+            'declined',
+            'archived'
+        )
+    ),
+    UNIQUE(owner_profile_id, target_profile_id)
+);
+
 CREATE TABLE IF NOT EXISTS app_config (
     config_key VARCHAR(80) PRIMARY KEY,
     config_value JSONB NOT NULL,
@@ -491,6 +516,8 @@ CREATE INDEX IF NOT EXISTS idx_advisors_status_city ON advisors(status, kyc_stat
 CREATE INDEX IF NOT EXISTS idx_advisor_service_areas_lookup ON advisor_service_areas(city, state, pincode, locality);
 CREATE INDEX IF NOT EXISTS idx_assisted_match_profiles_status ON assisted_match_profiles(request_status, support_level, assigned_advisor_id);
 CREATE INDEX IF NOT EXISTS idx_assisted_assignment_events_profile ON assisted_match_assignment_events(profile_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_family_match_decisions_owner_status ON family_match_decisions(owner_profile_id, status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_family_match_decisions_target ON family_match_decisions(target_profile_id, updated_at DESC);
 
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_photo_privacy_check;
 ALTER TABLE profiles
@@ -684,6 +711,26 @@ VALUES
           ],
           "memberModes": ["self_service", "family_assisted", "advisor_assisted"],
           "defaultReviewDays": 7
+        }'::JSONB,
+        FALSE,
+        'bootstrap'
+    ),
+    (
+        'trust_engine',
+        '{
+          "enabled": true,
+          "scoreBands": {
+            "high": 80,
+            "medium": 55
+          },
+          "signals": [
+            "phone_verified",
+            "profile_completion",
+            "admin_verification",
+            "photos_added",
+            "family_location",
+            "low_report_risk"
+          ]
         }'::JSONB,
         FALSE,
         'bootstrap'

@@ -45,6 +45,7 @@ import com.soulmatch.app.ui.screens.home.NotificationsScreen
 import com.soulmatch.app.ui.screens.interests.InterestsScreen
 import com.soulmatch.app.ui.screens.legal.LegalContentScreen
 import com.soulmatch.app.ui.screens.profile.MyProfileScreen
+import com.soulmatch.app.ui.screens.profile.FamilyDecisionBoardScreen
 import com.soulmatch.app.ui.screens.profile.SafetyCenterScreen
 import com.soulmatch.app.ui.screens.profile.HelpSupportScreen
 import com.soulmatch.app.ui.screens.profile.AstrologyServicesScreen
@@ -251,7 +252,14 @@ fun AppNavigation(
                 onSubscribe = { nav.navigate("subscription") },
                 onEditSection = { step -> nav.navigate("profile_wizard/$step?returnToProfile=true") },
                 onOpenSettings = { nav.navigate("settings") },
-                onOpenAssist = { nav.navigate("soulmatch_assist") }
+                onOpenAssist = { nav.navigate("soulmatch_assist") },
+                onOpenFamilyBoard = { nav.navigate("family_decisions") }
+            )
+        }
+        composable("family_decisions") {
+            FamilyDecisionBoardScreen(
+                onBack = { nav.popBackStack() },
+                onViewProfile = { nav.navigate("profile/$it") }
             )
         }
         composable("chat_list") {
@@ -378,7 +386,7 @@ private val bottomNavItems = listOf(
     BottomNavItem(
         "profile",
         "my_profile",
-        listOf("my_profile", "settings", "profile/", "soulmatch_assist", "spotlight", "astrology_services", "safety_center", "help_support", "success_stories/"),
+        listOf("my_profile", "settings", "profile/", "family_decisions", "soulmatch_assist", "spotlight", "astrology_services", "safety_center", "help_support", "success_stories/"),
         Icons.Filled.Person
     )
 )
