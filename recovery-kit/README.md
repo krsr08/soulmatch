@@ -44,3 +44,9 @@ Read in this order:
 3. `FIVE_DAY_PRODUCTION_PLAN.md`
 4. `scripts\one-click-local-powerup.ps1`
 
+API testing assets:
+
+- Main repo: `C:\Users\ANIRUDH\Documents\soulmatch\api-testing`
+- Backup copy: `C:\Users\ANIRUDH\Documents\soulmatch-recovery-kit\api-testing`
+- Import `soulmatch.postman_collection.json` and `soulmatch.postman_environment.json` into Postman.
+- Run safe load tests with `k6\soulmatch-smoke-load.js`.
