@@ -79,7 +79,7 @@ class SettingsViewModel @Inject constructor(
             ) { push, photoPrivacy, contactFilters, visibility, profileStatus ->
                 SettingsUiState(
                     pushEnabled = push,
-                    photoPrivacyEnabled = photoPrivacy == "matches_only",
+                    photoPrivacyEnabled = photoPrivacy == "request_only" || photoPrivacy == "matches_only" || photoPrivacy == "private",
                     contactFilterEnabled = contactFilters,
                     profileVisible = visibility == "all",
                     profileActive = !profileStatus.equals("inactive", ignoreCase = true)
@@ -135,7 +135,7 @@ class SettingsViewModel @Inject constructor(
 
     fun setPrivacy(photoPrivate: Boolean, visible: Boolean) {
         viewModelScope.launch {
-            val photoPrivacy = if (photoPrivate) "matches_only" else "all"
+            val photoPrivacy = if (photoPrivate) "request_only" else "all"
             val profileVisibility = if (visible) "all" else "hidden"
             prefs.savePhotoPrivacy(photoPrivacy)
             prefs.saveProfileVisibility(profileVisibility)

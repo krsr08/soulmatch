@@ -65,6 +65,19 @@ data class ProfileStatusRequest(
     @SerializedName("profileStatus") val profileStatus: String
 )
 
+data class PhotoAccessRequestBody(
+    val message: String = ""
+)
+
+data class PhotoAccessActionRequest(
+    val status: String
+)
+
+data class PhotoAccessResponseData(
+    val requestId: String = "",
+    val status: String = ""
+)
+
 data class VerificationSubmitRequest(
     val type: String = "profile",
     @SerializedName("documentUrl") val documentUrl: String? = null
@@ -89,6 +102,22 @@ data class ViewerData(
     @SerializedName("last_name") val lastName: String = "",
     @SerializedName("primary_photo_url") val primaryPhotoUrl: String? = null,
     @SerializedName("viewed_at") val viewedAt: String = ""
+)
+
+data class PhotoAccessRequestData(
+    @SerializedName("photo_access_request_id") val requestId: String = "",
+    @SerializedName("target_profile_id") val targetProfileId: String = "",
+    @SerializedName("requester_profile_id") val requesterProfileId: String = "",
+    @SerializedName("requester_user_id") val requesterUserId: String = "",
+    val status: String = "pending",
+    val message: String? = null,
+    @SerializedName("requested_at") val requestedAt: String = "",
+    @SerializedName("responded_at") val respondedAt: String? = null,
+    @SerializedName("first_name") val firstName: String = "",
+    @SerializedName("last_name") val lastName: String = "",
+    @SerializedName("primary_photo_url") val primaryPhotoUrl: String? = null,
+    val occupation: String = "",
+    @SerializedName("working_city") val workingCity: String = ""
 )
 
 data class AssistStatusRequest(
@@ -181,6 +210,9 @@ data class ProfileData(
     @SerializedName("verification_status") val verificationStatus: String = "pending",
     @SerializedName("primary_photo_url") val primaryPhotoUrl: String? = null,
     @SerializedName("photo_privacy") val photoPrivacy: String = "all",
+    @SerializedName("can_view_photo") val canViewPhoto: Boolean = true,
+    @SerializedName("photo_access_status") val photoAccessStatus: String = "visible",
+    @SerializedName("photo_access_request_id") val photoAccessRequestId: String? = null,
     @SerializedName("profile_visibility") val profileVisibility: String = "all",
     @SerializedName("education_level") val educationLevel: String = "",
     val occupation: String = "",
@@ -287,7 +319,8 @@ data class SearchProfileItem(
     @SerializedName("annual_income") val annualIncome: String = "",
     @SerializedName("height_cm") val heightCm: Int? = null,
     val diet: String = "",
-    @SerializedName("profile_created_by") val profileCreatedBy: String = "self"
+    @SerializedName("profile_created_by") val profileCreatedBy: String = "self",
+    @SerializedName("is_photo_private") val isPhotoPrivate: Boolean = false
 )
 
 data class SearchResultsData(
@@ -672,6 +705,8 @@ fun ShortlistItem.fullName(): String = listOf(safeString(firstName), safeString(
 
 fun ViewerData.fullName(): String = listOf(safeString(firstName), safeString(lastName)).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Member" }
 
+fun PhotoAccessRequestData.fullName(): String = listOf(safeString(firstName), safeString(lastName)).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Member" }
+
 fun SearchProfileItem.toProfileSummary(seed: ProfileSummary? = null): ProfileSummary {
     val resolvedName = listOf(safeString(firstName), safeString(lastName)).filter { it.isNotBlank() }.joinToString(" ").ifBlank { seed?.name ?: "Member" }
     return ProfileSummary(
@@ -686,7 +721,7 @@ fun SearchProfileItem.toProfileSummary(seed: ProfileSummary? = null): ProfileSum
         compatibilityBreakdown = seed?.compatibilityBreakdown,
         heightCm = heightCm ?: seed?.heightCm,
         isVerified = seed?.isVerified ?: false,
-        isPhotoPrivate = seed?.isPhotoPrivate ?: false,
+        isPhotoPrivate = isPhotoPrivate || seed?.isPhotoPrivate == true,
         education = if (safeString(educationLevel).isNotBlank()) safeString(educationLevel) else seed?.education.orEmpty(),
         community = if (safeString(religion).isNotBlank()) safeString(religion) else seed?.community.orEmpty(),
         lastActiveLabel = seed?.lastActiveLabel ?: "Recently active",

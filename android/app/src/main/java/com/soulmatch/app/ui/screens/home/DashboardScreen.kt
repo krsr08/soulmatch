@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Bookmark
@@ -44,7 +43,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -63,7 +61,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -71,7 +68,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.HomeContentData
 import com.soulmatch.app.data.models.InterestListItem
-import com.soulmatch.app.data.models.PartnerPreferencesData
 import com.soulmatch.app.data.models.ProfileSummary
 import com.soulmatch.app.data.models.fullName
 import com.soulmatch.app.ui.components.MemberPhoto
@@ -166,7 +162,7 @@ fun DashboardScreen(
                         contentPadding = PaddingValues(bottom = 24.dp)
                     ) {
                         item {
-                            WelcomeSection(firstName = myProfile.firstName.ifBlank { "Aarav" })
+                            WelcomeSection(firstName = myProfile.firstName.ifBlank { "Member" })
                         }
                         item {
                             ProfileStrengthCard(
@@ -177,7 +173,7 @@ fun DashboardScreen(
                         }
                         if (shouldPromptPartnerPreference && partnerPromptSkipped) {
                             item {
-                                PartnerPreferenceReminderBanner(onOpen = { partnerPromptSkipped = false })
+                                PartnerPreferenceReminderBanner(onOpen = onOpenProfile)
                             }
                         }
                         item {
@@ -258,10 +254,9 @@ fun DashboardScreen(
     if (shouldPromptPartnerPreference && !partnerPromptSkipped) {
         PartnerPreferencePromptDialog(
             onSkip = { partnerPromptSkipped = true },
-            onSave = { preferences ->
-                vm.savePartnerPreferences(preferences) {
-                    partnerPromptSkipped = false
-                }
+            onOpenPreferences = {
+                partnerPromptSkipped = true
+                onOpenProfile()
             }
         )
     }
@@ -431,91 +426,48 @@ private fun PartnerPreferenceReminderBanner(onOpen: () -> Unit) {
 @Composable
 private fun PartnerPreferencePromptDialog(
     onSkip: () -> Unit,
-    onSave: (PartnerPreferencesData) -> Unit
+    onOpenPreferences: () -> Unit
 ) {
-    var ageMin by rememberSaveable { mutableStateOf("24") }
-    var ageMax by rememberSaveable { mutableStateOf("32") }
-    var religion by rememberSaveable { mutableStateOf("") }
-    var manglikPref by rememberSaveable { mutableStateOf("any") }
-    val min = ageMin.toIntOrNull()
-    val max = ageMax.toIntOrNull()
-    val canSave = min != null && max != null && min in 18..80 && max in min..80
-
     AlertDialog(
         onDismissRequest = onSkip,
         title = { Text("Set Your Partner Preferences") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "You can skip this now, but SoulMatch will remind you until preferences are saved.",
+                    "SoulMatch can rank matches much better once your preferences are saved.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+                listOf(
+                    "Basics: preferred age range",
+                    "Community: religion or flexible matching",
+                    "Horoscope: manglik preference"
+                ).forEach { label ->
+                    Surface(shape = RoundedCornerShape(14.dp), color = SurfaceWarm, border = BorderStroke(1.dp, Divider)) {
+                        Text(
+                            label,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = PrimaryDark,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                Text(
+                    "You can skip now, but SoulMatch will keep reminding you until this is set.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = ageMin,
-                        onValueChange = { ageMin = it.filter(Char::isDigit).take(2) },
-                        label = { Text("Min age") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-                    OutlinedTextField(
-                        value = ageMax,
-                        onValueChange = { ageMax = it.filter(Char::isDigit).take(2) },
-                        label = { Text("Max age") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-                }
-                OutlinedTextField(
-                    value = religion,
-                    onValueChange = { religion = it },
-                    label = { Text("Preferred religion") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("any", "yes", "no").forEach { option ->
-                        Surface(
-                            modifier = Modifier.clickable { manglikPref = option },
-                            shape = RoundedCornerShape(999.dp),
-                            color = if (manglikPref == option) HomePrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface,
-                            border = BorderStroke(1.dp, if (manglikPref == option) HomePrimary else Divider)
-                        ) {
-                            Text(
-                                option.replaceFirstChar { it.uppercaseChar() },
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (manglikPref == option) HomePrimary else TextSecondary,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
             }
         },
         confirmButton = {
-            Button(
-                enabled = canSave,
-                onClick = {
-                    onSave(
-                        PartnerPreferencesData(
-                            ageMin = min ?: 24,
-                            ageMax = max ?: 32,
-                            religion = religion.trim().ifBlank { null },
-                            manglikPref = manglikPref
-                        )
-                    )
-                }
-            ) {
-                Text("Save")
+            Button(onClick = onOpenPreferences) {
+                Text("Set preferences")
             }
         },
         dismissButton = {
             OutlinedButton(onClick = onSkip) {
-                Text("Skip")
+                Text("Remind later")
             }
         }
     )
@@ -578,6 +530,22 @@ private fun HomeMatchCard(
                     modifier = Modifier.fillMaxSize(),
                     shape = RoundedCornerShape(0.dp)
                 )
+                if (profile.isPhotoPrivate && profile.primaryPhoto.isNullOrBlank()) {
+                    Surface(
+                        modifier = Modifier.align(Alignment.Center),
+                        shape = RoundedCornerShape(999.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.86f),
+                        border = BorderStroke(1.dp, Divider.copy(alpha = 0.72f))
+                    ) {
+                        Text(
+                            "Request photo",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = PrimaryDark,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
                 Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)

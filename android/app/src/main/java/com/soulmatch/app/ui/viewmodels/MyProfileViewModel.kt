@@ -5,8 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.soulmatch.app.data.api.PaymentApiService
 import com.soulmatch.app.data.api.ProfileApiService
 import com.soulmatch.app.data.config.AppEnvironment
+import com.soulmatch.app.data.local.UserPreferences
 import com.soulmatch.app.data.mock.MarketFixtures
 import com.soulmatch.app.data.models.PartnerPreferencesData
+import com.soulmatch.app.data.models.PhotoAccessActionRequest
+import com.soulmatch.app.data.models.PhotoAccessRequestData
 import com.soulmatch.app.data.models.AssistStatusData
 import com.soulmatch.app.data.models.AssistStatusRequest
 import com.soulmatch.app.data.models.ProfilePhoto
@@ -20,6 +23,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import okhttp3.MultipartBody
 import java.io.IOException
@@ -35,7 +39,8 @@ data class ProfileChecklistItem(
 @HiltViewModel
 class MyProfileViewModel @Inject constructor(
     private val profileApi: ProfileApiService,
-    private val paymentApi: PaymentApiService
+    private val paymentApi: PaymentApiService,
+    private val prefs: UserPreferences
 ) : ViewModel() {
     private val _profile = MutableStateFlow<ProfileData?>(null)
     private val _subscription = MutableStateFlow(SubscriptionData(planId = "free", isActive = false))
@@ -45,6 +50,7 @@ class MyProfileViewModel @Inject constructor(
     private val _viewers = MutableStateFlow<List<ViewerData>>(emptyList())
     private val _photos = MutableStateFlow<List<ProfilePhoto>>(emptyList())
     private val _verifications = MutableStateFlow<List<VerificationRequestData>>(emptyList())
+    private val _photoAccessRequests = MutableStateFlow<List<PhotoAccessRequestData>>(emptyList())
     private val _isLoading = MutableStateFlow(false)
     private val _isUploadingPhotos = MutableStateFlow(false)
     private val _isSubmittingVerification = MutableStateFlow(false)
@@ -59,6 +65,7 @@ class MyProfileViewModel @Inject constructor(
     val viewers: StateFlow<List<ViewerData>> = _viewers.asStateFlow()
     val photos: StateFlow<List<ProfilePhoto>> = _photos.asStateFlow()
     val verifications: StateFlow<List<VerificationRequestData>> = _verifications.asStateFlow()
+    val photoAccessRequests: StateFlow<List<PhotoAccessRequestData>> = _photoAccessRequests.asStateFlow()
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     val isUploadingPhotos: StateFlow<Boolean> = _isUploadingPhotos.asStateFlow()
     val isSubmittingVerification: StateFlow<Boolean> = _isSubmittingVerification.asStateFlow()
@@ -69,15 +76,19 @@ class MyProfileViewModel @Inject constructor(
         load()
     }
 
+    private suspend fun canUseDemoFallback(): Boolean =
+        AppEnvironment.allowDemoFallback && prefs.authToken.first().isNullOrBlank()
+
     fun load() {
         viewModelScope.launch {
             _isLoading.value = true
             _loadMessage.value = null
+            val canUseFallback = canUseDemoFallback()
             try {
                 val profileResponse = profileApi.getMyProfile()
                 val profileBody = profileResponse.body()
                 if (!profileResponse.isSuccessful || profileBody?.success != true) {
-                    if (AppEnvironment.allowDemoFallback) {
+                    if (canUseFallback) {
                         applyMockProfileFallback(profileBody?.error?.message ?: "Showing demo profile data because your saved profile could not be loaded.")
                     } else {
                         _profile.value = null
@@ -98,6 +109,7 @@ class MyProfileViewModel @Inject constructor(
                     _viewers.value = emptyList()
                     _photos.value = emptyList()
                     _verifications.value = emptyList()
+                    _photoAccessRequests.value = emptyList()
                     _loadMessage.value = "Start with your basic details to build your profile."
                     return@launch
                 }
@@ -107,7 +119,7 @@ class MyProfileViewModel @Inject constructor(
                     ?.body()
                     ?.takeIf { it.success }
                     ?.data
-                    ?: if (AppEnvironment.allowDemoFallback) MarketFixtures.currentSubscription else SubscriptionData(planId = "free", isActive = false)
+                    ?: if (canUseFallback) MarketFixtures.currentSubscription else SubscriptionData(planId = "free", isActive = false)
                 _preferences.value = runCatching { profileApi.getPreferences(resolvedProfile.profileId) }
                     .getOrNull()
                     ?.body()
@@ -134,22 +146,28 @@ class MyProfileViewModel @Inject constructor(
                     ?.takeIf { it.success }
                     ?.data
                     .orEmpty()
-                    .ifEmpty { if (AppEnvironment.allowDemoFallback) MarketFixtures.recentViewers else emptyList() }
+                    .ifEmpty { if (canUseFallback) MarketFixtures.recentViewers else emptyList() }
                 _photos.value = runCatching { profileApi.getPhotos(resolvedProfile.profileId) }
                     .getOrNull()
                     ?.body()
                     ?.takeIf { it.success }
                     ?.data
                     .orEmpty()
-                    .ifEmpty { if (AppEnvironment.allowDemoFallback) MarketFixtures.profilePhotos else emptyList() }
+                    .ifEmpty { if (canUseFallback) MarketFixtures.profilePhotos else emptyList() }
                 _verifications.value = runCatching { profileApi.getVerifications(resolvedProfile.profileId) }
                     .getOrNull()
                     ?.body()
                     ?.takeIf { it.success }
                     ?.data
                     .orEmpty()
+                _photoAccessRequests.value = runCatching { profileApi.getPhotoAccessRequests() }
+                    .getOrNull()
+                    ?.body()
+                    ?.takeIf { it.success }
+                    ?.data
+                    .orEmpty()
             } catch (error: Exception) {
-                if (AppEnvironment.allowDemoFallback) {
+                if (canUseFallback) {
                     applyMockProfileFallback(
                         when (error) {
                             is IOException -> "Couldn't reach the server to load your profile. Showing demo profile data for UI testing."
@@ -189,6 +207,7 @@ class MyProfileViewModel @Inject constructor(
         _viewers.value = MarketFixtures.recentViewers
         _photos.value = MarketFixtures.profilePhotos
         _verifications.value = emptyList()
+        _photoAccessRequests.value = emptyList()
         _checklist.value = buildChecklist(fallback)
         _loadMessage.value = message
     }
@@ -352,6 +371,28 @@ class MyProfileViewModel @Inject constructor(
                 }
             } finally {
                 _isSubmittingVerification.value = false
+            }
+        }
+    }
+
+    fun respondPhotoAccessRequest(requestId: String, approved: Boolean) {
+        viewModelScope.launch {
+            val nextStatus = if (approved) "approved" else "declined"
+            try {
+                val response = profileApi.respondPhotoAccessRequest(requestId, PhotoAccessActionRequest(nextStatus))
+                if (response.isSuccessful && response.body()?.success == true) {
+                    _photoAccessRequests.value = _photoAccessRequests.value.map { request ->
+                        if (request.requestId == requestId) request.copy(status = nextStatus) else request
+                    }
+                    _status.value = if (approved) "Photo access approved." else "Photo access declined."
+                } else {
+                    _status.value = response.body()?.error?.message ?: "Couldn't update photo access right now."
+                }
+            } catch (error: Exception) {
+                _status.value = when (error) {
+                    is IOException -> "Couldn't reach the server. Check your connection and try again."
+                    else -> "Couldn't update photo access right now."
+                }
             }
         }
     }

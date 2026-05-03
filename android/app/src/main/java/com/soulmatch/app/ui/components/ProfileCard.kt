@@ -147,6 +147,23 @@ fun ProfileCard(
                             .fillMaxSize()
                             .then(if (profile.isPhotoPrivate) Modifier.blur(12.dp) else Modifier)
                     )
+                    if (profile.isPhotoPrivate && profile.primaryPhoto.isNullOrBlank()) {
+                        Surface(
+                            modifier = Modifier.align(Alignment.Center),
+                            shape = RoundedCornerShape(999.dp),
+                            color = Color.White.copy(alpha = 0.86f),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.72f))
+                        ) {
+                            Text(
+                                "Request photo",
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = PrimaryDark,
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1
+                            )
+                        }
+                    }
                     Row(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)

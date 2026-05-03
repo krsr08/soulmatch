@@ -1,6 +1,7 @@
 const { getDB } = require('../config/database');
 const { randomUUID } = require('crypto');
 const { scoreAdvisorCandidate, normalizeList } = require('../services/assistAllocationService');
+const logger = require('../utils/logger');
 
 function parseJsonList(value) {
   if (Array.isArray(value)) return value;
@@ -15,6 +16,97 @@ function parseJsonList(value) {
   }
   return [];
 }
+
+function toComparableJson(value) {
+  if (value === undefined || value === null) return null;
+  return JSON.parse(JSON.stringify(value));
+}
+
+function buildChangedFields(beforeData = {}, afterData = {}) {
+  const before = toComparableJson(beforeData) || {};
+  const after = toComparableJson(afterData) || {};
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  return [...keys].filter((key) => JSON.stringify(before[key] ?? null) !== JSON.stringify(after[key] ?? null));
+}
+
+async function notifyMember(db, userId, title, body, data = {}) {
+  const payload = { userId, title, body, data };
+  const notificationUrl = process.env.NOTIFICATION_API_URL;
+  const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
+  if (notificationUrl && internalSecret) {
+    try {
+      const response = await fetch(`${notificationUrl.replace(/\/$/, '')}/send`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-internal-service-secret': internalSecret
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(5000)
+      });
+      if (response.ok) return true;
+      logger.warn(`Notification service rejected profile notification: ${response.status}`);
+    } catch (error) {
+      logger.warn(`Notification service unavailable for profile notification: ${error.message}`);
+    }
+  }
+
+  await db.query(
+    `INSERT INTO notifications (notification_id,user_id,title,body,data,status,created_at)
+     VALUES ($1,$2,$3,$4,$5::jsonb,'queued',NOW())`,
+    [randomUUID(), userId, title, body, JSON.stringify(data || {})]
+  );
+  return false;
+}
+
+exports.recordUserChange = async ({
+  userId,
+  profileId,
+  entityType,
+  entityId,
+  action,
+  beforeData = {},
+  afterData = {},
+  source = 'member_app',
+  ipAddress = null,
+  userAgent = null
+}) => {
+  const db = await getDB();
+  const changedFields = buildChangedFields(beforeData, afterData);
+  await db.query(
+    `INSERT INTO user_change_audit_logs (
+       audit_id,
+       user_id,
+       profile_id,
+       entity_type,
+       entity_id,
+       action,
+       before_data,
+       after_data,
+       changed_fields,
+       source,
+       ip_address,
+       user_agent,
+       created_at
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12,NOW())`,
+    [
+      randomUUID(),
+      userId || null,
+      profileId || null,
+      entityType,
+      entityId || null,
+      action,
+      JSON.stringify(toComparableJson(beforeData) || {}),
+      JSON.stringify(toComparableJson(afterData) || {}),
+      JSON.stringify(changedFields),
+      source,
+      ipAddress,
+      userAgent
+    ]
+  );
+};
+
 exports.findByUserId = async (userId) => { const db = await getDB(); const r = await db.query('SELECT * FROM profiles WHERE user_id=$1 LIMIT 1', [userId]); return r.rows[0] || null; };
 exports.findById = async (profileId) => { const db = await getDB(); const r = await db.query('SELECT * FROM profiles WHERE profile_id=$1 LIMIT 1', [profileId]); return r.rows[0] || null; };
 exports.getVerificationRequests = async (userId) => {
@@ -149,6 +241,212 @@ exports.hasAcceptedInterestWithViewer = async (profileId, viewerUserId) => {
     [viewer.profile_id, profileId]
   );
   return Boolean(r.rows[0]?.ok);
+};
+exports.getPhotoAccessState = async (profileId, viewerUserId) => {
+  const db = await getDB();
+  const profileResult = await db.query(
+    `SELECT profile_id,user_id,photo_privacy
+     FROM profiles
+     WHERE profile_id=$1
+     LIMIT 1`,
+    [profileId]
+  );
+  const profile = profileResult.rows[0];
+  if (!profile) return { canViewPhoto: false, photoAccessStatus: 'not_found', photoPrivacy: 'private' };
+  if (profile.user_id === viewerUserId) {
+    return { canViewPhoto: true, photoAccessStatus: 'owner', photoPrivacy: profile.photo_privacy || 'all' };
+  }
+  const privacy = profile.photo_privacy || 'all';
+  if (privacy === 'all') {
+    return { canViewPhoto: true, photoAccessStatus: 'visible', photoPrivacy: privacy };
+  }
+  if (privacy === 'matches_only' && await exports.hasAcceptedInterestWithViewer(profileId, viewerUserId)) {
+    return { canViewPhoto: true, photoAccessStatus: 'accepted_match', photoPrivacy: privacy };
+  }
+  const request = await db.query(
+    `SELECT photo_access_request_id,status,requested_at,responded_at,expires_at
+     FROM profile_photo_access_requests
+     WHERE target_profile_id=$1 AND requester_user_id=$2
+     ORDER BY requested_at DESC
+     LIMIT 1`,
+    [profileId, viewerUserId]
+  );
+  const latest = request.rows[0];
+  if (latest?.status === 'approved' && (!latest.expires_at || new Date(latest.expires_at).getTime() > Date.now())) {
+    return {
+      canViewPhoto: true,
+      photoAccessStatus: 'approved',
+      photoAccessRequestId: latest.photo_access_request_id,
+      photoPrivacy: privacy
+    };
+  }
+  return {
+    canViewPhoto: false,
+    photoAccessStatus: latest?.status || 'not_requested',
+    photoAccessRequestId: latest?.photo_access_request_id || null,
+    photoPrivacy: privacy
+  };
+};
+exports.requestPhotoAccess = async (targetProfileId, requesterUserId, message = '') => {
+  const db = await getDB();
+  const client = await db.connect();
+  let savedRequest = null;
+  let targetProfile = null;
+  let requesterProfile = null;
+  try {
+    await client.query('BEGIN');
+    const targetResult = await client.query(
+      'SELECT profile_id,user_id,first_name,last_name,photo_privacy FROM profiles WHERE profile_id=$1 LIMIT 1',
+      [targetProfileId]
+    );
+    targetProfile = targetResult.rows[0];
+    const requesterResult = await client.query(
+      'SELECT profile_id,user_id,first_name,last_name FROM profiles WHERE user_id=$1 LIMIT 1',
+      [requesterUserId]
+    );
+    requesterProfile = requesterResult.rows[0];
+    if (!targetProfile || !requesterProfile) {
+      await client.query('ROLLBACK');
+      return { status: 'not_found' };
+    }
+    if (targetProfile.user_id === requesterUserId) {
+      await client.query('ROLLBACK');
+      return { status: 'own_profile' };
+    }
+    const existing = await client.query(
+      `SELECT *
+       FROM profile_photo_access_requests
+       WHERE target_profile_id=$1 AND requester_user_id=$2
+       ORDER BY requested_at DESC
+       LIMIT 1`,
+      [targetProfile.profile_id, requesterUserId]
+    );
+    const latest = existing.rows[0];
+    if (latest?.status === 'pending') {
+      await client.query(
+        `UPDATE profile_photo_access_requests
+         SET last_notified_at=NOW()
+         WHERE photo_access_request_id=$1`,
+        [latest.photo_access_request_id]
+      );
+      savedRequest = latest;
+    } else if (latest?.status === 'approved' && (!latest.expires_at || new Date(latest.expires_at).getTime() > Date.now())) {
+      savedRequest = latest;
+    } else {
+      const inserted = await client.query(
+        `INSERT INTO profile_photo_access_requests (
+           photo_access_request_id,
+           target_profile_id,
+           target_user_id,
+           requester_profile_id,
+           requester_user_id,
+           status,
+           message,
+           requested_at,
+           last_notified_at
+         )
+         VALUES ($1,$2,$3,$4,$5,'pending',$6,NOW(),NOW())
+         RETURNING *`,
+        [
+          randomUUID(),
+          targetProfile.profile_id,
+          targetProfile.user_id,
+          requesterProfile.profile_id,
+          requesterProfile.user_id,
+          String(message || '').trim() || null
+        ]
+      );
+      savedRequest = inserted.rows[0];
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  if (targetProfile?.user_id && savedRequest?.status === 'pending') {
+    await notifyMember(
+      db,
+      targetProfile.user_id,
+      'Photo access requested',
+      `${requesterProfile?.first_name || 'A member'} requested permission to view your profile photo.`,
+      {
+        type: 'photo_access_requested',
+        requestId: savedRequest.photo_access_request_id,
+        profileId: requesterProfile?.profile_id || '',
+        requesterUserId
+      }
+    ).catch((error) => logger.warn(`Photo access notification skipped: ${error.message}`));
+  }
+
+  return {
+    status: savedRequest?.status || 'pending',
+    request: savedRequest,
+    targetProfile,
+    requesterProfile
+  };
+};
+exports.getPhotoAccessRequestsForOwner = async (ownerUserId) => {
+  const db = await getDB();
+  const r = await db.query(
+    `SELECT
+       par.photo_access_request_id,
+       par.target_profile_id,
+       par.requester_profile_id,
+       par.requester_user_id,
+       par.status,
+       par.message,
+       par.requested_at,
+       par.responded_at,
+       p.first_name,
+       p.last_name,
+       p.primary_photo_url,
+       ec.occupation,
+       ec.working_city
+     FROM profile_photo_access_requests par
+     JOIN profiles p ON p.profile_id=par.requester_profile_id
+     LEFT JOIN education_career ec ON ec.profile_id=p.profile_id
+     WHERE par.target_user_id=$1
+     ORDER BY par.requested_at DESC
+     LIMIT 50`,
+    [ownerUserId]
+  );
+  return r.rows;
+};
+exports.respondPhotoAccessRequest = async (requestId, ownerUserId, status) => {
+  const db = await getDB();
+  const normalizedStatus = String(status || '').trim().toLowerCase();
+  if (!['approved', 'declined'].includes(normalizedStatus)) return null;
+  const beforeResult = await db.query(
+    'SELECT * FROM profile_photo_access_requests WHERE photo_access_request_id=$1 AND target_user_id=$2 LIMIT 1',
+    [requestId, ownerUserId]
+  );
+  const before = beforeResult.rows[0];
+  if (!before) return null;
+  const updated = await db.query(
+    `UPDATE profile_photo_access_requests
+     SET status=$1, responded_at=NOW()
+     WHERE photo_access_request_id=$2 AND target_user_id=$3
+     RETURNING *`,
+    [normalizedStatus, requestId, ownerUserId]
+  );
+  const row = updated.rows[0];
+  if (row?.requester_user_id) {
+    const ownerProfile = await exports.findByUserId(ownerUserId);
+    const title = normalizedStatus === 'approved' ? 'Photo access approved' : 'Photo access declined';
+    const body = normalizedStatus === 'approved'
+      ? `${ownerProfile?.first_name || 'A member'} allowed you to view their profile photo.`
+      : `${ownerProfile?.first_name || 'A member'} declined your photo access request.`;
+    await notifyMember(db, row.requester_user_id, title, body, {
+      type: normalizedStatus === 'approved' ? 'photo_access_approved' : 'photo_access_declined',
+      requestId: row.photo_access_request_id,
+      profileId: row.target_profile_id,
+      ownerUserId
+    }).catch((error) => logger.warn(`Photo access response notification skipped: ${error.message}`));
+  }
+  return { before, after: row };
 };
 exports.getPhotos = async (profileId) => {
   const db = await getDB();
@@ -647,7 +945,7 @@ exports.update = async (profileId, data) => {
 };
 exports.updatePrivacy = async (profileId, data) => {
   const db = await getDB();
-  const allowedPhoto = ['all', 'matches_only', 'private'];
+  const allowedPhoto = ['all', 'matches_only', 'request_only', 'private'];
   const allowedVisibility = ['all', 'matches_only', 'hidden'];
   const photoPrivacy = allowedPhoto.includes(data.photoPrivacy) ? data.photoPrivacy : null;
   const profileVisibility = allowedVisibility.includes(data.profileVisibility) ? data.profileVisibility : null;

@@ -12,6 +12,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.IOException
 
@@ -36,9 +37,13 @@ class ProfileViewModel @Inject constructor(
         loadProfile()
     }
 
+    private suspend fun canUseDemoFallback(): Boolean =
+        AppEnvironment.allowDemoFallback && prefs.authToken.first().isNullOrBlank()
+
     fun loadProfile() {
         viewModelScope.launch {
             _loadMessage.value = null
+            val canUseFallback = canUseDemoFallback()
             try {
                 val response = profileApi.getMyProfile()
                 val body = response.body()
@@ -46,7 +51,7 @@ class ProfileViewModel @Inject constructor(
                     _profile.value = body.data
                     usingMockProfile = false
                 } else {
-                    if (AppEnvironment.allowDemoFallback) {
+                    if (canUseFallback) {
                         _profile.value = MarketFixtures.myProfile
                         usingMockProfile = true
                         _loadMessage.value = body?.error?.message ?: "Showing demo profile details because saved details could not be loaded."
@@ -57,7 +62,7 @@ class ProfileViewModel @Inject constructor(
                     }
                 }
             } catch (error: Exception) {
-                if (AppEnvironment.allowDemoFallback) {
+                if (canUseFallback) {
                     _profile.value = MarketFixtures.myProfile
                     usingMockProfile = true
                     _loadMessage.value = when (error) {
@@ -96,6 +101,7 @@ class ProfileViewModel @Inject constructor(
             }
             _isSaving.value = true
             _errorMessage.value = null
+            val canUseFallback = canUseDemoFallback()
             try {
                 val req = mutableMapOf<String, Any>("step" to step)
                 req.putAll(payload)
@@ -106,14 +112,14 @@ class ProfileViewModel @Inject constructor(
                     prefs.saveWizardStep(step + 1)
                     loadProfile()
                     onSuccess()
-                } else if (usingMockProfile && AppEnvironment.allowDemoFallback) {
+                } else if (usingMockProfile && canUseFallback) {
                     saveMockStep(step, payload)
                     onSuccess()
                 } else {
                     _errorMessage.value = response.body()?.error?.message ?: "Could not save this step."
                 }
             } catch (e: Exception) {
-                if (usingMockProfile && AppEnvironment.allowDemoFallback) {
+                if (usingMockProfile && canUseFallback) {
                     saveMockStep(step, payload)
                     onSuccess()
                 } else {

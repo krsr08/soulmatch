@@ -67,7 +67,54 @@ const searchProfiles = async (filters, userId) => {
   const page = Math.max(parseInt(filters.page, 10)||1, 1); const limit = Math.min(Math.max(parseInt(filters.limit, 10)||20, 15), 100); const offset = (page-1)*limit;
   const where = conditions.join(' AND ');
   const from = ' FROM profiles p JOIN users u ON u.user_id=p.user_id LEFT JOIN education_career ec ON p.profile_id=ec.profile_id LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id LEFT JOIN family_details fd ON p.profile_id=fd.profile_id LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id ';
-  const query = 'SELECT p.profile_id,p.user_id,p.first_name,p.last_name,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,p.religion,p.caste,p.mother_tongue,p.primary_photo_url,p.profile_created_by,pd.height_cm,ec.occupation,ec.working_city,ec.education_level,ec.annual_income,fd.family_type,ld.diet,hd.is_manglik FROM profiles p JOIN users u ON u.user_id=p.user_id LEFT JOIN education_career ec ON p.profile_id=ec.profile_id LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id LEFT JOIN family_details fd ON p.profile_id=fd.profile_id LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id WHERE ' + where + ' ORDER BY p.completion_score DESC, u.last_login DESC NULLS LAST LIMIT $' + idx++ + ' OFFSET $' + idx++;
+  const visiblePhotoSql = `
+    CASE
+      WHEN COALESCE(p.photo_privacy,'all')='all'
+        OR (
+          COALESCE(p.photo_privacy,'all')='matches_only'
+          AND EXISTS (
+            SELECT 1
+            FROM interests i
+            JOIN profiles viewer ON viewer.user_id=$1
+            WHERE ((i.sender_id=viewer.profile_id AND i.receiver_id=p.profile_id) OR (i.sender_id=p.profile_id AND i.receiver_id=viewer.profile_id))
+              AND i.status='accepted'
+          )
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM profile_photo_access_requests par
+          WHERE par.target_profile_id=p.profile_id
+            AND par.requester_user_id=$1
+            AND par.status='approved'
+            AND (par.expires_at IS NULL OR par.expires_at > NOW())
+        )
+      THEN p.primary_photo_url
+      ELSE NULL
+    END AS primary_photo_url,
+    CASE
+      WHEN COALESCE(p.photo_privacy,'all')='all'
+        OR (
+          COALESCE(p.photo_privacy,'all')='matches_only'
+          AND EXISTS (
+            SELECT 1
+            FROM interests i
+            JOIN profiles viewer ON viewer.user_id=$1
+            WHERE ((i.sender_id=viewer.profile_id AND i.receiver_id=p.profile_id) OR (i.sender_id=p.profile_id AND i.receiver_id=viewer.profile_id))
+              AND i.status='accepted'
+          )
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM profile_photo_access_requests par
+          WHERE par.target_profile_id=p.profile_id
+            AND par.requester_user_id=$1
+            AND par.status='approved'
+            AND (par.expires_at IS NULL OR par.expires_at > NOW())
+        )
+      THEN FALSE
+      ELSE TRUE
+    END AS is_photo_private`;
+  const query = 'SELECT p.profile_id,p.user_id,p.first_name,p.last_name,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,p.religion,p.caste,p.mother_tongue,' + visiblePhotoSql + ',p.profile_created_by,pd.height_cm,ec.occupation,ec.working_city,ec.education_level,ec.annual_income,fd.family_type,ld.diet,hd.is_manglik FROM profiles p JOIN users u ON u.user_id=p.user_id LEFT JOIN education_career ec ON p.profile_id=ec.profile_id LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id LEFT JOIN family_details fd ON p.profile_id=fd.profile_id LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id WHERE ' + where + ' ORDER BY p.completion_score DESC, u.last_login DESC NULLS LAST LIMIT $' + idx++ + ' OFFSET $' + idx++;
   values.push(limit, offset);
   const countQ = 'SELECT COUNT(*)' + from + 'WHERE ' + where;
   const [results, count] = await Promise.all([db.query(query, values), db.query(countQ, values.slice(0,-2))]);

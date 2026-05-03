@@ -11,6 +11,7 @@ import com.soulmatch.app.data.local.ProfileInteractionStore
 import com.soulmatch.app.data.mock.MarketFixtures
 import com.soulmatch.app.data.models.CompatibilityData
 import com.soulmatch.app.data.models.InterestRequest
+import com.soulmatch.app.data.models.PhotoAccessRequestBody
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.realtime.InterestSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,6 +35,7 @@ class ProfileDetailViewModel @Inject constructor(
     private val _interestSent = MutableStateFlow(false)
     private val _shortlisted = MutableStateFlow(false)
     private val _canChat = MutableStateFlow(false)
+    private val _status = MutableStateFlow<String?>(null)
 
     val profile: StateFlow<ProfileData?> = _profile.asStateFlow()
     val compatibility: StateFlow<CompatibilityData> = _compatibility.asStateFlow()
@@ -41,6 +43,7 @@ class ProfileDetailViewModel @Inject constructor(
     val interestSent: StateFlow<Boolean> = _interestSent.asStateFlow()
     val shortlisted: StateFlow<Boolean> = _shortlisted.asStateFlow()
     val canChat: StateFlow<Boolean> = _canChat.asStateFlow()
+    val status: StateFlow<String?> = _status.asStateFlow()
 
     fun load(profileId: String) {
         if (_isLoading.value) return
@@ -123,6 +126,23 @@ class ProfileDetailViewModel @Inject constructor(
         }
     }
 
+    fun requestPhotoAccess() {
+        val target = _profile.value?.profileId ?: return
+        viewModelScope.launch {
+            val response = runCatching {
+                profileApi.requestPhotoAccess(target, PhotoAccessRequestBody("I would like to view your profile photo."))
+            }.getOrNull()
+            val body = response?.body()
+            if (response?.isSuccessful == true && body?.success == true) {
+                val nextStatus = body.data?.status ?: "pending"
+                _profile.value = _profile.value?.copy(photoAccessStatus = nextStatus)
+                _status.value = body.message ?: "Photo access request sent."
+            } else {
+                _status.value = body?.error?.message ?: "Couldn't request photo access right now."
+            }
+        }
+    }
+
     fun hideProfile() {
         _profile.value?.profileId?.let(ProfileInteractionStore::hideProfile)
     }
@@ -147,5 +167,9 @@ class ProfileDetailViewModel @Inject constructor(
                 ProfileInteractionStore.reportConcern(target, concern)
             }
         }
+    }
+
+    fun clearStatus() {
+        _status.value = null
     }
 }

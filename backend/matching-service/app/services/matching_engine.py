@@ -39,7 +39,47 @@ async def get_recommended_matches(user_id: str, page: int, limit: int) -> dict:
         candidates = await conn.fetch(
             """
             SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,ec.education_level,ec.annual_income,
-                   ec.occupation,ec.working_city,pd.height_cm,ld.diet,hd.is_manglik,p.primary_photo_url,
+                   ec.occupation,ec.working_city,pd.height_cm,ld.diet,hd.is_manglik,
+                   CASE
+                     WHEN COALESCE(p.photo_privacy,'all')='all'
+                       OR (
+                         COALESCE(p.photo_privacy,'all')='matches_only'
+                         AND EXISTS (
+                           SELECT 1 FROM interests i
+                           WHERE ((i.sender_id=$3 AND i.receiver_id=p.profile_id) OR (i.sender_id=p.profile_id AND i.receiver_id=$3))
+                             AND i.status='accepted'
+                         )
+                       )
+                       OR EXISTS (
+                         SELECT 1 FROM profile_photo_access_requests par
+                         WHERE par.target_profile_id=p.profile_id
+                           AND par.requester_user_id=$1
+                           AND par.status='approved'
+                           AND (par.expires_at IS NULL OR par.expires_at > NOW())
+                       )
+                     THEN p.primary_photo_url
+                     ELSE NULL
+                   END AS visible_primary_photo_url,
+                   CASE
+                     WHEN COALESCE(p.photo_privacy,'all')='all'
+                       OR (
+                         COALESCE(p.photo_privacy,'all')='matches_only'
+                         AND EXISTS (
+                           SELECT 1 FROM interests i
+                           WHERE ((i.sender_id=$3 AND i.receiver_id=p.profile_id) OR (i.sender_id=p.profile_id AND i.receiver_id=$3))
+                             AND i.status='accepted'
+                         )
+                       )
+                       OR EXISTS (
+                         SELECT 1 FROM profile_photo_access_requests par
+                         WHERE par.target_profile_id=p.profile_id
+                           AND par.requester_user_id=$1
+                           AND par.status='approved'
+                           AND (par.expires_at IS NULL OR par.expires_at > NOW())
+                       )
+                     THEN FALSE
+                     ELSE TRUE
+                   END AS is_photo_private,
                    p.photo_privacy,COALESCE(p.verification_status,'pending')='verified' AS is_verified
             FROM profiles p
             LEFT JOIN education_career ec ON p.profile_id=ec.profile_id
@@ -61,7 +101,8 @@ async def get_recommended_matches(user_id: str, page: int, limit: int) -> dict:
             LIMIT 1000
             """,
             user_id,
-            opp_gender
+            opp_gender,
+            user["profile_id"]
         )
         user_vec = build_vector(user); scored = []
         for c in candidates:
@@ -69,7 +110,7 @@ async def get_recommended_matches(user_id: str, page: int, limit: int) -> dict:
             vec_s = cosine_sim(user_vec, cv) * 100
             pre_s = pref_score(cd, user); hor_s = horoscope_score(user, cd)
             total = int(vec_s*0.35 + pre_s*0.40 + hor_s*0.25)
-            scored.append({"profileId":str(cd["profile_id"]),"userId":str(cd["user_id"]),"name":cd["first_name"]+" "+cd["last_name"][:1]+".","age":cd.get("age",0),"heightCm":cd.get("height_cm"),"location":cd.get("working_city",""),"occupation":cd.get("occupation",""),"primaryPhoto":cd.get("primary_photo_url",""),"isVerified":bool(cd.get("is_verified")),"isPhotoPrivate":cd.get("photo_privacy")=="matches_only","profileCreatedBy":cd.get("profile_created_by") or "self","compatibilityScore":min(99,total),"compatibilityBreakdown":{"preferences":int(pre_s),"personality":int(vec_s),"horoscope":int(hor_s)}})
+            scored.append({"profileId":str(cd["profile_id"]),"userId":str(cd["user_id"]),"name":cd["first_name"]+" "+cd["last_name"][:1]+".","age":cd.get("age",0),"heightCm":cd.get("height_cm"),"location":cd.get("working_city",""),"occupation":cd.get("occupation",""),"primaryPhoto":cd.get("visible_primary_photo_url") or "","isVerified":bool(cd.get("is_verified")),"isPhotoPrivate":bool(cd.get("is_photo_private")),"profileCreatedBy":cd.get("profile_created_by") or "self","compatibilityScore":min(99,total),"compatibilityBreakdown":{"preferences":int(pre_s),"personality":int(vec_s),"horoscope":int(hor_s)}})
         scored.sort(key=lambda x: x["compatibilityScore"], reverse=True)
         start = (page-1)*limit
         return {"matches":scored[start:start+limit],"total":len(scored),"page":page,"limit":limit}
