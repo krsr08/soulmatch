@@ -19,6 +19,13 @@ router.put('/profiles/:id', authenticateAdmin, authorizeAdminRoles('super_admin'
 router.delete('/profiles/:id', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin'), controller.deleteProfile);
 router.put('/profiles/:id/status', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.updateProfileStatus);
 
+router.get('/advisors', authenticateAdmin, controller.getAdvisors);
+router.post('/advisors', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin'), controller.createAdvisor);
+router.put('/advisors/:id', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin'), controller.updateAdvisor);
+router.put('/advisors/:id/status', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin'), controller.updateAdvisorStatus);
+router.get('/assisted-assignments', authenticateAdmin, controller.getAssistedAssignments);
+router.put('/assisted-assignments/:id', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.updateAssistedAssignment);
+
 router.get('/verifications', authenticateAdmin, controller.getPendingVerifications);
 router.put('/verifications/:id/approve', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.approveVerification);
 router.put('/verifications/:id/reject', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.rejectVerification);

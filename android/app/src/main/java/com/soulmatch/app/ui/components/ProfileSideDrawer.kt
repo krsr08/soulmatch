@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.Icon
@@ -50,6 +51,7 @@ import com.soulmatch.app.ui.theme.TextSecondary
 object ProfileDrawerRoutes {
     const val EditProfile = "edit_profile"
     const val PartnerPreference = "partner_preference"
+    const val SoulMatchAssist = "soulmatch_assist"
     const val Spotlight = "spotlight"
     const val AstrologyServices = "astrology_services"
     const val AccountSettings = "account_settings"
@@ -69,6 +71,7 @@ private data class DrawerAction(
 private val primaryActions = listOf(
     DrawerAction("Edit Profile", ProfileDrawerRoutes.EditProfile, Icons.Filled.Edit),
     DrawerAction("Partner Preference", ProfileDrawerRoutes.PartnerPreference, Icons.Filled.Favorite),
+    DrawerAction("SoulMatch Assist", ProfileDrawerRoutes.SoulMatchAssist, Icons.Filled.SupportAgent),
     DrawerAction("Spotlight", ProfileDrawerRoutes.Spotlight, Icons.Filled.Star),
     DrawerAction("Astrology Services", ProfileDrawerRoutes.AstrologyServices, Icons.Filled.Star),
     DrawerAction("Account & Settings", ProfileDrawerRoutes.AccountSettings, Icons.Filled.Settings),

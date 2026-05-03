@@ -91,6 +91,65 @@ data class ViewerData(
     @SerializedName("viewed_at") val viewedAt: String = ""
 )
 
+data class AssistStatusRequest(
+    @SerializedName("isOptedIn") val isOptedIn: Boolean,
+    @SerializedName("supportLevel") val supportLevel: String,
+    @SerializedName("preferredContactWindow") val preferredContactWindow: String = "",
+    @SerializedName("familyContactName") val familyContactName: String = "",
+    @SerializedName("familyContactPhone") val familyContactPhone: String = "",
+    val notes: String = ""
+)
+
+data class AssistLocationData(
+    val city: String = "",
+    val state: String = "",
+    val locality: String = "",
+    val pincode: String = ""
+)
+
+data class AdvisorSummaryData(
+    @SerializedName("advisorId") val advisorId: String = "",
+    @SerializedName("fullName") val fullName: String = "",
+    val phone: String = "",
+    val email: String = "",
+    @SerializedName("serviceLabel") val serviceLabel: String = "SoulMatch Advisor",
+    val bio: String = "",
+    val city: String = "",
+    val state: String = "",
+    val pincode: String = "",
+    val locality: String = "",
+    val languages: List<String> = emptyList(),
+    val communities: List<String> = emptyList(),
+    @SerializedName("averageRating") val averageRating: Double = 0.0,
+    @SerializedName("successRate") val successRate: Double = 0.0,
+    @SerializedName("activeAssignments") val activeAssignments: Int = 0,
+    val score: Double = 0.0,
+    val reasons: List<String> = emptyList()
+)
+
+data class AssistReadinessData(
+    @SerializedName("hasCity") val hasCity: Boolean = false,
+    @SerializedName("hasPincode") val hasPincode: Boolean = false,
+    @SerializedName("canAutoAssign") val canAutoAssign: Boolean = false
+)
+
+data class AssistStatusData(
+    @SerializedName("profileId") val profileId: String = "",
+    @SerializedName("isOptedIn") val isOptedIn: Boolean = false,
+    @SerializedName("supportLevel") val supportLevel: String = "self_service",
+    @SerializedName("requestStatus") val requestStatus: String = "not_requested",
+    @SerializedName("preferredContactWindow") val preferredContactWindow: String = "",
+    @SerializedName("familyContactName") val familyContactName: String = "",
+    @SerializedName("familyContactPhone") val familyContactPhone: String = "",
+    val notes: String = "",
+    @SerializedName("assignedAt") val assignedAt: String? = null,
+    @SerializedName("nextReviewAt") val nextReviewAt: String? = null,
+    val location: AssistLocationData = AssistLocationData(),
+    val readiness: AssistReadinessData = AssistReadinessData(),
+    val advisor: AdvisorSummaryData? = null,
+    val recommendations: List<AdvisorSummaryData> = emptyList()
+)
+
 data class ProfilePhoto(
     @SerializedName("photo_id") val photoId: String = "",
     @SerializedName("photo_url") val photoUrl: String = "",
@@ -138,6 +197,9 @@ data class ProfileData(
     @SerializedName("num_sisters") val numSisters: Int? = null,
     @SerializedName("family_type") val familyType: String = "",
     @SerializedName("family_city") val familyCity: String = "",
+    @SerializedName("family_state") val familyState: String = "",
+    @SerializedName("family_locality") val familyLocality: String = "",
+    @SerializedName("family_pincode") val familyPincode: String = "",
     val diet: String = "",
     val smoking: String = "",
     val drinking: String = "",

@@ -7,6 +7,8 @@ import com.soulmatch.app.data.api.ProfileApiService
 import com.soulmatch.app.data.config.AppEnvironment
 import com.soulmatch.app.data.mock.MarketFixtures
 import com.soulmatch.app.data.models.PartnerPreferencesData
+import com.soulmatch.app.data.models.AssistStatusData
+import com.soulmatch.app.data.models.AssistStatusRequest
 import com.soulmatch.app.data.models.ProfilePhoto
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.SubscriptionData
@@ -39,6 +41,7 @@ class MyProfileViewModel @Inject constructor(
     private val _subscription = MutableStateFlow(SubscriptionData(planId = "free", isActive = false))
     private val _checklist = MutableStateFlow<List<ProfileChecklistItem>>(emptyList())
     private val _preferences = MutableStateFlow(PartnerPreferencesData())
+    private val _assistStatus = MutableStateFlow(AssistStatusData())
     private val _viewers = MutableStateFlow<List<ViewerData>>(emptyList())
     private val _photos = MutableStateFlow<List<ProfilePhoto>>(emptyList())
     private val _verifications = MutableStateFlow<List<VerificationRequestData>>(emptyList())
@@ -52,6 +55,7 @@ class MyProfileViewModel @Inject constructor(
     val subscription: StateFlow<SubscriptionData> = _subscription.asStateFlow()
     val checklist: StateFlow<List<ProfileChecklistItem>> = _checklist.asStateFlow()
     val preferences: StateFlow<PartnerPreferencesData> = _preferences.asStateFlow()
+    val assistStatus: StateFlow<AssistStatusData> = _assistStatus.asStateFlow()
     val viewers: StateFlow<List<ViewerData>> = _viewers.asStateFlow()
     val photos: StateFlow<List<ProfilePhoto>> = _photos.asStateFlow()
     val verifications: StateFlow<List<VerificationRequestData>> = _verifications.asStateFlow()
@@ -90,6 +94,7 @@ class MyProfileViewModel @Inject constructor(
                 if (resolvedProfile == null || resolvedProfile.profileId.isBlank()) {
                     _subscription.value = SubscriptionData(planId = "free", isActive = false)
                     _preferences.value = PartnerPreferencesData()
+                    _assistStatus.value = AssistStatusData()
                     _viewers.value = emptyList()
                     _photos.value = emptyList()
                     _verifications.value = emptyList()
@@ -109,6 +114,20 @@ class MyProfileViewModel @Inject constructor(
                     ?.takeIf { it.success }
                     ?.data
                     ?: PartnerPreferencesData(religion = resolvedProfile.religion, manglikPref = "any")
+                _assistStatus.value = runCatching { profileApi.getAssistStatus() }
+                    .getOrNull()
+                    ?.body()
+                    ?.takeIf { it.success }
+                    ?.data
+                    ?: AssistStatusData(
+                        profileId = resolvedProfile.profileId,
+                        location = com.soulmatch.app.data.models.AssistLocationData(
+                            city = resolvedProfile.familyCity,
+                            state = resolvedProfile.familyState,
+                            locality = resolvedProfile.familyLocality,
+                            pincode = resolvedProfile.familyPincode
+                        )
+                    )
                 _viewers.value = runCatching { profileApi.getViewers(resolvedProfile.profileId) }
                     .getOrNull()
                     ?.body()
@@ -158,6 +177,15 @@ class MyProfileViewModel @Inject constructor(
         _profile.value = fallback
         _subscription.value = MarketFixtures.currentSubscription
         _preferences.value = PartnerPreferencesData(religion = fallback.religion, manglikPref = "any")
+        _assistStatus.value = AssistStatusData(
+            profileId = fallback.profileId,
+            location = com.soulmatch.app.data.models.AssistLocationData(
+                city = fallback.familyCity,
+                state = fallback.familyState,
+                locality = fallback.familyLocality,
+                pincode = fallback.familyPincode
+            )
+        )
         _viewers.value = MarketFixtures.recentViewers
         _photos.value = MarketFixtures.profilePhotos
         _verifications.value = emptyList()
@@ -253,6 +281,46 @@ class MyProfileViewModel @Inject constructor(
                 _status.value = when (error) {
                     is IOException -> "Couldn't reach the server. Check your connection and try again."
                     else -> "Couldn't update partner preferences right now. Please try again."
+                }
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun updateAssistStatus(
+        isOptedIn: Boolean,
+        supportLevel: String,
+        preferredContactWindow: String,
+        familyContactName: String,
+        familyContactPhone: String,
+        notes: String
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _status.value = null
+            try {
+                val response = profileApi.updateAssistStatus(
+                    AssistStatusRequest(
+                        isOptedIn = isOptedIn,
+                        supportLevel = supportLevel,
+                        preferredContactWindow = preferredContactWindow,
+                        familyContactName = familyContactName,
+                        familyContactPhone = familyContactPhone,
+                        notes = notes
+                    )
+                )
+                val body = response.body()
+                if (response.isSuccessful && body?.success == true && body.data != null) {
+                    _assistStatus.value = body.data
+                    _status.value = body.message ?: "SoulMatch Assist updated."
+                } else {
+                    _status.value = body?.error?.message ?: "Couldn't update SoulMatch Assist right now."
+                }
+            } catch (error: Exception) {
+                _status.value = when (error) {
+                    is IOException -> "Couldn't reach the server. Check your connection and try again."
+                    else -> "Couldn't update SoulMatch Assist right now. Please try again."
                 }
             } finally {
                 _isLoading.value = false

@@ -61,6 +61,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.soulmatch.app.R
 import com.soulmatch.app.data.models.PartnerPreferencesData
+import com.soulmatch.app.data.models.AssistStatusData
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.ProfilePhoto
 import com.soulmatch.app.data.models.SubscriptionData
@@ -110,6 +111,7 @@ fun MyProfileScreen(
     onEditSection: ((Int) -> Unit)? = null,
     onLogout: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
+    onOpenAssist: (() -> Unit)? = null,
     profileId: String = "",
     chatId: String = "",
     participantName: String = "",
@@ -119,6 +121,7 @@ fun MyProfileScreen(
     val subscription by vm.subscription.collectAsStateWithLifecycle()
     val checklist by vm.checklist.collectAsStateWithLifecycle()
     val preferences by vm.preferences.collectAsStateWithLifecycle()
+    val assistStatus by vm.assistStatus.collectAsStateWithLifecycle()
     val viewers by vm.viewers.collectAsStateWithLifecycle()
     val photos by vm.photos.collectAsStateWithLifecycle()
     val verifications by vm.verifications.collectAsStateWithLifecycle()
@@ -129,6 +132,7 @@ fun MyProfileScreen(
     val loadMessage by vm.loadMessage.collectAsStateWithLifecycle()
     val editSection: (Int) -> Unit = onEditSection ?: { _ -> }
     val openSettings: () -> Unit = onOpenSettings ?: {}
+    val openAssist: () -> Unit = onOpenAssist ?: {}
     val openSubscription: () -> Unit = onSubscribe ?: {}
     val viewProfile: (String) -> Unit = onViewProfile ?: { _ -> }
     val context = LocalContext.current
@@ -241,6 +245,12 @@ fun MyProfileScreen(
                             PartnerPreferencesCard(preferences = preferences, onSave = { ageMin, ageMax, religion, manglikPref ->
                                 vm.updatePartnerPreferences(ageMin, ageMax, religion, manglikPref)
                             })
+                        }
+                        item {
+                            SoulMatchAssistSummaryCard(
+                                assistStatus = assistStatus,
+                                onOpenAssist = openAssist
+                            )
                         }
                         if (viewers.isNotEmpty()) {
                             item {
@@ -734,6 +744,50 @@ private fun PartnerPreferencesCard(
             }
             Button(onClick = { onSave(ageMin, ageMax, religion, manglikPref) }, modifier = Modifier.fillMaxWidth()) {
                 Text("Save preferences")
+            }
+        }
+    }
+}
+
+@Composable
+private fun SoulMatchAssistSummaryCard(
+    assistStatus: AssistStatusData,
+    onOpenAssist: () -> Unit
+) {
+    val summary = when {
+        assistStatus.advisor != null -> "Assigned to ${assistStatus.advisor.fullName} for guided matchmaking."
+        assistStatus.isOptedIn && assistStatus.requestStatus == "waiting_assignment" -> "SoulMatch is finding the best-fit advisor for your area."
+        assistStatus.isOptedIn -> "SoulMatch Assist is enabled for your profile."
+        else -> "Opt in if you want family-aware advisor support, curated shortlists, and guided follow-up."
+    }
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SectionTitle("SoulMatch Assist", summary)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                MetricPill(
+                    "Mode",
+                    titleCase((if (assistStatus.isOptedIn) assistStatus.supportLevel else "self_service").replace('_', ' ')),
+                    modifier = Modifier.weight(1f),
+                    background = SurfaceSoft
+                )
+                MetricPill(
+                    "Status",
+                    titleCase(assistStatus.requestStatus.replace('_', ' ')),
+                    modifier = Modifier.weight(1f),
+                    background = SurfaceSoft
+                )
+            }
+            if (assistStatus.location.city.isNotBlank() || assistStatus.location.pincode.isNotBlank()) {
+                SignalChips(
+                    labels = listOfNotNull(
+                        assistStatus.location.city.takeIf { it.isNotBlank() },
+                        assistStatus.location.pincode.takeIf { it.isNotBlank() }
+                    ),
+                    tone = ChipTone.Info
+                )
+            }
+            Button(onClick = onOpenAssist, modifier = Modifier.fillMaxWidth()) {
+                Text("Open SoulMatch Assist")
             }
         }
     }

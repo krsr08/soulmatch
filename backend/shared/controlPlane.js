@@ -24,6 +24,35 @@ const DEFAULT_CONFIG = {
     razorpayKeyId: '',
     supportEmail: 'support@soulmatch.app'
   },
+  assisted_matchmaking: {
+    enabled: true,
+    memberModes: ['self_service', 'family_assisted', 'advisor_assisted'],
+    defaultReviewDays: 7,
+    advisorPlans: [
+      {
+        planId: 'advisor_starter',
+        name: 'Advisor Starter',
+        monthlyPrice: 1999,
+        maxActiveProfiles: 25,
+        features: [
+          'Up to 25 active assisted members',
+          'Single city service area',
+          'Standard lead allocation'
+        ]
+      },
+      {
+        planId: 'advisor_growth',
+        name: 'Advisor Growth',
+        monthlyPrice: 4999,
+        maxActiveProfiles: 80,
+        features: [
+          'Up to 80 active assisted members',
+          'Multiple service areas',
+          'Priority lead allocation'
+        ]
+      }
+    ]
+  },
   payment_gateways: {
     razorpay: { enabled: true, label: 'Razorpay' },
     stripe: { enabled: false, label: 'Stripe' }

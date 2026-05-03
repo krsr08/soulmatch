@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -65,6 +66,7 @@ import com.soulmatch.app.ui.theme.SuccessSoft
 import com.soulmatch.app.ui.theme.SurfaceSoft
 import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
+import com.soulmatch.app.ui.titleCase
 import com.soulmatch.app.ui.viewmodels.MyProfileViewModel
 import com.soulmatch.app.ui.viewmodels.SettingsViewModel
 
@@ -80,6 +82,202 @@ private data class FaqItem(
     val question: String,
     val answer: String
 )
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SoulMatchAssistScreen(
+    onBack: () -> Unit,
+    onOpenFamilyStep: () -> Unit,
+    onOpenSubscription: () -> Unit,
+    vm: MyProfileViewModel = hiltViewModel()
+) {
+    val assist by vm.assistStatus.collectAsStateWithLifecycle()
+    val isLoading by vm.isLoading.collectAsStateWithLifecycle()
+    var assistEnabled by remember(assist.profileId, assist.isOptedIn) { mutableStateOf(assist.isOptedIn) }
+    var supportLevel by remember(assist.profileId, assist.supportLevel) { mutableStateOf(assist.supportLevel) }
+    var preferredWindow by remember(assist.profileId, assist.preferredContactWindow) { mutableStateOf(assist.preferredContactWindow) }
+    var familyContactName by remember(assist.profileId, assist.familyContactName) { mutableStateOf(assist.familyContactName) }
+    var familyContactPhone by remember(assist.profileId, assist.familyContactPhone) { mutableStateOf(assist.familyContactPhone) }
+    var notes by remember(assist.profileId, assist.notes) { mutableStateOf(assist.notes) }
+    val locationSummary = listOf(
+        assist.location.locality,
+        assist.location.city,
+        assist.location.state,
+        assist.location.pincode
+    ).filter { it.isNotBlank() }.joinToString(", ")
+
+    DrawerDestinationScaffold(
+        title = "SoulMatch Assist",
+        onBack = onBack
+    ) { padding ->
+        PremiumScreen(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                item {
+                    PremiumHeader(
+                        eyebrow = "Guided matchmaking",
+                        title = "Get family-aware help from a local SoulMatch advisor",
+                        subtitle = "SoulMatch Assist routes serious members to a verified advisor using locality, language, trust, and current advisor capacity."
+                    )
+                }
+                item {
+                    TwoMetricRow(
+                        leftLabel = "Support mode",
+                        leftValue = if (assistEnabled) titleCase(supportLevel.replace('_', ' ')) else "Self service",
+                        rightLabel = "Assignment",
+                        rightValue = titleCase(assist.requestStatus.replace('_', ' '))
+                    )
+                }
+                item {
+                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            SectionTitle("Choose your support mode", "Stay independent, collaborate with your family, or let SoulMatch assign an advisor.")
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf(
+                                    "self_service" to "Self",
+                                    "family_assisted" to "Family",
+                                    "advisor_assisted" to "Advisor"
+                                ).forEach { (value, label) ->
+                                    FilterChoiceChip(
+                                        label = label,
+                                        selected = supportLevel == value,
+                                        onClick = {
+                                            supportLevel = value
+                                            assistEnabled = value != "self_service"
+                                        }
+                                    )
+                                }
+                            }
+                            if (locationSummary.isNotBlank()) {
+                                Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, Divider)) {
+                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text("Current family location", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                        Text(locationSummary, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                    }
+                                }
+                            }
+                            OutlinedTextField(
+                                value = familyContactName,
+                                onValueChange = { familyContactName = it },
+                                label = { Text("Family contact name") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = familyContactPhone,
+                                onValueChange = { familyContactPhone = it.filter(Char::isDigit).take(10) },
+                                label = { Text("Family contact number") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = preferredWindow,
+                                onValueChange = { preferredWindow = it },
+                                label = { Text("Preferred contact window") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = notes,
+                                onValueChange = { notes = it },
+                                label = { Text("What should the advisor know?") },
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 3
+                            )
+                            Button(
+                                onClick = {
+                                    vm.updateAssistStatus(
+                                        isOptedIn = assistEnabled,
+                                        supportLevel = supportLevel,
+                                        preferredContactWindow = preferredWindow,
+                                        familyContactName = familyContactName,
+                                        familyContactPhone = familyContactPhone,
+                                        notes = notes
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !isLoading
+                            ) {
+                                Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Text("Save SoulMatch Assist")
+                            }
+                        }
+                    }
+                }
+                if (supportLevel == "advisor_assisted" && !assist.readiness.canAutoAssign) {
+                    item {
+                        StatusInfoCard(
+                            title = "Add stronger locality details for advisor routing",
+                            detail = "Add family city and pincode in your family section so SoulMatch can assign the right nearby advisor instead of using a broad city guess.",
+                            toneColor = InfoSoft,
+                            contentColor = Info,
+                            actionLabel = "Update family section",
+                            onAction = onOpenFamilyStep
+                        )
+                    }
+                }
+                assist.advisor?.let { advisor ->
+                    item {
+                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                SectionTitle("Assigned advisor", "This is your current best-fit SoulMatch Assist partner.")
+                                DetailRow("Advisor", advisor.fullName, highlighted = true)
+                                DetailRow("Coverage", listOf(advisor.city, advisor.state, advisor.pincode).filter { it.isNotBlank() }.joinToString(", "), highlighted = true)
+                                DetailRow("Success rate", "${advisor.successRate.toInt()}%", highlighted = true)
+                                DetailRow("Rating", String.format("%.1f/5", advisor.averageRating), highlighted = true)
+                                if (advisor.languages.isNotEmpty()) {
+                                    SignalChips(advisor.languages.take(3), tone = ChipTone.Info)
+                                }
+                            }
+                        }
+                    }
+                }
+                if (assist.advisor == null && assist.recommendations.isNotEmpty()) {
+                    item {
+                        FeatureListCard(
+                            title = "Best-fit advisors currently available",
+                            subtitle = "These are the strongest matches for your current location and profile signals.",
+                            features = assist.recommendations.take(3).map { advisor ->
+                                FeaturePoint(
+                                    advisor.fullName,
+                                    listOf(advisor.city, advisor.state, advisor.reasons.joinToString(", ")).filter { it.isNotBlank() }.joinToString(" | ")
+                                )
+                            }
+                        )
+                    }
+                }
+                item {
+                    FeatureListCard(
+                        title = "Why SoulMatch Assist stands out",
+                        subtitle = "This is not open lead selling. Families opt in first, profiles stay protected, and assignments follow trust rules.",
+                        features = listOf(
+                            FeaturePoint("Verified routing", "Only approved advisors with active capacity are eligible for assignments."),
+                            FeaturePoint("Hyperlocal scoring", "Pincode, locality, language, and community fit all influence the assignment score."),
+                            FeaturePoint("Serious follow-up", "Use this for curated shortlists, family coordination, and relationship progress.")
+                        )
+                    )
+                }
+                item {
+                    OutlinedButton(
+                        onClick = onOpenSubscription,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Filled.Star, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text("View assisted membership plans")
+                    }
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

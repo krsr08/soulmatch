@@ -7,10 +7,13 @@ import {
   approveVerification,
   bulkCreateProfiles,
   createCampaign,
+  createAdvisor,
   createProfile,
   createRefund,
   deleteProfile,
+  getAdvisors,
   getAlerts,
+  getAssistedAssignments,
   getAnalyticsEvents,
   getAnalyticsFunnel,
   getAuditLogs,
@@ -27,9 +30,13 @@ import {
   rejectVerification,
   resolveReport,
   updateConfig,
+  updateAdvisor,
+  updateAdvisorStatus,
+  updateAssistedAssignment,
   updateProfile,
   updateProfileStatus
 } from '../api/adminApi';
+import AssistPanel from './AssistPanel';
 import { useRuntimeConfig } from '../context/RuntimeConfigContext';
 import './DashboardPage.css';
 
@@ -59,6 +66,7 @@ const DEFAULT_CONFIG = {
   matching: { weights: {}, indiaFilters: {} },
   registration: {},
   monetization: { currency: 'INR', plans: [], premiumLimits: {}, upgradePackageGroups: [] },
+  assisted_matchmaking: { enabled: true, memberModes: [], advisorPlans: [], defaultReviewDays: 7 },
   notification_templates: {},
   maintenance: {},
   security: {},
@@ -74,6 +82,7 @@ const TAB_ROLES = {
   cms: ['super_admin', 'admin', 'marketing_manager'],
   engagement: ['super_admin', 'admin', 'marketing_manager'],
   moderation: ['super_admin', 'admin', 'moderator'],
+  assist: ['super_admin', 'admin', 'moderator', 'support_agent'],
   config: ['super_admin', 'admin'],
   rbac: ['super_admin'],
   analytics: ['super_admin', 'admin', 'moderator', 'marketing_manager'],
@@ -88,6 +97,7 @@ const TABS = [
   { id: 'cms', label: 'CMS', glyph: 'CM' },
   { id: 'engagement', label: 'Engagement', glyph: 'NT' },
   { id: 'moderation', label: 'Moderation', glyph: 'MD' },
+  { id: 'assist', label: 'SoulMatch Assist', glyph: 'SA' },
   { id: 'config', label: 'Dynamic Config', glyph: 'CF' },
   { id: 'rbac', label: 'RBAC', glyph: 'RB' },
   { id: 'analytics', label: 'Analytics', glyph: 'AN' },
@@ -149,6 +159,7 @@ function normalizeConfig(config) {
     content: { ...DEFAULT_CONFIG.content, ...(config?.content || {}) },
     legal: { ...DEFAULT_CONFIG.legal, ...(config?.legal || {}) },
     monetization: { ...DEFAULT_CONFIG.monetization, ...(config?.monetization || {}) },
+    assisted_matchmaking: { ...DEFAULT_CONFIG.assisted_matchmaking, ...(config?.assisted_matchmaking || {}) },
     matching: { ...DEFAULT_CONFIG.matching, ...(config?.matching || {}) },
     client_integrations: { ...DEFAULT_CONFIG.client_integrations, ...(config?.client_integrations || {}) }
   };
@@ -883,6 +894,8 @@ export default function DashboardPage() {
   const [payments, setPayments] = useState({ transactions: [], plans: [], coupons: [] });
   const [reports, setReports] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [advisors, setAdvisors] = useState([]);
+  const [assistedAssignments, setAssistedAssignments] = useState([]);
   const [roles, setRoles] = useState([]);
   const [funnel, setFunnel] = useState([]);
   const [events, setEvents] = useState([]);
@@ -917,6 +930,8 @@ export default function DashboardPage() {
       { key: 'payments', label: 'Payments', request: getPayments() },
       { key: 'reports', label: 'Reports', request: getReports() },
       { key: 'alerts', label: 'Alerts', request: getAlerts() },
+      { key: 'advisors', label: 'Advisor roster', request: getAdvisors() },
+      { key: 'assistedAssignments', label: 'Assisted assignments', request: getAssistedAssignments() },
       { key: 'roles', label: 'Roles', request: getRoles() },
       { key: 'funnel', label: 'Funnel analytics', request: getAnalyticsFunnel() },
       { key: 'events', label: 'Recent events', request: getAnalyticsEvents(100) },
@@ -944,6 +959,8 @@ export default function DashboardPage() {
     setPayments(byKey.payments?.data?.data || { transactions: [], plans: [], coupons: [] });
     setReports(byKey.reports?.data?.data || []);
     setAlerts(byKey.alerts?.data?.data || []);
+    setAdvisors(byKey.advisors?.data?.data || []);
+    setAssistedAssignments(byKey.assistedAssignments?.data?.data || []);
     setRoles(byKey.roles?.data?.data || []);
     setFunnel(byKey.funnel?.data?.data || []);
     setEvents(byKey.events?.data?.data || []);
@@ -1067,12 +1084,69 @@ export default function DashboardPage() {
     setMessage('Campaign draft created.');
   };
 
+  const handleCreateAdvisor = async (payload) => {
+    try {
+      await createAdvisor(payload);
+      setMessage('Advisor onboarded successfully.');
+      setError('');
+      await loadAll();
+    } catch (err) {
+      setError(err.response?.data?.error?.message || err.message || 'Could not create advisor.');
+    }
+  };
+
+  const handleUpdateAdvisor = async (advisorId, payload) => {
+    try {
+      await updateAdvisor(advisorId, payload);
+      setMessage('Advisor profile updated.');
+      setError('');
+      await loadAll();
+    } catch (err) {
+      setError(err.response?.data?.error?.message || err.message || 'Could not update advisor.');
+    }
+  };
+
+  const handleUpdateAdvisorStatus = async (advisorId, payload) => {
+    try {
+      await updateAdvisorStatus(advisorId, payload);
+      setMessage('Advisor trust status updated.');
+      setError('');
+      await loadAll();
+    } catch (err) {
+      setError(err.response?.data?.error?.message || err.message || 'Could not update advisor status.');
+    }
+  };
+
+  const handleUpdateAssistedAssignment = async (assistedProfileId, payload) => {
+    try {
+      await updateAssistedAssignment(assistedProfileId, payload);
+      setMessage('Assisted assignment updated.');
+      setError('');
+      await loadAll();
+    } catch (err) {
+      setError(err.response?.data?.error?.message || err.message || 'Could not update assisted assignment.');
+    }
+  };
+
+  const handleSaveAssistConfig = async (nextConfig) => {
+    try {
+      await updateConfig('assisted_matchmaking', nextConfig || {});
+      setConfigState((current) => ({ ...current, assisted_matchmaking: nextConfig || {} }));
+      setMessage('SoulMatch Assist settings saved.');
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.error?.message || err.message || 'Could not save assist settings.');
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('adminToken');
     navigate('/login');
   };
 
   const activeLabel = visibleTabs.find((tab) => tab.id === activeTab)?.label || 'Dashboard';
+  const canManageAssistProgram = ['super_admin', 'admin'].includes(session.role);
+  const canManageAssistQueue = ['super_admin', 'admin', 'moderator'].includes(session.role);
 
   return (
     <div className="admin-page">
@@ -1106,6 +1180,20 @@ export default function DashboardPage() {
           {activeTab === 'cms' ? <CmsPanel config={configState} patchConfig={patchConfig} onSave={saveConfig} /> : null}
           {activeTab === 'engagement' ? <EngagementPanel config={configState} patchConfig={patchConfig} onSave={saveConfig} campaign={campaign} setCampaign={setCampaign} onCampaign={handleCampaign} /> : null}
           {activeTab === 'moderation' ? <ModerationPanel reports={reports} alerts={alerts} onResolve={async (id) => { await resolveReport(id); await loadAll(); }} onAck={async (id) => { await acknowledgeAlert(id); await loadAll(); }} /> : null}
+          {activeTab === 'assist' ? (
+            <AssistPanel
+              advisors={advisors}
+              assignments={assistedAssignments}
+              assistConfig={configState.assisted_matchmaking || DEFAULT_CONFIG.assisted_matchmaking}
+              onSaveConfig={handleSaveAssistConfig}
+              onCreateAdvisor={handleCreateAdvisor}
+              onUpdateAdvisor={handleUpdateAdvisor}
+              onUpdateAdvisorStatus={handleUpdateAdvisorStatus}
+              onUpdateAssignment={handleUpdateAssistedAssignment}
+              canManageAdvisors={canManageAssistProgram}
+              canManageAssignments={canManageAssistQueue}
+            />
+          ) : null}
           {activeTab === 'config' ? <ConfigPanel config={configState} patchConfig={patchConfig} onSave={saveConfig} /> : null}
           {activeTab === 'rbac' ? <RbacPanel roles={roles} session={session} /> : null}
           {activeTab === 'analytics' ? <AnalyticsPanel funnel={funnel} events={events} auditLogs={auditLogs} /> : null}
