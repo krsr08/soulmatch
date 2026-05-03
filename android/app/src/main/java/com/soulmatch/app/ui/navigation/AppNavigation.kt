@@ -49,6 +49,7 @@ import com.soulmatch.app.ui.screens.profile.SafetyCenterScreen
 import com.soulmatch.app.ui.screens.profile.HelpSupportScreen
 import com.soulmatch.app.ui.screens.profile.AstrologyServicesScreen
 import com.soulmatch.app.ui.screens.profile.ProfileDetailScreen
+import com.soulmatch.app.ui.screens.profile.SoulMatchAssistScreen
 import com.soulmatch.app.ui.screens.profile.SpotlightScreen
 import com.soulmatch.app.ui.screens.search.SearchScreen
 import com.soulmatch.app.ui.screens.settings.SettingsScreen
@@ -199,6 +200,7 @@ fun AppNavigation(
                     when (destination) {
                         ProfileDrawerRoutes.EditProfile -> nav.navigate("my_profile")
                         ProfileDrawerRoutes.PartnerPreference -> nav.navigate("my_profile")
+                        ProfileDrawerRoutes.SoulMatchAssist -> nav.navigate("soulmatch_assist")
                         ProfileDrawerRoutes.Spotlight -> nav.navigate("spotlight")
                         ProfileDrawerRoutes.AstrologyServices -> nav.navigate("astrology_services")
                         ProfileDrawerRoutes.AccountSettings -> nav.navigate("settings")
@@ -248,7 +250,8 @@ fun AppNavigation(
                 onBack = { nav.popBackStack() },
                 onSubscribe = { nav.navigate("subscription") },
                 onEditSection = { step -> nav.navigate("profile_wizard/$step?returnToProfile=true") },
-                onOpenSettings = { nav.navigate("settings") }
+                onOpenSettings = { nav.navigate("settings") },
+                onOpenAssist = { nav.navigate("soulmatch_assist") }
             )
         }
         composable("chat_list") {
@@ -317,6 +320,13 @@ fun AppNavigation(
                 onUpgrade = { nav.navigate("subscription?routeCode=33") }
             )
         }
+        composable("soulmatch_assist") {
+            SoulMatchAssistScreen(
+                onBack = { nav.popBackStack() },
+                onOpenFamilyStep = { nav.navigate("profile_wizard/4?returnToProfile=true") },
+                onOpenSubscription = { nav.navigate("subscription?routeCode=44") }
+            )
+        }
         composable("astrology_services") {
             AstrologyServicesScreen(
                 onBack = { nav.popBackStack() },
@@ -368,7 +378,7 @@ private val bottomNavItems = listOf(
     BottomNavItem(
         "profile",
         "my_profile",
-        listOf("my_profile", "settings", "profile/", "spotlight", "astrology_services", "safety_center", "help_support", "success_stories/"),
+        listOf("my_profile", "settings", "profile/", "soulmatch_assist", "spotlight", "astrology_services", "safety_center", "help_support", "success_stories/"),
         Icons.Filled.Person
     )
 )

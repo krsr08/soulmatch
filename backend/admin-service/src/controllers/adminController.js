@@ -29,8 +29,98 @@ function parseNumber(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function normalizeListInput(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value.split(',').map((item) => item.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function normalizeAdvisorStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['active', 'paused', 'suspended'].includes(normalized) ? normalized : null;
+}
+
+function normalizeAdvisorKycStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['pending', 'approved', 'rejected'].includes(normalized) ? normalized : null;
+}
+
+function normalizeAssistRequestStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['not_requested', 'waiting_assignment', 'assigned', 'paused'].includes(normalized) ? normalized : null;
+}
+
+function coerceServiceAreas(body = {}) {
+  if (Array.isArray(body.serviceAreas) && body.serviceAreas.length) {
+    return body.serviceAreas.map((area, index) => ({
+      state: area.state || body.state || null,
+      city: area.city || body.city || '',
+      locality: area.locality || null,
+      pincode: area.pincode || null,
+      radiusKm: parseNumber(area.radiusKm ?? area.radius_km, 15),
+      priority: parseNumber(area.priority, index === 0 ? 10 : 0),
+      isPrimary: index === 0 || area.isPrimary === true || area.is_primary === true
+    })).filter((area) => area.city);
+  }
+  if (!body.city) return [];
+  return [{
+    state: body.state || null,
+    city: body.city,
+    locality: body.locality || null,
+    pincode: body.pincode || null,
+    radiusKm: parseNumber(body.radiusKm ?? body.radius_km, 15),
+    priority: 10,
+    isPrimary: true
+  }];
+}
+
 function makeReferralCode() {
   return `SM${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+}
+
+async function getAssistedAssignmentRecord(db, assistedProfileId) {
+  const result = await db.query(
+    `SELECT
+       amp.assisted_profile_id,
+       amp.profile_id,
+       p.user_id,
+       amp.is_opted_in,
+       amp.support_level,
+       amp.request_status,
+       amp.assigned_at,
+       amp.next_review_at,
+       amp.family_contact_name,
+       amp.family_contact_phone,
+       amp.preferred_contact_window,
+       amp.notes,
+       p.first_name,
+       p.last_name,
+       p.religion,
+       p.caste,
+       p.mother_tongue,
+       fd.family_city,
+       fd.family_state,
+       fd.family_locality,
+       fd.family_pincode,
+       a.advisor_id,
+       a.full_name AS advisor_name,
+       a.phone AS advisor_phone,
+       a.city AS advisor_city,
+       a.state AS advisor_state,
+       a.status AS advisor_status
+     FROM assisted_match_profiles amp
+     JOIN profiles p ON p.profile_id = amp.profile_id
+     LEFT JOIN family_details fd ON fd.profile_id = p.profile_id
+     LEFT JOIN advisors a ON a.advisor_id = amp.assigned_advisor_id
+     WHERE amp.assisted_profile_id = $1
+     LIMIT 1`,
+    [assistedProfileId]
+  );
+  return result.rows[0] || null;
 }
 
 function respondServerError(res, err, message) {
@@ -452,6 +542,407 @@ exports.getProfiles = async (req, res) => {
     res.json({ success: true, data: result.rows, meta: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } });
   } catch (err) {
     respondDegraded(res, err, [], 'Profile store is unavailable. Showing an empty profile list.');
+  }
+};
+
+exports.getAdvisors = async (req, res) => {
+  try {
+    const db = await getDB();
+    const result = await db.query(
+      `SELECT
+         a.*,
+         COALESCE(active_counts.active_assignments, 0) AS active_assignments,
+         COALESCE(
+           json_agg(
+             json_build_object(
+               'advisorServiceAreaId', asa.advisor_service_area_id,
+               'city', asa.city,
+               'state', asa.state,
+               'locality', asa.locality,
+               'pincode', asa.pincode,
+               'radiusKm', asa.radius_km,
+               'priority', asa.priority,
+               'isPrimary', asa.is_primary
+             )
+             ORDER BY asa.is_primary DESC, asa.priority DESC, asa.created_at ASC
+           ) FILTER (WHERE asa.advisor_service_area_id IS NOT NULL),
+           '[]'::json
+         ) AS service_areas
+       FROM advisors a
+       LEFT JOIN advisor_service_areas asa ON asa.advisor_id = a.advisor_id
+       LEFT JOIN (
+         SELECT assigned_advisor_id, COUNT(*) AS active_assignments
+         FROM assisted_match_profiles
+         WHERE assigned_advisor_id IS NOT NULL AND request_status = 'assigned'
+         GROUP BY assigned_advisor_id
+       ) active_counts ON active_counts.assigned_advisor_id = a.advisor_id
+       GROUP BY a.advisor_id, active_counts.active_assignments
+       ORDER BY a.status = 'active' DESC, a.updated_at DESC, a.created_at DESC`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    respondDegraded(res, err, [], 'Advisor roster is unavailable right now.');
+  }
+};
+
+exports.createAdvisor = async (req, res) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    const body = req.body || {};
+    if (!body.fullName || !body.phone || !body.city) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Advisor fullName, phone, and city are required.' } });
+    }
+    const serviceAreas = coerceServiceAreas(body);
+    await client.query('BEGIN');
+    const advisor = await client.query(
+      `INSERT INTO advisors (
+         advisor_id, full_name, phone, email, service_label, bio, gender,
+         city, state, pincode, languages, communities, max_active_assignments,
+         success_rate, complaint_score, average_rating, kyc_status, status,
+         membership_plan, membership_expires_at, notes, created_at, updated_at
+       )
+       VALUES (
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14,$15,$16,$17,$18,$19,$20,$21,NOW(),NOW()
+       )
+       RETURNING *`,
+      [
+        crypto.randomUUID(),
+        body.fullName,
+        body.phone,
+        body.email || null,
+        body.serviceLabel || 'SoulMatch Advisor',
+        body.bio || null,
+        body.gender || null,
+        body.city,
+        body.state || null,
+        body.pincode || null,
+        JSON.stringify(normalizeListInput(body.languages)),
+        JSON.stringify(normalizeListInput(body.communities)),
+        Math.max(parseNumber(body.maxActiveAssignments, 25), 1),
+        parseNumber(body.successRate, 0),
+        parseNumber(body.complaintScore, 0),
+        parseNumber(body.averageRating, 0),
+        normalizeAdvisorKycStatus(body.kycStatus) || 'pending',
+        normalizeAdvisorStatus(body.status) || 'active',
+        body.membershipPlan || 'starter',
+        body.membershipExpiresAt || null,
+        body.notes || null
+      ]
+    );
+    for (const area of serviceAreas) {
+      await client.query(
+        `INSERT INTO advisor_service_areas (
+           advisor_service_area_id, advisor_id, state, city, locality, pincode, radius_km, priority, is_primary, created_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
+        [crypto.randomUUID(), advisor.rows[0].advisor_id, area.state, area.city, area.locality, area.pincode, area.radiusKm, area.priority, area.isPrimary]
+      );
+    }
+    await auditLog(client, req, 'advisor.create', 'advisor', advisor.rows[0].advisor_id, { fullName: body.fullName, phone: body.phone });
+    await client.query('COMMIT');
+    res.json({ success: true, data: advisor.rows[0] });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    respondServerError(res, err, 'Unable to create advisor right now.');
+  } finally {
+    client.release();
+  }
+};
+
+exports.updateAdvisor = async (req, res) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    const body = req.body || {};
+    const advisorId = req.params.id;
+    const serviceAreas = coerceServiceAreas(body);
+    await client.query('BEGIN');
+    const result = await client.query(
+      `UPDATE advisors
+       SET full_name = COALESCE($2, full_name),
+           phone = COALESCE($3, phone),
+           email = COALESCE($4, email),
+           service_label = COALESCE($5, service_label),
+           bio = COALESCE($6, bio),
+           gender = COALESCE($7, gender),
+           city = COALESCE($8, city),
+           state = COALESCE($9, state),
+           pincode = COALESCE($10, pincode),
+           languages = COALESCE($11::jsonb, languages),
+           communities = COALESCE($12::jsonb, communities),
+           max_active_assignments = COALESCE($13, max_active_assignments),
+           success_rate = COALESCE($14, success_rate),
+           complaint_score = COALESCE($15, complaint_score),
+           average_rating = COALESCE($16, average_rating),
+           kyc_status = COALESCE($17, kyc_status),
+           status = COALESCE($18, status),
+           membership_plan = COALESCE($19, membership_plan),
+           membership_expires_at = COALESCE($20, membership_expires_at),
+           notes = COALESCE($21, notes),
+           updated_at = NOW()
+       WHERE advisor_id = $1
+       RETURNING *`,
+      [
+        advisorId,
+        body.fullName || null,
+        body.phone || null,
+        body.email || null,
+        body.serviceLabel || null,
+        body.bio || null,
+        body.gender || null,
+        body.city || null,
+        body.state || null,
+        body.pincode || null,
+        body.languages !== undefined ? JSON.stringify(normalizeListInput(body.languages)) : null,
+        body.communities !== undefined ? JSON.stringify(normalizeListInput(body.communities)) : null,
+        body.maxActiveAssignments !== undefined ? Math.max(parseNumber(body.maxActiveAssignments, 25), 1) : null,
+        body.successRate !== undefined ? parseNumber(body.successRate, 0) : null,
+        body.complaintScore !== undefined ? parseNumber(body.complaintScore, 0) : null,
+        body.averageRating !== undefined ? parseNumber(body.averageRating, 0) : null,
+        normalizeAdvisorKycStatus(body.kycStatus),
+        normalizeAdvisorStatus(body.status),
+        body.membershipPlan || null,
+        body.membershipExpiresAt || null,
+        body.notes || null
+      ]
+    );
+    if (!result.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Advisor not found.' } });
+    }
+    if (serviceAreas.length) {
+      await client.query('DELETE FROM advisor_service_areas WHERE advisor_id = $1', [advisorId]);
+      for (const area of serviceAreas) {
+        await client.query(
+          `INSERT INTO advisor_service_areas (
+             advisor_service_area_id, advisor_id, state, city, locality, pincode, radius_km, priority, is_primary, created_at
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
+          [crypto.randomUUID(), advisorId, area.state, area.city, area.locality, area.pincode, area.radiusKm, area.priority, area.isPrimary]
+        );
+      }
+    }
+    await auditLog(client, req, 'advisor.update', 'advisor', advisorId, body);
+    await client.query('COMMIT');
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    respondServerError(res, err, 'Unable to update advisor right now.');
+  } finally {
+    client.release();
+  }
+};
+
+exports.updateAdvisorStatus = async (req, res) => {
+  try {
+    const db = await getDB();
+    const advisorId = req.params.id;
+    const status = normalizeAdvisorStatus(req.body?.status);
+    const kycStatus = normalizeAdvisorKycStatus(req.body?.kycStatus);
+    if (!status && !kycStatus) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Provide advisor status or KYC status.' } });
+    }
+    const result = await db.query(
+      `UPDATE advisors
+       SET status = COALESCE($2, status),
+           kyc_status = COALESCE($3, kyc_status),
+           updated_at = NOW()
+       WHERE advisor_id = $1
+       RETURNING *`,
+      [advisorId, status, kycStatus]
+    );
+    if (!result.rows[0]) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Advisor not found.' } });
+    await auditLog(db, req, 'advisor.status', 'advisor', advisorId, { status, kycStatus });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    respondServerError(res, err, 'Unable to update advisor status right now.');
+  }
+};
+
+exports.getAssistedAssignments = async (req, res) => {
+  try {
+    const db = await getDB();
+    const result = await db.query(
+      `SELECT
+         amp.assisted_profile_id,
+         amp.profile_id,
+         amp.is_opted_in,
+         amp.support_level,
+         amp.request_status,
+         amp.assigned_at,
+         amp.family_contact_name,
+         amp.family_contact_phone,
+         amp.notes,
+         p.first_name,
+         p.last_name,
+         p.religion,
+         p.caste,
+         p.mother_tongue,
+         fd.family_city,
+         fd.family_state,
+         fd.family_locality,
+         fd.family_pincode,
+         a.advisor_id,
+         a.full_name AS advisor_name,
+         a.phone AS advisor_phone,
+         a.city AS advisor_city,
+         a.state AS advisor_state,
+         a.status AS advisor_status
+       FROM assisted_match_profiles amp
+       JOIN profiles p ON p.profile_id = amp.profile_id
+       LEFT JOIN family_details fd ON fd.profile_id = p.profile_id
+       LEFT JOIN advisors a ON a.advisor_id = amp.assigned_advisor_id
+       WHERE amp.is_opted_in = true
+       ORDER BY
+         CASE amp.request_status
+           WHEN 'waiting_assignment' THEN 0
+           WHEN 'assigned' THEN 1
+           ELSE 2
+         END,
+         amp.updated_at DESC`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    respondDegraded(res, err, [], 'Assisted assignment queue is unavailable right now.');
+  }
+};
+
+exports.updateAssistedAssignment = async (req, res) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    const assistedProfileId = req.params.id;
+    const existing = await getAssistedAssignmentRecord(client, assistedProfileId);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Assisted assignment not found.' } });
+    }
+
+    const body = req.body || {};
+    const hasAdvisorId = Object.prototype.hasOwnProperty.call(body, 'advisorId') || Object.prototype.hasOwnProperty.call(body, 'advisor_id');
+    const requestedAdvisorId = hasAdvisorId ? String(body.advisorId || body.advisor_id || '').trim() : existing.advisor_id;
+    let nextAdvisorId = requestedAdvisorId || null;
+    const nextStatus = normalizeAssistRequestStatus(body.requestStatus || body.request_status) || existing.request_status;
+    const nextNotes = body.notes !== undefined ? String(body.notes || '').trim() || null : existing.notes;
+
+    if (!normalizeAssistRequestStatus(nextStatus)) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid assisted request status.' } });
+    }
+
+    if (['waiting_assignment', 'not_requested'].includes(nextStatus)) {
+      nextAdvisorId = null;
+    }
+
+    let advisorRecord = null;
+    if (nextAdvisorId) {
+      const advisorResult = await client.query(
+        `SELECT advisor_id, full_name, status, kyc_status
+         FROM advisors
+         WHERE advisor_id = $1
+         LIMIT 1`,
+        [nextAdvisorId]
+      );
+      advisorRecord = advisorResult.rows[0] || null;
+      if (!advisorRecord) {
+        return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Selected advisor does not exist.' } });
+      }
+      if (advisorRecord.status !== 'active' || advisorRecord.kyc_status !== 'approved') {
+        return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Advisor must be active and KYC approved before taking assisted members.' } });
+      }
+    }
+
+    if (nextStatus === 'assigned' && !nextAdvisorId) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Choose an advisor before marking the request as assigned.' } });
+    }
+
+    const assignmentChanged = String(existing.advisor_id || '') !== String(nextAdvisorId || '');
+    const statusChanged = existing.request_status !== nextStatus;
+    const assignedAt = nextAdvisorId
+      ? (assignmentChanged || !existing.assigned_at ? new Date() : existing.assigned_at)
+      : null;
+
+    await client.query('BEGIN');
+    await client.query(
+      `UPDATE assisted_match_profiles
+       SET request_status = $2,
+           assigned_advisor_id = $3,
+           assigned_at = $4,
+           notes = $5,
+           next_review_at = NOW() + INTERVAL '7 days',
+           updated_at = NOW()
+       WHERE assisted_profile_id = $1`,
+      [assistedProfileId, nextStatus, nextAdvisorId, assignedAt, nextNotes]
+    );
+
+    const eventType = assignmentChanged
+      ? (nextAdvisorId ? 'advisor_reassigned' : 'advisor_unassigned')
+      : (statusChanged ? `status_${nextStatus}` : 'assist_note_updated');
+
+    await client.query(
+      `INSERT INTO assisted_match_assignment_events (
+         assignment_event_id,
+         profile_id,
+         advisor_id,
+         event_type,
+         score,
+         metadata,
+         created_at
+       )
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,NOW())`,
+      [
+        crypto.randomUUID(),
+        existing.profile_id,
+        nextAdvisorId,
+        eventType,
+        null,
+        JSON.stringify({
+          previousStatus: existing.request_status,
+          nextStatus,
+          previousAdvisorId: existing.advisor_id || null,
+          nextAdvisorId,
+          note: nextNotes || null
+        })
+      ]
+    );
+
+    await auditLog(client, req, 'assist.assignment.update', 'assisted_match_profile', assistedProfileId, {
+      profileId: existing.profile_id,
+      nextStatus,
+      nextAdvisorId
+    });
+    await client.query('COMMIT');
+
+    const updated = await getAssistedAssignmentRecord(client, assistedProfileId);
+    if (updated?.user_id) {
+      let title = 'SoulMatch Assist updated';
+      let bodyText = 'Your assisted matchmaking request has been updated by the SoulMatch team.';
+      if (nextStatus === 'assigned' && updated.advisor_name) {
+        title = 'SoulMatch Assist advisor assigned';
+        bodyText = `${updated.advisor_name} is now helping with your matchmaking journey.`;
+      } else if (nextStatus === 'waiting_assignment') {
+        title = 'SoulMatch Assist request in queue';
+        bodyText = 'We are matching your family with the right local advisor now.';
+      } else if (nextStatus === 'paused') {
+        title = 'SoulMatch Assist paused';
+        bodyText = 'Your assisted matchmaking request is paused for review. You can still use SoulMatch directly anytime.';
+      }
+      await notifyMember(db, updated.user_id, title, bodyText, {
+        profileId: updated.profile_id,
+        assistedProfileId,
+        requestStatus: nextStatus,
+        advisorId: nextAdvisorId
+      }).catch((error) => logger.warn(`Assist notification skipped: ${error.message}`));
+    }
+    res.json({
+      success: true,
+      data: updated,
+      message: nextAdvisorId
+        ? `Assisted member is now routed to ${advisorRecord?.full_name || updated?.advisor_name || 'the selected advisor'}.`
+        : 'Assisted assignment queue updated.'
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    respondServerError(res, err, 'Unable to update the assisted assignment right now.');
+  } finally {
+    client.release();
   }
 };
 

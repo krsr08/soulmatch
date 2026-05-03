@@ -12,6 +12,8 @@ const storage = multer.diskStorage({
 const photoUpload = multer({ storage, limits: { fileSize: 5*1024*1024 }, fileFilter: (req, file, cb) => { const ok = ['image/jpeg','image/png','image/webp'].includes(file.mimetype); cb(ok?null:new Error('JPG/PNG/WebP only'), ok); } });
 router.post('/create', authenticate, ctrl.createOrUpdateStep);
 router.get('/me', authenticate, ctrl.getMyProfile);
+router.get('/assist/status', authenticate, ctrl.getAssistStatus);
+router.put('/assist/status', authenticate, ctrl.updateAssistStatus);
 router.patch('/status', authenticate, ctrl.updateProfileStatus);
 router.get('/:profileId', authenticate, ctrl.getProfile);
 router.put('/:profileId', authenticate, ctrl.updateProfile);

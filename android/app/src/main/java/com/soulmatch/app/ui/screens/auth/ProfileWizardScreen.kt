@@ -96,7 +96,7 @@ private val wizardCopy = mapOf(
         title = "Family background",
         eyebrow = "Step 4 of 6",
         subtitle = "A matrimony profile should make family context feel clear and respectful.",
-        helper = "Parent occupations, siblings, family type, and family city are required for trust."
+        helper = "Parent occupations, siblings, family type, and family city are required. Add locality and pincode to unlock stronger SoulMatch Assist routing."
     ),
     5 to WizardStepCopy(
         title = "Lifestyle and about me",
@@ -449,9 +449,12 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
     var numSisters by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.numSisters?.toString().orEmpty()) }
     var familyType by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.familyType.orEmpty()) }
     var familyCity by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.familyCity.orEmpty()) }
+    var familyState by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.familyState.orEmpty()) }
+    var familyLocality by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.familyLocality.orEmpty()) }
+    var familyPincode by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.familyPincode.orEmpty()) }
 
     val isValid = listOf(fatherOccupation, motherOccupation, numBrothers, numSisters, familyType, familyCity).all { it.isNotBlank() }
-    LaunchedEffect(fatherOccupation, motherOccupation, numBrothers, numSisters, familyType, familyCity) {
+    LaunchedEffect(fatherOccupation, motherOccupation, numBrothers, numSisters, familyType, familyCity, familyState, familyLocality, familyPincode) {
         vm.updateStep4Data(
             mapOf(
                 "fatherOccupation" to fatherOccupation,
@@ -459,7 +462,10 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
                 "numBrothers" to numBrothers.toIntOrNull().orZero(),
                 "numSisters" to numSisters.toIntOrNull().orZero(),
                 "familyType" to familyType,
-                "familyCity" to familyCity
+                "familyCity" to familyCity,
+                "familyState" to familyState,
+                "familyLocality" to familyLocality,
+                "familyPincode" to familyPincode
             )
         )
         onValidityChange(isValid)
@@ -478,6 +484,11 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
             }
             ChipRow("Family type", listOf("Nuclear", "Joint"), familyType) { familyType = it }
             RequiredTextField(familyCity, { familyCity = it }, "Family city")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                RequiredTextField(familyState, { familyState = it }, "State", Modifier.weight(1f))
+                NumberField(familyPincode, { familyPincode = it.filter(Char::isDigit).take(6) }, "Pincode", Modifier.weight(1f))
+            }
+            RequiredTextField(familyLocality, { familyLocality = it }, "Locality / area")
             SignalChip("Families can scan this section quickly", tone = ChipTone.Gold)
         }
     }

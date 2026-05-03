@@ -17,6 +17,12 @@ export const bulkCreateProfiles = profiles => api.post('/profiles/bulk', { profi
 export const updateProfile = (id, payload) => api.put('/profiles/' + id, payload);
 export const deleteProfile = id => api.delete('/profiles/' + id);
 export const updateProfileStatus = (id, action, reason = '') => api.put('/profiles/' + id + '/status', { action, reason });
+export const getAdvisors = () => api.get('/advisors');
+export const createAdvisor = payload => api.post('/advisors', payload);
+export const updateAdvisor = (id, payload) => api.put('/advisors/' + id, payload);
+export const updateAdvisorStatus = (id, payload) => api.put('/advisors/' + id + '/status', payload);
+export const getAssistedAssignments = () => api.get('/assisted-assignments');
+export const updateAssistedAssignment = (id, payload) => api.put('/assisted-assignments/' + id, payload);
 export const getVerifications = () => api.get('/verifications');
 export const approveVerification = (id, note = '') => api.put('/verifications/' + id + '/approve', { note });
 export const rejectVerification = (id, note = '') => api.put('/verifications/' + id + '/reject', { note });

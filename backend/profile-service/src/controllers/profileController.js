@@ -3,6 +3,7 @@ const media = require('../services/mediaService');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 
 const ALLOWED_VERIFICATION_TYPES = new Set(['profile', 'identity', 'photo', 'education', 'income', 'family']);
+const ALLOWED_ASSIST_SUPPORT_LEVELS = new Set(['self_service', 'family_assisted', 'advisor_assisted']);
 const isBlank = (value) => typeof value !== 'string' || !value.trim();
 const hasPositiveNumber = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
 
@@ -66,6 +67,25 @@ function normalizeProfileStatus(value) {
   return ['active', 'inactive'].includes(normalized) ? normalized : null;
 }
 
+function normalizeAssistSupportLevel(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ALLOWED_ASSIST_SUPPORT_LEVELS.has(normalized) ? normalized : null;
+}
+
+function normalizeAssistPayload(body = {}) {
+  const supportLevel = normalizeAssistSupportLevel(body.supportLevel || body.support_level || 'self_service');
+  const isOptedIn = body.isOptedIn === true || body.is_opted_in === true || body.enabled === true;
+  if (!supportLevel) return null;
+  return {
+    isOptedIn,
+    supportLevel,
+    preferredContactWindow: String(body.preferredContactWindow || body.preferred_contact_window || '').trim(),
+    familyContactName: String(body.familyContactName || body.family_contact_name || '').trim(),
+    familyContactPhone: String(body.familyContactPhone || body.family_contact_phone || '').trim(),
+    notes: String(body.notes || '').trim()
+  };
+}
+
 exports.createOrUpdateStep = async (req, res, next) => {
   try {
     const { step, ...data } = req.body;
@@ -95,6 +115,42 @@ exports.getMyProfile = async (req, res, next) => {
     const p = await repo.findFullByUserId(req.user.userId);
     if (p?.profile_id) p.completion_score = await repo.calcCompletion(p.profile_id);
     res.json({ success: true, data: p, isNewProfile: !p });
+  } catch (err) { next(err); }
+};
+exports.getAssistStatus = async (req, res, next) => {
+  try {
+    const status = await repo.getAssistStatusByUserId(req.user.userId);
+    if (!status) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
+    const recommendations = await repo.listAdvisorRecommendations(status.profileId, 3);
+    res.json({
+      success: true,
+      data: {
+        ...status,
+        recommendations
+      }
+    });
+  } catch (err) { next(err); }
+};
+exports.updateAssistStatus = async (req, res, next) => {
+  try {
+    const payload = normalizeAssistPayload(req.body);
+    if (!payload) {
+      return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Support level must be self_service, family_assisted, or advisor_assisted.'));
+    }
+    const updated = await repo.upsertAssistStatus(req.user.userId, payload);
+    if (!updated) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
+    const status = await repo.getAssistStatusByUserId(req.user.userId);
+    const recommendations = status?.profileId ? await repo.listAdvisorRecommendations(status.profileId, 3) : [];
+    res.json({
+      success: true,
+      data: {
+        ...status,
+        recommendations
+      },
+      message: payload.isOptedIn && payload.supportLevel === 'advisor_assisted'
+        ? 'SoulMatch Assist has been updated. We assigned the best-fit advisor available for your area.'
+        : 'SoulMatch Assist preferences saved.'
+    });
   } catch (err) { next(err); }
 };
 exports.getProfile = async (req, res, next) => {

@@ -1,5 +1,20 @@
 const { getDB } = require('../config/database');
 const { randomUUID } = require('crypto');
+const { scoreAdvisorCandidate, normalizeList } = require('../services/assistAllocationService');
+
+function parseJsonList(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return normalizeList(value);
+    }
+  }
+  return [];
+}
 exports.findByUserId = async (userId) => { const db = await getDB(); const r = await db.query('SELECT * FROM profiles WHERE user_id=$1 LIMIT 1', [userId]); return r.rows[0] || null; };
 exports.findById = async (profileId) => { const db = await getDB(); const r = await db.query('SELECT * FROM profiles WHERE profile_id=$1 LIMIT 1', [profileId]); return r.rows[0] || null; };
 exports.getVerificationRequests = async (userId) => {
@@ -163,13 +178,468 @@ exports.upsertBasicInfo = async (userId, data) => {
 };
 exports.upsertPhysical = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO physical_details (profile_id,height_cm,weight_kg,complexion,body_type,blood_group) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (profile_id) DO UPDATE SET height_cm=$2,weight_kg=$3,complexion=$4,body_type=$5,blood_group=$6', [p.profile_id,data.heightCm,data.weightKg,data.complexion,data.bodyType,data.bloodGroup]); return p; };
 exports.upsertEducation = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO education_career (profile_id,education_level,occupation,annual_income,working_city) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (profile_id) DO UPDATE SET education_level=$2,occupation=$3,annual_income=$4,working_city=$5', [p.profile_id,data.educationLevel,data.occupation,data.annualIncome,data.workingCity]); return p; };
-exports.upsertFamily = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO family_details (profile_id,father_occupation,mother_occupation,num_brothers,num_sisters,family_type,family_city) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (profile_id) DO UPDATE SET father_occupation=$2,mother_occupation=$3,num_brothers=$4,num_sisters=$5,family_type=$6,family_city=$7', [p.profile_id,data.fatherOccupation,data.motherOccupation,data.numBrothers||0,data.numSisters||0,data.familyType,data.familyCity]); return p; };
+exports.upsertFamily = async (userId, data) => {
+  const db = await getDB();
+  const p = await exports.findByUserId(userId);
+  await db.query(
+    `INSERT INTO family_details (
+       profile_id,
+       father_occupation,
+       mother_occupation,
+       num_brothers,
+       num_sisters,
+       family_type,
+       family_city,
+       family_state,
+       family_locality,
+       family_pincode
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+     ON CONFLICT (profile_id) DO UPDATE SET
+       father_occupation=$2,
+       mother_occupation=$3,
+       num_brothers=$4,
+       num_sisters=$5,
+       family_type=$6,
+       family_city=$7,
+       family_state=$8,
+       family_locality=$9,
+       family_pincode=$10`,
+    [
+      p.profile_id,
+      data.fatherOccupation,
+      data.motherOccupation,
+      data.numBrothers || 0,
+      data.numSisters || 0,
+      data.familyType,
+      data.familyCity,
+      data.familyState || null,
+      data.familyLocality || null,
+      data.familyPincode || null
+    ]
+  );
+  return p;
+};
 exports.upsertLifestyle = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO lifestyle_details (profile_id,diet,smoking,drinking,about_me) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (profile_id) DO UPDATE SET diet=$2,smoking=$3,drinking=$4,about_me=$5', [p.profile_id,data.diet,data.smoking||'never',data.drinking||'never',data.aboutMe]); return p; };
 exports.upsertHoroscope = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO horoscope_details (profile_id,rashi,nakshatra,is_manglik,birth_city,gotra) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (profile_id) DO UPDATE SET rashi=$2,nakshatra=$3,is_manglik=$4,birth_city=$5,gotra=$6', [p.profile_id,data.rashi,data.nakshatra,data.isManglik||false,data.birthCity,data.gotra]); return p; };
 exports.upsertPreferences = async (profileId, data) => { const db = await getDB(); await db.query('INSERT INTO partner_preferences (profile_id,age_min,age_max,religion,manglik_pref) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (profile_id) DO UPDATE SET age_min=$2,age_max=$3,religion=$4,manglik_pref=$5,updated_at=NOW()', [profileId,data.ageMin||18,data.ageMax||50,data.religion,data.manglikPref||'any']); await db.query('UPDATE profiles SET is_partner_pref_set=true,updated_at=NOW() WHERE profile_id=$1', [profileId]); };
 exports.getPreferences = async (profileId) => { const db = await getDB(); const r = await db.query('SELECT * FROM partner_preferences WHERE profile_id=$1', [profileId]); return r.rows[0] || null; };
-exports.findFullByUserId = async (userId) => { const db = await getDB(); const r = await db.query('SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,pd.height_cm,pd.weight_kg,pd.complexion,pd.body_type,pd.blood_group,ec.education_level,ec.occupation,ec.annual_income,ec.working_city,fd.father_occupation,fd.mother_occupation,fd.num_brothers,fd.num_sisters,fd.family_type,fd.family_city,ld.diet,ld.smoking,ld.drinking,ld.about_me,hd.rashi,hd.nakshatra,hd.is_manglik,hd.birth_city,hd.gotra FROM profiles p LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id LEFT JOIN education_career ec ON p.profile_id=ec.profile_id LEFT JOIN family_details fd ON p.profile_id=fd.profile_id LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id WHERE p.user_id=$1 LIMIT 1', [userId]); return r.rows[0] || null; };
-exports.findFullById = async (profileId) => { const db = await getDB(); const r = await db.query('SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,pd.height_cm,pd.weight_kg,pd.complexion,pd.body_type,pd.blood_group,ec.education_level,ec.occupation,ec.annual_income,ec.working_city,fd.father_occupation,fd.mother_occupation,fd.num_brothers,fd.num_sisters,fd.family_type,fd.family_city,ld.diet,ld.smoking,ld.drinking,ld.about_me,hd.rashi,hd.nakshatra,hd.is_manglik,hd.birth_city,hd.gotra FROM profiles p LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id LEFT JOIN education_career ec ON p.profile_id=ec.profile_id LEFT JOIN family_details fd ON p.profile_id=fd.profile_id LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id WHERE p.profile_id=$1 LIMIT 1', [profileId]); return r.rows[0] || null; };
+exports.getAssistStatusByUserId = async (userId) => {
+  const db = await getDB();
+  const r = await db.query(
+    `SELECT
+       p.profile_id,
+       p.first_name,
+       p.last_name,
+       p.religion,
+       p.caste,
+       p.mother_tongue,
+       fd.family_city,
+       fd.family_state,
+       fd.family_locality,
+       fd.family_pincode,
+       amp.is_opted_in,
+       amp.support_level,
+       amp.request_status,
+       amp.preferred_contact_window,
+       amp.family_contact_name,
+       amp.family_contact_phone,
+       amp.notes,
+       amp.assigned_at,
+       amp.next_review_at,
+       a.advisor_id,
+       a.full_name AS advisor_name,
+       a.phone AS advisor_phone,
+       a.email AS advisor_email,
+       a.service_label,
+       a.bio AS advisor_bio,
+       a.city AS advisor_city,
+       a.state AS advisor_state,
+       a.pincode AS advisor_pincode,
+       a.languages AS advisor_languages,
+       a.communities AS advisor_communities,
+       a.average_rating,
+       a.success_rate
+     FROM profiles p
+     LEFT JOIN family_details fd ON fd.profile_id = p.profile_id
+     LEFT JOIN assisted_match_profiles amp ON amp.profile_id = p.profile_id
+     LEFT JOIN advisors a ON a.advisor_id = amp.assigned_advisor_id
+     WHERE p.user_id = $1
+     LIMIT 1`,
+    [userId]
+  );
+  const row = r.rows[0];
+  if (!row) return null;
+  return {
+    profileId: row.profile_id,
+    isOptedIn: row.is_opted_in === true,
+    supportLevel: row.support_level || 'self_service',
+    requestStatus: row.request_status || 'not_requested',
+    preferredContactWindow: row.preferred_contact_window || '',
+    familyContactName: row.family_contact_name || '',
+    familyContactPhone: row.family_contact_phone || '',
+    notes: row.notes || '',
+    assignedAt: row.assigned_at || null,
+    nextReviewAt: row.next_review_at || null,
+    location: {
+      city: row.family_city || '',
+      state: row.family_state || '',
+      locality: row.family_locality || '',
+      pincode: row.family_pincode || ''
+    },
+    readiness: {
+      hasCity: Boolean(row.family_city),
+      hasPincode: Boolean(row.family_pincode),
+      canAutoAssign: Boolean(row.family_city || row.family_pincode)
+    },
+    advisor: row.advisor_id ? {
+      advisorId: row.advisor_id,
+      fullName: row.advisor_name,
+      phone: row.advisor_phone,
+      email: row.advisor_email,
+      serviceLabel: row.service_label,
+      bio: row.advisor_bio,
+      city: row.advisor_city,
+      state: row.advisor_state,
+      pincode: row.advisor_pincode,
+      languages: parseJsonList(row.advisor_languages),
+      communities: parseJsonList(row.advisor_communities),
+      averageRating: Number(row.average_rating || 0),
+      successRate: Number(row.success_rate || 0)
+    } : null
+  };
+};
+
+async function fetchAdvisorCandidates(client, profileId) {
+  const profileResult = await client.query(
+    `SELECT
+       p.profile_id,
+       p.religion,
+       p.caste,
+       p.mother_tongue,
+       fd.family_city,
+       fd.family_state,
+       fd.family_locality,
+       fd.family_pincode
+     FROM profiles p
+     LEFT JOIN family_details fd ON fd.profile_id = p.profile_id
+     WHERE p.profile_id = $1
+     LIMIT 1`,
+    [profileId]
+  );
+  const profile = profileResult.rows[0];
+  if (!profile) return { profile: null, candidates: [] };
+
+  const candidatesResult = await client.query(
+    `SELECT
+       a.advisor_id,
+       a.full_name,
+       a.phone,
+       a.email,
+       a.service_label,
+       a.bio,
+       a.city,
+       a.state,
+       a.pincode,
+       a.languages,
+       a.communities,
+       a.max_active_assignments,
+       a.success_rate,
+       a.complaint_score,
+       a.average_rating,
+       a.kyc_status,
+       a.status,
+       a.membership_expires_at,
+       asa.locality,
+       asa.priority,
+       asa.is_primary,
+       COALESCE(active_counts.active_assignments, 0) AS active_assignments
+     FROM advisors a
+     JOIN advisor_service_areas asa ON asa.advisor_id = a.advisor_id
+     LEFT JOIN (
+       SELECT assigned_advisor_id, COUNT(*) AS active_assignments
+       FROM assisted_match_profiles
+       WHERE assigned_advisor_id IS NOT NULL AND request_status = 'assigned'
+       GROUP BY assigned_advisor_id
+     ) active_counts ON active_counts.assigned_advisor_id = a.advisor_id`
+  );
+
+  const ranked = candidatesResult.rows
+    .map((candidate) => {
+      const ranking = scoreAdvisorCandidate(profile, candidate);
+      if (!ranking) return null;
+      return {
+        ...candidate,
+        languages: parseJsonList(candidate.languages),
+        communities: parseJsonList(candidate.communities),
+        score: ranking.score,
+        reasons: ranking.reasons
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => right.score - left.score);
+
+  return { profile, candidates: ranked };
+}
+
+exports.listAdvisorRecommendations = async (profileId, limit = 3) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    const { candidates } = await fetchAdvisorCandidates(client, profileId);
+    return candidates.slice(0, limit).map((candidate) => ({
+      advisorId: candidate.advisor_id,
+      fullName: candidate.full_name,
+      phone: candidate.phone,
+      email: candidate.email,
+      serviceLabel: candidate.service_label,
+      bio: candidate.bio,
+      city: candidate.city,
+      state: candidate.state,
+      pincode: candidate.pincode,
+      locality: candidate.locality || '',
+      languages: candidate.languages,
+      communities: candidate.communities,
+      averageRating: Number(candidate.average_rating || 0),
+      successRate: Number(candidate.success_rate || 0),
+      activeAssignments: Number(candidate.active_assignments || 0),
+      score: candidate.score,
+      reasons: candidate.reasons
+    }));
+  } finally {
+    client.release();
+  }
+};
+
+exports.upsertAssistStatus = async (userId, payload) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const profileResult = await client.query(
+      `SELECT
+         p.profile_id,
+         p.first_name,
+         p.last_name,
+         p.religion,
+         p.caste,
+         p.mother_tongue,
+         fd.family_city,
+         fd.family_state,
+         fd.family_locality,
+         fd.family_pincode
+       FROM profiles p
+       LEFT JOIN family_details fd ON fd.profile_id = p.profile_id
+       WHERE p.user_id = $1
+       FOR UPDATE`,
+      [userId]
+    );
+    const profile = profileResult.rows[0];
+    if (!profile) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    const isOptedIn = payload.isOptedIn === true;
+    const supportLevel = payload.supportLevel || 'self_service';
+    let requestStatus = 'not_requested';
+    let assignedAdvisorId = null;
+    let assignedAt = null;
+    let eventType = 'assist_updated';
+    let eventScore = null;
+    let eventMetadata = {
+      supportLevel,
+      isOptedIn
+    };
+
+    if (isOptedIn && supportLevel === 'advisor_assisted') {
+      const { candidates } = await fetchAdvisorCandidates(client, profile.profile_id);
+      const topCandidate = candidates[0] || null;
+      if (topCandidate) {
+        requestStatus = 'assigned';
+        assignedAdvisorId = topCandidate.advisor_id;
+        assignedAt = new Date();
+        eventType = 'advisor_assigned';
+        eventScore = topCandidate.score;
+        eventMetadata = {
+          ...eventMetadata,
+          reasons: topCandidate.reasons
+        };
+      } else {
+        requestStatus = 'waiting_assignment';
+        eventType = 'waiting_assignment';
+      }
+    } else if (isOptedIn && supportLevel === 'family_assisted') {
+      requestStatus = 'not_requested';
+      eventType = 'family_assisted_enabled';
+    }
+
+    const upserted = await client.query(
+      `INSERT INTO assisted_match_profiles (
+         assisted_profile_id,
+         profile_id,
+         is_opted_in,
+         support_level,
+         request_status,
+         preferred_contact_window,
+         family_contact_name,
+         family_contact_phone,
+         notes,
+         assigned_advisor_id,
+         assigned_at,
+         next_review_at,
+         created_at,
+         updated_at
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW() + INTERVAL '7 days',NOW(),NOW())
+       ON CONFLICT (profile_id) DO UPDATE SET
+         is_opted_in=$3,
+         support_level=$4,
+         request_status=$5,
+         preferred_contact_window=$6,
+         family_contact_name=$7,
+         family_contact_phone=$8,
+         notes=$9,
+         assigned_advisor_id=$10,
+         assigned_at=$11,
+         next_review_at=NOW() + INTERVAL '7 days',
+         updated_at=NOW()
+       RETURNING *`,
+      [
+        randomUUID(),
+        profile.profile_id,
+        isOptedIn,
+        supportLevel,
+        requestStatus,
+        payload.preferredContactWindow || null,
+        payload.familyContactName || null,
+        payload.familyContactPhone || null,
+        payload.notes || null,
+        assignedAdvisorId,
+        assignedAt
+      ]
+    );
+
+    await client.query(
+      `INSERT INTO assisted_match_assignment_events (
+         assignment_event_id,
+         profile_id,
+         advisor_id,
+         event_type,
+         score,
+         metadata,
+         created_at
+       )
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,NOW())`,
+      [
+        randomUUID(),
+        profile.profile_id,
+        assignedAdvisorId,
+        eventType,
+        eventScore,
+        JSON.stringify(eventMetadata)
+      ]
+    );
+
+    await client.query('COMMIT');
+    return upserted.rows[0];
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+exports.findFullByUserId = async (userId) => {
+  const db = await getDB();
+  const r = await db.query(
+    `SELECT
+       p.*,
+       EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
+       pd.height_cm,
+       pd.weight_kg,
+       pd.complexion,
+       pd.body_type,
+       pd.blood_group,
+       ec.education_level,
+       ec.occupation,
+       ec.annual_income,
+       ec.working_city,
+       fd.father_occupation,
+       fd.mother_occupation,
+       fd.num_brothers,
+       fd.num_sisters,
+       fd.family_type,
+       fd.family_city,
+       fd.family_state,
+       fd.family_locality,
+       fd.family_pincode,
+       ld.diet,
+       ld.smoking,
+       ld.drinking,
+       ld.about_me,
+       hd.rashi,
+       hd.nakshatra,
+       hd.is_manglik,
+       hd.birth_city,
+       hd.gotra
+     FROM profiles p
+     LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id
+     LEFT JOIN education_career ec ON p.profile_id=ec.profile_id
+     LEFT JOIN family_details fd ON p.profile_id=fd.profile_id
+     LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id
+     LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id
+     WHERE p.user_id=$1
+     LIMIT 1`,
+    [userId]
+  );
+  return r.rows[0] || null;
+};
+exports.findFullById = async (profileId) => {
+  const db = await getDB();
+  const r = await db.query(
+    `SELECT
+       p.*,
+       EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
+       pd.height_cm,
+       pd.weight_kg,
+       pd.complexion,
+       pd.body_type,
+       pd.blood_group,
+       ec.education_level,
+       ec.occupation,
+       ec.annual_income,
+       ec.working_city,
+       fd.father_occupation,
+       fd.mother_occupation,
+       fd.num_brothers,
+       fd.num_sisters,
+       fd.family_type,
+       fd.family_city,
+       fd.family_state,
+       fd.family_locality,
+       fd.family_pincode,
+       ld.diet,
+       ld.smoking,
+       ld.drinking,
+       ld.about_me,
+       hd.rashi,
+       hd.nakshatra,
+       hd.is_manglik,
+       hd.birth_city,
+       hd.gotra
+     FROM profiles p
+     LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id
+     LEFT JOIN education_career ec ON p.profile_id=ec.profile_id
+     LEFT JOIN family_details fd ON p.profile_id=fd.profile_id
+     LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id
+     LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id
+     WHERE p.profile_id=$1
+     LIMIT 1`,
+    [profileId]
+  );
+  return r.rows[0] || null;
+};
 exports.update = async (profileId, data) => {
   const db = await getDB();
   const profileCreatedBy = data.profileCreatedBy || data.profile_created_by ? normalizeProfileCreatedBy(data.profileCreatedBy || data.profile_created_by) : null;
