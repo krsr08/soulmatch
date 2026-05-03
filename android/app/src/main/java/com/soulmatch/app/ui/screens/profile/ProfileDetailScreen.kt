@@ -109,6 +109,7 @@ fun ProfileDetailScreen(
     val interestSent by vm.interestSent.collectAsStateWithLifecycle()
     val shortlisted by vm.shortlisted.collectAsStateWithLifecycle()
     val canChat by vm.canChat.collectAsStateWithLifecycle()
+    val photoActionStatus by vm.status.collectAsStateWithLifecycle()
     val openChat: (String, String) -> Unit = onOpenChat ?: { _, _ -> }
     val openSubscription: (() -> Unit)? = onSubscribe
     val context = LocalContext.current
@@ -118,6 +119,12 @@ fun ProfileDetailScreen(
 
     LaunchedEffect(profileId) {
         vm.load(profileId)
+    }
+    LaunchedEffect(photoActionStatus) {
+        if (!photoActionStatus.isNullOrBlank()) {
+            actionNotice = photoActionStatus
+            vm.clearStatus()
+        }
     }
 
     Scaffold(
@@ -191,7 +198,8 @@ fun ProfileDetailScreen(
                         item {
                             ProfileHero(
                                 profile = data,
-                                compatibilityScore = compatibility.overallScore
+                                compatibilityScore = compatibility.overallScore,
+                                onRequestPhoto = { vm.requestPhotoAccess() }
                             )
                         }
                         item {
@@ -321,7 +329,11 @@ fun ProfileDetailScreen(
 }
 
 @Composable
-private fun ProfileHero(profile: ProfileData, compatibilityScore: Int) {
+private fun ProfileHero(profile: ProfileData, compatibilityScore: Int, onRequestPhoto: () -> Unit) {
+    val isPhotoBlocked = profile.primaryPhotoUrl.isNullOrBlank() &&
+        !profile.canViewPhoto &&
+        !profile.photoPrivacy.equals("all", ignoreCase = true)
+    val requestPending = profile.photoAccessStatus.equals("pending", ignoreCase = true)
     PremiumCard(
         modifier = Modifier.padding(16.dp),
         contentPadding = PaddingValues(0.dp)
@@ -345,6 +357,34 @@ private fun ProfileHero(profile: ProfileData, compatibilityScore: Int) {
                         )
                     )
             )
+            if (isPhotoBlocked) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(horizontal = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = Color.White.copy(alpha = 0.92f),
+                        border = BorderStroke(1.dp, Divider.copy(alpha = 0.8f))
+                    ) {
+                        Text(
+                            "Photo is private",
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = PrimaryDark,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Button(onClick = onRequestPhoto, enabled = !requestPending) {
+                        Icon(Icons.Filled.VisibilityOff, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.size(6.dp))
+                        Text(if (requestPending) "Request sent" else "Request photo")
+                    }
+                }
+            }
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -357,7 +397,11 @@ private fun ProfileHero(profile: ProfileData, compatibilityScore: Int) {
                         "Created by ${titleCase(profile.profileCreatedBy)}",
                         if (profile.profileStatus.equals("inactive", ignoreCase = true)) "Inactive" else "Active",
                         if (profile.completionScore >= 80) "Complete profile" else "Profile in progress",
-                        if (profile.photoPrivacy == "matches_only") "Selective photo privacy" else "Photo visible"
+                        when {
+                            isPhotoBlocked -> "Photo approval required"
+                            profile.photoPrivacy == "matches_only" -> "Selective photo privacy"
+                            else -> "Photo visible"
+                        }
                     ),
                     tone = ChipTone.Success
                 )

@@ -62,6 +62,7 @@ import coil.compose.AsyncImage
 import com.soulmatch.app.R
 import com.soulmatch.app.data.models.PartnerPreferencesData
 import com.soulmatch.app.data.models.AssistStatusData
+import com.soulmatch.app.data.models.PhotoAccessRequestData
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.ProfilePhoto
 import com.soulmatch.app.data.models.SubscriptionData
@@ -125,6 +126,7 @@ fun MyProfileScreen(
     val viewers by vm.viewers.collectAsStateWithLifecycle()
     val photos by vm.photos.collectAsStateWithLifecycle()
     val verifications by vm.verifications.collectAsStateWithLifecycle()
+    val photoAccessRequests by vm.photoAccessRequests.collectAsStateWithLifecycle()
     val loading by vm.isLoading.collectAsStateWithLifecycle()
     val uploadingPhotos by vm.isUploadingPhotos.collectAsStateWithLifecycle()
     val submittingVerification by vm.isSubmittingVerification.collectAsStateWithLifecycle()
@@ -239,6 +241,13 @@ fun MyProfileScreen(
                                 },
                                 onDelete = vm::deletePhoto,
                                 onSetPrimary = vm::setPrimaryPhoto
+                            )
+                        }
+                        item {
+                            PhotoAccessRequestsCard(
+                                requests = photoAccessRequests,
+                                onApprove = { requestId -> vm.respondPhotoAccessRequest(requestId, approved = true) },
+                                onDecline = { requestId -> vm.respondPhotoAccessRequest(requestId, approved = false) }
                             )
                         }
                         item {
@@ -626,6 +635,101 @@ private fun PhotoGalleryCard(
 }
 
 @Composable
+private fun PhotoAccessRequestsCard(
+    requests: List<PhotoAccessRequestData>,
+    onApprove: (String) -> Unit,
+    onDecline: (String) -> Unit
+) {
+    val pending = requests.filter { it.status.equals("pending", ignoreCase = true) }
+    val recent = requests.filterNot { it.status.equals("pending", ignoreCase = true) }.take(3)
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surface) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SectionTitle(
+                title = "Photo access requests",
+                subtitle = if (pending.isEmpty()) "Members who request your private photo will appear here." else "${pending.size} member(s) waiting for your approval"
+            )
+            if (pending.isEmpty() && recent.isEmpty()) {
+                Surface(shape = RoundedCornerShape(16.dp), color = SurfaceSoft, border = BorderStroke(1.dp, Divider)) {
+                    Text(
+                        "No photo access requests yet.",
+                        modifier = Modifier.padding(14.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                }
+            }
+            pending.forEach { request ->
+                PhotoAccessRequestRow(
+                    request = request,
+                    showActions = true,
+                    onApprove = { onApprove(request.requestId) },
+                    onDecline = { onDecline(request.requestId) }
+                )
+            }
+            recent.forEach { request ->
+                PhotoAccessRequestRow(
+                    request = request,
+                    showActions = false,
+                    onApprove = {},
+                    onDecline = {}
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhotoAccessRequestRow(
+    request: PhotoAccessRequestData,
+    showActions: Boolean,
+    onApprove: () -> Unit,
+    onDecline: () -> Unit
+) {
+    Surface(shape = RoundedCornerShape(16.dp), color = if (showActions) SurfaceWarm else SurfaceSoft, border = BorderStroke(1.dp, Divider)) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                MemberPhoto(
+                    photoUrl = request.primaryPhotoUrl,
+                    contentDescription = request.fullName(),
+                    modifier = Modifier.size(52.dp),
+                    shape = RoundedCornerShape(14.dp)
+                )
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(request.fullName(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text(
+                        listOf(request.occupation, request.workingCity).filter { it.isNotBlank() }.joinToString(" | ").ifBlank { "Requested your photo" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                    Text(
+                        "Status: ${titleCase(request.status)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (request.status.equals("approved", ignoreCase = true)) Success else TextSecondary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            if (!request.message.isNullOrBlank()) {
+                Text(request.message ?: "", style = MaterialTheme.typography.bodySmall, color = PrimaryDark)
+            }
+            if (showActions) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = onDecline, modifier = Modifier.weight(1f)) {
+                        Text("Decline")
+                    }
+                    Button(onClick = onApprove, modifier = Modifier.weight(1f)) {
+                        Text("Allow photo")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun LocalPhotoTile(uri: Uri, onDelete: (Uri) -> Unit) {
     PremiumCard(
         modifier = Modifier.size(width = 160.dp, height = 292.dp),
@@ -706,42 +810,68 @@ private fun PartnerPreferencesCard(
     var ageMax by remember(preferences.ageMax) { mutableIntStateOf(preferences.ageMax) }
     var religion by remember(preferences.religion) { mutableStateOf(preferences.religion.orEmpty()) }
     var manglikPref by remember(preferences.manglikPref) { mutableStateOf(preferences.manglikPref) }
+    var selectedTab by remember { mutableStateOf("Basics") }
 
     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionTitle("Partner preferences", "These sync with Smart Search and home ranking")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = ageMin.toString(),
-                    onValueChange = { ageMin = it.toIntOrNull() ?: ageMin },
-                    label = { Text("Age min") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = ageMax.toString(),
-                    onValueChange = { ageMax = it.toIntOrNull() ?: ageMax },
-                    label = { Text("Age max") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true
-                )
-            }
-            OutlinedTextField(
-                value = religion,
-                onValueChange = { religion = it },
-                label = { Text("Preferred religion") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("any", "yes", "no").forEach { option ->
+            SectionTitle("Partner preferences", "Clearly define the age, community, and horoscope signals used by Smart Search")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf("Basics", "Community", "Horoscope").forEach { tab ->
                     FilterChoiceChip(
-                        label = "Manglik ${titleCase(option)}",
-                        selected = manglikPref.equals(option, ignoreCase = true),
-                        onClick = { manglikPref = option }
+                        label = tab,
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab }
                     )
                 }
             }
+            when (selectedTab) {
+                "Basics" -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = ageMin.toString(),
+                            onValueChange = { ageMin = it.toIntOrNull() ?: ageMin },
+                            label = { Text("Age min") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = ageMax.toString(),
+                            onValueChange = { ageMax = it.toIntOrNull() ?: ageMax },
+                            label = { Text("Age max") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
+                    Text("SoulMatch ranks profiles inside this age range higher.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                }
+                "Community" -> {
+                    OutlinedTextField(
+                        value = religion,
+                        onValueChange = { religion = it },
+                        label = { Text("Preferred religion") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Text("Leave blank if you want matches from every religion or community.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                }
+                else -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("any", "yes", "no").forEach { option ->
+                            FilterChoiceChip(
+                                label = "Manglik ${titleCase(option)}",
+                                selected = manglikPref.equals(option, ignoreCase = true),
+                                onClick = { manglikPref = option }
+                            )
+                        }
+                    }
+                    Text("Use Any when horoscope is flexible for your family.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MetricPill("Age", "$ageMin-$ageMax", modifier = Modifier.weight(1f), background = SurfaceSoft)
+                MetricPill("Religion", religion.ifBlank { "Any" }, modifier = Modifier.weight(1f), background = SurfaceSoft)
+            }
+            MetricPill("Manglik", titleCase(manglikPref), modifier = Modifier.fillMaxWidth(), background = SurfaceSoft)
             Button(onClick = { onSave(ageMin, ageMax, religion, manglikPref) }, modifier = Modifier.fillMaxWidth()) {
                 Text("Save preferences")
             }
@@ -875,6 +1005,7 @@ private fun photoPrivacyLabel(value: String): String {
     return when (value.lowercase(Locale.US)) {
         "all" -> "Public"
         "matches_only" -> "Accepted matches only"
+        "request_only" -> "Approval required"
         "private" -> "Private"
         else -> titleCase(value.replace('_', ' '))
     }

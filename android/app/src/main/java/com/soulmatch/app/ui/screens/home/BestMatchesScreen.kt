@@ -41,7 +41,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.soulmatch.app.data.mock.MarketFixtures
 import com.soulmatch.app.data.models.ProfileSummary
 import com.soulmatch.app.ui.components.PremiumCard
 import com.soulmatch.app.ui.components.PremiumScreen
@@ -70,9 +69,10 @@ fun BestMatchesScreen(
     vm: DashboardViewModel = hiltViewModel()
 ) {
     val matches by vm.matches.collectAsStateWithLifecycle()
+    val myProfile by vm.myProfile.collectAsStateWithLifecycle()
     val loading by vm.isLoading.collectAsStateWithLifecycle()
     var filter by remember { mutableStateOf(BestMatchFilter.All) }
-    val currentCity = MarketFixtures.myProfile.workingCity
+    val currentCity = myProfile.workingCity.ifBlank { myProfile.familyCity }
     val rankedMatches = remember(matches, filter, currentCity) {
         matches
             .asSequence()

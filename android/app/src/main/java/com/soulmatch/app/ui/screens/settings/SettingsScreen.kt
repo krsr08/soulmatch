@@ -174,8 +174,8 @@ private fun PrivacyControlsCard(settings: SettingsUiState, vm: SettingsViewModel
             )
             SettingToggle(
                 icon = Icons.Filled.Lock,
-                title = "Who can see your photos?",
-                description = if (settings.photoPrivacyEnabled) "Only accepted matches can see photos" else "Everyone can see photos",
+                title = "Require approval for photos",
+                description = if (settings.photoPrivacyEnabled) "Members see Request photo until you approve access" else "Everyone can see photos",
                 checked = settings.photoPrivacyEnabled,
                 onCheckedChange = { vm.setPrivacy(photoPrivate = it, visible = settings.profileVisible) }
             )
@@ -212,7 +212,7 @@ private fun ContactAndVisibilityCard(settings: SettingsUiState, vm: SettingsView
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 StateTile(
                     label = "Photo privacy",
-                    value = if (settings.photoPrivacyEnabled) "Matches" else "Everyone",
+                    value = if (settings.photoPrivacyEnabled) "Approval" else "Everyone",
                     modifier = Modifier.weight(1f),
                     success = settings.photoPrivacyEnabled
                 )

@@ -29,6 +29,9 @@ interface ProfileApiService {
     @PUT("profile/{profileId}/preferences") suspend fun updatePreferences(@Path("profileId") id: String, @Body req: PartnerPreferencesData): Response<GenericResponse<Any>>
     @PUT("profile/{profileId}/privacy") suspend fun updatePrivacy(@Path("profileId") id: String, @Body req: PrivacySettingsRequest): Response<GenericResponse<Any>>
     @PATCH("profile/status") suspend fun updateProfileStatus(@Body req: ProfileStatusRequest): Response<GenericResponse<Any>>
+    @POST("profile/{profileId}/photo-access/request") suspend fun requestPhotoAccess(@Path("profileId") id: String, @Body req: PhotoAccessRequestBody = PhotoAccessRequestBody()): Response<GenericResponse<PhotoAccessResponseData>>
+    @GET("profile/photo-access/requests") suspend fun getPhotoAccessRequests(): Response<GenericResponse<List<PhotoAccessRequestData>>>
+    @PUT("profile/photo-access/requests/{requestId}") suspend fun respondPhotoAccessRequest(@Path("requestId") id: String, @Body req: PhotoAccessActionRequest): Response<GenericResponse<PhotoAccessResponseData>>
     @GET("profile/{profileId}/verifications") suspend fun getVerifications(@Path("profileId") id: String): Response<GenericResponse<List<VerificationRequestData>>>
     @POST("profile/{profileId}/verifications") suspend fun submitVerification(@Path("profileId") id: String, @Body req: VerificationSubmitRequest): Response<GenericResponse<VerificationRequestData>>
     @GET("profile/{profileId}/viewers") suspend fun getViewers(@Path("profileId") id: String): Response<GenericResponse<List<ViewerData>>>

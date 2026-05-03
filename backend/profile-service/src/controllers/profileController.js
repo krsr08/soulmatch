@@ -7,6 +7,22 @@ const ALLOWED_ASSIST_SUPPORT_LEVELS = new Set(['self_service', 'family_assisted'
 const isBlank = (value) => typeof value !== 'string' || !value.trim();
 const hasPositiveNumber = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
 
+function auditMeta(req) {
+  return {
+    source: req.get('x-client-source') || 'member_app',
+    ipAddress: req.ip || req.socket?.remoteAddress || null,
+    userAgent: req.get('user-agent') || null
+  };
+}
+
+async function auditUserChange(req, options) {
+  await repo.recordUserChange({
+    userId: req.user?.userId,
+    ...auditMeta(req),
+    ...options
+  });
+}
+
 async function requireOwnedProfile(profileId, userId) {
   const profile = await repo.findById(profileId);
   if (!profile) throw new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found');
@@ -95,6 +111,7 @@ exports.createOrUpdateStep = async (req, res, next) => {
     if (!profile && normalizedStep !== 1) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Complete Step 1 first'));
     const validationError = validateStepData(normalizedStep, data);
     if (validationError) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, validationError));
+    const before = profile?.profile_id ? await repo.findFullById(profile.profile_id) : null;
     let result;
     switch (normalizedStep) {
       case 1: result = await repo.upsertBasicInfo(userId, data); break;
@@ -107,6 +124,15 @@ exports.createOrUpdateStep = async (req, res, next) => {
     }
     const score = await repo.calcCompletion(result.profile_id);
     if (normalizedStep === 6 || score >= 60) await repo.setPublished(result.profile_id, true);
+    const after = await repo.findFullById(result.profile_id);
+    await auditUserChange(req, {
+      profileId: result.profile_id,
+      entityType: 'profile',
+      entityId: result.profile_id,
+      action: `profile.step_${normalizedStep}.save`,
+      beforeData: before || {},
+      afterData: after || {}
+    });
     res.json({ success: true, data: { profileId: result.profile_id, completionScore: score, step: normalizedStep } });
   } catch (err) { next(err); }
 };
@@ -137,10 +163,19 @@ exports.updateAssistStatus = async (req, res, next) => {
     if (!payload) {
       return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Support level must be self_service, family_assisted, or advisor_assisted.'));
     }
+    const before = await repo.getAssistStatusByUserId(req.user.userId);
     const updated = await repo.upsertAssistStatus(req.user.userId, payload);
     if (!updated) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
     const status = await repo.getAssistStatusByUserId(req.user.userId);
     const recommendations = status?.profileId ? await repo.listAdvisorRecommendations(status.profileId, 3) : [];
+    await auditUserChange(req, {
+      profileId: status?.profileId,
+      entityType: 'assist_settings',
+      entityId: status?.profileId,
+      action: 'assist_settings.update',
+      beforeData: before || {},
+      afterData: status || {}
+    });
     res.json({
       success: true,
       data: {
@@ -164,10 +199,16 @@ exports.getProfile = async (req, res, next) => {
     const p = await repo.findFullById(req.params.profileId);
     if (!p) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
     if (!access.owner) {
-      const canSeePrivatePhoto = p.photo_privacy === 'all' || (p.photo_privacy === 'matches_only' && await repo.hasAcceptedInterestWithViewer(p.profile_id, req.user.userId));
-      if (!canSeePrivatePhoto) {
+      const photoState = await repo.getPhotoAccessState(p.profile_id, req.user.userId);
+      p.can_view_photo = photoState.canViewPhoto;
+      p.photo_access_status = photoState.photoAccessStatus;
+      p.photo_access_request_id = photoState.photoAccessRequestId || null;
+      if (!photoState.canViewPhoto) {
         p.primary_photo_url = null;
       }
+    } else {
+      p.can_view_photo = true;
+      p.photo_access_status = 'owner';
     }
     p.completion_score = await repo.calcCompletion(p.profile_id);
     repo.recordView(req.params.profileId, req.user.userId).catch(() => {});
@@ -177,7 +218,17 @@ exports.getProfile = async (req, res, next) => {
 exports.updateProfile = async (req, res, next) => {
   try {
     await requireOwnedProfile(req.params.profileId, req.user.userId);
+    const before = await repo.findFullById(req.params.profileId);
     await repo.update(req.params.profileId, req.body);
+    const after = await repo.findFullById(req.params.profileId);
+    await auditUserChange(req, {
+      profileId: req.params.profileId,
+      entityType: 'profile',
+      entityId: req.params.profileId,
+      action: 'profile.update',
+      beforeData: before || {},
+      afterData: after || {}
+    });
     res.json({ success: true });
   } catch (err) { next(err); }
 };
@@ -191,22 +242,52 @@ exports.uploadPhotos = async (req, res, next) => {
   try {
     await requireOwnedProfile(req.params.profileId, req.user.userId);
     if (!req.files || !req.files.length) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'No photos uploaded'));
+    const before = await repo.getPhotos(req.params.profileId);
     const urls = await media.savePhotos(req.files, req.params.profileId);
+    const after = await repo.getPhotos(req.params.profileId);
+    await auditUserChange(req, {
+      profileId: req.params.profileId,
+      entityType: 'profile_photos',
+      entityId: req.params.profileId,
+      action: 'profile_photos.upload',
+      beforeData: { photos: before },
+      afterData: { photos: after, uploadedUrls: urls }
+    });
     res.json({ success: true, data: { photoUrls: urls } });
   } catch (err) { next(err); }
 };
 exports.deletePhoto = async (req, res, next) => {
   try {
     await requireOwnedProfile(req.params.profileId, req.user.userId);
+    const before = await repo.getPhotos(req.params.profileId);
     await repo.deletePhoto(req.params.profileId, req.params.photoId);
+    const after = await repo.getPhotos(req.params.profileId);
+    await auditUserChange(req, {
+      profileId: req.params.profileId,
+      entityType: 'profile_photos',
+      entityId: req.params.photoId,
+      action: 'profile_photos.delete',
+      beforeData: { photos: before },
+      afterData: { photos: after }
+    });
     res.json({ success: true });
   } catch (err) { next(err); }
 };
 exports.setPrimaryPhoto = async (req, res, next) => {
   try {
     await requireOwnedProfile(req.params.profileId, req.user.userId);
+    const before = await repo.getPhotos(req.params.profileId);
     const updated = await repo.setPrimaryPhoto(req.params.profileId, req.params.photoId);
     if (!updated) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Photo not found'));
+    const after = await repo.getPhotos(req.params.profileId);
+    await auditUserChange(req, {
+      profileId: req.params.profileId,
+      entityType: 'profile_photos',
+      entityId: req.params.photoId,
+      action: 'profile_photos.set_primary',
+      beforeData: { photos: before },
+      afterData: { photos: after }
+    });
     res.json({ success: true });
   } catch (err) { next(err); }
 };
@@ -219,7 +300,17 @@ exports.getPreferences = async (req, res, next) => {
 exports.updatePreferences = async (req, res, next) => {
   try {
     await requireOwnedProfile(req.params.profileId, req.user.userId);
+    const before = await repo.getPreferences(req.params.profileId);
     await repo.upsertPreferences(req.params.profileId, req.body);
+    const after = await repo.getPreferences(req.params.profileId);
+    await auditUserChange(req, {
+      profileId: req.params.profileId,
+      entityType: 'partner_preferences',
+      entityId: req.params.profileId,
+      action: 'partner_preferences.update',
+      beforeData: before || {},
+      afterData: after || {}
+    });
     res.json({ success: true });
   } catch (err) { next(err); }
 };
@@ -233,7 +324,17 @@ exports.getCompletion = async (req, res, next) => {
 exports.updatePrivacy = async (req, res, next) => {
   try {
     await requireOwnedProfile(req.params.profileId, req.user.userId);
+    const before = await repo.findById(req.params.profileId);
     await repo.updatePrivacy(req.params.profileId, req.body);
+    const after = await repo.findById(req.params.profileId);
+    await auditUserChange(req, {
+      profileId: req.params.profileId,
+      entityType: 'privacy_settings',
+      entityId: req.params.profileId,
+      action: 'privacy_settings.update',
+      beforeData: before || {},
+      afterData: after || {}
+    });
     res.json({ success: true });
   } catch (err) { next(err); }
 };
@@ -243,8 +344,20 @@ exports.updateProfileStatus = async (req, res, next) => {
     if (!status) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Profile status must be active or inactive.'));
     const profile = await repo.findByUserId(req.user.userId);
     if (!profile) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
+    const before = { profileStatus: profile.profile_status, profileVisibility: profile.profile_visibility };
     const updated = await repo.updateProfileStatus(profile.profile_id, status);
     if (!updated) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Profile status could not be updated.'));
+    await auditUserChange(req, {
+      profileId: profile.profile_id,
+      entityType: 'profile_status',
+      entityId: profile.profile_id,
+      action: 'profile_status.update',
+      beforeData: before,
+      afterData: {
+        profileStatus: updated.profile_status,
+        profileVisibility: updated.profile_visibility
+      }
+    });
     res.json({
       success: true,
       data: {
@@ -252,6 +365,78 @@ exports.updateProfileStatus = async (req, res, next) => {
         profileStatus: updated.profile_status,
         profileVisibility: updated.profile_visibility
       }
+    });
+  } catch (err) { next(err); }
+};
+exports.requestPhotoAccess = async (req, res, next) => {
+  try {
+    const access = await repo.canViewProfile(req.params.profileId, req.user.userId);
+    if (!access.allowed) {
+      const status = access.reason === 'not_found' ? 404 : 403;
+      const code = access.reason === 'not_found' ? ErrorCodes.NOT_FOUND : ErrorCodes.FORBIDDEN;
+      return next(new AppError(status, code, access.reason === 'not_found' ? 'Profile not found' : 'This profile is not available to you.'));
+    }
+    if (access.owner) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'You already own this profile photo.'));
+    const photoState = await repo.getPhotoAccessState(req.params.profileId, req.user.userId);
+    if (photoState.canViewPhoto) {
+      return res.json({
+        success: true,
+        data: photoState,
+        message: 'You can already view this profile photo.'
+      });
+    }
+    const result = await repo.requestPhotoAccess(req.params.profileId, req.user.userId, req.body?.message);
+    if (result.status === 'not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
+    if (result.status === 'own_profile') return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'You already own this profile photo.'));
+    await auditUserChange(req, {
+      profileId: result.requesterProfile?.profile_id,
+      entityType: 'photo_access_request',
+      entityId: result.request?.photo_access_request_id,
+      action: 'photo_access.request',
+      beforeData: {},
+      afterData: result.request || {}
+    });
+    res.json({
+      success: true,
+      data: {
+        requestId: result.request?.photo_access_request_id,
+        status: result.request?.status || result.status
+      },
+      message: result.request?.status === 'pending'
+        ? 'Photo access request sent.'
+        : 'Photo access request already exists.'
+    });
+  } catch (err) { next(err); }
+};
+exports.getPhotoAccessRequests = async (req, res, next) => {
+  try {
+    const requests = await repo.getPhotoAccessRequestsForOwner(req.user.userId);
+    res.json({ success: true, data: requests });
+  } catch (err) { next(err); }
+};
+exports.respondPhotoAccessRequest = async (req, res, next) => {
+  try {
+    const status = String(req.body?.status || '').trim().toLowerCase();
+    if (!['approved', 'declined'].includes(status)) {
+      return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Photo access status must be approved or declined.'));
+    }
+    const result = await repo.respondPhotoAccessRequest(req.params.requestId, req.user.userId, status);
+    if (!result) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Photo access request not found.'));
+    await auditUserChange(req, {
+      profileId: result.after.target_profile_id,
+      entityType: 'photo_access_request',
+      entityId: result.after.photo_access_request_id,
+      action: `photo_access.${status}`,
+      beforeData: result.before || {},
+      afterData: result.after || {}
+    });
+    res.json({
+      success: true,
+      data: {
+        requestId: result.after.photo_access_request_id,
+        status: result.after.status
+      },
+      message: status === 'approved' ? 'Photo access approved.' : 'Photo access declined.'
     });
   } catch (err) { next(err); }
 };

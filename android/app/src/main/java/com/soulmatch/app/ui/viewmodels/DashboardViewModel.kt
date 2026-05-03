@@ -6,6 +6,7 @@ import com.soulmatch.app.data.api.InterestApiService
 import com.soulmatch.app.data.api.MatchingApiService
 import com.soulmatch.app.data.api.ProfileApiService
 import com.soulmatch.app.data.config.AppEnvironment
+import com.soulmatch.app.data.local.UserPreferences
 import com.soulmatch.app.data.local.ProfileInteractionStore
 import com.soulmatch.app.data.mock.MarketFixtures
 import com.soulmatch.app.data.models.InterestRequest
@@ -18,6 +19,7 @@ import com.soulmatch.app.data.realtime.InterestSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,11 +31,12 @@ class DashboardViewModel @Inject constructor(
     private val matchingApi: MatchingApiService,
     private val interestApi: InterestApiService,
     private val profileApi: ProfileApiService,
-    private val interestSyncManager: InterestSyncManager
+    private val interestSyncManager: InterestSyncManager,
+    private val prefs: UserPreferences
 ) : ViewModel() {
     private val _matches = MutableStateFlow<List<ProfileSummary>>(emptyList())
     private val _pendingInvitations = MutableStateFlow<List<InterestListItem>>(emptyList())
-    private val _myProfile = MutableStateFlow(if (AppEnvironment.allowDemoFallback) MarketFixtures.myProfile else ProfileData())
+    private val _myProfile = MutableStateFlow(ProfileData())
     private val _isLoading = MutableStateFlow(false)
     private val _headline = MutableStateFlow("New matches are ready")
     private var loadedMatches: List<ProfileSummary> = emptyList()
@@ -60,14 +63,18 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    private suspend fun canUseDemoFallback(): Boolean =
+        AppEnvironment.allowDemoFallback && prefs.authToken.first().isNullOrBlank()
+
     fun loadProfile() {
         viewModelScope.launch {
+            val canUseFallback = canUseDemoFallback()
             val response = runCatching { profileApi.getMyProfile() }.getOrNull()
             val profile = response
                 ?.body()
                 ?.takeIf { response.isSuccessful && it.success }
                 ?.data
-            _myProfile.value = profile ?: if (AppEnvironment.allowDemoFallback) MarketFixtures.myProfile else ProfileData()
+            _myProfile.value = profile ?: if (canUseFallback) MarketFixtures.myProfile else ProfileData()
         }
     }
 
@@ -75,13 +82,14 @@ class DashboardViewModel @Inject constructor(
         if (_isLoading.value) return
         viewModelScope.launch {
             _isLoading.value = true
+            val canUseFallback = canUseDemoFallback()
             val remoteResponse = runCatching { matchingApi.getRecommended(page = 1, limit = 25) }.getOrNull()
             val remoteBody = remoteResponse?.body()
             val baseMatches = if (remoteResponse?.isSuccessful == true && remoteBody?.success == true) {
                 remoteBody.data?.matches.orEmpty()
             } else {
                 emptyList()
-            }.ifEmpty { if (AppEnvironment.allowDemoFallback) MarketFixtures.matches else emptyList() }
+            }.ifEmpty { if (canUseFallback) MarketFixtures.matches else emptyList() }
             loadedMatches = applyInteractionState(baseMatches)
             _matches.value = loadedMatches.applyLocalInteractionState().filterVisibleProfiles()
             _headline.value = when {
@@ -95,6 +103,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     private suspend fun loadPendingInvitations() {
+        val canUseFallback = canUseDemoFallback()
         val remoteResponse = runCatching { interestApi.getReceived() }.getOrNull()
         val remoteItems = remoteResponse
             ?.body()
@@ -102,7 +111,7 @@ class DashboardViewModel @Inject constructor(
             ?.data
             .orEmpty()
         _pendingInvitations.value = remoteItems
-            .ifEmpty { if (AppEnvironment.allowDemoFallback) MarketFixtures.receivedInterests else emptyList() }
+            .ifEmpty { if (canUseFallback) MarketFixtures.receivedInterests else emptyList() }
             .filter { it.status.equals("pending", ignoreCase = true) }
     }
 
