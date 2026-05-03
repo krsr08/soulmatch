@@ -512,6 +512,7 @@ CREATE INDEX IF NOT EXISTS idx_saved_searches_user ON saved_searches(user_id);
 CREATE INDEX IF NOT EXISTS idx_interests_sender ON interests(sender_id);
 CREATE INDEX IF NOT EXISTS idx_interests_receiver ON interests(receiver_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_subscriptions_one_active_per_user ON subscriptions(user_id) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_transactions_user_status_created ON transactions(user_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_payment_orders_user_status ON payment_orders(user_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_payment_orders_provider ON payment_orders(provider_order_id);

@@ -6,6 +6,8 @@ const logger = require('../utils/logger');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const { getConfigSection, getPlanById, recordAnalyticsEvent } = require('../../shared/controlPlane');
 
+const RENEWAL_WINDOW_DAYS = 7;
+
 const MARK_PAYMENT_ORDER_PAID_SQL = `UPDATE payment_orders
        SET status='paid',
            provider_payment_id=$1,
@@ -31,6 +33,116 @@ const getRazorpay = () => new Razorpay(getRazorpayCredentials());
 
 function paidUntilFromDays(days) {
   return new Date(Date.now() + days * 86400000).toISOString();
+}
+
+function planDisplayName(plan) {
+  return plan?.name || plan?.planId || 'membership';
+}
+
+function daysUntil(dateValue) {
+  if (!dateValue) return null;
+  const expiryTime = new Date(dateValue).getTime();
+  if (!Number.isFinite(expiryTime)) return null;
+  return Math.ceil((expiryTime - Date.now()) / 86400000);
+}
+
+function planRank(monetization, plan) {
+  if (!plan) return 0;
+  const normalizedId = String(plan.planId || '').toLowerCase();
+  const configuredIndex = (monetization?.plans || []).findIndex((configuredPlan) => {
+    return String(configuredPlan.planId || '').toLowerCase() === normalizedId;
+  });
+  if (configuredIndex >= 0) return configuredIndex;
+  const rankMap = { free: 0, silver: 1, gold: 2, platinum: 3 };
+  if (Object.prototype.hasOwnProperty.call(rankMap, normalizedId)) return rankMap[normalizedId];
+  return Math.max(1, Math.round(Number(plan.price || 0) / 500));
+}
+
+function buildPlanChangeContext(activeSubscription, targetPlan, monetization) {
+  if (!activeSubscription || !activeSubscription.plan_id || activeSubscription.plan_id === 'free') {
+    return {
+      action: 'new',
+      canCreateOrder: true,
+      currentPlan: null,
+      targetPlan,
+      daysToExpiry: null,
+      renewalWindowDays: RENEWAL_WINDOW_DAYS
+    };
+  }
+
+  const currentPlan = getPlanById(monetization, activeSubscription.plan_id) || {
+    planId: activeSubscription.plan_id,
+    name: activeSubscription.plan_id,
+    price: 0
+  };
+  const daysToExpiry = daysUntil(activeSubscription.end_date);
+  const currentRank = planRank(monetization, currentPlan);
+  const targetRank = planRank(monetization, targetPlan);
+  const samePlan = String(currentPlan.planId) === String(targetPlan.planId);
+
+  if (samePlan) {
+    const canRenew = daysToExpiry !== null && daysToExpiry <= RENEWAL_WINDOW_DAYS;
+    return {
+      action: canRenew ? 'renew' : 'active_same_plan',
+      canCreateOrder: canRenew,
+      currentPlan,
+      targetPlan,
+      daysToExpiry,
+      renewalWindowDays: RENEWAL_WINDOW_DAYS
+    };
+  }
+
+  if (targetRank < currentRank || (targetRank === currentRank && Number(targetPlan.price || 0) < Number(currentPlan.price || 0))) {
+    return {
+      action: 'downgrade_blocked',
+      canCreateOrder: false,
+      currentPlan,
+      targetPlan,
+      daysToExpiry,
+      renewalWindowDays: RENEWAL_WINDOW_DAYS
+    };
+  }
+
+  return {
+    action: 'upgrade',
+    canCreateOrder: true,
+    currentPlan,
+    targetPlan,
+    daysToExpiry,
+    renewalWindowDays: RENEWAL_WINDOW_DAYS
+  };
+}
+
+async function getCurrentActiveSubscription(db, userId) {
+  const active = await db.query(
+    `SELECT subscription_id, plan_id, start_date, end_date, is_active
+     FROM subscriptions
+     WHERE user_id=$1
+       AND is_active=true
+       AND (end_date IS NULL OR end_date>NOW())
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [userId]
+  );
+  return active.rows[0] || null;
+}
+
+function assertPlanChangeAllowed(planContext) {
+  if (planContext.canCreateOrder) return;
+  if (planContext.action === 'downgrade_blocked') {
+    throw new AppError(
+      409,
+      ErrorCodes.VALIDATION_ERROR,
+      `Downgrade is not possible while your ${planDisplayName(planContext.currentPlan)} plan is active.`
+    );
+  }
+  if (planContext.action === 'active_same_plan') {
+    throw new AppError(
+      409,
+      ErrorCodes.VALIDATION_ERROR,
+      `Your ${planDisplayName(planContext.currentPlan)} plan is still active. Renewal opens during the last ${RENEWAL_WINDOW_DAYS} days.`
+    );
+  }
 }
 
 function summarizeRazorpayPayment(payment = {}) {
@@ -107,6 +219,9 @@ async function activatePaidOrder(db, { order, plan, paymentId, signature = null,
       };
     }
 
+    const activeSubscription = await getCurrentActiveSubscription(client, currentOrder.user_id);
+    const planChangeContext = buildPlanChangeContext(activeSubscription, plan, null);
+    assertPlanChangeAllowed(planChangeContext);
     await client.query('UPDATE subscriptions SET is_active=false WHERE user_id=$1 AND is_active=true', [currentOrder.user_id]);
     await client.query(
       `INSERT INTO subscriptions (subscription_id,user_id,plan_id,end_date,is_active,payment_id,amount_paid)
@@ -294,6 +409,9 @@ exports.createOrder = async (req, res, next) => {
     if (plan.price === 0) {
       return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'The free plan does not require a payment order.'));
     }
+    const activeSubscription = await getCurrentActiveSubscription(db, req.user.userId);
+    const planChangeContext = buildPlanChangeContext(activeSubscription, plan, monetization);
+    assertPlanChangeAllowed(planChangeContext);
     const amount = Number(plan.price);
     const currency = monetization.currency || 'INR';
     const receipt = 'rcpt_' + randomUUID().replace(/-/g, '').slice(0, 24);
@@ -301,18 +419,18 @@ exports.createOrder = async (req, res, next) => {
       amount:amount*100,
       currency,
       receipt,
-      notes:{ planId: plan.planId, requestedPlanId: planId, userId:req.user.userId }
+      notes:{ planId: plan.planId, requestedPlanId: planId, userId:req.user.userId, purchaseAction: planChangeContext.action }
     });
     await db.query(
       `INSERT INTO payment_orders (payment_order_id,user_id,plan_id,amount,currency,gateway,provider_order_id,status,metadata)
        VALUES ($1,$2,$3,$4,$5,'razorpay',$6,'created',$7::jsonb)`,
-      [randomUUID(), req.user.userId, plan.planId, amount, currency, order.id, JSON.stringify({ receipt, gatewayOrder: order, requestedPlanId: planId })]
+      [randomUUID(), req.user.userId, plan.planId, amount, currency, order.id, JSON.stringify({ receipt, gatewayOrder: order, requestedPlanId: planId, purchaseAction: planChangeContext.action })]
     );
     await recordAnalyticsEvent(db, {
       eventType: 'payment_click',
       serviceName: 'payment-service',
       userId: req.user.userId,
-      payload: { planId: plan.planId, requestedPlanId: planId, gateway: 'razorpay', amount: plan.price }
+      payload: { planId: plan.planId, requestedPlanId: planId, gateway: 'razorpay', amount: plan.price, purchaseAction: planChangeContext.action }
     });
     res.json({ success:true, data:{ orderId:order.id, amount:order.amount, currency:order.currency, planId:plan.planId, gateway:'razorpay', keyId:getRazorpayCredentials().key_id } });
   } catch (err) { next(err); }
@@ -483,6 +601,8 @@ exports.getInvoices = async (req, res, next) => {
 
 exports._test = {
   MARK_PAYMENT_ORDER_PAID_SQL,
+  buildPlanChangeContext,
   findCapturedPaymentForOrder,
+  planRank,
   summarizeRazorpayPayment
 };

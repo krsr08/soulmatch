@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Help
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
@@ -56,6 +57,7 @@ object ProfileDrawerRoutes {
     const val AstrologyServices = "astrology_services"
     const val AccountSettings = "account_settings"
     const val SafetyCenter = "safety_center"
+    const val SubscriptionHistory = "subscription_history"
     const val HelpSupport = "help_support"
     const val SuccessStories2026 = "success_stories_2026"
     const val SuccessStories2025 = "success_stories_2025"
@@ -76,6 +78,7 @@ private val primaryActions = listOf(
     DrawerAction("Astrology Services", ProfileDrawerRoutes.AstrologyServices, Icons.Filled.Star),
     DrawerAction("Account & Settings", ProfileDrawerRoutes.AccountSettings, Icons.Filled.Settings),
     DrawerAction("Safety Center", ProfileDrawerRoutes.SafetyCenter, Icons.Filled.Lock),
+    DrawerAction("Subscription History", ProfileDrawerRoutes.SubscriptionHistory, Icons.Filled.List),
     DrawerAction("Help & Support", ProfileDrawerRoutes.HelpSupport, Icons.Filled.Help)
 )
 

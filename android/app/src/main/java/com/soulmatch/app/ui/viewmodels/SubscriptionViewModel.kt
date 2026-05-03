@@ -29,6 +29,29 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
+
+enum class PlanPromptType {
+    UpgradeConfirm,
+    DowngradeBlocked,
+    EarlyRenewalBlocked
+}
+
+data class PlanChangePrompt(
+    val type: PlanPromptType,
+    val title: String,
+    val message: String,
+    val confirmLabel: String? = null
+)
+
+data class PaymentResultUi(
+    val success: Boolean,
+    val title: String,
+    val message: String,
+    val detail: String? = null
+)
 
 @HiltViewModel
 class SubscriptionViewModel @Inject constructor(
@@ -46,6 +69,8 @@ class SubscriptionViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     private val _isProcessingPayment = MutableStateFlow(false)
     private val _checkoutRequest = MutableStateFlow<PendingCheckout?>(null)
+    private val _planPrompt = MutableStateFlow<PlanChangePrompt?>(null)
+    private val _paymentResult = MutableStateFlow<PaymentResultUi?>(null)
     private val _statusMessage = MutableStateFlow<String?>(null)
     private val _errorMessage = MutableStateFlow<String?>(null)
     private var landingArgs = UpgradeLandingArgs()
@@ -59,6 +84,8 @@ class SubscriptionViewModel @Inject constructor(
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     val isProcessingPayment: StateFlow<Boolean> = _isProcessingPayment.asStateFlow()
     val checkoutRequest: StateFlow<PendingCheckout?> = _checkoutRequest.asStateFlow()
+    val planPrompt: StateFlow<PlanChangePrompt?> = _planPrompt.asStateFlow()
+    val paymentResult: StateFlow<PaymentResultUi?> = _paymentResult.asStateFlow()
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
@@ -74,9 +101,15 @@ class SubscriptionViewModel @Inject constructor(
                     is PaymentOutcome.Failure -> {
                         _isProcessingPayment.value = false
                         _statusMessage.value = null
-                        _errorMessage.value = result.message.ifBlank {
-                            "Payment failed. No membership was activated, and you can try again safely."
-                        }
+                        _errorMessage.value = null
+                        _paymentResult.value = PaymentResultUi(
+                            success = false,
+                            title = "Payment not completed",
+                            message = result.message.ifBlank {
+                                "Payment failed. No membership was activated, and you can try again safely."
+                            },
+                            detail = result.rawResponse?.takeIf { it.isNotBlank() }
+                        )
                     }
                 }
             }
@@ -163,7 +196,11 @@ class SubscriptionViewModel @Inject constructor(
             userPreferences.savePlanId(pending.order.planId)
             _subscription.value = SubscriptionData(planId = pending.order.planId, isActive = true)
             _isProcessingPayment.value = false
-            _statusMessage.value = "${pending.planName} membership is now active in mock checkout."
+            _paymentResult.value = PaymentResultUi(
+                success = true,
+                title = "Membership activated",
+                message = "${pending.planName} membership is now active."
+            )
         }
     }
 
@@ -173,11 +210,70 @@ class SubscriptionViewModel @Inject constructor(
         _errorMessage.value = message
     }
 
+    fun dismissPlanPrompt() {
+        _planPrompt.value = null
+    }
+
+    fun clearPaymentResult() {
+        _paymentResult.value = null
+    }
+
+    fun confirmPlanPrompt() {
+        val prompt = _planPrompt.value ?: return
+        if (prompt.type != PlanPromptType.UpgradeConfirm) {
+            _planPrompt.value = null
+            return
+        }
+        val targetPackage = selectedPackage() ?: return
+        _planPrompt.value = null
+        beginCheckout(targetPackage)
+    }
+
     fun startCheckout() {
         val targetPackage = selectedPackage() ?: return
+        val current = _subscription.value
+        val activePaidPlan = current.isActive && current.planId.isNotBlank() && current.planId != "free"
+        if (activePaidPlan) {
+            val currentRank = planRank(current.planId, null)
+            val targetRank = planRank(targetPackage.planId, targetPackage.payableAmount)
+            val daysLeft = daysUntilExpiry(current.endDate)
+            val currentName = titleForPlan(current.planId)
+            if (targetPackage.planId == current.planId) {
+                if (daysLeft == null || daysLeft > RENEWAL_WINDOW_DAYS) {
+                    _planPrompt.value = PlanChangePrompt(
+                        type = PlanPromptType.EarlyRenewalBlocked,
+                        title = "$currentName is already active",
+                        message = "Renewal opens during the last $RENEWAL_WINDOW_DAYS days of your membership. You can continue using your current benefits now."
+                    )
+                    return
+                }
+            } else if (targetRank < currentRank) {
+                _planPrompt.value = PlanChangePrompt(
+                    type = PlanPromptType.DowngradeBlocked,
+                    title = "Downgrade is not possible",
+                    message = "Your $currentName plan is still active, so selecting a lower plan is blocked. Choose a higher plan or wait until your current plan expires."
+                )
+                return
+            } else if (targetRank > currentRank) {
+                _planPrompt.value = PlanChangePrompt(
+                    type = PlanPromptType.UpgradeConfirm,
+                    title = "Upgrade while current plan is active?",
+                    message = "Your $currentName plan is still active. If you continue, SoulMatch will replace it with ${targetPackage.displayName} after successful payment.",
+                    confirmLabel = "Continue upgrade"
+                )
+                return
+            }
+        }
+        beginCheckout(targetPackage)
+    }
+
+    private fun beginCheckout(targetPackage: UpgradePackage) {
         if (targetPackage.planId == _subscription.value.planId) {
-            _statusMessage.value = "${targetPackage.pkgName} is already active."
-            return
+            val daysLeft = daysUntilExpiry(_subscription.value.endDate)
+            if (daysLeft == null || daysLeft > RENEWAL_WINDOW_DAYS) {
+                _statusMessage.value = "${targetPackage.displayName} is already active."
+                return
+            }
         }
         viewModelScope.launch {
             _isProcessingPayment.value = true
@@ -268,7 +364,12 @@ class SubscriptionViewModel @Inject constructor(
             if (result.paymentId.isBlank() || result.signature.isBlank()) {
                 _isProcessingPayment.value = false
                 _statusMessage.value = null
-                _errorMessage.value = "Payment completed, but Razorpay confirmation was incomplete. Please refresh your membership before trying again."
+                _errorMessage.value = null
+                _paymentResult.value = PaymentResultUi(
+                    success = false,
+                    title = "Payment could not be confirmed",
+                    message = "Payment completed, but Razorpay confirmation was incomplete. Please refresh your membership before trying again."
+                )
                 return@launch
             }
             val response = runCatching {
@@ -284,11 +385,21 @@ class SubscriptionViewModel @Inject constructor(
             if (response?.isSuccessful == true && response.body()?.success == true) {
                 userPreferences.savePlanId(result.order.planId)
                 _errorMessage.value = null
-                _statusMessage.value = "Payment successful. ${result.planName} membership is now active."
+                _statusMessage.value = null
+                _paymentResult.value = PaymentResultUi(
+                    success = true,
+                    title = "Payment successful",
+                    message = "${result.planName} membership is now active."
+                )
                 load(keepCurrentSelection = true)
             } else {
                 _statusMessage.value = null
-                _errorMessage.value = paymentVerificationFailureMessage(response?.body()?.error?.message)
+                _errorMessage.value = null
+                _paymentResult.value = PaymentResultUi(
+                    success = false,
+                    title = "Payment could not be confirmed",
+                    message = paymentVerificationFailureMessage(response?.body()?.error?.message)
+                )
             }
             _isProcessingPayment.value = false
         }
@@ -306,5 +417,42 @@ class SubscriptionViewModel @Inject constructor(
             return "Payment could not be verified: $cleanMessage"
         }
         return "Payment completed, but SoulMatch could not confirm it. Please refresh your membership before paying again."
+    }
+
+    private fun planRank(planId: String, amount: Int?): Int {
+        return when (planId.lowercase()) {
+            "free" -> 0
+            "silver" -> 1
+            "gold" -> 2
+            "platinum" -> 3
+            else -> ((amount ?: 0) / 500).coerceAtLeast(1)
+        }
+    }
+
+    private fun titleForPlan(planId: String): String {
+        return _packageGroups.value
+            .flatMap { it.packages }
+            .firstOrNull { it.planId == planId }
+            ?.displayName
+            ?: when (planId.lowercase()) {
+                "silver" -> "Silver"
+                "gold" -> "Gold"
+                "platinum" -> "Platinum"
+                else -> planId.replaceFirstChar { it.titlecase() }
+            }
+    }
+
+    private fun daysUntilExpiry(endDate: String?): Long? {
+        if (endDate.isNullOrBlank()) return null
+        val expiry = runCatching { OffsetDateTime.parse(endDate) }
+            .getOrElse {
+                runCatching { OffsetDateTime.parse("${endDate}Z") }.getOrNull()
+                    ?: return null
+            }
+        return ChronoUnit.DAYS.between(OffsetDateTime.now(ZoneOffset.UTC), expiry).coerceAtLeast(0)
+    }
+
+    companion object {
+        private const val RENEWAL_WINDOW_DAYS = 7L
     }
 }

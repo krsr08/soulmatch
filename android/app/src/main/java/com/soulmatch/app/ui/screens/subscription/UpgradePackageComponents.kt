@@ -259,6 +259,7 @@ fun CheckoutSummary(
     packageInfo: UpgradePackage,
     isProcessing: Boolean,
     isActive: Boolean,
+    actionLabel: String = "Continue",
     onPay: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -295,7 +296,7 @@ fun CheckoutSummary(
                 }
             } else {
                 Button(onClick = onPay, enabled = !isProcessing) {
-                    Text(if (isProcessing) "Starting..." else "Continue")
+                    Text(if (isProcessing) "Starting..." else actionLabel)
                 }
             }
         }

@@ -72,3 +72,66 @@ test('summarizeRazorpayPayment keeps safe card and UPI display details', () => {
     }
   );
 });
+
+test('buildPlanChangeContext blocks downgrade and same-plan early renewal', () => {
+  const monetization = {
+    plans: [
+      { planId: 'free', name: 'Free', price: 0 },
+      { planId: 'silver', name: 'Silver', price: 499 },
+      { planId: 'gold', name: 'Gold', price: 999 },
+      { planId: 'platinum', name: 'Platinum', price: 1499 }
+    ]
+  };
+  const activeGold = {
+    plan_id: 'gold',
+    end_date: new Date(Date.now() + 20 * 86400000).toISOString()
+  };
+
+  assert.equal(
+    _test.buildPlanChangeContext(activeGold, monetization.plans[1], monetization).action,
+    'downgrade_blocked'
+  );
+  assert.equal(
+    _test.buildPlanChangeContext(activeGold, monetization.plans[2], monetization).action,
+    'active_same_plan'
+  );
+});
+
+test('buildPlanChangeContext allows upgrade and last-week renewal', () => {
+  const monetization = {
+    plans: [
+      { planId: 'free', name: 'Free', price: 0 },
+      { planId: 'silver', name: 'Silver', price: 499 },
+      { planId: 'gold', name: 'Gold', price: 999 },
+      { planId: 'platinum', name: 'Platinum', price: 1499 }
+    ]
+  };
+  const activeSilver = {
+    plan_id: 'silver',
+    end_date: new Date(Date.now() + 30 * 86400000).toISOString()
+  };
+  const expiringGold = {
+    plan_id: 'gold',
+    end_date: new Date(Date.now() + 3 * 86400000).toISOString()
+  };
+
+  assert.equal(
+    _test.buildPlanChangeContext(activeSilver, monetization.plans[2], monetization).action,
+    'upgrade'
+  );
+  assert.equal(
+    _test.buildPlanChangeContext(expiringGold, monetization.plans[2], monetization).action,
+    'renew'
+  );
+});
+
+test('buildPlanChangeContext still ranks canonical plans without runtime config', () => {
+  const activeSilver = {
+    plan_id: 'silver',
+    end_date: new Date(Date.now() + 30 * 86400000).toISOString()
+  };
+  assert.equal(
+    _test.buildPlanChangeContext(activeSilver, { planId: 'gold', name: 'Gold', price: 999 }, null).action,
+    'upgrade'
+  );
+});

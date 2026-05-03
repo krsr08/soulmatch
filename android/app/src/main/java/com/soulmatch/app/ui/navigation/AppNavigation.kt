@@ -55,6 +55,7 @@ import com.soulmatch.app.ui.screens.profile.SpotlightScreen
 import com.soulmatch.app.ui.screens.search.SearchScreen
 import com.soulmatch.app.ui.screens.settings.SettingsScreen
 import com.soulmatch.app.ui.screens.success.SuccessStoriesScreen
+import com.soulmatch.app.ui.screens.subscription.SubscriptionHistoryScreen
 import com.soulmatch.app.ui.screens.subscription.SubscriptionScreen
 import com.soulmatch.app.ui.viewmodels.AnalyticsViewModel
 import com.soulmatch.app.ui.components.ProfileDrawerRoutes
@@ -206,6 +207,7 @@ fun AppNavigation(
                         ProfileDrawerRoutes.AstrologyServices -> nav.navigate("astrology_services")
                         ProfileDrawerRoutes.AccountSettings -> nav.navigate("settings")
                         ProfileDrawerRoutes.SafetyCenter -> nav.navigate("safety_center")
+                        ProfileDrawerRoutes.SubscriptionHistory -> nav.navigate("subscription_history")
                         ProfileDrawerRoutes.HelpSupport -> nav.navigate("help_support")
                         ProfileDrawerRoutes.SuccessStories2026 -> nav.navigate("success_stories/2026")
                         ProfileDrawerRoutes.SuccessStories2025 -> nav.navigate("success_stories/2025")
@@ -312,8 +314,17 @@ fun AppNavigation(
                 razorpayKeyId = clientIntegrations.razorpayKeyId,
                 landOnPage = args?.getInt("landOnPage")?.takeIf { it >= 0 },
                 routeCode = args?.getInt("routeCode")?.takeIf { it >= 0 },
-                targetPackageId = args?.getString("targetPackageId")?.takeIf { it.isNotBlank() }
+                targetPackageId = args?.getString("targetPackageId")?.takeIf { it.isNotBlank() },
+                onPaymentResultDone = {
+                    nav.navigate("dashboard") {
+                        popUpTo("dashboard") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             )
+        }
+        composable("subscription_history") {
+            SubscriptionHistoryScreen(onBack = { nav.popBackStack() })
         }
         composable("settings") {
             SettingsScreen(
@@ -386,7 +397,7 @@ private val bottomNavItems = listOf(
     BottomNavItem(
         "profile",
         "my_profile",
-        listOf("my_profile", "settings", "profile/", "family_decisions", "soulmatch_assist", "spotlight", "astrology_services", "safety_center", "help_support", "success_stories/"),
+        listOf("my_profile", "settings", "profile/", "family_decisions", "soulmatch_assist", "spotlight", "astrology_services", "safety_center", "subscription", "subscription_history", "help_support", "success_stories/"),
         Icons.Filled.Person
     )
 )
