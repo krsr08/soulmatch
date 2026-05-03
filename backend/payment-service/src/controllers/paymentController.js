@@ -6,6 +6,15 @@ const logger = require('../utils/logger');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const { getConfigSection, getPlanById, recordAnalyticsEvent } = require('../../shared/controlPlane');
 
+const MARK_PAYMENT_ORDER_PAID_SQL = `UPDATE payment_orders
+       SET status='paid',
+           provider_payment_id=$1,
+           signature=COALESCE($2, signature),
+           webhook_payload=CASE WHEN $3::jsonb = '{}'::jsonb THEN webhook_payload ELSE $3::jsonb END,
+           metadata=COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('activationSource', $4::text),
+           updated_at=NOW()
+       WHERE payment_order_id=$5`;
+
 function getRazorpayCredentials() {
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
@@ -73,14 +82,7 @@ async function activatePaidOrder(db, { order, plan, paymentId, signature = null,
       [randomUUID(), currentOrder.user_id, subId, currentOrder.provider_order_id, paymentId, currentOrder.amount, currentOrder.currency]
     );
     await client.query(
-      `UPDATE payment_orders
-       SET status='paid',
-           provider_payment_id=$1,
-           signature=COALESCE($2, signature),
-           webhook_payload=CASE WHEN $3::jsonb = '{}'::jsonb THEN webhook_payload ELSE $3::jsonb END,
-           metadata=COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('activationSource', $4),
-           updated_at=NOW()
-       WHERE payment_order_id=$5`,
+      MARK_PAYMENT_ORDER_PAID_SQL,
       [paymentId, signature, JSON.stringify(webhookPayload || {}), source, currentOrder.payment_order_id]
     );
     await client.query('COMMIT');
@@ -112,6 +114,60 @@ async function loadRuntime(db) {
     getConfigSection(db, 'payment_gateways')
   ]);
   return { monetization, gateways };
+}
+
+function findCapturedPaymentForOrder(paymentsPayload, order) {
+  const items = Array.isArray(paymentsPayload?.items) ? paymentsPayload.items : [];
+  const expectedAmount = Math.round(Number(order.amount) * 100);
+  return items.find((payment) => {
+    return payment &&
+      payment.status === 'captured' &&
+      payment.order_id === order.provider_order_id &&
+      Number(payment.amount) === expectedAmount &&
+      String(payment.currency || '').toUpperCase() === String(order.currency || 'INR').toUpperCase();
+  }) || null;
+}
+
+async function reconcileUserPaidOrders(db, userId, monetization) {
+  const pendingOrders = await db.query(
+    `SELECT *
+     FROM payment_orders
+     WHERE user_id=$1
+       AND status IN ('created','captured','updated')
+     ORDER BY created_at DESC
+     LIMIT 5`,
+    [userId]
+  );
+
+  for (const order of pendingOrders.rows) {
+    try {
+      const plan = getPlanById(monetization, order.plan_id);
+      if (!plan) continue;
+      const paymentsPayload = await getRazorpay().orders.fetchPayments(order.provider_order_id);
+      const payment = findCapturedPaymentForOrder(paymentsPayload, order);
+      if (!payment?.id) continue;
+      await activatePaidOrder(db, {
+        order,
+        plan,
+        paymentId: payment.id,
+        webhookPayload: {
+          reconciliation: true,
+          razorpayPayment: {
+            id: payment.id,
+            order_id: payment.order_id,
+            status: payment.status,
+            amount: payment.amount,
+            currency: payment.currency,
+            method: payment.method
+          }
+        },
+        source: 'subscription_reconcile'
+      });
+      logger.info(`Reconciled paid Razorpay order ${order.provider_order_id} for user ${userId}`);
+    } catch (error) {
+      logger.error(`Payment reconciliation failed for order ${order.provider_order_id}: ${error.message}`);
+    }
+  }
 }
 
 exports.getPlans = async (req, res, next) => {
@@ -277,7 +333,13 @@ exports.handleWebhook = async (req, res, next) => {
 exports.getSubscription = async (req, res, next) => {
   try {
     const db = await getDB();
-    const r = await db.query("SELECT plan_id,start_date,end_date,is_active FROM subscriptions WHERE user_id=$1 AND is_active=true AND (end_date IS NULL OR end_date>NOW()) ORDER BY created_at DESC LIMIT 1", [req.user.userId]);
+    const activeSubscriptionSql = "SELECT plan_id,start_date,end_date,is_active FROM subscriptions WHERE user_id=$1 AND is_active=true AND (end_date IS NULL OR end_date>NOW()) ORDER BY created_at DESC LIMIT 1";
+    let r = await db.query(activeSubscriptionSql, [req.user.userId]);
+    if (!r.rows[0] || r.rows[0].plan_id === 'free') {
+      const { monetization } = await loadRuntime(db);
+      await reconcileUserPaidOrders(db, req.user.userId, monetization);
+      r = await db.query(activeSubscriptionSql, [req.user.userId]);
+    }
     res.json({ success:true, data:r.rows[0]||{ plan_id:'free', is_active:true } });
   } catch (err) { next(err); }
 };
@@ -287,4 +349,9 @@ exports.getInvoices = async (req, res, next) => {
     const r = await db.query("SELECT t.transaction_id,t.created_at,t.amount,s.plan_id FROM transactions t JOIN subscriptions s ON t.subscription_id=s.subscription_id WHERE t.user_id=$1 AND t.status='success' ORDER BY t.created_at DESC", [req.user.userId]);
     res.json({ success:true, data:r.rows });
   } catch (err) { next(err); }
+};
+
+exports._test = {
+  MARK_PAYMENT_ORDER_PAID_SQL,
+  findCapturedPaymentForOrder
 };
