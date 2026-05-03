@@ -26,6 +26,37 @@ Purpose: keep a simple, human-readable view of the important SoulMatch database 
 | Advisor assisted matching | `advisors`, `advisor_service_areas`, `assisted_match_profiles`, `assisted_match_assignment_events` |
 | Analytics and audit | `analytics_events`, `audit_logs` |
 
+## Migration 014: Partner Preferences v2 and Match Feedback
+
+File: `database/migrations/014_partner_preferences_v2_match_feedback.sql`
+
+This migration widens matchmaking inputs beyond only age, religion, and manglik preference.
+
+New `partner_preferences` fields:
+
+- Education levels
+- Occupations
+- Annual income range
+- Height range
+- Preferred cities/localities and radius
+- Diet preferences
+- Marital statuses
+- Family types
+- Relocation flexibility
+- Marriage timeline
+- Deal breakers
+- Good-to-have preferences
+
+New table:
+
+- `match_feedback`: records whether a member viewed, shortlisted, passed, asked for more similar matches, asked for fewer similar matches, or reported a mismatch.
+
+Why this matters:
+
+- SoulMatch can now learn from explicit user behavior instead of depending only on static filters.
+- Match scoring can explain better reasons such as career fit, location fit, education fit, and lifestyle fit.
+- Every meaningful preference and match feedback change can be traced through the existing audit system.
+
 ## Migration 010: Market Readiness v2
 
 File: `database/migrations/010_market_readiness_v2.sql`

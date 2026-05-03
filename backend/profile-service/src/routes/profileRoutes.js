@@ -20,6 +20,7 @@ router.put('/photo-access/requests/:requestId', authenticate, ctrl.respondPhotoA
 router.get('/family-decisions', authenticate, ctrl.getFamilyDecisions);
 router.post('/family-decisions/:familyDecisionId/comments', authenticate, ctrl.addFamilyDecisionComment);
 router.put('/family-decisions/:targetProfileId', authenticate, ctrl.upsertFamilyDecision);
+router.post('/:profileId/match-feedback', authenticate, ctrl.recordMatchFeedback);
 router.get('/:profileId', authenticate, ctrl.getProfile);
 router.put('/:profileId', authenticate, ctrl.updateProfile);
 router.get('/:profileId/verifications', authenticate, ctrl.getVerifications);

@@ -30,6 +30,7 @@ interface ProfileApiService {
     @PUT("profile/{profileId}/photos/{photoId}/primary") suspend fun setPrimaryPhoto(@Path("profileId") profileId: String, @Path("photoId") photoId: String): Response<GenericResponse<Any>>
     @GET("profile/{profileId}/preferences") suspend fun getPreferences(@Path("profileId") id: String): Response<GenericResponse<PartnerPreferencesData>>
     @PUT("profile/{profileId}/preferences") suspend fun updatePreferences(@Path("profileId") id: String, @Body req: PartnerPreferencesData): Response<GenericResponse<Any>>
+    @POST("profile/{profileId}/match-feedback") suspend fun recordMatchFeedback(@Path("profileId") id: String, @Body req: MatchFeedbackRequest): Response<GenericResponse<Any>>
     @PUT("profile/{profileId}/privacy") suspend fun updatePrivacy(@Path("profileId") id: String, @Body req: PrivacySettingsRequest): Response<GenericResponse<Any>>
     @PATCH("profile/status") suspend fun updateProfileStatus(@Body req: ProfileStatusRequest): Response<GenericResponse<Any>>
     @POST("profile/{profileId}/photo-access/request") suspend fun requestPhotoAccess(@Path("profileId") id: String, @Body req: PhotoAccessRequestBody = PhotoAccessRequestBody()): Response<GenericResponse<PhotoAccessResponseData>>

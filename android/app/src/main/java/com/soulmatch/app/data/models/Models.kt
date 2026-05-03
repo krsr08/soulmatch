@@ -53,7 +53,29 @@ data class PartnerPreferencesData(
     @SerializedName("age_min") val ageMin: Int = 24,
     @SerializedName("age_max") val ageMax: Int = 32,
     val religion: String? = null,
-    @SerializedName("manglik_pref") val manglikPref: String = "any"
+    @SerializedName("manglik_pref") val manglikPref: String = "any",
+    @SerializedName("education_levels") val educationLevels: List<String> = emptyList(),
+    val occupations: List<String> = emptyList(),
+    @SerializedName("annual_income_min") val annualIncomeMin: Int? = null,
+    @SerializedName("annual_income_max") val annualIncomeMax: Int? = null,
+    @SerializedName("height_min_cm") val heightMinCm: Int? = null,
+    @SerializedName("height_max_cm") val heightMaxCm: Int? = null,
+    val locations: List<String> = emptyList(),
+    @SerializedName("location_radius_km") val locationRadiusKm: Int = 50,
+    @SerializedName("diet_prefs") val dietPrefs: List<String> = emptyList(),
+    @SerializedName("marital_statuses") val maritalStatuses: List<String> = emptyList(),
+    @SerializedName("family_types") val familyTypes: List<String> = emptyList(),
+    @SerializedName("relocation_open") val relocationOpen: Boolean? = null,
+    val timeline: String? = null,
+    @SerializedName("deal_breakers") val dealBreakers: List<String> = emptyList(),
+    @SerializedName("good_to_have") val goodToHave: List<String> = emptyList()
+)
+
+data class MatchFeedbackRequest(
+    val action: String = "viewed",
+    val reason: String? = null,
+    val note: String? = null,
+    val metadata: Map<String, String> = emptyMap()
 )
 
 data class PrivacySettingsRequest(

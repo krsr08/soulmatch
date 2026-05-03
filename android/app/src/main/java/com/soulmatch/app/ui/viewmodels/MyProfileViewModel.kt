@@ -129,7 +129,18 @@ class MyProfileViewModel @Inject constructor(
                     ?.body()
                     ?.takeIf { it.success }
                     ?.data
-                    ?: PartnerPreferencesData(religion = resolvedProfile.religion, manglikPref = "any")
+                    ?: PartnerPreferencesData(
+                        religion = resolvedProfile.religion,
+                        manglikPref = "any",
+                        educationLevels = listOf(resolvedProfile.educationLevel).filter { it.isNotBlank() },
+                        occupations = listOf(resolvedProfile.occupation).filter { it.isNotBlank() },
+                        heightMinCm = resolvedProfile.heightCm?.minus(10),
+                        heightMaxCm = resolvedProfile.heightCm?.plus(10),
+                        locations = listOf(resolvedProfile.workingCity, resolvedProfile.familyCity).filter { it.isNotBlank() }.distinct(),
+                        dietPrefs = listOf(resolvedProfile.diet).filter { it.isNotBlank() },
+                        maritalStatuses = listOf(resolvedProfile.maritalStatus).filter { it.isNotBlank() },
+                        familyTypes = listOf(resolvedProfile.familyType).filter { it.isNotBlank() }
+                    )
                 _assistStatus.value = runCatching { profileApi.getAssistStatus() }
                     .getOrNull()
                     ?.body()
@@ -204,7 +215,16 @@ class MyProfileViewModel @Inject constructor(
         val fallback = MarketFixtures.myProfile
         _profile.value = fallback
         _subscription.value = MarketFixtures.currentSubscription
-        _preferences.value = PartnerPreferencesData(religion = fallback.religion, manglikPref = "any")
+        _preferences.value = PartnerPreferencesData(
+            religion = fallback.religion,
+            manglikPref = "any",
+            educationLevels = listOf(fallback.educationLevel).filter { it.isNotBlank() },
+            occupations = listOf(fallback.occupation).filter { it.isNotBlank() },
+            locations = listOf(fallback.workingCity, fallback.familyCity).filter { it.isNotBlank() }.distinct(),
+            dietPrefs = listOf(fallback.diet).filter { it.isNotBlank() },
+            maritalStatuses = listOf(fallback.maritalStatus).filter { it.isNotBlank() },
+            familyTypes = listOf(fallback.familyType).filter { it.isNotBlank() }
+        )
         _assistStatus.value = AssistStatusData(
             profileId = fallback.profileId,
             location = com.soulmatch.app.data.models.AssistLocationData(
@@ -288,15 +308,9 @@ class MyProfileViewModel @Inject constructor(
         }
     }
 
-    fun updatePartnerPreferences(ageMin: Int, ageMax: Int, religion: String, manglikPref: String) {
+    fun updatePartnerPreferences(request: PartnerPreferencesData) {
         val profileId = _profile.value?.profileId ?: return
         viewModelScope.launch {
-            val request = PartnerPreferencesData(
-                ageMin = ageMin,
-                ageMax = ageMax,
-                religion = religion.ifBlank { null },
-                manglikPref = manglikPref
-            )
             _isLoading.value = true
             _status.value = null
             try {

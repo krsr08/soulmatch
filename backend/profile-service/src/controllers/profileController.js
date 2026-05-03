@@ -4,6 +4,16 @@ const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 
 const ALLOWED_VERIFICATION_TYPES = new Set(['profile', 'identity', 'photo', 'education', 'income', 'family']);
 const ALLOWED_ASSIST_SUPPORT_LEVELS = new Set(['self_service', 'family_assisted', 'advisor_assisted']);
+const ALLOWED_MATCH_FEEDBACK_ACTIONS = new Set([
+  'viewed',
+  'shortlisted',
+  'passed',
+  'not_interested',
+  'more_like_this',
+  'less_like_this',
+  'reported_mismatch',
+  'blocked'
+]);
 const isBlank = (value) => typeof value !== 'string' || !value.trim();
 const hasPositiveNumber = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
 
@@ -354,6 +364,30 @@ exports.updatePreferences = async (req, res, next) => {
       afterData: after || {}
     });
     res.json({ success: true });
+  } catch (err) { next(err); }
+};
+exports.recordMatchFeedback = async (req, res, next) => {
+  try {
+    const action = String(req.body?.action || 'viewed').trim();
+    if (!ALLOWED_MATCH_FEEDBACK_ACTIONS.has(action)) {
+      return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Match feedback action is not supported.'));
+    }
+    const result = await repo.recordMatchFeedback(req.user.userId, req.params.profileId, {
+      ...req.body,
+      action
+    });
+    if (result.status === 'source_not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Your profile was not found.'));
+    if (result.status === 'target_not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Match profile was not found.'));
+    if (result.status === 'own_profile') return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Your own profile cannot be used as match feedback.'));
+    await auditUserChange(req, {
+      profileId: result.sourceProfile.profile_id,
+      entityType: 'match_feedback',
+      entityId: result.feedback.feedback_id,
+      action: `match_feedback.${action}`,
+      beforeData: {},
+      afterData: result.feedback
+    });
+    res.json({ success: true, data: result.feedback, message: 'Match feedback recorded.' });
   } catch (err) { next(err); }
 };
 exports.getCompletion = async (req, res, next) => {

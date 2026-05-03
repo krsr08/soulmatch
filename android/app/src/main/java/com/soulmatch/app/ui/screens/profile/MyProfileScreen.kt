@@ -255,9 +255,7 @@ fun MyProfileScreen(
                             )
                         }
                         item {
-                            PartnerPreferencesCard(preferences = preferences, onSave = { ageMin, ageMax, religion, manglikPref ->
-                                vm.updatePartnerPreferences(ageMin, ageMax, religion, manglikPref)
-                            })
+                            PartnerPreferencesCard(preferences = preferences, onSave = vm::updatePartnerPreferences)
                         }
                         item {
                             SoulMatchAssistSummaryCard(
@@ -869,19 +867,34 @@ private fun PhotoTile(
 @Composable
 private fun PartnerPreferencesCard(
     preferences: PartnerPreferencesData,
-    onSave: (Int, Int, String, String) -> Unit
+    onSave: (PartnerPreferencesData) -> Unit
 ) {
     var ageMin by remember(preferences.ageMin) { mutableIntStateOf(preferences.ageMin) }
     var ageMax by remember(preferences.ageMax) { mutableIntStateOf(preferences.ageMax) }
     var religion by remember(preferences.religion) { mutableStateOf(preferences.religion.orEmpty()) }
     var manglikPref by remember(preferences.manglikPref) { mutableStateOf(preferences.manglikPref) }
+    var educationText by remember(preferences.educationLevels) { mutableStateOf(preferences.educationLevels.joinToString(", ")) }
+    var occupationsText by remember(preferences.occupations) { mutableStateOf(preferences.occupations.joinToString(", ")) }
+    var incomeMinText by remember(preferences.annualIncomeMin) { mutableStateOf(preferences.annualIncomeMin?.toString().orEmpty()) }
+    var incomeMaxText by remember(preferences.annualIncomeMax) { mutableStateOf(preferences.annualIncomeMax?.toString().orEmpty()) }
+    var heightMinText by remember(preferences.heightMinCm) { mutableStateOf(preferences.heightMinCm?.toString().orEmpty()) }
+    var heightMaxText by remember(preferences.heightMaxCm) { mutableStateOf(preferences.heightMaxCm?.toString().orEmpty()) }
+    var locationsText by remember(preferences.locations) { mutableStateOf(preferences.locations.joinToString(", ")) }
+    var radiusText by remember(preferences.locationRadiusKm) { mutableStateOf(preferences.locationRadiusKm.toString()) }
+    var dietText by remember(preferences.dietPrefs) { mutableStateOf(preferences.dietPrefs.joinToString(", ")) }
+    var maritalText by remember(preferences.maritalStatuses) { mutableStateOf(preferences.maritalStatuses.joinToString(", ")) }
+    var familyTypeText by remember(preferences.familyTypes) { mutableStateOf(preferences.familyTypes.joinToString(", ")) }
+    var timeline by remember(preferences.timeline) { mutableStateOf(preferences.timeline.orEmpty()) }
+    var dealBreakersText by remember(preferences.dealBreakers) { mutableStateOf(preferences.dealBreakers.joinToString(", ")) }
+    var goodToHaveText by remember(preferences.goodToHave) { mutableStateOf(preferences.goodToHave.joinToString(", ")) }
+    var relocationOpen by remember(preferences.relocationOpen) { mutableStateOf(preferences.relocationOpen) }
     var selectedTab by remember { mutableStateOf("Basics") }
 
     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionTitle("Partner preferences", "Clearly define the age, community, and horoscope signals used by Smart Search")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                listOf("Basics", "Community", "Horoscope").forEach { tab ->
+            SectionTitle("Partner preferences", "These inputs now power Smart Search, match ranking, and future AI recommendations")
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                items(listOf("Basics", "Career", "Lifestyle", "Family", "Horoscope")) { tab ->
                     FilterChoiceChip(
                         label = tab,
                         selected = selectedTab == tab,
@@ -907,9 +920,105 @@ private fun PartnerPreferencesCard(
                             singleLine = true
                         )
                     }
-                    Text("SoulMatch ranks profiles inside this age range higher.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = heightMinText,
+                            onValueChange = { heightMinText = it.filter { char -> char.isDigit() }.take(3) },
+                            label = { Text("Height min cm") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = heightMaxText,
+                            onValueChange = { heightMaxText = it.filter { char -> char.isDigit() }.take(3) },
+                            label = { Text("Height max cm") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
+                    OutlinedTextField(
+                        value = locationsText,
+                        onValueChange = { locationsText = it },
+                        label = { Text("Preferred cities/localities") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = radiusText,
+                        onValueChange = { radiusText = it.filter { char -> char.isDigit() }.take(3) },
+                        label = { Text("Location radius km") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Text("SoulMatch ranks profiles inside these age, height, and location rules higher.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                 }
-                "Community" -> {
+                "Career" -> {
+                    OutlinedTextField(
+                        value = educationText,
+                        onValueChange = { educationText = it },
+                        label = { Text("Education levels") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = occupationsText,
+                        onValueChange = { occupationsText = it },
+                        label = { Text("Occupations") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = incomeMinText,
+                            onValueChange = { incomeMinText = it.filter { char -> char.isDigit() }.take(3) },
+                            label = { Text("Income min LPA") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = incomeMaxText,
+                            onValueChange = { incomeMaxText = it.filter { char -> char.isDigit() }.take(3) },
+                            label = { Text("Income max LPA") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
+                    Text("Use comma separated values. Example: Graduate, Post Graduate or IT, Doctor.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                }
+                "Lifestyle" -> {
+                    OutlinedTextField(
+                        value = dietText,
+                        onValueChange = { dietText = it },
+                        label = { Text("Diet preferences") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = timeline,
+                        onValueChange = { timeline = it.take(40) },
+                        label = { Text("Marriage timeline") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        FilterChoiceChip("Relocation yes", relocationOpen == true, onClick = { relocationOpen = true })
+                        FilterChoiceChip("Relocation no", relocationOpen == false, onClick = { relocationOpen = false })
+                        FilterChoiceChip("Flexible", relocationOpen == null, onClick = { relocationOpen = null })
+                    }
+                    OutlinedTextField(
+                        value = dealBreakersText,
+                        onValueChange = { dealBreakersText = it },
+                        label = { Text("Deal breakers") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = goodToHaveText,
+                        onValueChange = { goodToHaveText = it },
+                        label = { Text("Good to have") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                "Family" -> {
                     OutlinedTextField(
                         value = religion,
                         onValueChange = { religion = it },
@@ -917,7 +1026,21 @@ private fun PartnerPreferencesCard(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
-                    Text("Leave blank if you want matches from every religion or community.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    OutlinedTextField(
+                        value = maritalText,
+                        onValueChange = { maritalText = it },
+                        label = { Text("Marital statuses") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = familyTypeText,
+                        onValueChange = { familyTypeText = it },
+                        label = { Text("Family type") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Text("Leave religion blank if your family is open to all communities.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                 }
                 else -> {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -934,13 +1057,55 @@ private fun PartnerPreferencesCard(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MetricPill("Age", "$ageMin-$ageMax", modifier = Modifier.weight(1f), background = SurfaceSoft)
-                MetricPill("Religion", religion.ifBlank { "Any" }, modifier = Modifier.weight(1f), background = SurfaceSoft)
+                MetricPill("Cities", preferenceLabel(locationsText), modifier = Modifier.weight(1f), background = SurfaceSoft)
             }
-            MetricPill("Manglik", titleCase(manglikPref), modifier = Modifier.fillMaxWidth(), background = SurfaceSoft)
-            Button(onClick = { onSave(ageMin, ageMax, religion, manglikPref) }, modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MetricPill("Education", preferenceLabel(educationText), modifier = Modifier.weight(1f), background = SurfaceSoft)
+                MetricPill("Manglik", titleCase(manglikPref), modifier = Modifier.weight(1f), background = SurfaceSoft)
+            }
+            Button(
+                onClick = {
+                    onSave(
+                        PartnerPreferencesData(
+                            ageMin = ageMin.coerceAtLeast(18),
+                            ageMax = ageMax.coerceAtLeast(ageMin),
+                            religion = religion.ifBlank { null },
+                            manglikPref = manglikPref,
+                            educationLevels = csvToList(educationText),
+                            occupations = csvToList(occupationsText),
+                            annualIncomeMin = incomeMinText.toIntOrNull(),
+                            annualIncomeMax = incomeMaxText.toIntOrNull(),
+                            heightMinCm = heightMinText.toIntOrNull(),
+                            heightMaxCm = heightMaxText.toIntOrNull(),
+                            locations = csvToList(locationsText),
+                            locationRadiusKm = radiusText.toIntOrNull()?.coerceIn(1, 500) ?: 50,
+                            dietPrefs = csvToList(dietText),
+                            maritalStatuses = csvToList(maritalText),
+                            familyTypes = csvToList(familyTypeText),
+                            relocationOpen = relocationOpen,
+                            timeline = timeline.ifBlank { null },
+                            dealBreakers = csvToList(dealBreakersText),
+                            goodToHave = csvToList(goodToHaveText)
+                        )
+                    )
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text("Save preferences")
             }
         }
+    }
+}
+
+private fun csvToList(value: String): List<String> =
+    value.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()
+
+private fun preferenceLabel(value: String): String {
+    val items = csvToList(value)
+    return when {
+        items.isEmpty() -> "Any"
+        items.size == 1 -> items.first()
+        else -> "${items.first()} +${items.size - 1}"
     }
 }
 

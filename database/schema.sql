@@ -134,8 +134,49 @@ CREATE TABLE IF NOT EXISTS partner_preferences (
     age_max INTEGER DEFAULT 50,
     religion VARCHAR(50),
     manglik_pref VARCHAR(20) DEFAULT 'any',
+    education_levels TEXT[] DEFAULT ARRAY[]::TEXT[],
+    occupations TEXT[] DEFAULT ARRAY[]::TEXT[],
+    annual_income_min INTEGER,
+    annual_income_max INTEGER,
+    height_min_cm INTEGER,
+    height_max_cm INTEGER,
+    locations TEXT[] DEFAULT ARRAY[]::TEXT[],
+    location_radius_km INTEGER DEFAULT 50,
+    diet_prefs TEXT[] DEFAULT ARRAY[]::TEXT[],
+    marital_statuses TEXT[] DEFAULT ARRAY[]::TEXT[],
+    family_types TEXT[] DEFAULT ARRAY[]::TEXT[],
+    relocation_open BOOLEAN,
+    timeline VARCHAR(40),
+    deal_breakers TEXT[] DEFAULT ARRAY[]::TEXT[],
+    good_to_have TEXT[] DEFAULT ARRAY[]::TEXT[],
     created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT partner_preferences_age_range_check CHECK (age_min IS NULL OR age_max IS NULL OR age_min <= age_max),
+    CONSTRAINT partner_preferences_height_range_check CHECK (height_min_cm IS NULL OR height_max_cm IS NULL OR height_min_cm <= height_max_cm)
+);
+
+CREATE TABLE IF NOT EXISTS match_feedback (
+    feedback_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    source_profile_id UUID REFERENCES profiles(profile_id) ON DELETE SET NULL,
+    target_profile_id UUID NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+    action VARCHAR(40) NOT NULL,
+    reason VARCHAR(120),
+    note TEXT,
+    metadata JSONB DEFAULT '{}'::JSONB,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT match_feedback_action_check CHECK (
+      action IN (
+        'viewed',
+        'shortlisted',
+        'passed',
+        'not_interested',
+        'more_like_this',
+        'less_like_this',
+        'reported_mismatch',
+        'blocked'
+      )
+    )
 );
 
 CREATE TABLE IF NOT EXISTS saved_searches (
@@ -529,6 +570,9 @@ CREATE INDEX IF NOT EXISTS idx_photo_access_requester_status ON profile_photo_ac
 CREATE UNIQUE INDEX IF NOT EXISTS uq_photo_access_pending_pair ON profile_photo_access_requests(target_profile_id, requester_user_id) WHERE status = 'pending';
 CREATE INDEX IF NOT EXISTS idx_reports_status_created ON reports(status, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_profile_views_pair ON profile_views(viewer_id, viewed_profile_id);
+CREATE INDEX IF NOT EXISTS idx_partner_preferences_profile_updated ON partner_preferences(profile_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_match_feedback_user_target_created ON match_feedback(user_id, target_profile_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_match_feedback_action_created ON match_feedback(action, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_family_details_state_city_pincode ON family_details(family_state, family_city, family_pincode);
 CREATE INDEX IF NOT EXISTS idx_referral_codes_owner ON referral_codes(owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_referral_redemptions_code ON referral_redemptions(referral_code_id);

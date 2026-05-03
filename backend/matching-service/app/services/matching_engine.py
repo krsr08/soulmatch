@@ -14,6 +14,36 @@ def clamp_score(value):
     return max(0, min(100, int(round(float(value or 0)))))
 
 
+def normalize_list(value):
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [item.strip().lower() for item in value.split(",") if item.strip()]
+    return [str(item or "").strip().lower() for item in value if str(item or "").strip()]
+
+
+def contains_any(values, *candidates):
+    normalized = set(normalize_list(values))
+    if not normalized:
+        return True
+    return any(str(candidate or "").strip().lower() in normalized for candidate in candidates if candidate)
+
+
+def income_rank(value):
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    text = str(value)
+    if "20+" in text:
+        return 20
+    for marker in ["10-20", "5-10", "3-5", "< 3"]:
+        if marker in text:
+            return {"10-20": 10, "5-10": 5, "3-5": 3, "< 3": 1}[marker]
+    digits = "".join(ch for ch in text if ch.isdigit())
+    return int(digits) if digits else None
+
+
 def build_vector(p):
     age = number_or(p.get("age"), 25)
     height_cm = number_or(p.get("height_cm"), 165)
@@ -37,10 +67,44 @@ def pref_score(candidate, prefs):
     age_min = number_or(prefs.get("age_min"), 18)
     age_max = number_or(prefs.get("age_max"), 50)
     preferred_religion = prefs.get("pref_religion") or prefs.get("religion")
+    preferred_education = normalize_list(prefs.get("education_levels"))
+    preferred_occupations = normalize_list(prefs.get("occupations"))
+    preferred_locations = normalize_list(prefs.get("locations"))
+    preferred_diets = normalize_list(prefs.get("diet_prefs"))
+    preferred_marital_statuses = normalize_list(prefs.get("marital_statuses"))
+    preferred_family_types = normalize_list(prefs.get("family_types"))
+    candidate_income = income_rank(candidate.get("annual_income"))
+    income_min = income_rank(prefs.get("annual_income_min"))
+    income_max = income_rank(prefs.get("annual_income_max"))
     if age < age_min or age > age_max:
         score -= 30
     if preferred_religion and preferred_religion != candidate.get("religion"):
         score -= 15
+    if prefs.get("height_min_cm") and candidate.get("height_cm") and candidate.get("height_cm") < prefs.get("height_min_cm"):
+        score -= 10
+    if prefs.get("height_max_cm") and candidate.get("height_cm") and candidate.get("height_cm") > prefs.get("height_max_cm"):
+        score -= 10
+    if preferred_education and not contains_any(preferred_education, candidate.get("education_level")):
+        score -= 10
+    if preferred_occupations and not contains_any(preferred_occupations, candidate.get("occupation")):
+        score -= 8
+    if candidate_income is not None and income_min is not None and candidate_income < income_min:
+        score -= 8
+    if candidate_income is not None and income_max is not None and candidate_income > income_max:
+        score -= 5
+    if preferred_locations and not contains_any(preferred_locations, candidate.get("working_city"), candidate.get("family_city")):
+        score -= 10
+    if preferred_diets and not contains_any(preferred_diets, candidate.get("diet")):
+        score -= 6
+    if preferred_marital_statuses and not contains_any(preferred_marital_statuses, candidate.get("marital_status")):
+        score -= 8
+    if preferred_family_types and not contains_any(preferred_family_types, candidate.get("family_type")):
+        score -= 5
+    manglik_pref = str(prefs.get("manglik_pref") or "any").lower()
+    if manglik_pref in ["yes", "manglik"] and not candidate.get("is_manglik"):
+        score -= 12
+    if manglik_pref in ["no", "non_manglik", "non-manglik"] and candidate.get("is_manglik"):
+        score -= 12
     return max(0.0, score)
 
 
@@ -132,6 +196,12 @@ def build_match_reasons(user, candidate, preference_score, vector_score, horosco
         reasons.append("Fits your preferred age range")
     if preferred_religion and preferred_religion == candidate.get("religion"):
         reasons.append("Matches your religion preference")
+    if contains_any(user.get("education_levels"), candidate.get("education_level")) and user.get("education_levels"):
+        reasons.append("Education preference aligned")
+    if contains_any(user.get("occupations"), candidate.get("occupation")) and user.get("occupations"):
+        reasons.append("Career preference aligned")
+    if contains_any(user.get("locations"), candidate.get("working_city"), candidate.get("family_city")) and user.get("locations"):
+        reasons.append("Location preference aligned")
     if user.get("working_city") and user.get("working_city") == candidate.get("working_city"):
         reasons.append("Same working city")
     if user.get("diet") and user.get("diet") == candidate.get("diet"):
@@ -155,7 +225,10 @@ async def get_recommended_matches(user_id: str, page: int, limit: int, verified_
             SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
                    ec.education_level,ec.annual_income,ec.working_city,
                    pd.height_cm,ld.diet,hd.is_manglik,
-                   pp.age_min,pp.age_max,pp.religion AS pref_religion
+                   pp.age_min,pp.age_max,pp.religion AS pref_religion,pp.manglik_pref,
+                   pp.education_levels,pp.occupations,pp.annual_income_min,pp.annual_income_max,
+                   pp.height_min_cm,pp.height_max_cm,pp.locations,pp.diet_prefs,
+                   pp.marital_statuses,pp.family_types
             FROM profiles p
             LEFT JOIN education_career ec ON p.profile_id=ec.profile_id
             LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id
@@ -178,7 +251,7 @@ async def get_recommended_matches(user_id: str, page: int, limit: int, verified_
             """
             SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
                    ec.education_level,ec.annual_income,ec.occupation,ec.working_city,
-                   pd.height_cm,ld.diet,hd.is_manglik,fd.family_city,fd.family_pincode,
+                   pd.height_cm,ld.diet,hd.is_manglik,fd.family_city,fd.family_pincode,fd.family_type,
                    u.is_verified AS is_phone_verified,
                    (u.google_id IS NOT NULL) AS firebase_verified,
                    u.last_login,

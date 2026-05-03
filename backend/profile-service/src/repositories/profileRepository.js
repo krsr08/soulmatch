@@ -73,6 +73,31 @@ function toBoolean(value) {
   return value === true || value === 'true' || value === 1 || value === '1';
 }
 
+function toIntegerOrNull(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function toIntegerOrDefault(value, fallback) {
+  const parsed = toIntegerOrNull(value);
+  return parsed === null ? fallback : parsed;
+}
+
+function toTextArray(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+  if (!value || typeof value !== 'string') return [];
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+function cleanShortText(value, maxLength = 120) {
+  if (value === undefined || value === null) return null;
+  const cleaned = String(value).trim();
+  return cleaned ? cleaned.slice(0, maxLength) : null;
+}
+
 function parseVerificationTypes(value) {
   if (!value) return [];
   if (Array.isArray(value)) return value.map((item) => String(item || '').toLowerCase()).filter(Boolean);
@@ -860,8 +885,154 @@ exports.upsertFamily = async (userId, data) => {
 };
 exports.upsertLifestyle = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO lifestyle_details (profile_id,diet,smoking,drinking,about_me) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (profile_id) DO UPDATE SET diet=$2,smoking=$3,drinking=$4,about_me=$5', [p.profile_id,data.diet,data.smoking||'never',data.drinking||'never',data.aboutMe]); return p; };
 exports.upsertHoroscope = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO horoscope_details (profile_id,rashi,nakshatra,is_manglik,birth_city,gotra) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (profile_id) DO UPDATE SET rashi=$2,nakshatra=$3,is_manglik=$4,birth_city=$5,gotra=$6', [p.profile_id,data.rashi,data.nakshatra,data.isManglik||false,data.birthCity,data.gotra]); return p; };
-exports.upsertPreferences = async (profileId, data) => { const db = await getDB(); await db.query('INSERT INTO partner_preferences (profile_id,age_min,age_max,religion,manglik_pref) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (profile_id) DO UPDATE SET age_min=$2,age_max=$3,religion=$4,manglik_pref=$5,updated_at=NOW()', [profileId,data.ageMin||18,data.ageMax||50,data.religion,data.manglikPref||'any']); await db.query('UPDATE profiles SET is_partner_pref_set=true,updated_at=NOW() WHERE profile_id=$1', [profileId]); };
+exports.upsertPreferences = async (profileId, data = {}) => {
+  const db = await getDB();
+  const payload = {
+    ageMin: toIntegerOrDefault(data.ageMin ?? data.age_min, 18),
+    ageMax: toIntegerOrDefault(data.ageMax ?? data.age_max, 50),
+    religion: cleanShortText(data.religion, 50),
+    manglikPref: cleanShortText(data.manglikPref ?? data.manglik_pref, 20) || 'any',
+    educationLevels: toTextArray(data.educationLevels ?? data.education_levels),
+    occupations: toTextArray(data.occupations),
+    annualIncomeMin: toIntegerOrNull(data.annualIncomeMin ?? data.annual_income_min),
+    annualIncomeMax: toIntegerOrNull(data.annualIncomeMax ?? data.annual_income_max),
+    heightMinCm: toIntegerOrNull(data.heightMinCm ?? data.height_min_cm),
+    heightMaxCm: toIntegerOrNull(data.heightMaxCm ?? data.height_max_cm),
+    locations: toTextArray(data.locations),
+    locationRadiusKm: toIntegerOrDefault(data.locationRadiusKm ?? data.location_radius_km, 50),
+    dietPrefs: toTextArray(data.dietPrefs ?? data.diet_prefs),
+    maritalStatuses: toTextArray(data.maritalStatuses ?? data.marital_statuses),
+    familyTypes: toTextArray(data.familyTypes ?? data.family_types),
+    relocationOpen: data.relocationOpen ?? data.relocation_open ?? null,
+    timeline: cleanShortText(data.timeline, 40),
+    dealBreakers: toTextArray(data.dealBreakers ?? data.deal_breakers),
+    goodToHave: toTextArray(data.goodToHave ?? data.good_to_have)
+  };
+  if (payload.ageMin > payload.ageMax) {
+    const originalMin = payload.ageMin;
+    payload.ageMin = payload.ageMax;
+    payload.ageMax = originalMin;
+  }
+  if (payload.heightMinCm !== null && payload.heightMaxCm !== null && payload.heightMinCm > payload.heightMaxCm) {
+    const originalMin = payload.heightMinCm;
+    payload.heightMinCm = payload.heightMaxCm;
+    payload.heightMaxCm = originalMin;
+  }
+  await db.query(
+    `INSERT INTO partner_preferences (
+       profile_id,
+       age_min,
+       age_max,
+       religion,
+       manglik_pref,
+       education_levels,
+       occupations,
+       annual_income_min,
+       annual_income_max,
+       height_min_cm,
+       height_max_cm,
+       locations,
+       location_radius_km,
+       diet_prefs,
+       marital_statuses,
+       family_types,
+       relocation_open,
+       timeline,
+       deal_breakers,
+       good_to_have
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+     ON CONFLICT (profile_id) DO UPDATE SET
+       age_min=$2,
+       age_max=$3,
+       religion=$4,
+       manglik_pref=$5,
+       education_levels=$6,
+       occupations=$7,
+       annual_income_min=$8,
+       annual_income_max=$9,
+       height_min_cm=$10,
+       height_max_cm=$11,
+       locations=$12,
+       location_radius_km=$13,
+       diet_prefs=$14,
+       marital_statuses=$15,
+       family_types=$16,
+       relocation_open=$17,
+       timeline=$18,
+       deal_breakers=$19,
+       good_to_have=$20,
+       updated_at=NOW()`,
+    [
+      profileId,
+      payload.ageMin,
+      payload.ageMax,
+      payload.religion,
+      payload.manglikPref,
+      payload.educationLevels,
+      payload.occupations,
+      payload.annualIncomeMin,
+      payload.annualIncomeMax,
+      payload.heightMinCm,
+      payload.heightMaxCm,
+      payload.locations,
+      payload.locationRadiusKm,
+      payload.dietPrefs,
+      payload.maritalStatuses,
+      payload.familyTypes,
+      payload.relocationOpen,
+      payload.timeline,
+      payload.dealBreakers,
+      payload.goodToHave
+    ]
+  );
+  await db.query('UPDATE profiles SET is_partner_pref_set=true,updated_at=NOW() WHERE profile_id=$1', [profileId]);
+};
 exports.getPreferences = async (profileId) => { const db = await getDB(); const r = await db.query('SELECT * FROM partner_preferences WHERE profile_id=$1', [profileId]); return r.rows[0] || null; };
+exports.recordMatchFeedback = async (userId, targetProfileId, data = {}) => {
+  const db = await getDB();
+  const sourceProfile = await exports.findByUserId(userId);
+  const targetProfile = await exports.findById(targetProfileId);
+  if (!sourceProfile) return { status: 'source_not_found' };
+  if (!targetProfile) return { status: 'target_not_found' };
+  if (sourceProfile.profile_id === targetProfile.profile_id) return { status: 'own_profile' };
+
+  const feedbackId = randomUUID();
+  const action = cleanShortText(data.action, 40) || 'viewed';
+  const reason = cleanShortText(data.reason, 120);
+  const note = cleanShortText(data.note, 500);
+  const metadata = data.metadata && typeof data.metadata === 'object' ? data.metadata : {};
+  const result = await db.query(
+    `INSERT INTO match_feedback (
+       feedback_id,
+       user_id,
+       source_profile_id,
+       target_profile_id,
+       action,
+       reason,
+       note,
+       metadata
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
+     RETURNING feedback_id, user_id, source_profile_id, target_profile_id, action, reason, note, metadata, created_at`,
+    [
+      feedbackId,
+      userId,
+      sourceProfile.profile_id,
+      targetProfile.profile_id,
+      action,
+      reason,
+      note,
+      JSON.stringify(metadata)
+    ]
+  );
+  return {
+    status: 'recorded',
+    sourceProfile,
+    targetProfile,
+    feedback: result.rows[0]
+  };
+};
 exports.getAssistStatusByUserId = async (userId) => {
   const db = await getDB();
   const r = await db.query(
