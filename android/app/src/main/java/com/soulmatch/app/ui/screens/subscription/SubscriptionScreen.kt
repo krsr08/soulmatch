@@ -115,8 +115,15 @@ fun SubscriptionScreen(
             vm.failCheckout("Could not open the payment window.")
             return@LaunchedEffect
         }
+        val keyId = resolvedRazorpayKeyId(pending, razorpayKeyId)
+        if (!isUsableRazorpayKeyId(keyId)) {
+            vm.failCheckout("SoulMatch payments are not configured correctly. Please try again later.")
+            return@LaunchedEffect
+        }
         try {
-            Checkout().open(activity, checkoutOptions(pending, razorpayKeyId))
+            Checkout()
+                .apply { setKeyID(keyId) }
+                .open(activity, checkoutOptions(pending, keyId))
             vm.markCheckoutConsumed()
         } catch (_: Exception) {
             vm.failCheckout("Payment checkout could not be started.")
@@ -306,6 +313,17 @@ private fun MembershipHero(
             }
         }
     }
+}
+
+private fun resolvedRazorpayKeyId(pending: PendingCheckout, publicKeyId: String): String {
+    return pending.order.keyId.trim()
+        .ifBlank { publicKeyId.trim() }
+        .ifBlank { BuildConfig.RAZORPAY_KEY.trim() }
+}
+
+private fun isUsableRazorpayKeyId(keyId: String): Boolean {
+    return keyId != "rzp_test_placeholder" &&
+        (keyId.startsWith("rzp_test_") || keyId.startsWith("rzp_live_"))
 }
 
 private fun checkoutOptions(pending: PendingCheckout, razorpayKeyId: String): JSONObject {
