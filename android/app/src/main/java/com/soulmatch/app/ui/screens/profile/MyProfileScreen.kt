@@ -371,6 +371,8 @@ private fun ProfileOwnerHeader(
         ?: photos.firstOrNull { it.isPrimary }?.photoUrl
         ?: photos.firstOrNull()?.photoUrl
         ?: profile.primaryPhotoUrl
+    val activePaidPlan = subscription.hasActivePaidPlan()
+    val planLabel = subscription.displayPlanName()
     PremiumHeader(
         eyebrow = "Account",
         title = profile.fullName(),
@@ -392,7 +394,7 @@ private fun ProfileOwnerHeader(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 MetricPill("Sections", "$completed/${checklist.size}", modifier = Modifier.weight(1f), background = SurfaceWarm)
                 MetricPill("Photos", photos.size.toString(), modifier = Modifier.weight(1f), background = SurfaceSoft)
-                MetricPill("Plan", titleCase(subscription.planId), modifier = Modifier.weight(1f), accent = Success, background = SuccessSoft)
+                MetricPill("Plan", planLabel, modifier = Modifier.weight(1f), accent = if (activePaidPlan) Success else TextSecondary, background = if (activePaidPlan) SuccessSoft else SurfaceSoft)
             }
             SignalChips(
                 labels = listOf(
@@ -403,21 +405,69 @@ private fun ProfileOwnerHeader(
                 ),
                 tone = ChipTone.Success
             )
-            UpgradePlanGate(
-                title = "Upgrade your member reach",
-                detail = "Premium membership adds contact views, visitor insights, and stronger visibility in search.",
-                onUpgrade = onSubscribe,
-                compact = true
-            )
+            if (activePaidPlan) {
+                MembershipActiveCard(subscription = subscription)
+            } else {
+                UpgradePlanGate(
+                    title = "Upgrade your member reach",
+                    detail = "Premium membership adds contact views, visitor insights, and stronger visibility in search.",
+                    onUpgrade = onSubscribe,
+                    compact = true
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(onClick = onSubscribe, modifier = Modifier.weight(1f)) {
-                    Text("Manage plan")
+                    Text(if (activePaidPlan) "Manage membership" else "View plans")
                 }
                 OutlinedButton(onClick = onSettings, modifier = Modifier.weight(1f)) {
-                    Text("Privacy")
+                    Text("Account settings")
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MembershipActiveCard(subscription: SubscriptionData) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = SuccessSoft,
+        border = BorderStroke(1.dp, Success.copy(alpha = 0.24f))
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                "Membership active",
+                style = MaterialTheme.typography.titleSmall,
+                color = Success,
+                fontWeight = FontWeight.ExtraBold
+            )
+            Text(
+                buildString {
+                    append(subscription.displayPlanName())
+                    subscription.endDate?.takeIf { it.isNotBlank() }?.let {
+                        append(" is valid until ${formatDate(it)}.")
+                    }
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = PrimaryDark
+            )
+        }
+    }
+}
+
+private fun SubscriptionData.hasActivePaidPlan(): Boolean =
+    isActive && planId.isNotBlank() && !planId.equals("free", ignoreCase = true)
+
+private fun SubscriptionData.displayPlanName(): String {
+    val cleanName = planName.trim()
+    if (cleanName.isNotBlank()) return cleanName
+    return when (planId.lowercase(Locale.getDefault())) {
+        "silver" -> "Verified Plus"
+        "gold" -> "Family Assist"
+        "platinum" -> "Platinum"
+        "free", "" -> "Free"
+        else -> titleCase(planId.replace('_', ' '))
     }
 }
 

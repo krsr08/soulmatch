@@ -305,13 +305,17 @@ private fun ActivitySummary(
     onOpenTab: (Int) -> Unit
 ) {
     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), containerColor = MaterialTheme.colorScheme.surface) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                ActivityStatTile("Received", received.toString(), modifier = Modifier.weight(1f), background = SurfaceWarm, onClick = { onOpenTab(0) })
-                ActivityStatTile("Sent", sent.toString(), modifier = Modifier.weight(1f), background = SurfaceSoft, onClick = { onOpenTab(1) })
-                ActivityStatTile("Accepted", accepted.toString(), modifier = Modifier.weight(1f), content = Success, background = SuccessSoft, onClick = { onOpenTab(2) })
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Activity overview", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                Text("Tap a count to open that activity tab", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                ActivityStatTile("Waiting received", received.toString(), modifier = Modifier.weight(1f), background = SurfaceWarm, onClick = { onOpenTab(0) })
+                ActivityStatTile("Sent interests", sent.toString(), modifier = Modifier.weight(1f), background = SurfaceSoft, onClick = { onOpenTab(1) })
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                ActivityStatTile("Accepted", accepted.toString(), modifier = Modifier.weight(1f), content = Success, background = SuccessSoft, onClick = { onOpenTab(2) })
                 ActivityStatTile("Shortlist", shortlisted.toString(), modifier = Modifier.weight(1f), background = SurfaceWarm, onClick = { onOpenTab(4) })
                 ActivityStatTile("Visitors", visitors.toString(), modifier = Modifier.weight(1f), background = SurfaceSoft, onClick = { onOpenTab(5) })
             }
@@ -329,18 +333,22 @@ private fun ActivityStatTile(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier
+            .height(76.dp)
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
         color = background,
         border = BorderStroke(1.dp, Divider)
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 11.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 10.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.Center
         ) {
-            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = content)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = content)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }

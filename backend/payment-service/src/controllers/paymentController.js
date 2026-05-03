@@ -543,14 +543,26 @@ exports.handleWebhook = async (req, res, next) => {
 exports.getSubscription = async (req, res, next) => {
   try {
     const db = await getDB();
+    const { monetization } = await loadRuntime(db);
     const activeSubscriptionSql = "SELECT plan_id,start_date,end_date,is_active FROM subscriptions WHERE user_id=$1 AND is_active=true AND (end_date IS NULL OR end_date>NOW()) ORDER BY created_at DESC LIMIT 1";
     let r = await db.query(activeSubscriptionSql, [req.user.userId]);
     if (!r.rows[0] || r.rows[0].plan_id === 'free') {
-      const { monetization } = await loadRuntime(db);
       await reconcileUserPaidOrders(db, req.user.userId, monetization);
       r = await db.query(activeSubscriptionSql, [req.user.userId]);
     }
-    res.json({ success:true, data:r.rows[0]||{ plan_id:'free', is_active:true } });
+    const active = r.rows[0];
+    if (!active) {
+      return res.json({ success:true, data:{ plan_id:'free', is_active:true, plan_name:'Free', duration_days:null } });
+    }
+    const plan = getPlanById(monetization, active.plan_id);
+    res.json({
+      success:true,
+      data:{
+        ...active,
+        plan_name: plan?.name || active.plan_id,
+        duration_days: plan?.durationDays || null
+      }
+    });
   } catch (err) { next(err); }
 };
 exports.getInvoices = async (req, res, next) => {

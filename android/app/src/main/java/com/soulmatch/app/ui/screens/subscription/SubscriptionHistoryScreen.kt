@@ -120,7 +120,9 @@ fun SubscriptionHistoryScreen(
                 if (invoices.isEmpty()) {
                     item {
                         FreeMembershipHistoryRow(
-                            currentPlan = packageNameByPlanId[subscription.planId] ?: "Free",
+                            currentPlan = subscription.planName.takeIf { it.isNotBlank() }
+                                ?: packageNameByPlanId[subscription.planId]
+                                ?: canonicalHistoryPlanName(subscription.planId),
                             expanded = expandedId == "free",
                             onClick = { expandedId = if (expandedId == "free") null else "free" }
                         )
@@ -276,6 +278,16 @@ private fun paymentStatusTone(invoice: InvoiceItem): ChipTone {
         status.contains("success") || status.contains("paid") || status.contains("captured") || status.contains("active") -> ChipTone.Success
         status.contains("fail") || status.contains("declin") || status.contains("cancel") -> ChipTone.Warm
         else -> ChipTone.Neutral
+    }
+}
+
+private fun canonicalHistoryPlanName(planId: String): String {
+    return when (planId.lowercase(Locale.getDefault())) {
+        "silver" -> "SoulMatch Verified Plus"
+        "gold" -> "SoulMatch Family Assist"
+        "platinum" -> "SoulMatch Platinum"
+        "free", "" -> "Free"
+        else -> titleCase(planId.replace('_', ' '))
     }
 }
 

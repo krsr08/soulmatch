@@ -31,8 +31,10 @@ import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.soulmatch.app.data.models.SubscriptionData
 import com.soulmatch.app.data.models.SavedSearchData
 import com.soulmatch.app.ui.components.ChipTone
 import com.soulmatch.app.ui.components.FilterChoiceChip
@@ -68,6 +71,7 @@ import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.titleCase
 import com.soulmatch.app.ui.viewmodels.DiscoveryFilters
 import com.soulmatch.app.ui.viewmodels.SearchViewModel
+import com.soulmatch.app.ui.viewmodels.SubscriptionViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,17 +85,24 @@ fun SearchScreen(
     profileId: String = "",
     chatId: String = "",
     participantName: String = "",
-    vm: SearchViewModel = hiltViewModel()
+    vm: SearchViewModel = hiltViewModel(),
+    subscriptionVm: SubscriptionViewModel = hiltViewModel()
 ) {
     val results by vm.results.collectAsStateWithLifecycle()
     val filters by vm.filters.collectAsStateWithLifecycle()
     val savedSearches by vm.savedSearches.collectAsStateWithLifecycle()
     val loading by vm.isLoading.collectAsStateWithLifecycle()
+    val subscription by subscriptionVm.subscription.collectAsStateWithLifecycle()
     var minAge by remember(filters.ageMin) { mutableFloatStateOf((filters.ageMin ?: 21).toFloat()) }
     var maxAge by remember(filters.ageMax) { mutableFloatStateOf((filters.ageMax ?: 45).toFloat()) }
     val viewProfile: (String) -> Unit = onViewProfile ?: { _ -> }
     val openSubscription: (() -> Unit)? = onSubscribe
+    val hasActiveMembership = subscription.hasActivePaidMembership()
     var showFilters by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        subscriptionVm.load()
+    }
 
     Scaffold(
         topBar = {
@@ -165,6 +176,7 @@ fun SearchScreen(
                             onToggleHasPhoto = { vm.updateFilters { copy(hasPhotoOnly = !hasPhotoOnly) } },
                             onToggleRecentlyActive = { vm.updateFilters { copy(recentlyActiveOnly = !recentlyActiveOnly) } },
                             onSavedSearch = { vm.applySavedSearch(it) },
+                            onSaveSearch = { vm.saveCurrentSearch() },
                             onApply = {
                                 vm.applyFilters()
                                 showFilters = false
@@ -208,7 +220,7 @@ fun SearchScreen(
                             onViewProfile = viewProfile,
                             onShortlist = { vm.toggleShortlist(it) }
                         )
-                        if ((index + 1) % 5 == 0 && index != results.lastIndex) {
+                        if (!hasActiveMembership && (index + 1) % 5 == 0 && index != results.lastIndex) {
                             UpgradePlanGate(
                                 title = "Upgrade for advanced discovery",
                                 detail = "Unlock contact views, profile highlights, and richer match signals while searching.",
@@ -263,10 +275,10 @@ private fun SearchSummaryPanel(
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
-                    filters.ageMin?.let { min -> filters.ageMax?.let { max -> "Age $min-$max" } } ?: "Any age",
-                    filters.city.ifBlank { "Any location" },
-                    filters.community.ifBlank { "Any community" },
-                    filters.religion.ifBlank { "Any religion" }
+                    filters.ageMin?.let { min -> filters.ageMax?.let { max -> "Age: $min-$max yrs" } } ?: "Age: Any",
+                    filters.city.takeIf { it.isNotBlank() }?.let { "Location: $it" } ?: "Location: Any",
+                    if (filters.community.equals("Any", true)) "Community: Any" else "Community: ${titleCase(filters.community)}",
+                    if (filters.religion.equals("Any", true)) "Religion: Any" else "Religion: ${titleCase(filters.religion)}"
                 ).forEach { label ->
                     SignalChip(label, tone = ChipTone.Neutral)
                 }
@@ -300,6 +312,7 @@ private fun SearchFilterPanel(
     onToggleHasPhoto: () -> Unit,
     onToggleRecentlyActive: () -> Unit,
     onSavedSearch: (SavedSearchData) -> Unit,
+    onSaveSearch: () -> Unit,
     onApply: () -> Unit,
     onClear: () -> Unit
 ) {
@@ -494,8 +507,11 @@ private fun SearchFilterPanel(
                     modifier = Modifier.weight(1f).height(52.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = InfoSoft, contentColor = Info)
                 ) {
-                    Text("Reset")
+                    Text("Reset filters")
                 }
+            }
+            TextButton(onClick = onSaveSearch, modifier = Modifier.fillMaxWidth()) {
+                Text("Save this search")
             }
         }
     }
@@ -514,7 +530,7 @@ private fun FilterGroup(
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             options.forEach { option ->
                 FilterChoiceChip(
-                    label = titleCase(option),
+                    label = filterOptionLabel(title, option),
                     selected = selected.equals(option, ignoreCase = true),
                     onClick = { onSelected(option) }
                 )
@@ -549,4 +565,20 @@ private fun fallbackLabel(search: SavedSearchData): String {
     val faith = search.religion ?: "Smart"
     val ageBand = listOfNotNull(search.ageMin, search.ageMax).joinToString("-")
     return "$faith $ageBand".trim()
+}
+
+private fun filterOptionLabel(title: String, option: String): String {
+    if (!option.equals("Any", ignoreCase = true)) return titleCase(option)
+    return when {
+        title.contains("community", ignoreCase = true) -> "Any community"
+        title.contains("tongue", ignoreCase = true) -> "Any language"
+        title.contains("status", ignoreCase = true) -> "Any status"
+        title.contains("family", ignoreCase = true) -> "Any family type"
+        title.contains("manglik", ignoreCase = true) -> "Any horoscope"
+        else -> "Any ${title.lowercase()}"
+    }
+}
+
+private fun SubscriptionData.hasActivePaidMembership(): Boolean {
+    return isActive && planId.isNotBlank() && !planId.equals("free", ignoreCase = true)
 }

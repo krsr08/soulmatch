@@ -115,6 +115,8 @@ fun DashboardScreen(
     val unreadNotificationCount = notifications.count {
         it.readAt.isNullOrBlank() && !it.status.equals("read", ignoreCase = true)
     }
+    val notificationBadgeCount = (unreadNotificationCount + pendingInvitations.size).takeIf { it > 0 }
+        ?: notifications.size
     val shouldPromptPartnerPreference = myProfile.profileId.isNotBlank() &&
         myProfile.completionScore >= 60 &&
         !myProfile.isPartnerPrefSet
@@ -139,7 +141,7 @@ fun DashboardScreen(
             topBar = {
                 HomeTopBar(
                     profilePhoto = myProfile.primaryPhotoUrl,
-                    unreadCount = unreadNotificationCount,
+                    unreadCount = notificationBadgeCount,
                     onOpenProfile = { scope.launch { drawerState.open() } },
                     onOpenNotifications = onOpenNotifications
                 )

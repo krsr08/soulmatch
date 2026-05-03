@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.soulmatch.app.data.api.InterestApiService
 import com.soulmatch.app.data.api.MatchingApiService
 import com.soulmatch.app.data.api.ProfileApiService
+import com.soulmatch.app.data.api.SearchApiService
 import com.soulmatch.app.data.config.AppEnvironment
 import com.soulmatch.app.data.local.UserPreferences
 import com.soulmatch.app.data.local.ProfileInteractionStore
@@ -15,6 +16,8 @@ import com.soulmatch.app.data.models.PartnerPreferencesData
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.ProfileSummary
 import com.soulmatch.app.data.models.RespondRequest
+import com.soulmatch.app.data.models.SearchRequest
+import com.soulmatch.app.data.models.toProfileSummary
 import com.soulmatch.app.data.realtime.InterestSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -31,6 +34,7 @@ class DashboardViewModel @Inject constructor(
     private val matchingApi: MatchingApiService,
     private val interestApi: InterestApiService,
     private val profileApi: ProfileApiService,
+    private val searchApi: SearchApiService,
     private val interestSyncManager: InterestSyncManager,
     private val prefs: UserPreferences
 ) : ViewModel() {
@@ -94,7 +98,12 @@ class DashboardViewModel @Inject constructor(
                 emptyList()
             }.ifEmpty { if (canUseFallback) MarketFixtures.matches else emptyList() }
                 .let { list -> if (verifiedOnly) list.filter { it.isVerified } else list }
-            loadedMatches = applyInteractionState(baseMatches)
+            val expandedMatches = if (baseMatches.size >= MIN_DISCOVERY_PROFILES) {
+                baseMatches
+            } else {
+                mergeDiscoveryProfiles(baseMatches, fetchSearchTopUp(baseMatches, verifiedOnly))
+            }
+            loadedMatches = applyInteractionState(expandedMatches)
             _matches.value = loadedMatches.applyLocalInteractionState().filterVisibleProfiles()
             _headline.value = when {
                 verifiedOnly && _matches.value.isEmpty() -> "No verified profiles available yet"
@@ -266,5 +275,37 @@ class DashboardViewModel @Inject constructor(
                 }
             )
         }
+    }
+
+    private suspend fun fetchSearchTopUp(
+        seed: List<ProfileSummary>,
+        verifiedOnly: Boolean
+    ): List<ProfileSummary> {
+        val seedMap = seed.associateBy { it.profileId }
+        val response = runCatching {
+            searchApi.advancedSearch(SearchRequest(page = 1, limit = 25, verifiedOnly = verifiedOnly))
+        }.getOrNull()
+        return response
+            ?.body()
+            ?.takeIf { response.isSuccessful && it.success }
+            ?.data
+            ?.results
+            ?.map { result -> result.toProfileSummary(seedMap[result.profileId]) }
+            .orEmpty()
+    }
+
+    private fun mergeDiscoveryProfiles(
+        primary: List<ProfileSummary>,
+        secondary: List<ProfileSummary>
+    ): List<ProfileSummary> {
+        val byId = linkedMapOf<String, ProfileSummary>()
+        (primary + secondary).forEach { profile ->
+            if (profile.profileId.isNotBlank()) byId.putIfAbsent(profile.profileId, profile)
+        }
+        return byId.values.toList()
+    }
+
+    private companion object {
+        const val MIN_DISCOVERY_PROFILES = 15
     }
 }

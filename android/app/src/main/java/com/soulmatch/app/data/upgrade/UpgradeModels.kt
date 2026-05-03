@@ -85,11 +85,18 @@ data class UpgradePackage(
                 pkgDurationDays in 150..220 -> "6 Months"
                 else -> pkgDuration
             }
+            val canonicalPlan = remotePlanId?.lowercase().orEmpty()
             return when {
+                canonicalPlan == "silver" -> "SoulMatch Verified Plus $durationLabel"
+                canonicalPlan == "gold" -> "SoulMatch Family Assist $durationLabel"
+                canonicalPlan == "platinum" -> "SoulMatch Platinum $durationLabel"
                 pkgId == 241 -> "SoulMatch Elite"
                 pkgId in setOf(266, 267, 288) -> "SoulMatch Twin Pack $durationLabel"
                 pkgId in setOf(48, 80, 306) -> "SoulMatch Personalized $durationLabel"
                 pkgId in setOf(237, 238, 239, 273, 275) -> "SoulMatch Till U Marry"
+                pkgName.contains("Elite", ignoreCase = true) -> "SoulMatch Platinum $durationLabel"
+                pkgName.contains("Family Assist", ignoreCase = true) -> "SoulMatch Family Assist $durationLabel"
+                pkgName.contains("Verified Plus", ignoreCase = true) -> "SoulMatch Verified Plus $durationLabel"
                 pkgName.contains("Premium", ignoreCase = true) -> "SoulMatch Premium $durationLabel"
                 pkgName.contains("Advantage", ignoreCase = true) -> "SoulMatch Advantage $durationLabel"
                 else -> "SoulMatch Classic $durationLabel"

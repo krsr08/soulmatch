@@ -172,6 +172,10 @@ fun SubscriptionScreen(
     val packageNameByPlanId = packageGroups
         .flatMap { it.packages }
         .associate { it.planId to it.displayName }
+    val currentMembershipName = subscription.planName
+        .takeIf { it.isNotBlank() }
+        ?: packageNameByPlanId[subscription.planId]
+        ?: canonicalPlanName(subscription.planId)
 
     planPrompt?.let { prompt ->
         ModalBottomSheet(
@@ -231,13 +235,13 @@ fun SubscriptionScreen(
                     MembershipHero(
                         selectedGroup = selectedGroup,
                         selectedPackage = selectedPackage,
-                        currentPlanName = packageNameByPlanId[subscription.planId] ?: titleCase(subscription.planId)
+                        currentPlanName = currentMembershipName
                     )
                 }
                 item {
                     CurrentMembershipCard(
                         subscription = subscription,
-                        currentPlanName = packageNameByPlanId[subscription.planId]
+                        currentPlanName = currentMembershipName
                     )
                 }
                 item {
@@ -565,6 +569,16 @@ private fun planRank(planId: String, amount: Int?): Int {
         "gold" -> 2
         "platinum" -> 3
         else -> ((amount ?: 0) / 500).coerceAtLeast(1)
+    }
+}
+
+private fun canonicalPlanName(planId: String): String {
+    return when (planId.lowercase(Locale.getDefault())) {
+        "silver" -> "SoulMatch Verified Plus"
+        "gold" -> "SoulMatch Family Assist"
+        "platinum" -> "SoulMatch Platinum"
+        "free", "" -> "Free"
+        else -> titleCase(planId.replace('_', ' '))
     }
 }
 

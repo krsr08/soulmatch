@@ -29,6 +29,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.ProfileSummary
+import com.soulmatch.app.data.models.SubscriptionData
 import com.soulmatch.app.ui.components.PremiumCard
 import com.soulmatch.app.ui.components.PremiumScreen
 import com.soulmatch.app.ui.components.ProfileCard
@@ -51,6 +53,7 @@ import com.soulmatch.app.ui.theme.SurfaceSoft
 import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.viewmodels.DashboardViewModel
+import com.soulmatch.app.ui.viewmodels.SubscriptionViewModel
 
 private enum class BestMatchFilter(val label: String) {
     All("All"),
@@ -66,12 +69,15 @@ fun BestMatchesScreen(
     onBack: () -> Unit = {},
     onViewProfile: (String) -> Unit,
     onSubscribe: () -> Unit = {},
-    vm: DashboardViewModel = hiltViewModel()
+    vm: DashboardViewModel = hiltViewModel(),
+    subscriptionVm: SubscriptionViewModel = hiltViewModel()
 ) {
     val matches by vm.matches.collectAsStateWithLifecycle()
     val myProfile by vm.myProfile.collectAsStateWithLifecycle()
     val loading by vm.isLoading.collectAsStateWithLifecycle()
+    val subscription by subscriptionVm.subscription.collectAsStateWithLifecycle()
     var filter by remember { mutableStateOf(BestMatchFilter.All) }
+    val hasActiveMembership = subscription.hasActivePaidMembership()
     val currentCity = myProfile.workingCity.ifBlank { myProfile.familyCity }
     val rankedMatches = remember(matches, filter, currentCity) {
         matches
@@ -91,6 +97,10 @@ fun BestMatchesScreen(
                     .thenBy { it.name }
             )
             .toList()
+    }
+
+    LaunchedEffect(Unit) {
+        subscriptionVm.load()
     }
 
     Scaffold(
@@ -167,7 +177,7 @@ fun BestMatchesScreen(
                                 onViewProfile = onViewProfile,
                                 onShortlist = { vm.toggleShortlist(it) }
                             )
-                            if ((index + 1) % 5 == 0 && index != rankedMatches.lastIndex) {
+                            if (!hasActiveMembership && (index + 1) % 5 == 0 && index != rankedMatches.lastIndex) {
                                 UpgradePlanGate(
                                     title = "Upgrade for more match actions",
                                     detail = "Unlock contact views, profile highlights, and stronger visibility while browsing.",
@@ -183,6 +193,10 @@ fun BestMatchesScreen(
             }
         }
     }
+}
+
+private fun SubscriptionData.hasActivePaidMembership(): Boolean {
+    return isActive && planId.isNotBlank() && !planId.equals("free", ignoreCase = true)
 }
 
 @Composable

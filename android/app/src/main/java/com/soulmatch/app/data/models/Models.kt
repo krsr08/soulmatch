@@ -509,7 +509,9 @@ data class SubscriptionData(
     @SerializedName("plan_id") val planId: String = "free",
     @SerializedName("is_active") val isActive: Boolean = true,
     @SerializedName("start_date") val startDate: String? = null,
-    @SerializedName("end_date") val endDate: String? = null
+    @SerializedName("end_date") val endDate: String? = null,
+    @SerializedName("plan_name") val planName: String = "",
+    @SerializedName("duration_days") val durationDays: Int? = null
 )
 
 data class BrandingConfig(

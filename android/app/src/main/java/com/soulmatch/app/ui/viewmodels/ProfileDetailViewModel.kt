@@ -14,6 +14,7 @@ import com.soulmatch.app.data.models.FamilyDecisionRequest
 import com.soulmatch.app.data.models.InterestRequest
 import com.soulmatch.app.data.models.PhotoAccessRequestBody
 import com.soulmatch.app.data.models.ProfileData
+import com.soulmatch.app.data.models.ProfileSummary
 import com.soulmatch.app.data.realtime.InterestSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -56,7 +57,8 @@ class ProfileDetailViewModel @Inject constructor(
                 ?.takeIf { it.success }
                 ?.data
                 ?: if (AppEnvironment.allowDemoFallback) MarketFixtures.profileDetails(profileId) else null
-            _profile.value = remoteProfile
+            val discoverySummary = resolveDiscoverySummary(profileId)
+            _profile.value = remoteProfile?.mergeDiscoverySummary(discoverySummary)
             _compatibility.value = runCatching { matchingApi.getCompatibility(profileId) }
                 .getOrNull()
                 ?.body()
@@ -97,6 +99,36 @@ class ProfileDetailViewModel @Inject constructor(
             _interestSent.value = profileId in sentIds || profileId in interactions.sentInterestProfileIds
             _isLoading.value = false
         }
+    }
+
+    private suspend fun resolveDiscoverySummary(profileId: String): ProfileSummary? {
+        val recommended = runCatching { matchingApi.getRecommended(page = 1, limit = 25) }
+            .getOrNull()
+            ?.body()
+            ?.takeIf { it.success }
+            ?.data
+            ?.matches
+            .orEmpty()
+        return recommended.firstOrNull { it.profileId == profileId }
+            ?: if (AppEnvironment.allowDemoFallback) MarketFixtures.matchSeed(profileId) else null
+    }
+
+    private fun ProfileData.mergeDiscoverySummary(summary: ProfileSummary?): ProfileData {
+        if (summary == null) return this
+        val summaryVerified = summary.isVerified || verificationStatus.equals("verified", ignoreCase = true)
+        return copy(
+            age = if (age > 0) age else summary.age,
+            occupation = occupation.ifBlank { summary.occupation },
+            workingCity = workingCity.ifBlank { summary.location },
+            heightCm = heightCm ?: summary.heightCm,
+            primaryPhotoUrl = primaryPhotoUrl ?: summary.primaryPhoto,
+            profileCreatedBy = if (summary.profileCreatedBy.isNotBlank()) summary.profileCreatedBy else profileCreatedBy,
+            verificationStatus = if (summaryVerified) "verified" else verificationStatus,
+            trustScore = if (summary.trustScore > 0) summary.trustScore else trustScore,
+            trustLevel = if (summary.trustLevel.isNotBlank()) summary.trustLevel else trustLevel,
+            trustSignals = if (summary.trustSignals.isNotEmpty()) summary.trustSignals else trustSignals,
+            trustFactors = if (summary.trustFactors.isNotEmpty()) summary.trustFactors else trustFactors
+        )
     }
 
     fun sendInterest() {

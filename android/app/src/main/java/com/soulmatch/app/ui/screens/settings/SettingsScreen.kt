@@ -101,7 +101,7 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Privacy", fontWeight = FontWeight.Bold) },
+                title = { Text("Account & Settings", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
@@ -122,9 +122,9 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 PremiumHeader(
-                    eyebrow = "Controls",
-                    title = "Privacy",
-                    subtitle = "Choose who can see you and manage people you do not want to see."
+                    eyebrow = "Account",
+                    title = "Account & Settings",
+                    subtitle = "Manage privacy, visibility, safety controls, notifications, and sign-out."
                 )
                 if (!status.isNullOrBlank()) {
                     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp), containerColor = SuccessSoft) {

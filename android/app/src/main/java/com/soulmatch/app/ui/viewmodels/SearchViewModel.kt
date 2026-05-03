@@ -109,7 +109,23 @@ class SearchViewModel @Inject constructor(
             } else {
                 emptyList()
             }.ifEmpty { if (AppEnvironment.allowDemoFallback) MarketFixtures.matches else emptyList() }
-            _catalog.value = applyInteractionState(recommendedMatches)
+            val expandedMatches = if (recommendedMatches.size >= MIN_DISCOVERY_PROFILES) {
+                recommendedMatches
+            } else {
+                val seedMap = recommendedMatches.associateBy { it.profileId }
+                val searchResponse = runCatching {
+                    searchApi.advancedSearch(SearchRequest(page = 1, limit = 25))
+                }.getOrNull()
+                val searchMatches = searchResponse
+                    ?.body()
+                    ?.takeIf { searchResponse.isSuccessful && it.success }
+                    ?.data
+                    ?.results
+                    ?.map { result -> result.toProfileSummary(seedMap[result.profileId]) }
+                    .orEmpty()
+                mergeDiscoveryProfiles(recommendedMatches, searchMatches)
+            }
+            _catalog.value = applyInteractionState(expandedMatches)
             _results.value = _catalog.value.filterVisibleProfiles()
             val savedResponse = runCatching { searchApi.getSavedSearches() }.getOrNull()
             val savedBody = savedResponse?.body()
@@ -137,7 +153,12 @@ class SearchViewModel @Inject constructor(
             } else {
                 emptyList()
             }.ifEmpty { if (AppEnvironment.allowDemoFallback) MarketFixtures.search(currentRequest()) else emptyList() }
-            val base = applyInteractionState(remoteResults)
+            val expanded = if (remoteResults.size >= MIN_DISCOVERY_PROFILES || hasActiveFilters()) {
+                remoteResults
+            } else {
+                mergeDiscoveryProfiles(remoteResults, _catalog.value)
+            }
+            val base = applyInteractionState(expanded)
             _results.value = base.filterVisibleProfiles().filter { match -> matchesRichFilters(match) }
             _isLoading.value = false
         }
@@ -190,7 +211,7 @@ class SearchViewModel @Inject constructor(
             val action = response?.body()?.takeIf { response.isSuccessful && it.success }?.data?.action
             val nextShortlisted = action?.let { it == "added" } ?: return@launch
             updateProfileState(profileId) {
-                val resolved = nextShortlisted ?: !shortlisted
+                val resolved = nextShortlisted
                 ProfileInteractionStore.setShortlisted(profileId, resolved)
                 copy(shortlisted = resolved)
             }
@@ -307,5 +328,42 @@ class SearchViewModel @Inject constructor(
                 filters.manglik.equals("no", true) -> !fixtureDetail.isManglik
                 else -> true
             })
+    }
+
+    private fun hasActiveFilters(): Boolean {
+        val filters = _filters.value
+        fun selected(value: String): Boolean = value.isNotBlank() && !value.equals("Any", true) && !value.equals("All", true)
+        return filters.ageMin != null ||
+            filters.ageMax != null ||
+            filters.city.isNotBlank() ||
+            selected(filters.religion) ||
+            selected(filters.community) ||
+            selected(filters.motherTongue) ||
+            selected(filters.education) ||
+            selected(filters.occupation) ||
+            selected(filters.income) ||
+            selected(filters.diet) ||
+            selected(filters.familyType) ||
+            selected(filters.maritalStatus) ||
+            selected(filters.manglik) ||
+            filters.verifiedOnly ||
+            filters.highCompatibilityOnly ||
+            filters.hasPhotoOnly ||
+            filters.recentlyActiveOnly
+    }
+
+    private fun mergeDiscoveryProfiles(
+        primary: List<ProfileSummary>,
+        secondary: List<ProfileSummary>
+    ): List<ProfileSummary> {
+        val byId = linkedMapOf<String, ProfileSummary>()
+        (primary + secondary).forEach { profile ->
+            if (profile.profileId.isNotBlank()) byId.putIfAbsent(profile.profileId, profile)
+        }
+        return byId.values.toList()
+    }
+
+    private companion object {
+        const val MIN_DISCOVERY_PROFILES = 15
     }
 }

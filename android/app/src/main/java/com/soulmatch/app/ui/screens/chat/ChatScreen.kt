@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.ChatMessage
+import com.soulmatch.app.data.models.SubscriptionData
 import com.soulmatch.app.ui.components.AvatarInitial
 import com.soulmatch.app.ui.components.CallActionDialog
 import com.soulmatch.app.ui.components.ChipTone
@@ -67,6 +68,7 @@ import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.formatChatTime
 import com.soulmatch.app.ui.viewmodels.ChatThreadViewModel
+import com.soulmatch.app.ui.viewmodels.SubscriptionViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,14 +82,17 @@ fun ChatScreen(
     profileId: String = "",
     chatId: String = "",
     participantName: String = "",
-    vm: ChatThreadViewModel = hiltViewModel()
+    vm: ChatThreadViewModel = hiltViewModel(),
+    subscriptionVm: SubscriptionViewModel = hiltViewModel()
 ) {
     val messages by vm.messages.collectAsStateWithLifecycle()
     val currentUserId by vm.currentUserId.collectAsStateWithLifecycle()
     val loading by vm.isLoading.collectAsStateWithLifecycle()
+    val subscription by subscriptionVm.subscription.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf("") }
     var callAction by remember { mutableStateOf<Boolean?>(null) }
     val openSubscription: (() -> Unit)? = onSubscribe
+    val hasActiveMembership = subscription.hasActivePaidMembership()
     val prompts = listOf(
         "What does a good weekend with family look like for you?",
         "I liked your profile. What values matter most to you in marriage?",
@@ -96,6 +101,9 @@ fun ChatScreen(
 
     LaunchedEffect(chatId) {
         vm.load(chatId)
+    }
+    LaunchedEffect(Unit) {
+        subscriptionVm.load()
     }
 
     callAction?.let { isVideo ->
@@ -182,14 +190,16 @@ fun ChatScreen(
                     item {
                         SafetyBanner()
                     }
-                    item {
-                        UpgradePlanGate(
-                            title = "Upgrade for richer conversations",
-                            detail = "Premium unlocks contact views, better response signals, and assisted conversation support.",
-                            onUpgrade = openSubscription,
-                            compact = true,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
+                    if (!hasActiveMembership) {
+                        item {
+                            UpgradePlanGate(
+                                title = "Upgrade for richer conversations",
+                                detail = "Premium unlocks contact views, better response signals, and assisted conversation support.",
+                                onUpgrade = openSubscription,
+                                compact = true,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
                     }
                     if (messages.isEmpty()) {
                         item {
@@ -232,6 +242,10 @@ private fun SafetyBanner() {
             }
         }
     }
+}
+
+private fun SubscriptionData.hasActivePaidMembership(): Boolean {
+    return isActive && planId.isNotBlank() && !planId.equals("free", ignoreCase = true)
 }
 
 @Composable

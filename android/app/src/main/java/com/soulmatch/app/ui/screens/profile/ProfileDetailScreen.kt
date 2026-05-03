@@ -63,6 +63,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.CompatibilityData
 import com.soulmatch.app.data.models.ProfileData
+import com.soulmatch.app.data.models.SubscriptionData
 import com.soulmatch.app.data.models.TrustFactorData
 import com.soulmatch.app.data.models.fullName
 import com.soulmatch.app.ui.components.ChipTone
@@ -89,6 +90,7 @@ import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.titleCase
 import com.soulmatch.app.ui.viewmodels.ProfileDetailViewModel
+import com.soulmatch.app.ui.viewmodels.SubscriptionViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -102,7 +104,8 @@ fun ProfileDetailScreen(
     profileId: String = "",
     chatId: String = "",
     participantName: String = "",
-    vm: ProfileDetailViewModel = hiltViewModel()
+    vm: ProfileDetailViewModel = hiltViewModel(),
+    subscriptionVm: SubscriptionViewModel = hiltViewModel()
 ) {
     val profile by vm.profile.collectAsStateWithLifecycle()
     val compatibility by vm.compatibility.collectAsStateWithLifecycle()
@@ -111,8 +114,10 @@ fun ProfileDetailScreen(
     val shortlisted by vm.shortlisted.collectAsStateWithLifecycle()
     val canChat by vm.canChat.collectAsStateWithLifecycle()
     val photoActionStatus by vm.status.collectAsStateWithLifecycle()
+    val subscription by subscriptionVm.subscription.collectAsStateWithLifecycle()
     val openChat: (String, String) -> Unit = onOpenChat ?: { _, _ -> }
     val openSubscription: (() -> Unit)? = onSubscribe
+    val hasActiveMembership = subscription.hasActivePaidMembership()
     val context = LocalContext.current
     var actionsExpanded by remember { mutableStateOf(false) }
     var actionNotice by remember { mutableStateOf<String?>(null) }
@@ -120,6 +125,9 @@ fun ProfileDetailScreen(
 
     LaunchedEffect(profileId) {
         vm.load(profileId)
+    }
+    LaunchedEffect(Unit) {
+        subscriptionVm.load()
     }
     LaunchedEffect(photoActionStatus) {
         if (!photoActionStatus.isNullOrBlank()) {
@@ -194,7 +202,7 @@ fun ProfileDetailScreen(
                 profile?.let { data ->
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 28.dp)
+                        contentPadding = PaddingValues(bottom = 132.dp)
                     ) {
                         item {
                             ProfileHero(
@@ -211,11 +219,21 @@ fun ProfileDetailScreen(
                                 onSendInterest = { vm.sendInterest() },
                                 onOpenChat = { openChat(data.userId, data.fullName()) },
                                 onSave = { vm.toggleShortlist() },
-                                onAddFamilyReview = { vm.addToFamilyBoard() },
+                                onAddFamilyReview = {
+                                    actionNotice = "Adding this profile to your family board..."
+                                    vm.addToFamilyBoard()
+                                },
                                 onShare = { shareProfileWithFamily(context, data, compatibility.overallScore) }
                             )
                         }
-                        if (!canChat) {
+                        if (!actionNotice.isNullOrBlank()) {
+                            item {
+                                PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+                                    Text(actionNotice ?: "", style = MaterialTheme.typography.bodyMedium, color = PrimaryDark, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                        if (!canChat && !hasActiveMembership) {
                             item {
                                 UpgradePlanGate(
                                     title = "Upgrade to contact this member",
@@ -225,11 +243,13 @@ fun ProfileDetailScreen(
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                                 )
                             }
-                        }
-                        if (!actionNotice.isNullOrBlank()) {
+                        } else if (!canChat) {
                             item {
-                                PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
-                                    Text(actionNotice ?: "", style = MaterialTheme.typography.bodyMedium, color = PrimaryDark, fontWeight = FontWeight.SemiBold)
+                                PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceSoft) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text("Chat opens after mutual acceptance", style = MaterialTheme.typography.titleSmall, color = PrimaryDark, fontWeight = FontWeight.Bold)
+                                        Text("Your membership is active. Send interest first; chat becomes available when both sides accept.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                    }
                                 }
                             }
                         }
@@ -401,7 +421,11 @@ private fun ProfileHero(profile: ProfileData, compatibilityScore: Int, onRequest
                         "$compatibilityScore% compatibility",
                         "Created by ${titleCase(profile.profileCreatedBy)}",
                         if (profile.profileStatus.equals("inactive", ignoreCase = true)) "Inactive" else "Active",
-                        if (profile.completionScore >= 80) "Complete profile" else "Profile in progress",
+                        when {
+                            profile.verificationStatus.equals("verified", ignoreCase = true) -> "Verified profile"
+                            profile.completionScore >= 80 -> "Complete profile"
+                            else -> "Profile in progress"
+                        },
                         if (profile.trustScore > 0) "Trust ${profile.trustScore}%" else "Trust building",
                         when {
                             isPhotoBlocked -> "Photo approval required"
@@ -482,24 +506,29 @@ private fun PrimaryActionPanel(
 }
 
 private fun shareProfileWithFamily(context: Context, profile: ProfileData, compatibilityScore: Int) {
+    val safeName = listOfNotNull(
+        profile.firstName.ifBlank { null },
+        profile.lastName.take(1).takeIf { it.isNotBlank() }?.let { "$it." }
+    ).joinToString(" ").ifBlank { "A SoulMatch member" }
     val summary = buildString {
-        appendLine("SoulMatch profile: ${profile.fullName()}")
+        appendLine("SoulMatch family review")
+        appendLine("$safeName is ready for secure family review.")
         appendLine("Profile Match: $compatibilityScore%")
-        profile.age.takeIf { it > 0 }?.let { appendLine("Age: $it yrs") }
-        profile.heightCm?.let { appendLine("Height: $it cm") }
         profile.occupation.ifBlank { null }?.let { appendLine("Profession: $it") }
-        profile.workingCity.ifBlank { profile.familyCity }.ifBlank { null }?.let { appendLine("Location: $it") }
-        profile.religion.ifBlank { null }?.let { appendLine("Religion: $it") }
-        profile.caste.ifBlank { null }?.let { appendLine("Community: $it") }
+        profile.workingCity.ifBlank { profile.familyCity }.ifBlank { null }?.let { appendLine("City: $it") }
         appendLine()
-        append("Open SoulMatch to review this profile with the family.")
+        append("Open SoulMatch to review verified details. Please share only with trusted family members.")
     }
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(Intent.EXTRA_SUBJECT, "SoulMatch profile: ${profile.fullName()}")
+        putExtra(Intent.EXTRA_SUBJECT, "SoulMatch family review")
         putExtra(Intent.EXTRA_TEXT, summary)
     }
-    context.startActivity(Intent.createChooser(intent, "Share profile"))
+    context.startActivity(Intent.createChooser(intent, "Share safely with family"))
+}
+
+private fun SubscriptionData.hasActivePaidMembership(): Boolean {
+    return isActive && planId.isNotBlank() && !planId.equals("free", ignoreCase = true)
 }
 
 @Composable
