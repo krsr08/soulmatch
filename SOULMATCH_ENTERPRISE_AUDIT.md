@@ -7,6 +7,23 @@ Scope: static audit of application-owned files in `admin-web`, `android/app/src`
 
 Soulmatch is a strong prototype with a real service split, Android Compose UI, admin web console, PostgreSQL schema, Mongo chat, Redis-backed auth, Razorpay, FCM, and Socket.IO foundations. It is not production ready. The current state has release-blocking auth, privacy, payment, notification, mock-data, secret-management, and authorization gaps. Do not launch this to real users until Phase 1 below is complete.
 
+## 2026-05-03 Market Readiness Implementation Status
+
+The latest implementation closes several product-differentiation gaps but does not make the platform fully production-ready yet.
+
+| S.No | Item | Status | Notes |
+|---:|---|---|---|
+| 1 | Trust Score v2 | Completed foundation | Score now uses phone, Firebase/Google, completion, photo count, admin/document/education/income/family verification, reports, active status, and recent activity. Explanations are returned by API and shown in Android. |
+| 2 | Seriousness Score | Completed foundation | Separate internal score now considers completion, verification, recent activity, family-board usage, interest behavior, and ghosting/ignored-message signals where available. |
+| 3 | Admin verification workflow | In Progress | Pending queue, approve/reject, reason, audit, notification, trust score, proof types, and safety report context exist. Still needs document evidence UI, reviewer SLA, fraud scoring, and MFA-backed admin identity. |
+| 4 | Verified-only discovery | Completed foundation | Matching/search filters now exclude inactive, banned, blocked, hidden/ineligible profiles and support verified-only mode. Android best matches toggle is wired. |
+| 5 | Family Decision Board v2 | Completed foundation | Family votes, comments, statuses, next-step reminders, trust context, Android UI, audit logs, and notification records are in place. Rich side-by-side comparison remains. |
+| 6 | Advisor/broker system | In Progress | Advisor data model, service areas, allocation logic, admin approval/suspension, assignment events, and member notification exist. Dedicated advisor login/portal is still pending. |
+| 7 | Safe communication | In Progress | Mutual accepted interest, block, inactive/banned status, open report restrictions, message reporting, and abusive-text placeholder flags are implemented. Voice/video is interface-ready only. |
+| 8 | Ethical monetization gates | In Progress | Verified Plus, Family Assist, Advisor Assisted, Spotlight, and Contact Unlock gates are configured. Full entitlement enforcement and plan UX still need completion. |
+| 9 | Notifications | In Progress | Interest, photo access, verification decision, family reminder, and advisor assignment records are covered in core flows. Retry worker, DLQ, provider logs, and dashboards remain. |
+| 10 | QA and deployment | In Progress | Trust/seriousness unit tests, JS syntax checks, Python compile checks, and Android compile validation were run. Still required: API, E2E, security, and load suites. |
+
 ## Enterprise Baseline Used
 
 Official competitor references show the expected market floor:

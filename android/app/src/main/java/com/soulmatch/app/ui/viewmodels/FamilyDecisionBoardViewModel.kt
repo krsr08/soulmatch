@@ -3,6 +3,7 @@ package com.soulmatch.app.ui.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.soulmatch.app.data.api.ProfileApiService
+import com.soulmatch.app.data.models.FamilyDecisionCommentRequest
 import com.soulmatch.app.data.models.FamilyDecisionData
 import com.soulmatch.app.data.models.FamilyDecisionRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -46,11 +47,17 @@ class FamilyDecisionBoardViewModel @Inject constructor(
 
     fun updateDecision(decision: FamilyDecisionData, status: String) {
         viewModelScope.launch {
+            val familyVote = when (status) {
+                "accepted" -> "approve"
+                "declined", "archived" -> "reject"
+                else -> decision.familyVote
+            }
             val response = runCatching {
                 profileApi.upsertFamilyDecision(
                     decision.targetProfileId,
                     FamilyDecisionRequest(
                         status = status,
+                        familyVote = familyVote,
                         note = decision.note,
                         nextStep = when (status) {
                             "call_scheduled" -> "Schedule family call"
@@ -65,12 +72,34 @@ class FamilyDecisionBoardViewModel @Inject constructor(
             if (response?.isSuccessful == true && body?.success == true) {
                 _decisions.update { list ->
                     list.map { item ->
-                        if (item.targetProfileId == decision.targetProfileId) item.copy(status = status) else item
+                        if (item.targetProfileId == decision.targetProfileId) item.copy(status = status, familyVote = familyVote) else item
                     }.filterNot { it.status.equals("archived", ignoreCase = true) }
                 }
                 _status.value = body.message ?: "Family decision updated."
             } else {
                 _status.value = body?.error?.message ?: "Couldn't update the family decision."
+            }
+        }
+    }
+
+    fun submitFamilyInput(decision: FamilyDecisionData, vote: String, comment: String) {
+        if (decision.familyDecisionId.isBlank()) {
+            _status.value = "Open this profile once before adding family comments."
+            return
+        }
+        viewModelScope.launch {
+            val response = runCatching {
+                profileApi.addFamilyDecisionComment(
+                    decision.familyDecisionId,
+                    FamilyDecisionCommentRequest(vote = vote, comment = comment.trim())
+                )
+            }.getOrNull()
+            val body = response?.body()
+            if (response?.isSuccessful == true && body?.success == true) {
+                _status.value = body.message ?: "Family input recorded."
+                load()
+            } else {
+                _status.value = body?.error?.message ?: "Couldn't save family input."
             }
         }
     }

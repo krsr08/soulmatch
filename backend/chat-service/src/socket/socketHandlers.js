@@ -7,13 +7,47 @@ const logger = require('../utils/logger');
 const makeChatId = (a, b) => [a, b].sort().join('_');
 const MAX_MESSAGE_LENGTH = parseInt(process.env.MAX_CHAT_MESSAGE_LENGTH || '2000', 10);
 const getProfileIdByUserId = async (db, userId) => {
-  const res = await db.query('SELECT profile_id FROM profiles WHERE user_id=$1 LIMIT 1', [userId]);
+  const res = await db.query(
+    `SELECT p.profile_id
+     FROM profiles p
+     JOIN users u ON u.user_id=p.user_id
+     WHERE p.user_id=$1
+       AND COALESCE(p.profile_status,'active')='active'
+       AND COALESCE(p.admin_status,'active')='active'
+       AND u.is_active=true
+       AND COALESCE(u.is_banned,false)=false
+     LIMIT 1`,
+    [userId]
+  );
   return res.rows[0]?.profile_id || null;
+};
+const detectAbusiveText = (content = '') => {
+  const text = String(content || '').toLowerCase();
+  const patterns = [
+    { type: 'phone_or_whatsapp_request', severity: 'medium', pattern: /\b(whatsapp|mobile number|phone number|call me)\b/ },
+    { type: 'financial_request', severity: 'high', pattern: /\b(loan|bank transfer|send money|upi|account number)\b/ },
+    { type: 'abusive_language_placeholder', severity: 'medium', pattern: /\b(abuse|threat|blackmail)\b/ }
+  ];
+  return patterns.filter((item) => item.pattern.test(text)).map(({ type, severity }) => ({ type, severity }));
 };
 const canChat = async (u1, u2) => {
   const db = await getDB();
   const [p1, p2] = await Promise.all([getProfileIdByUserId(db, u1), getProfileIdByUserId(db, u2)]);
   if (!p1 || !p2) return false;
+  const safety = await db.query(
+    `SELECT
+       EXISTS(
+         SELECT 1 FROM blocks
+         WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)
+       ) AS blocked,
+       EXISTS(
+         SELECT 1 FROM users
+         WHERE user_id = ANY($3::uuid[]) AND (is_banned=true OR is_active=false)
+       ) AS banned,
+       COALESCE((SELECT COUNT(*)::int FROM reports WHERE reported_id IN ($1,$2) AND status IN ('pending','open','reviewing')), 0) AS open_reports`,
+    [u1, u2, [u1, u2]]
+  );
+  if (safety.rows[0]?.blocked || safety.rows[0]?.banned || Number(safety.rows[0]?.open_reports || 0) >= 3) return false;
   const res = await db.query("SELECT EXISTS(SELECT 1 FROM interests WHERE ((sender_id=$1 AND receiver_id=$2) OR (sender_id=$2 AND receiver_id=$1)) AND status='accepted') AS ok", [p1,p2]);
   return res.rows[0]?.ok || false;
 };
@@ -42,7 +76,8 @@ exports.setupSocketHandlers = (io) => {
         }
         if (!await canChat(socket.userId, receiverId)) return cb && cb({ error: 'Send interest first to chat' });
         const cid = makeChatId(socket.userId, receiverId);
-        const msg = await Message.create({ chatId:cid, senderId:socket.userId, receiverId, type:resolvedType, content, duration });
+        const safetyFlags = resolvedType === 'text' ? detectAbusiveText(content) : [];
+        const msg = await Message.create({ chatId:cid, senderId:socket.userId, receiverId, type:resolvedType, content, duration, safetyFlags });
         await Conversation.findOneAndUpdate(
           { chatId:cid },
           {

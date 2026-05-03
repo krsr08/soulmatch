@@ -1145,11 +1145,33 @@ exports.getPendingVerifications = async (req, res) => {
          COALESCE(p.verification_status,'pending') AS profile_verification_status,
          COALESCE(p.admin_status,'active') AS admin_status,
          ec.occupation,
-         ec.working_city
+         ec.working_city,
+         LEAST(
+           100,
+           (CASE WHEN u.is_verified THEN 12 ELSE 0 END) +
+           (CASE WHEN u.google_id IS NOT NULL THEN 8 ELSE 0 END) +
+           (CASE WHEN COALESCE(p.completion_score,0) >= 90 THEN 15 WHEN COALESCE(p.completion_score,0) >= 70 THEN 12 WHEN COALESCE(p.completion_score,0) >= 50 THEN 8 ELSE 0 END) +
+           (CASE WHEN COALESCE(p.verification_status,'pending')='verified' THEN 15 ELSE 0 END) +
+           (CASE WHEN NULLIF(p.primary_photo_url,'') IS NOT NULL THEN 7 ELSE 0 END) +
+           10 -
+           LEAST(35, COALESCE(open_reports.total,0) * 12)
+         ) AS trust_score,
+         COALESCE(open_reports.total,0) AS open_report_count,
+         COALESCE(approved_types.types, ARRAY[]::text[]) AS approved_verification_types
        FROM verifications v
        JOIN users u ON v.user_id = u.user_id
        LEFT JOIN profiles p ON p.user_id = v.user_id
        LEFT JOIN education_career ec ON ec.profile_id = p.profile_id
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::int AS total
+         FROM reports r
+         WHERE r.reported_id=v.user_id AND r.status IN ('pending','open','reviewing')
+       ) open_reports ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT array_agg(DISTINCT av.type) AS types
+         FROM verifications av
+         WHERE av.user_id=v.user_id AND av.status IN ('approved','verified')
+       ) approved_types ON TRUE
        WHERE v.status='pending'
        ORDER BY v.created_at ASC`
     );

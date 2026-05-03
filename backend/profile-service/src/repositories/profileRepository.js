@@ -69,6 +69,28 @@ function trustLevelForScore(score) {
   return 'low';
 }
 
+function toBoolean(value) {
+  return value === true || value === 'true' || value === 1 || value === '1';
+}
+
+function parseVerificationTypes(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((item) => String(item || '').toLowerCase()).filter(Boolean);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parseVerificationTypes(parsed);
+    } catch (_) {
+      return value.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
+function hasAnyVerification(types, names) {
+  return names.some((name) => types.includes(name));
+}
+
 function buildTrustSummary(signals = {}) {
   const verificationStatus = String(signals.verification_status || signals.verificationStatus || 'pending').toLowerCase();
   const completionScore = clampScore(signals.completion_score ?? signals.completionScore);
@@ -76,80 +98,135 @@ function buildTrustSummary(signals = {}) {
   const approvedVerifications = Number(signals.approved_verifications ?? signals.approvedVerifications ?? 0);
   const pendingVerifications = Number(signals.pending_verifications ?? signals.pendingVerifications ?? 0);
   const reportCount = Number(signals.report_count ?? signals.reportCount ?? 0);
-  const isPhoneVerified = signals.is_verified === true || signals.isPhoneVerified === true;
+  const isPhoneVerified = toBoolean(signals.is_verified) || toBoolean(signals.isPhoneVerified);
+  const isFirebaseVerified = toBoolean(signals.firebase_verified) || toBoolean(signals.firebaseVerified) || Boolean(signals.google_id || signals.googleId);
   const hasFamilyLocation = Boolean(signals.family_city || signals.familyCity || signals.family_pincode || signals.familyPincode);
   const profileStatus = String(signals.profile_status || signals.profileStatus || 'active').toLowerCase();
   const lastLogin = signals.last_login || signals.lastLogin;
   const recentlyActive = lastLogin ? Date.now() - new Date(lastLogin).getTime() <= 1000 * 60 * 60 * 24 * 30 : false;
+  const approvedTypes = parseVerificationTypes(signals.approved_verification_types || signals.approvedVerificationTypes);
+  if (approvedVerifications > 0 && verificationStatus === 'verified' && !approvedTypes.includes('profile')) approvedTypes.push('profile');
+  const hasAdminVerification = verificationStatus === 'verified' || hasAnyVerification(approvedTypes, ['profile', 'identity']);
+  const hasDocumentVerification = hasAnyVerification(approvedTypes, ['document', 'identity']);
+  const hasEducationVerification = hasAnyVerification(approvedTypes, ['education']);
+  const hasIncomeVerification = hasAnyVerification(approvedTypes, ['income']);
+  const hasFamilyVerification = hasAnyVerification(approvedTypes, ['family']);
   const trustSignals = [];
   const warnings = [];
+  const factors = [];
   let score = 0;
 
+  const addFactor = (key, label, points, status, detail) => {
+    factors.push({ key, label, points, status, detail });
+    if (points > 0) score += points;
+    if (points < 0) score += points;
+  };
+
   if (isPhoneVerified) {
-    score += 15;
+    addFactor('phone_verified', 'Phone verified', 12, 'positive', 'Mobile number has been verified.');
     trustSignals.push('Phone verified');
   } else {
+    addFactor('phone_verified', 'Phone verification', 0, 'missing', 'Mobile number is not marked verified yet.');
     warnings.push('Phone is not verified');
   }
 
+  if (isFirebaseVerified) {
+    addFactor('firebase_verified', 'Firebase / Google verified', 8, 'positive', 'Firebase or Google identity is linked.');
+    trustSignals.push('Firebase identity linked');
+  } else {
+    addFactor('firebase_verified', 'Firebase verification', 0, 'missing', 'No Firebase or Google identity signal is linked.');
+  }
+
   if (completionScore >= 90) {
-    score += 20;
+    addFactor('profile_completion', 'Profile completion', 15, 'positive', `${completionScore}% profile completion.`);
     trustSignals.push('Profile is highly complete');
   } else if (completionScore >= 70) {
-    score += 15;
+    addFactor('profile_completion', 'Profile completion', 12, 'positive', `${completionScore}% profile completion.`);
     trustSignals.push('Profile has strong detail');
   } else if (completionScore >= 50) {
-    score += 10;
+    addFactor('profile_completion', 'Profile completion', 8, 'partial', `${completionScore}% profile completion.`);
   } else {
+    addFactor('profile_completion', 'Profile completion', 0, 'missing', `${completionScore}% profile completion.`);
     warnings.push('Profile details are still incomplete');
   }
 
-  if (verificationStatus === 'verified') {
-    score += 25;
+  if (hasAdminVerification) {
+    addFactor('admin_verification', 'Admin verification', 15, 'positive', 'SoulMatch admin reviewed this member.');
     trustSignals.push('Admin verified profile');
   } else if (pendingVerifications > 0 || verificationStatus === 'pending') {
-    score += 8;
+    addFactor('admin_verification', 'Admin verification', 5, 'pending', 'Verification review is pending.');
     trustSignals.push('Verification review pending');
   } else {
+    addFactor('admin_verification', 'Admin verification', 0, 'missing', 'Admin verification is not completed.');
     warnings.push('Admin verification is not completed');
   }
 
-  if (approvedVerifications > 0) {
-    score += Math.min(15, approvedVerifications * 5);
-    trustSignals.push(`${approvedVerifications} verification signal${approvedVerifications === 1 ? '' : 's'} approved`);
-  }
+  addFactor(
+    'document_verification',
+    'Document verification',
+    hasDocumentVerification ? 8 : 0,
+    hasDocumentVerification ? 'positive' : 'missing',
+    hasDocumentVerification ? 'Identity/document evidence was approved.' : 'No approved document verification yet.'
+  );
+  if (hasDocumentVerification) trustSignals.push('Document verified');
+
+  addFactor(
+    'education_verification',
+    'Education verification',
+    hasEducationVerification ? 8 : 0,
+    hasEducationVerification ? 'positive' : 'missing',
+    hasEducationVerification ? 'Education evidence was approved.' : 'No approved education verification yet.'
+  );
+  if (hasEducationVerification) trustSignals.push('Education verified');
+
+  addFactor(
+    'income_verification',
+    'Income verification',
+    hasIncomeVerification ? 8 : 0,
+    hasIncomeVerification ? 'positive' : 'missing',
+    hasIncomeVerification ? 'Income evidence was approved.' : 'No approved income verification yet.'
+  );
+  if (hasIncomeVerification) trustSignals.push('Income verified');
+
+  addFactor(
+    'family_verification',
+    'Family verification',
+    hasFamilyVerification ? 8 : hasFamilyLocation ? 4 : 0,
+    hasFamilyVerification ? 'positive' : hasFamilyLocation ? 'partial' : 'missing',
+    hasFamilyVerification ? 'Family details were approved.' : hasFamilyLocation ? 'Family location is available but not verified.' : 'Family details are not verified.'
+  );
+  if (hasFamilyVerification) trustSignals.push('Family verified');
 
   if (photoCount >= 3) {
-    score += 12;
+    addFactor('photos_added', 'Photo count', 10, 'positive', `${photoCount} profile photos added.`);
     trustSignals.push('Multiple photos added');
   } else if (photoCount >= 1 || signals.primary_photo_url || signals.primaryPhotoUrl) {
-    score += 8;
+    addFactor('photos_added', 'Photo count', 7, 'positive', 'At least one profile photo is available.');
     trustSignals.push('Profile photo added');
   } else {
+    addFactor('photos_added', 'Photo count', 0, 'missing', 'No profile photo is available.');
     warnings.push('No profile photo added');
   }
 
-  if (hasFamilyLocation) {
-    score += 8;
-    trustSignals.push('Family location available');
-  }
-
   if (profileStatus === 'active') {
-    score += 5;
+    addFactor('profile_active', 'Profile active', 5, 'positive', 'Profile is currently active.');
   } else {
+    addFactor('profile_active', 'Profile active', -8, 'warning', 'Inactive profiles are hidden from discovery.');
     warnings.push('Profile is currently inactive');
   }
 
   if (recentlyActive) {
-    score += 5;
+    addFactor('recent_activity', 'Recent activity', 6, 'positive', 'Member was active in the last 30 days.');
     trustSignals.push('Recently active');
+  } else {
+    addFactor('recent_activity', 'Recent activity', 0, 'partial', 'No recent activity signal in the last 30 days.');
   }
 
   if (reportCount === 0) {
-    score += 10;
+    addFactor('safety_reports', 'Safety reports', 10, 'positive', 'No open safety reports.');
     trustSignals.push('No open safety reports');
   } else {
-    score -= Math.min(35, reportCount * 12);
+    addFactor('safety_reports', 'Safety reports', -Math.min(35, reportCount * 12), 'warning', `${reportCount} open safety report${reportCount === 1 ? '' : 's'}.`);
     warnings.push(`${reportCount} open safety report${reportCount === 1 ? '' : 's'}`);
   }
 
@@ -158,7 +235,84 @@ function buildTrustSummary(signals = {}) {
     score: finalScore,
     level: trustLevelForScore(finalScore),
     signals: trustSignals.slice(0, 8),
-    warnings: warnings.slice(0, 4)
+    warnings: warnings.slice(0, 4),
+    factors,
+    explanation: {
+      summary: `Trust score is ${finalScore}% based on verification, profile quality, photos, safety, and activity.`,
+      approvedVerificationTypes: approvedTypes
+    }
+  };
+}
+
+function buildSeriousnessSummary(signals = {}) {
+  const completionScore = clampScore(signals.completion_score ?? signals.completionScore);
+  const verificationStatus = String(signals.verification_status || signals.verificationStatus || 'pending').toLowerCase();
+  const lastLogin = signals.last_login || signals.lastLogin;
+  const recentlyActive = lastLogin ? Date.now() - new Date(lastLogin).getTime() <= 1000 * 60 * 60 * 24 * 14 : false;
+  const received = Number(signals.received_interests ?? signals.receivedInterests ?? 0);
+  const responded = Number(signals.responded_interests ?? signals.respondedInterests ?? 0);
+  const accepted = Number(signals.accepted_interests ?? signals.acceptedInterests ?? 0);
+  const declined = Number(signals.declined_interests ?? signals.declinedInterests ?? 0);
+  const ignored = Number(signals.ignored_interests ?? signals.ignoredInterests ?? 0);
+  const familyBoardItems = Number(signals.family_board_items ?? signals.familyBoardItems ?? 0);
+  const reportCount = Number(signals.report_count ?? signals.reportCount ?? 0);
+  const responseRate = received > 0 ? responded / received : (completionScore >= 70 ? 0.65 : 0.35);
+  const decisionCount = accepted + declined;
+  const declineRatio = decisionCount > 0 ? declined / decisionCount : 0;
+  const signalsOut = [];
+  const warnings = [];
+  let score = 0;
+
+  score += Math.min(20, Math.round(completionScore * 0.2));
+  if (completionScore >= 80) signalsOut.push('Profile detail is strong');
+
+  if (recentlyActive) {
+    score += 15;
+    signalsOut.push('Recently active');
+  } else {
+    warnings.push('No recent activity signal');
+  }
+
+  score += Math.round(Math.min(1, responseRate) * 25);
+  if (responseRate >= 0.75) signalsOut.push('Responds to interests');
+  if (responseRate < 0.35 && received > 2) warnings.push('Low response rate');
+
+  if (verificationStatus === 'verified') {
+    score += 10;
+    signalsOut.push('Verified member');
+  }
+
+  if (accepted > 0) {
+    score += Math.min(10, accepted * 4);
+    signalsOut.push('Accepts suitable interests');
+  }
+  if (declineRatio <= 0.7) score += 8;
+  if (declineRatio > 0.8 && decisionCount >= 3) warnings.push('Declines most received interests');
+
+  if (familyBoardItems > 0) {
+    score += 10;
+    signalsOut.push('Uses family decision board');
+  }
+
+  if (ignored > 0) {
+    score -= Math.min(20, ignored * 5);
+    warnings.push(`${ignored} older interest${ignored === 1 ? '' : 's'} waiting without response`);
+  }
+  if (reportCount > 0) score -= Math.min(25, reportCount * 10);
+
+  const finalScore = clampScore(score);
+  return {
+    score: finalScore,
+    level: finalScore >= 80 ? 'high' : finalScore >= 55 ? 'medium' : 'low',
+    signals: signalsOut.slice(0, 6),
+    warnings: warnings.slice(0, 4),
+    metrics: {
+      responseRate: Number((responseRate * 100).toFixed(1)),
+      receivedInterests: received,
+      respondedInterests: responded,
+      ignoredInterests: ignored,
+      familyBoardItems
+    }
   };
 }
 
@@ -169,14 +323,21 @@ function normalizeFamilyDecisionStatus(value) {
     : null;
 }
 
+function normalizeFamilyVote(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['approve', 'reject', 'discuss'].includes(normalized) ? normalized : 'discuss';
+}
+
 function mapFamilyDecision(row) {
   if (!row) return null;
   const trust = buildTrustSummary(row);
+  const comments = Array.isArray(row.comments) ? row.comments : [];
   return {
     familyDecisionId: row.family_decision_id,
     ownerProfileId: row.owner_profile_id,
     targetProfileId: row.target_profile_id,
     status: row.status,
+    familyVote: row.family_vote || 'discuss',
     note: row.note || '',
     nextStep: row.next_step || '',
     nextStepAt: row.next_step_at || null,
@@ -189,11 +350,14 @@ function mapFamilyDecision(row) {
     isVerified: row.verification_status === 'verified',
     trustScore: trust.score,
     trustLevel: trust.level,
-    trustSignals: trust.signals
+    trustSignals: trust.signals,
+    trustFactors: trust.factors,
+    comments
   };
 }
 
 exports.buildTrustSummary = buildTrustSummary;
+exports.buildSeriousnessSummary = buildSeriousnessSummary;
 
 exports.recordUserChange = async ({
   userId,
@@ -253,12 +417,21 @@ exports.getTrustSummary = async (profileId) => {
        p.profile_status,
        p.primary_photo_url,
        u.is_verified,
+       u.google_id,
+       (u.google_id IS NOT NULL) AS firebase_verified,
        u.last_login,
        fd.family_city,
        fd.family_pincode,
        COALESCE((SELECT COUNT(*)::int FROM profile_photos pp WHERE pp.profile_id=p.profile_id), 0) AS photo_count,
-       COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='approved'), 0) AS approved_verifications,
+       COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')), 0) AS approved_verifications,
+       COALESCE((SELECT array_agg(DISTINCT v.type) FROM verifications v WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')), ARRAY[]::text[]) AS approved_verification_types,
        COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='pending'), 0) AS pending_verifications,
+       COALESCE((SELECT COUNT(*)::int FROM interests i WHERE i.receiver_id=p.profile_id), 0) AS received_interests,
+       COALESCE((SELECT COUNT(*)::int FROM interests i WHERE i.receiver_id=p.profile_id AND i.status IN ('accepted','declined')), 0) AS responded_interests,
+       COALESCE((SELECT COUNT(*)::int FROM interests i WHERE i.receiver_id=p.profile_id AND i.status='accepted'), 0) AS accepted_interests,
+       COALESCE((SELECT COUNT(*)::int FROM interests i WHERE i.receiver_id=p.profile_id AND i.status='declined'), 0) AS declined_interests,
+       COALESCE((SELECT COUNT(*)::int FROM interests i WHERE i.receiver_id=p.profile_id AND i.status='pending' AND i.sent_at < NOW() - INTERVAL '7 days'), 0) AS ignored_interests,
+       COALESCE((SELECT COUNT(*)::int FROM family_match_decisions fmd WHERE fmd.owner_profile_id=p.profile_id AND fmd.status!='archived'), 0) AS family_board_items,
        COALESCE((SELECT COUNT(*)::int FROM reports rp WHERE rp.reported_id=p.user_id AND rp.status IN ('pending','open','reviewing')), 0) AS report_count
      FROM profiles p
      JOIN users u ON u.user_id=p.user_id
@@ -267,7 +440,11 @@ exports.getTrustSummary = async (profileId) => {
      LIMIT 1`,
     [profileId]
   );
-  return buildTrustSummary(r.rows[0] || {});
+  const row = r.rows[0] || {};
+  return {
+    ...buildTrustSummary(row),
+    seriousness: buildSeriousnessSummary(row)
+  };
 };
 
 exports.findByUserId = async (userId) => { const db = await getDB(); const r = await db.query('SELECT * FROM profiles WHERE user_id=$1 LIMIT 1', [userId]); return r.rows[0] || null; };
@@ -1022,6 +1199,7 @@ exports.listFamilyDecisions = async (ownerUserId) => {
        fmd.owner_profile_id,
        fmd.target_profile_id,
        fmd.status,
+       COALESCE(fmd.family_vote,'discuss') AS family_vote,
        fmd.note,
        fmd.next_step,
        fmd.next_step_at,
@@ -1034,15 +1212,31 @@ exports.listFamilyDecisions = async (ownerUserId) => {
        p.verification_status,
        p.profile_status,
        u.is_verified,
+       u.google_id,
+       (u.google_id IS NOT NULL) AS firebase_verified,
        u.last_login,
        ec.occupation,
        ec.working_city,
        fd.family_city,
        fd.family_pincode,
        COALESCE((SELECT COUNT(*)::int FROM profile_photos pp WHERE pp.profile_id=p.profile_id), 0) AS photo_count,
-       COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='approved'), 0) AS approved_verifications,
+       COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')), 0) AS approved_verifications,
+       COALESCE((SELECT array_agg(DISTINCT v.type) FROM verifications v WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')), ARRAY[]::text[]) AS approved_verification_types,
        COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='pending'), 0) AS pending_verifications,
-       COALESCE((SELECT COUNT(*)::int FROM reports rp WHERE rp.reported_id=p.user_id AND rp.status IN ('pending','open','reviewing')), 0) AS report_count
+       COALESCE((SELECT COUNT(*)::int FROM reports rp WHERE rp.reported_id=p.user_id AND rp.status IN ('pending','open','reviewing')), 0) AS report_count,
+       COALESCE((
+         SELECT json_agg(
+           json_build_object(
+             'familyCommentId', fmdc.family_comment_id,
+             'vote', fmdc.vote,
+             'comment', fmdc.comment,
+             'createdAt', fmdc.created_at
+           )
+           ORDER BY fmdc.created_at DESC
+         )
+         FROM family_match_decision_comments fmdc
+         WHERE fmdc.family_decision_id=fmd.family_decision_id
+       ), '[]'::json) AS comments
      FROM family_match_decisions fmd
      JOIN profiles p ON p.profile_id=fmd.target_profile_id
      JOIN users u ON u.user_id=p.user_id
@@ -1059,6 +1253,7 @@ exports.listFamilyDecisions = async (ownerUserId) => {
 
 exports.upsertFamilyDecision = async (ownerUserId, targetProfileId, payload = {}) => {
   const status = normalizeFamilyDecisionStatus(payload.status) || 'family_review';
+  const familyVote = normalizeFamilyVote(payload.familyVote || payload.family_vote);
   const note = String(payload.note || '').trim() || null;
   const nextStep = String(payload.nextStep || payload.next_step || '').trim() || null;
   const nextStepAt = payload.nextStepAt || payload.next_step_at || null;
@@ -1081,18 +1276,20 @@ exports.upsertFamilyDecision = async (ownerUserId, targetProfileId, payload = {}
        owner_profile_id,
        target_profile_id,
        status,
+       family_vote,
        note,
        next_step,
        next_step_at,
        created_at,
        updated_at
      )
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),NOW())
      ON CONFLICT (owner_profile_id, target_profile_id) DO UPDATE SET
        status=$5,
-       note=COALESCE($6, family_match_decisions.note),
-       next_step=COALESCE($7, family_match_decisions.next_step),
-       next_step_at=COALESCE($8, family_match_decisions.next_step_at),
+       family_vote=$6,
+       note=COALESCE($7, family_match_decisions.note),
+       next_step=COALESCE($8, family_match_decisions.next_step),
+       next_step_at=COALESCE($9, family_match_decisions.next_step_at),
        updated_at=NOW()
      RETURNING *`,
     [
@@ -1101,18 +1298,72 @@ exports.upsertFamilyDecision = async (ownerUserId, targetProfileId, payload = {}
       owner.profile_id,
       targetProfileId,
       status,
+      familyVote,
       note,
       nextStep,
       nextStepAt
     ]
   );
+  const savedRow = saved.rows[0];
+  const beforeReminder = before?.next_step_at ? new Date(before.next_step_at).getTime() : null;
+  const nextReminder = savedRow.next_step_at ? new Date(savedRow.next_step_at).getTime() : null;
+  if (nextReminder && nextReminder !== beforeReminder) {
+    await notifyMember(
+      db,
+      ownerUserId,
+      'Family board reminder set',
+      `${nextStep || 'Next family step'} is scheduled for ${new Date(savedRow.next_step_at).toLocaleString('en-IN')}.`,
+      {
+        type: 'family_board_reminder',
+        familyDecisionId: savedRow.family_decision_id,
+        targetProfileId,
+        targetUserId: target.user_id,
+        nextStep: savedRow.next_step || '',
+        nextStepAt: savedRow.next_step_at
+      }
+    ).catch((error) => logger.warn(`Family board reminder notification skipped: ${error.message}`));
+  }
   return {
     status: before ? 'updated' : 'created',
     owner,
     target,
     before,
-    after: saved.rows[0]
+    after: savedRow
   };
+};
+
+exports.addFamilyDecisionComment = async (ownerUserId, familyDecisionId, payload = {}) => {
+  const db = await getDB();
+  const owner = await exports.findByUserId(ownerUserId);
+  if (!owner) return { status: 'not_found' };
+  const decision = await db.query(
+    'SELECT * FROM family_match_decisions WHERE family_decision_id=$1 AND owner_profile_id=$2 LIMIT 1',
+    [familyDecisionId, owner.profile_id]
+  );
+  if (!decision.rows[0]) return { status: 'not_found' };
+  const vote = normalizeFamilyVote(payload.vote);
+  const comment = String(payload.comment || '').trim() || null;
+  const inserted = await db.query(
+    `INSERT INTO family_match_decision_comments (
+       family_comment_id,
+       family_decision_id,
+       author_user_id,
+       vote,
+       comment,
+       created_at
+     )
+     VALUES ($1,$2,$3,$4,$5,NOW())
+     RETURNING family_comment_id, family_decision_id, author_user_id, vote, comment, created_at`,
+    [randomUUID(), familyDecisionId, ownerUserId, vote, comment]
+  );
+  await db.query(
+    `UPDATE family_match_decisions
+     SET family_vote=$2,
+         updated_at=NOW()
+     WHERE family_decision_id=$1`,
+    [familyDecisionId, vote]
+  );
+  return { status: 'created', decision: decision.rows[0], comment: inserted.rows[0] };
 };
 exports.findFullByUserId = async (userId) => {
   const db = await getDB();

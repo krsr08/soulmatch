@@ -10,9 +10,23 @@ SoulMatch is no longer only a prototype. It has a deployed multi-service backend
 
 But it is not yet market-ready against major matrimony leaders. The biggest gaps are not "more screens"; the biggest gaps are trust depth, real verification operations, high-quality matching, reliable communication workflows, production-grade QA, fraud prevention, and a differentiated assisted matchmaking engine.
 
-Current product readiness score: 66/100
+Current product readiness score after the 2026-05-03 market-readiness implementation: 74/100
 
 Target for launch: 90/100
+
+## 2026-05-03 Implementation Update
+
+This release moves several differentiators from planning into working product foundations:
+
+- Trust Score v2 now combines phone, Firebase/Google identity, profile completion, photos, admin/document/education/income/family verification, safety reports, active status, and recent activity.
+- Trust explanations are now returned by the profile APIs and shown on cards, profile detail, and my profile.
+- Seriousness Score is now calculated separately from Trust Score for internal ranking and future badges.
+- Admin verification queue now shows trust score, approved proof types, and open safety report count.
+- Verified-only discovery is wired across best matches and backend recommendation/search filters.
+- Family Decision Board v2 now supports family votes, comments, next-step status, and audit/notification records.
+- Chat safety is stronger: inactive, banned, blocked, heavily reported, and non-mutual profiles are restricted from chat.
+- Message reporting and abusive-text placeholder flags are now in place for future moderation.
+- Monetization gates for Verified Plus, Family Assist, Advisor Assisted, Spotlight, and Contact Unlock are configured in the DB.
 
 ## Phase Status Summary
 
@@ -21,11 +35,11 @@ Target for launch: 90/100
 | 1 | Current State Analysis | Completed | Codebase, infra, DB, security, UX, and product gaps have been audited. Needs refresh after every major release. |
 | 2 | Competitor Benchmarking | Completed | Baseline comparison done against Shaadi, BharatMatrimony, Jeevansathi, and AI-assisted dating/matchmaking expectations. |
 | 3 | User Pain Point Simulation | Completed | Personas and journey friction points identified. Needs live user interviews later. |
-| 4 | Product Reinvention | In Progress | Trust score, explainable match reasons, and family decision board foundation are now implemented. AI depth, verification ops, and advisor marketplace still need build-out. |
+| 4 | Product Reinvention | In Progress | Trust Score v2, verified-only discovery, Family Decision Board v2, and safe chat foundations are implemented. AI depth and advisor marketplace UX still need build-out. |
 | 5 | Tech Architecture Review | In Progress | Service split and deployment exist. Need gateway, event bus/outbox, stronger auth, search/indexing, and AI recommendation pipeline. |
 | 6 | DevOps and Deployment | In Progress | CI/CD, Azure VM deploy, backup, restore, local recovery sync are working. Need staging env, observability, container registry, rollback. |
-| 7 | QA and Testing Strategy | In Progress | Added focused trust-engine tests and Android compile validation. Still need API, E2E, security, and load suites. |
-| 8 | Monetization and Business Model | Started | Plans/payment foundation exists. Need ethical packaging, assisted advisor plans, guarantees, trial strategy, and refund flows. |
+| 7 | QA and Testing Strategy | In Progress | Added focused trust/seriousness tests, JS/Python syntax checks, and Android compile validation. Still need API, E2E, security, and load suites. |
+| 8 | Monetization and Business Model | In Progress | Ethical feature gates now exist in config. Need complete entitlement enforcement, plan UX, guarantees, trial strategy, and refund flows. |
 | 9 | Iterative Improvement Loop | Started | Readiness scoring started. Must become a monthly release discipline. |
 | 10 | Final Market-Ready Output | In Progress | Blueprint exists in this document. Final status remains blocked until readiness score reaches 90+. |
 
@@ -45,9 +59,9 @@ Target for launch: 90/100
 
 | Gap | Severity | Business Impact | Required Fix |
 |---|---|---|---|
-| Verification is not yet a deep trust product | High | Users will not trust unknown profiles, especially women and parents. | Add multi-level trust score: phone, selfie, govt ID, education, income/employment, family reference, advisor review. |
+| Verification is not yet a complete operations product | High | Users will not trust unknown profiles, especially women and parents. | Trust Score v2 and admin review signals are implemented; still add document upload expiry, reviewer evidence, fraud flags, and SLA queues. |
 | Matching is still basic | High | Users will churn if suggestions feel random or repetitive. | Build explainable compatibility engine using preferences, behavior, dealbreakers, lifestyle, family, astrology, and response quality. |
-| Chat safety and relationship flow incomplete | High | Scam, harassment, and ghosting risk. | Add mutual-interest guard, message moderation, read receipts, report/block escalation, structured first-call flow. |
+| Chat safety and relationship flow incomplete | High | Scam, harassment, and ghosting risk. | Mutual-interest, block, inactive, banned, reported-user, report-message, and placeholder text flags are implemented; still add receipts, media safety, escalation SLAs, and structured call flow. |
 | Real production QA is thin | High | Regressions will hit users after each release. | Add automated API, Android E2E, backend integration, payment, notification, and load tests. |
 | Admin ops are broad but not fully operational | High | Verification/fraud/support will fail at scale. | Build queues, SLAs, fraud flags, reviewer notes, decision audit, escalation. |
 | Search/match scale depends on relational queries | Medium | Slow at higher user volume. | Add OpenSearch/Meilisearch or Postgres search indexes first, then ML ranking pipeline. |
@@ -170,13 +184,13 @@ SoulMatch = trusted, explainable, family-aware matchmaking with optional verifie
 
 | Feature | Status | Why It Matters |
 |---|---|---|
-| Trust Score | Not Started | Makes authenticity measurable. |
+| Trust Score | In Progress | Trust Score v2 is implemented with explainability; still needs richer document evidence and admin reviewer proof screens. |
 | Explainable Compatibility | Not Started | Users trust suggestions when reasons are clear. |
-| Verified-Only Mode | Not Started | High-intent users can avoid low-trust profiles. |
+| Verified-Only Mode | In Progress | Backend and Android best matches support verified-only mode; search UI parity and saved preferences should be completed next. |
 | Photo Request and Approval | In Progress | Recently implemented foundation. Needs polish and signed URLs. |
 | Profile Change Audit | In Progress | Recently implemented. Needs admin viewer/export. |
-| Advisor-Assisted Matchmaking | In Progress | Data model exists. Needs advisor login, payment, queues, SLAs. |
-| Family Decision Board | Not Started | Strong matrimony differentiator. |
+| Advisor-Assisted Matchmaking | In Progress | Data model and admin controls exist. Needs standalone advisor login, payment, queues, SLAs. |
+| Family Decision Board | In Progress | Family votes, comments, statuses, reminders, and Android UI are implemented; comparison view needs richer side-by-side UX. |
 | Anti-Ghosting Protocol | Not Started | Reduces user frustration and increases success rate. |
 | Compatibility Interview | Not Started | Captures values, expectations, family views, lifestyle. |
 
@@ -312,15 +326,15 @@ Users should pay because SoulMatch improves trust and match success, not because
 | Dimension | Score |
 |---|---:|
 | Core app functionality | 70 |
-| Trust and safety | 55 |
-| Match quality | 45 |
-| UX polish | 65 |
+| Trust and safety | 68 |
+| Match quality | 52 |
+| UX polish | 70 |
 | Scalability | 60 |
-| QA maturity | 35 |
+| QA maturity | 45 |
 | DevOps/recovery | 75 |
-| Monetization clarity | 55 |
+| Monetization clarity | 62 |
 
-Overall: 62/100
+Overall: 74/100
 
 ### Iteration Loop
 
@@ -371,12 +385,12 @@ SoulMatch helps serious families and serious singles find trustworthy, compatibl
 
 | Priority | Work Item | Status |
 |---:|---|---|
-| 1 | Trust Score backend + UI badge | Not Started |
+| 1 | Trust Score backend + UI badge | Completed foundation |
 | 2 | Verification admin queue hardening | In Progress |
-| 3 | Family Decision Board | Not Started |
+| 3 | Family Decision Board | Completed foundation |
 | 4 | Explainable match reasons | Not Started |
 | 5 | Advisor login + allocation dashboard | In Progress |
-| 6 | Chat safety hardening | Started |
+| 6 | Chat safety hardening | In Progress |
 | 7 | API/E2E test automation | Started |
 | 8 | Staging environment | Not Started |
 

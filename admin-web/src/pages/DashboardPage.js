@@ -564,6 +564,13 @@ function VerificationPanel({ verifications, onApprove, onReject }) {
       const documentUrl = v.document_url || v.primary_photo_url;
       return documentUrl ? <a href={documentUrl} target="_blank" rel="noreferrer">{v.document_url ? 'Open document' : 'Open photo'}</a> : <span>Profile-only review</span>;
     } },
+    { key: 'trust_score', label: 'Trust score', render: (v) => (
+      <div className="status-stack">
+        <StatusBadge tone={Number(v.trust_score || 0) >= 80 ? 'ok' : Number(v.trust_score || 0) >= 55 ? 'amber' : 'danger'}>{Number(v.trust_score || 0)}%</StatusBadge>
+        <small>{(v.approved_verification_types || []).length ? `Approved: ${(v.approved_verification_types || []).join(', ')}` : 'No approved evidence yet'}</small>
+        {Number(v.open_report_count || 0) > 0 ? <small>{v.open_report_count} open report(s)</small> : null}
+      </div>
+    ) },
     { key: 'status', label: 'Status', render: (v) => <StatusBadge tone="amber">{v.status}</StatusBadge> },
     { key: 'created_at', label: 'Requested', render: (v) => new Date(v.created_at).toLocaleString() },
     { key: 'review_note', label: 'Review note', render: (v) => (

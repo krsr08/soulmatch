@@ -343,6 +343,7 @@ CREATE TABLE IF NOT EXISTS family_match_decisions (
     owner_profile_id UUID NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
     target_profile_id UUID NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
     status VARCHAR(24) NOT NULL DEFAULT 'considering',
+    family_vote VARCHAR(16) DEFAULT 'discuss' CHECK (family_vote IN ('approve', 'reject', 'discuss')),
     note TEXT,
     next_step VARCHAR(120),
     next_step_at TIMESTAMP,
@@ -360,6 +361,29 @@ CREATE TABLE IF NOT EXISTS family_match_decisions (
         )
     ),
     UNIQUE(owner_profile_id, target_profile_id)
+);
+
+CREATE TABLE IF NOT EXISTS family_match_decision_comments (
+    family_comment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    family_decision_id UUID NOT NULL REFERENCES family_match_decisions(family_decision_id) ON DELETE CASCADE,
+    author_user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
+    vote VARCHAR(16) NOT NULL DEFAULT 'discuss' CHECK (vote IN ('approve', 'reject', 'discuss')),
+    comment TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS chat_message_reports (
+    chat_message_report_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    message_id TEXT NOT NULL,
+    chat_id TEXT NOT NULL,
+    reporter_user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
+    reported_user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
+    reason VARCHAR(120),
+    description TEXT,
+    safety_flags JSONB DEFAULT '[]'::JSONB,
+    status VARCHAR(24) DEFAULT 'pending' CHECK (status IN ('pending', 'reviewing', 'resolved', 'dismissed')),
+    created_at TIMESTAMP DEFAULT NOW(),
+    resolved_at TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS app_config (
@@ -518,6 +542,9 @@ CREATE INDEX IF NOT EXISTS idx_assisted_match_profiles_status ON assisted_match_
 CREATE INDEX IF NOT EXISTS idx_assisted_assignment_events_profile ON assisted_match_assignment_events(profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_family_match_decisions_owner_status ON family_match_decisions(owner_profile_id, status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_family_match_decisions_target ON family_match_decisions(target_profile_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_family_decision_comments_decision_created ON family_match_decision_comments(family_decision_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_message_reports_status_created ON chat_message_reports(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_message_reports_reported ON chat_message_reports(reported_user_id, status, created_at DESC);
 
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_photo_privacy_check;
 ALTER TABLE profiles

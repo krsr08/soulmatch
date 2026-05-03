@@ -39,6 +39,7 @@ class DashboardViewModel @Inject constructor(
     private val _myProfile = MutableStateFlow(ProfileData())
     private val _isLoading = MutableStateFlow(false)
     private val _headline = MutableStateFlow("New matches are ready")
+    private val _verifiedOnlyMode = MutableStateFlow(false)
     private var loadedMatches: List<ProfileSummary> = emptyList()
 
     val matches: StateFlow<List<ProfileSummary>> = _matches.asStateFlow()
@@ -46,6 +47,7 @@ class DashboardViewModel @Inject constructor(
     val myProfile: StateFlow<ProfileData> = _myProfile.asStateFlow()
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     val headline: StateFlow<String> = _headline.asStateFlow()
+    val verifiedOnlyMode: StateFlow<Boolean> = _verifiedOnlyMode.asStateFlow()
 
     init {
         loadProfile()
@@ -83,16 +85,19 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             val canUseFallback = canUseDemoFallback()
-            val remoteResponse = runCatching { matchingApi.getRecommended(page = 1, limit = 25) }.getOrNull()
+            val verifiedOnly = _verifiedOnlyMode.value
+            val remoteResponse = runCatching { matchingApi.getRecommended(page = 1, limit = 25, verifiedOnly = verifiedOnly) }.getOrNull()
             val remoteBody = remoteResponse?.body()
             val baseMatches = if (remoteResponse?.isSuccessful == true && remoteBody?.success == true) {
                 remoteBody.data?.matches.orEmpty()
             } else {
                 emptyList()
             }.ifEmpty { if (canUseFallback) MarketFixtures.matches else emptyList() }
+                .let { list -> if (verifiedOnly) list.filter { it.isVerified } else list }
             loadedMatches = applyInteractionState(baseMatches)
             _matches.value = loadedMatches.applyLocalInteractionState().filterVisibleProfiles()
             _headline.value = when {
+                verifiedOnly && _matches.value.isEmpty() -> "No verified profiles available yet"
                 _matches.value.any { it.compatibilityScore >= 90 } -> "High-compatibility matches this week"
                 _matches.value.isEmpty() -> "Complete your profile for more visibility"
                 else -> "Profiles aligned to your preferences"
@@ -100,6 +105,12 @@ class DashboardViewModel @Inject constructor(
             loadPendingInvitations()
             _isLoading.value = false
         }
+    }
+
+    fun setVerifiedOnlyMode(enabled: Boolean) {
+        if (_verifiedOnlyMode.value == enabled) return
+        _verifiedOnlyMode.value = enabled
+        loadMatches()
     }
 
     private suspend fun loadPendingInvitations() {

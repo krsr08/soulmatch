@@ -4,12 +4,24 @@ const Conversation = require('../models/Conversation');
 const { authenticate } = require('../middleware/authMiddleware');
 const { ensureChatEnabled } = require('../middleware/featureGate');
 const { getDB } = require('../config/database');
+const crypto = require('crypto');
 
 const router = express.Router();
 const MAX_PAGE_SIZE = 100;
 
 async function getProfileIdByUserId(db, userId) {
-  const row = await db.query('SELECT profile_id FROM profiles WHERE user_id=$1 LIMIT 1', [userId]);
+  const row = await db.query(
+    `SELECT p.profile_id
+     FROM profiles p
+     JOIN users u ON u.user_id=p.user_id
+     WHERE p.user_id=$1
+       AND COALESCE(p.profile_status,'active')='active'
+       AND COALESCE(p.admin_status,'active')='active'
+       AND u.is_active=true
+       AND COALESCE(u.is_banned,false)=false
+     LIMIT 1`,
+    [userId]
+  );
   return row.rows[0]?.profile_id || null;
 }
 
@@ -25,6 +37,79 @@ async function getBlockedUserIds(db, currentUserId, otherUserIds) {
   );
   return new Set(rows.rows.map(row => row.blocker_id === currentUserId ? row.blocked_id : row.blocker_id));
 }
+
+async function getChatEligibility(db, currentUserId, targetUserId) {
+  const [currentProfileId, targetProfileId] = await Promise.all([
+    getProfileIdByUserId(db, currentUserId),
+    getProfileIdByUserId(db, targetUserId)
+  ]);
+  if (!currentProfileId || !targetProfileId) return { canChat: false, reason: 'profile_not_found' };
+  const blockedUserIds = await getBlockedUserIds(db, currentUserId, [targetUserId]);
+  if (blockedUserIds.has(targetUserId)) return { canChat: false, reason: 'blocked' };
+  const safety = await db.query(
+    `SELECT
+       EXISTS(SELECT 1 FROM users WHERE user_id = ANY($1::uuid[]) AND (is_banned=true OR is_active=false)) AS banned,
+       COALESCE((SELECT COUNT(*)::int FROM reports WHERE reported_id=$2 AND status IN ('pending','open','reviewing')), 0) AS target_open_reports,
+       COALESCE((SELECT COUNT(*)::int FROM reports WHERE reported_id=$3 AND status IN ('pending','open','reviewing')), 0) AS current_open_reports`,
+    [[currentUserId, targetUserId], targetUserId, currentUserId]
+  );
+  if (safety.rows[0]?.banned) return { canChat: false, reason: 'restricted_user' };
+  if (Number(safety.rows[0]?.target_open_reports || 0) >= 3 || Number(safety.rows[0]?.current_open_reports || 0) >= 3) {
+    return { canChat: false, reason: 'safety_review' };
+  }
+  const r = await db.query(
+    "SELECT EXISTS(SELECT 1 FROM interests WHERE ((sender_id=$1 AND receiver_id=$2) OR (sender_id=$2 AND receiver_id=$1)) AND status='accepted') AS eligible",
+    [currentProfileId, targetProfileId]
+  );
+  const eligible = r.rows[0]?.eligible || false;
+  return { canChat: eligible, reason: eligible ? 'mutual_interest' : 'no_mutual_interest' };
+}
+
+function detectAbusiveText(content = '') {
+  const text = String(content || '').toLowerCase();
+  const patterns = [
+    { type: 'phone_or_whatsapp_request', severity: 'medium', pattern: /\b(whatsapp|mobile number|phone number|call me)\b/ },
+    { type: 'financial_request', severity: 'high', pattern: /\b(loan|bank transfer|send money|upi|account number)\b/ },
+    { type: 'abusive_language_placeholder', severity: 'medium', pattern: /\b(abuse|threat|blackmail)\b/ }
+  ];
+  return patterns.filter((item) => item.pattern.test(text)).map(({ type, severity }) => ({ type, severity }));
+}
+
+router.post('/messages/:messageId/report', authenticate, ensureChatEnabled, async (req, res, next) => {
+  try {
+    const message = await Message.findById(req.params.messageId).lean();
+    if (!message || (message.senderId !== req.user.userId && message.receiverId !== req.user.userId)) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Message not found.' } });
+    }
+    const reportedUserId = message.senderId === req.user.userId ? message.receiverId : message.senderId;
+    const db = await getDB();
+    const flags = detectAbusiveText(message.content).concat(Array.isArray(message.safetyFlags) ? message.safetyFlags : []);
+    await db.query(
+      `INSERT INTO chat_message_reports (
+         chat_message_report_id,message_id,chat_id,reporter_user_id,reported_user_id,reason,description,safety_flags,status,created_at
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,'pending',NOW())`,
+      [
+        crypto.randomUUID(),
+        message._id.toString(),
+        message.chatId,
+        req.user.userId,
+        reportedUserId,
+        req.body?.reason || 'member_report',
+        req.body?.description || '',
+        JSON.stringify(flags)
+      ]
+    );
+    await db.query(
+      `INSERT INTO analytics_events (event_type, service_name, user_id, payload, created_at)
+       VALUES ('chat_report','chat-service',$1,$2::jsonb,NOW())`,
+      [req.user.userId, JSON.stringify({ messageId: message._id.toString(), chatId: message.chatId, reportedUserId, flags })]
+    ).catch(() => {});
+    res.json({ success: true, data: { status: 'pending' }, message: 'Message report submitted for safety review.' });
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.get('/conversations', authenticate, ensureChatEnabled, async (req, res, next) => {
   try {
@@ -119,20 +204,7 @@ router.get('/:chatId/messages', authenticate, ensureChatEnabled, async (req, res
 router.get('/eligibility/:targetUserId', authenticate, ensureChatEnabled, async (req, res, next) => {
   try {
     const db = await getDB();
-    const [currentProfileId, targetProfileId] = await Promise.all([
-      getProfileIdByUserId(db, req.user.userId),
-      getProfileIdByUserId(db, req.params.targetUserId)
-    ]);
-    if (!currentProfileId || !targetProfileId) {
-      return res.json({ success: true, data: { canChat: false, reason: 'profile_not_found' } });
-    }
-    const blockedUserIds = await getBlockedUserIds(db, req.user.userId, [req.params.targetUserId]);
-    if (blockedUserIds.has(req.params.targetUserId)) {
-      return res.json({ success: true, data: { canChat: false, reason: 'blocked' } });
-    }
-    const r = await db.query("SELECT EXISTS(SELECT 1 FROM interests WHERE ((sender_id=$1 AND receiver_id=$2) OR (sender_id=$2 AND receiver_id=$1)) AND status='accepted') AS eligible", [currentProfileId, targetProfileId]);
-    const eligible = r.rows[0]?.eligible || false;
-    res.json({ success: true, data: { canChat: eligible, reason: eligible ? 'mutual_interest' : 'no_mutual_interest' } });
+    res.json({ success: true, data: await getChatEligibility(db, req.user.userId, req.params.targetUserId) });
   } catch (err) {
     next(err);
   }

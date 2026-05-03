@@ -39,12 +39,17 @@ const buildTrustSummary = (profile = {}) => {
   const completionScore = clampScore(profile.completion_score);
   const photoCount = Number(profile.photo_count || 0);
   const approvedVerifications = Number(profile.approved_verifications || 0);
+  const approvedTypes = Array.isArray(profile.approved_verification_types) ? profile.approved_verification_types.map((item) => String(item || '').toLowerCase()) : [];
   const pendingVerifications = Number(profile.pending_verifications || 0);
   const reportCount = Number(profile.report_count || 0);
 
   if (profile.is_phone_verified === true) {
     score += 15;
     signals.push('Phone verified');
+  }
+  if (profile.firebase_verified === true) {
+    score += 8;
+    signals.push('Firebase identity linked');
   }
   if (completionScore >= 90) {
     score += 20;
@@ -62,6 +67,9 @@ const buildTrustSummary = (profile = {}) => {
     score += 8;
   }
   if (approvedVerifications > 0) score += Math.min(15, approvedVerifications * 5);
+  if (approvedTypes.includes('education')) { score += 6; signals.push('Education verified'); }
+  if (approvedTypes.includes('income')) { score += 6; signals.push('Income verified'); }
+  if (approvedTypes.includes('family')) { score += 6; signals.push('Family verified'); }
   if (photoCount >= 3) {
     score += 12;
     signals.push('Multiple photos');
@@ -112,6 +120,8 @@ const searchProfiles = async (filters, userId) => {
     "COALESCE(p.admin_status,'active')='active'",
     "COALESCE(p.profile_status,'active')='active'",
     "COALESCE(p.profile_visibility,'all')!='hidden'",
+    "u.is_active=true",
+    "COALESCE(u.is_banned,false)=false",
     `p.user_id != $1`,
     `NOT EXISTS (
       SELECT 1 FROM blocks b
@@ -203,6 +213,7 @@ const searchProfiles = async (filters, userId) => {
        p.completion_score,
        COALESCE(p.profile_status,'active') AS profile_status,
        u.is_verified AS is_phone_verified,
+       (u.google_id IS NOT NULL) AS firebase_verified,
        u.last_login,
        pd.height_cm,
        ec.occupation,
@@ -215,7 +226,8 @@ const searchProfiles = async (filters, userId) => {
        ld.diet,
        hd.is_manglik,
        COALESCE((SELECT COUNT(*)::int FROM profile_photos pp WHERE pp.profile_id=p.profile_id), 0) AS photo_count,
-       COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='approved'), 0) AS approved_verifications,
+       COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')), 0) AS approved_verifications,
+       COALESCE((SELECT array_agg(DISTINCT v.type) FROM verifications v WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')), ARRAY[]::text[]) AS approved_verification_types,
        COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='pending'), 0) AS pending_verifications,
        COALESCE((SELECT COUNT(*)::int FROM reports rp WHERE rp.reported_id=p.user_id AND rp.status IN ('pending','open','reviewing')), 0) AS report_count
      FROM profiles p

@@ -62,12 +62,16 @@ def build_trust_summary(profile):
     completion_score = clamp_score(profile.get("completion_score"))
     photo_count = int(profile.get("photo_count") or 0)
     approved_verifications = int(profile.get("approved_verifications") or 0)
+    approved_types = [str(item).lower() for item in (profile.get("approved_verification_types") or []) if item]
     pending_verifications = int(profile.get("pending_verifications") or 0)
     report_count = int(profile.get("report_count") or 0)
 
     if profile.get("is_phone_verified"):
         score += 15
         signals.append("Phone verified")
+    if profile.get("firebase_verified"):
+        score += 8
+        signals.append("Firebase identity linked")
     if completion_score >= 90:
         score += 20
         signals.append("Highly complete profile")
@@ -83,6 +87,15 @@ def build_trust_summary(profile):
         score += 8
     if approved_verifications > 0:
         score += min(15, approved_verifications * 5)
+    if "education" in approved_types:
+        score += 6
+        signals.append("Education verified")
+    if "income" in approved_types:
+        score += 6
+        signals.append("Income verified")
+    if "family" in approved_types:
+        score += 6
+        signals.append("Family verified")
     if photo_count >= 3:
         score += 12
         signals.append("Multiple photos")
@@ -134,7 +147,7 @@ def build_match_reasons(user, candidate, preference_score, vector_score, horosco
     return reasons[:4]
 
 
-async def get_recommended_matches(user_id: str, page: int, limit: int) -> dict:
+async def get_recommended_matches(user_id: str, page: int, limit: int, verified_only: bool = False) -> dict:
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         user_row = await conn.fetchrow(
@@ -166,9 +179,12 @@ async def get_recommended_matches(user_id: str, page: int, limit: int) -> dict:
             SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
                    ec.education_level,ec.annual_income,ec.occupation,ec.working_city,
                    pd.height_cm,ld.diet,hd.is_manglik,fd.family_city,fd.family_pincode,
-                   u.is_verified AS is_phone_verified,u.last_login,
+                   u.is_verified AS is_phone_verified,
+                   (u.google_id IS NOT NULL) AS firebase_verified,
+                   u.last_login,
                    COALESCE((SELECT COUNT(*)::int FROM profile_photos pp WHERE pp.profile_id=p.profile_id), 0) AS photo_count,
-                   COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='approved'), 0) AS approved_verifications,
+                   COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')), 0) AS approved_verifications,
+                   COALESCE((SELECT array_agg(DISTINCT v.type) FROM verifications v WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')), ARRAY[]::text[]) AS approved_verification_types,
                    COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='pending'), 0) AS pending_verifications,
                    COALESCE((SELECT COUNT(*)::int FROM reports rp WHERE rp.reported_id=p.user_id AND rp.status IN ('pending','open','reviewing')), 0) AS report_count,
                    CASE
@@ -224,6 +240,9 @@ async def get_recommended_matches(user_id: str, page: int, limit: int) -> dict:
               AND COALESCE(p.admin_status,'active')='active'
               AND COALESCE(p.profile_status,'active')='active'
               AND COALESCE(p.profile_visibility,'all')!='hidden'
+              AND u.is_active=true
+              AND COALESCE(u.is_banned,false)=false
+              AND ($4::boolean=false OR COALESCE(p.verification_status,'pending')='verified')
               AND p.user_id!=$1
               AND NOT EXISTS (
                 SELECT 1 FROM blocks b
@@ -236,6 +255,7 @@ async def get_recommended_matches(user_id: str, page: int, limit: int) -> dict:
             user_id,
             opp_gender,
             user["profile_id"],
+            verified_only,
         )
         user_vec = build_vector(user)
         scored = []

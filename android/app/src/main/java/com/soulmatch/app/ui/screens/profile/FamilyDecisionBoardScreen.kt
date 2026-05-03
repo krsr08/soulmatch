@@ -26,12 +26,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -129,7 +133,8 @@ fun FamilyDecisionBoardScreen(
                         FamilyDecisionRow(
                             decision = decision,
                             onOpen = { onViewProfile(decision.targetProfileId) },
-                            onStatus = { next -> vm.updateDecision(decision, next) }
+                            onStatus = { next -> vm.updateDecision(decision, next) },
+                            onFamilyInput = { vote, comment -> vm.submitFamilyInput(decision, vote, comment) }
                         )
                     }
                 }
@@ -153,8 +158,10 @@ private fun FamilyBoardSummary(decisions: List<FamilyDecisionData>) {
 private fun FamilyDecisionRow(
     decision: FamilyDecisionData,
     onOpen: () -> Unit,
-    onStatus: (String) -> Unit
+    onStatus: (String) -> Unit,
+    onFamilyInput: (String, String) -> Unit
 ) {
+    var familyComment by rememberSaveable(decision.familyDecisionId) { mutableStateOf("") }
     PremiumCard(
         modifier = Modifier
             .padding(horizontal = 16.dp, vertical = 6.dp)
@@ -184,6 +191,7 @@ private fun FamilyDecisionRow(
                     SignalChips(
                         labels = listOf(
                             titleCase(decision.status.replace('_', ' ')),
+                            "Family ${titleCase(decision.familyVote)}",
                             if (decision.trustScore > 0) "Trust ${decision.trustScore}%" else "Trust building"
                         ),
                         tone = if (decision.trustScore >= 80) ChipTone.Success else ChipTone.Info
@@ -192,6 +200,48 @@ private fun FamilyDecisionRow(
             }
             if (decision.trustSignals.isNotEmpty()) {
                 SignalChips(labels = decision.trustSignals.take(3), tone = ChipTone.Neutral)
+            }
+            if (decision.comments.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    decision.comments.take(2).forEach { comment ->
+                        Surface(shape = RoundedCornerShape(14.dp), color = SurfaceSoft, border = BorderStroke(1.dp, Divider)) {
+                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("Family vote: ${titleCase(comment.vote)}", style = MaterialTheme.typography.labelSmall, color = PrimaryDark, fontWeight = FontWeight.Bold)
+                                if (comment.comment.isNotBlank()) {
+                                    Text(comment.comment, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = familyComment,
+                onValueChange = { familyComment = it.take(240) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Family comment") },
+                singleLine = false,
+                maxLines = 2
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = {
+                    onFamilyInput("approve", familyComment)
+                    familyComment = ""
+                }, modifier = Modifier.weight(1f)) {
+                    Text("Approve")
+                }
+                OutlinedButton(onClick = {
+                    onFamilyInput("discuss", familyComment)
+                    familyComment = ""
+                }, modifier = Modifier.weight(1f)) {
+                    Text("Discuss")
+                }
+                OutlinedButton(onClick = {
+                    onFamilyInput("reject", familyComment)
+                    familyComment = ""
+                }, modifier = Modifier.weight(1f)) {
+                    Text("Reject")
+                }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(onClick = { onStatus("call_scheduled") }, modifier = Modifier.weight(1f)) {

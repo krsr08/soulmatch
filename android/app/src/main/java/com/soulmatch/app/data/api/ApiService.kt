@@ -20,6 +20,7 @@ interface ProfileApiService {
     @PUT("profile/assist/status") suspend fun updateAssistStatus(@Body req: AssistStatusRequest): Response<GenericResponse<AssistStatusData>>
     @GET("profile/family-decisions") suspend fun getFamilyDecisions(): Response<GenericResponse<List<FamilyDecisionData>>>
     @PUT("profile/family-decisions/{targetProfileId}") suspend fun upsertFamilyDecision(@Path("targetProfileId") id: String, @Body req: FamilyDecisionRequest): Response<GenericResponse<FamilyDecisionData>>
+    @POST("profile/family-decisions/{familyDecisionId}/comments") suspend fun addFamilyDecisionComment(@Path("familyDecisionId") id: String, @Body req: FamilyDecisionCommentRequest): Response<GenericResponse<FamilyDecisionCommentData>>
     @GET("profile/{profileId}") suspend fun getProfile(@Path("profileId") id: String): Response<GenericResponse<ProfileData>>
     @GET("profile/{profileId}/photos") suspend fun getPhotos(@Path("profileId") id: String): Response<GenericResponse<List<ProfilePhoto>>>
     @Multipart
@@ -41,7 +42,7 @@ interface ProfileApiService {
     @POST("profile/{profileId}/report") suspend fun reportProfile(@Path("profileId") id: String, @Body req: Map<String, @JvmSuppressWildcards String>): Response<GenericResponse<Any>>
 }
 interface MatchingApiService {
-    @GET("matches/recommended") suspend fun getRecommended(@Query("page") page: Int = 1, @Query("limit") limit: Int = 25): Response<GenericResponse<MatchesData>>
+    @GET("matches/recommended") suspend fun getRecommended(@Query("page") page: Int = 1, @Query("limit") limit: Int = 25, @Query("verifiedOnly") verifiedOnly: Boolean = false): Response<GenericResponse<MatchesData>>
     @GET("matches/compatibility/{profileId}") suspend fun getCompatibility(@Path("profileId") id: String): Response<GenericResponse<CompatibilityData>>
 }
 interface SearchApiService {
@@ -80,4 +81,5 @@ interface ChatApiService {
     @GET("chat/conversations") suspend fun getConversations(): Response<GenericResponse<List<ConversationItem>>>
     @GET("chat/{chatId}/messages") suspend fun getMessages(@Path("chatId") chatId: String, @Query("page") page: Int = 1): Response<GenericResponse<MessagePageData>>
     @GET("chat/eligibility/{targetUserId}") suspend fun checkEligibility(@Path("targetUserId") id: String): Response<GenericResponse<ChatEligibilityData>>
+    @POST("chat/messages/{messageId}/report") suspend fun reportMessage(@Path("messageId") id: String, @Body req: Map<String, @JvmSuppressWildcards String>): Response<GenericResponse<Any>>
 }

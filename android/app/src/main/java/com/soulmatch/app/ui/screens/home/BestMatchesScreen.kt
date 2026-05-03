@@ -136,7 +136,10 @@ fun BestMatchesScreen(
                             selected = filter,
                             totalCount = matches.size,
                             visibleCount = rankedMatches.size,
-                            onSelected = { filter = it }
+                            onSelected = { selectedFilter ->
+                                filter = selectedFilter
+                                vm.setVerifiedOnlyMode(selectedFilter == BestMatchFilter.Verified)
+                            }
                         )
                     }
                     if (rankedMatches.isEmpty()) {
@@ -144,7 +147,15 @@ fun BestMatchesScreen(
                             PremiumCard(modifier = Modifier.padding(16.dp), containerColor = SurfaceWarm) {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("No profiles in this filter", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                    Text("Try All, Verified, or 90%+ to continue browsing ranked matches.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                                    Text(
+                                        if (filter == BestMatchFilter.Verified) {
+                                            "No admin-verified active profiles are available for your current discovery pool yet."
+                                        } else {
+                                            "Try All, Verified, or 90%+ to continue browsing ranked matches."
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = TextSecondary
+                                    )
                                 }
                             }
                         }

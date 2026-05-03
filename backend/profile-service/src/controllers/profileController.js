@@ -93,12 +93,23 @@ function normalizeFamilyDecisionPayload(body = {}) {
   if (!['considering', 'family_review', 'call_scheduled', 'spoken', 'accepted', 'declined', 'archived'].includes(status)) {
     return null;
   }
+  const familyVote = String(body.familyVote || body.family_vote || 'discuss').trim().toLowerCase();
+  if (!['approve', 'reject', 'discuss'].includes(familyVote)) return null;
   return {
     status,
+    familyVote,
     note: String(body.note || '').trim(),
     nextStep: String(body.nextStep || body.next_step || '').trim(),
     nextStepAt: body.nextStepAt || body.next_step_at || null
   };
+}
+
+function normalizeFamilyCommentPayload(body = {}) {
+  const vote = String(body.vote || 'discuss').trim().toLowerCase();
+  if (!['approve', 'reject', 'discuss'].includes(vote)) return null;
+  const comment = String(body.comment || '').trim();
+  if (!comment && vote === 'discuss') return null;
+  return { vote, comment };
 }
 
 async function attachTrustSummary(profile) {
@@ -108,6 +119,12 @@ async function attachTrustSummary(profile) {
   profile.trust_level = trust.level;
   profile.trust_signals = trust.signals;
   profile.trust_warnings = trust.warnings;
+  profile.trust_factors = trust.factors || [];
+  profile.trust_explanation = trust.explanation || null;
+  profile.seriousness_score = trust.seriousness?.score || 0;
+  profile.seriousness_level = trust.seriousness?.level || 'low';
+  profile.seriousness_signals = trust.seriousness?.signals || [];
+  profile.seriousness_warnings = trust.seriousness?.warnings || [];
   return profile;
 }
 
@@ -500,12 +517,31 @@ exports.upsertFamilyDecision = async (req, res, next) => {
         familyDecisionId: result.after.family_decision_id,
         targetProfileId: result.after.target_profile_id,
         status: result.after.status,
+        familyVote: result.after.family_vote || 'discuss',
         note: result.after.note || '',
         nextStep: result.after.next_step || '',
+        nextStepAt: result.after.next_step_at || null,
         updatedAt: result.after.updated_at
       },
       message: result.status === 'created' ? 'Added to your family decision board.' : 'Family decision updated.'
     });
+  } catch (err) { next(err); }
+};
+exports.addFamilyDecisionComment = async (req, res, next) => {
+  try {
+    const payload = normalizeFamilyCommentPayload(req.body);
+    if (!payload) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Family comment needs a vote of approve, reject, or discuss and a comment when discussing.'));
+    const result = await repo.addFamilyDecisionComment(req.user.userId, req.params.familyDecisionId, payload);
+    if (result.status === 'not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Family decision not found'));
+    await auditUserChange(req, {
+      profileId: result.decision.owner_profile_id,
+      entityType: 'family_match_decision_comment',
+      entityId: result.comment.family_comment_id,
+      action: `family_decision.comment.${payload.vote}`,
+      beforeData: {},
+      afterData: result.comment
+    });
+    res.json({ success: true, data: result.comment, message: 'Family input recorded.' });
   } catch (err) { next(err); }
 };
 exports.recordView = async (req, res, next) => { try { await repo.recordView(req.params.profileId, req.user.userId); res.json({ success: true }); } catch (err) { next(err); } };

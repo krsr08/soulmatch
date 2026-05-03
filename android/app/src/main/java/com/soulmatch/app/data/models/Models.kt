@@ -191,6 +191,19 @@ data class PhotoUploadData(
     @SerializedName("photoUrls") val photoUrls: List<String> = emptyList()
 )
 
+data class TrustFactorData(
+    val key: String = "",
+    val label: String = "",
+    val points: Int = 0,
+    val status: String = "missing",
+    val detail: String = ""
+)
+
+data class TrustExplanationData(
+    val summary: String = "",
+    val approvedVerificationTypes: List<String> = emptyList()
+)
+
 data class ProfileData(
     @SerializedName("profile_id") val profileId: String = "",
     @SerializedName("user_id") val userId: String = "",
@@ -212,6 +225,12 @@ data class ProfileData(
     @SerializedName("trust_level") val trustLevel: String = "low",
     @SerializedName("trust_signals") val trustSignals: List<String> = emptyList(),
     @SerializedName("trust_warnings") val trustWarnings: List<String> = emptyList(),
+    @SerializedName("trust_factors") val trustFactors: List<TrustFactorData> = emptyList(),
+    @SerializedName("trust_explanation") val trustExplanation: TrustExplanationData? = null,
+    @SerializedName("seriousness_score") val seriousnessScore: Int = 0,
+    @SerializedName("seriousness_level") val seriousnessLevel: String = "low",
+    @SerializedName("seriousness_signals") val seriousnessSignals: List<String> = emptyList(),
+    @SerializedName("seriousness_warnings") val seriousnessWarnings: List<String> = emptyList(),
     @SerializedName("primary_photo_url") val primaryPhotoUrl: String? = null,
     @SerializedName("photo_privacy") val photoPrivacy: String = "all",
     @SerializedName("can_view_photo") val canViewPhoto: Boolean = true,
@@ -269,6 +288,7 @@ data class ProfileSummary(
     @SerializedName("trustScore") val trustScore: Int = 0,
     @SerializedName("trustLevel") val trustLevel: String = "low",
     @SerializedName("trustSignals") val trustSignals: List<String> = emptyList(),
+    @SerializedName("trustFactors") val trustFactors: List<TrustFactorData> = emptyList(),
     val education: String = "",
     val community: String = "",
     val lastActiveLabel: String = "Recently active",
@@ -332,14 +352,28 @@ data class SearchProfileItem(
     @SerializedName("trust_score") val trustScore: Int = 0,
     @SerializedName("trust_level") val trustLevel: String = "low",
     @SerializedName("trust_signals") val trustSignals: List<String> = emptyList(),
+    @SerializedName("trust_factors") val trustFactors: List<TrustFactorData> = emptyList(),
     @SerializedName("match_reasons") val matchReasons: List<String> = emptyList()
 )
 
 data class FamilyDecisionRequest(
     val status: String = "family_review",
+    @SerializedName("familyVote") val familyVote: String = "discuss",
     val note: String = "",
     @SerializedName("nextStep") val nextStep: String = "",
     @SerializedName("nextStepAt") val nextStepAt: String? = null
+)
+
+data class FamilyDecisionCommentRequest(
+    val vote: String = "discuss",
+    val comment: String = ""
+)
+
+data class FamilyDecisionCommentData(
+    @SerializedName("familyCommentId") val familyCommentId: String = "",
+    val vote: String = "discuss",
+    val comment: String = "",
+    @SerializedName("createdAt") val createdAt: String = ""
 )
 
 data class FamilyDecisionData(
@@ -347,6 +381,7 @@ data class FamilyDecisionData(
     @SerializedName("ownerProfileId") val ownerProfileId: String = "",
     @SerializedName("targetProfileId") val targetProfileId: String = "",
     val status: String = "considering",
+    @SerializedName("familyVote") val familyVote: String = "discuss",
     val note: String = "",
     @SerializedName("nextStep") val nextStep: String = "",
     @SerializedName("nextStepAt") val nextStepAt: String? = null,
@@ -359,7 +394,9 @@ data class FamilyDecisionData(
     @SerializedName("isVerified") val isVerified: Boolean = false,
     @SerializedName("trustScore") val trustScore: Int = 0,
     @SerializedName("trustLevel") val trustLevel: String = "low",
-    @SerializedName("trustSignals") val trustSignals: List<String> = emptyList()
+    @SerializedName("trustSignals") val trustSignals: List<String> = emptyList(),
+    @SerializedName("trustFactors") val trustFactors: List<TrustFactorData> = emptyList(),
+    val comments: List<FamilyDecisionCommentData> = emptyList()
 )
 
 data class SearchResultsData(
@@ -764,6 +801,7 @@ fun SearchProfileItem.toProfileSummary(seed: ProfileSummary? = null): ProfileSum
         trustScore = if (trustScore > 0) trustScore else seed?.trustScore ?: 0,
         trustLevel = if (safeString(trustLevel).isNotBlank()) safeString(trustLevel) else seed?.trustLevel ?: "low",
         trustSignals = if (trustSignals.isNotEmpty()) trustSignals else seed?.trustSignals ?: emptyList(),
+        trustFactors = if (trustFactors.isNotEmpty()) trustFactors else seed?.trustFactors ?: emptyList(),
         education = if (safeString(educationLevel).isNotBlank()) safeString(educationLevel) else seed?.education.orEmpty(),
         community = if (safeString(religion).isNotBlank()) safeString(religion) else seed?.community.orEmpty(),
         lastActiveLabel = seed?.lastActiveLabel ?: "Recently active",

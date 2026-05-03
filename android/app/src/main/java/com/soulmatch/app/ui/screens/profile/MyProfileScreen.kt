@@ -714,11 +714,28 @@ private fun TrustAndFamilyBoardCard(
                     modifier = Modifier.weight(1f),
                     background = SurfaceSoft
                 )
+                MetricPill(
+                    "Serious",
+                    if (profile.seriousnessScore > 0) "${profile.seriousnessScore}%" else "New",
+                    modifier = Modifier.weight(1f),
+                    background = SurfaceSoft,
+                    accent = if (profile.seriousnessScore >= 70) Success else TextSecondary
+                )
             }
             val trustLabels = profile.trustSignals.ifEmpty {
                 listOf("Complete profile", "Add photos", "Request verification")
             }
             SignalChips(labels = trustLabels.take(3), tone = ChipTone.Info)
+            profile.trustExplanation?.summary?.takeIf { it.isNotBlank() }?.let { summary ->
+                Text(summary, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            }
+            profile.trustFactors.take(4).forEach { factor ->
+                Text(
+                    "${factor.label}: ${factor.detail}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (factor.status.equals("positive", ignoreCase = true)) Success else TextSecondary
+                )
+            }
             Button(onClick = onOpenFamilyBoard, modifier = Modifier.fillMaxWidth()) {
                 Text("Open family decision board")
             }

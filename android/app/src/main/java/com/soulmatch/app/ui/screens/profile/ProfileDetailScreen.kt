@@ -63,6 +63,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.CompatibilityData
 import com.soulmatch.app.data.models.ProfileData
+import com.soulmatch.app.data.models.TrustFactorData
 import com.soulmatch.app.data.models.fullName
 import com.soulmatch.app.ui.components.ChipTone
 import com.soulmatch.app.ui.components.CompatibilityBar
@@ -538,12 +539,52 @@ private fun TrustProfileSection(profile: ProfileData) {
                 rows = listOf(
                     "Trust score" to if (profile.trustScore > 0) "${profile.trustScore}%" else "Building",
                     "Trust level" to titleCase(profile.trustLevel),
+                    "Seriousness" to if (profile.seriousnessScore > 0) "${profile.seriousnessScore}% ${titleCase(profile.seriousnessLevel)}" else "Building",
                     "Verification" to titleCase(profile.verificationStatus),
                     "Photo privacy" to titleCase(profile.photoPrivacy.replace('_', ' '))
                 )
             )
+            profile.trustExplanation?.summary?.takeIf { it.isNotBlank() }?.let { summary ->
+                Text(summary, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            }
             val labels = profile.trustSignals.ifEmpty { profile.trustWarnings.ifEmpty { listOf("No trust signals yet") } }
             SignalChips(labels = labels.take(4), tone = if (trustColor == Success) ChipTone.Success else ChipTone.Info)
+            profile.trustFactors.take(6).forEach { factor ->
+                TrustFactorRow(factor = factor)
+            }
+            if (profile.seriousnessSignals.isNotEmpty()) {
+                SignalChips(labels = profile.seriousnessSignals.take(3), tone = ChipTone.Neutral)
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrustFactorRow(factor: TrustFactorData) {
+    val toneColor = when (factor.status.lowercase()) {
+        "positive" -> Success
+        "partial", "pending" -> Info
+        "warning" -> Error
+        else -> TextSecondary
+    }
+    Surface(shape = RoundedCornerShape(14.dp), color = Color.White.copy(alpha = 0.7f), border = BorderStroke(1.dp, Divider)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Text(
+                text = if (factor.points > 0) "+${factor.points}" else factor.points.toString(),
+                style = MaterialTheme.typography.labelLarge,
+                color = toneColor,
+                fontWeight = FontWeight.ExtraBold
+            )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(factor.label, style = MaterialTheme.typography.labelLarge, color = PrimaryDark, fontWeight = FontWeight.Bold)
+                Text(factor.detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            }
         }
     }
 }

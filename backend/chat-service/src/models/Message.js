@@ -13,6 +13,7 @@ const messageSchema = new mongoose.Schema({
   messageUserType: { type: String },
   messageUserAlias: { type: String },
   createdMillis: { type: Number },
+  safetyFlags: { type: Array, default: [] },
   sentAt: { type: Date, default: Date.now },
   deliveredAt: { type: Date },
   readAt: { type: Date }
