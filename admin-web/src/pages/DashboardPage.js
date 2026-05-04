@@ -675,6 +675,47 @@ function CmsPanel({ config, patchConfig, onSave }) {
         <Field label="Login hero"><TextInput value={content.auth?.heroTitle || ''} onChange={(e) => updateContent('auth', { heroTitle: e.target.value })} /></Field>
         <Field label="Login subtitle"><TextArea value={content.auth?.heroSubtitle || ''} onChange={(e) => updateContent('auth', { heroSubtitle: e.target.value })} /></Field>
         <Field label="Home header"><TextArea value={content.home?.headerSubtitle || ''} onChange={(e) => updateContent('home', { headerSubtitle: e.target.value })} /></Field>
+        <Field label="Best Matches minimum real profiles" hint="Ads and upgrade cards do not count toward this number. Keep 5 or higher.">
+          <TextInput
+            type="number"
+            min="5"
+            value={content.home?.bestMatchMinimumProfiles ?? 5}
+            onChange={(e) => updateContent('home', { bestMatchMinimumProfiles: Math.max(5, normalizeEditableNumber(e.target.value, 5)) })}
+          />
+        </Field>
+        <Field label="Best Matches insert frequency" hint="Example: 2 shows an insert card after every two profile cards.">
+          <TextInput
+            type="number"
+            min="1"
+            max="5"
+            value={content.home?.bestMatchInsertFrequency ?? 2}
+            onChange={(e) => updateContent('home', { bestMatchInsertFrequency: Math.min(5, Math.max(1, normalizeEditableNumber(e.target.value, 2))) })}
+          />
+        </Field>
+        <Field label="Show Best Matches insert cards">
+          <input
+            type="checkbox"
+            checked={content.home?.showBestMatchInsertCards !== false}
+            onChange={(e) => updateContent('home', { showBestMatchInsertCards: e.target.checked })}
+          />
+        </Field>
+        <Field label="Show upgrade insert cards">
+          <input
+            type="checkbox"
+            checked={content.home?.showBestMatchUpgradeCards !== false}
+            onChange={(e) => updateContent('home', { showBestMatchUpgradeCards: e.target.checked })}
+          />
+        </Field>
+        <Field label="Show ad insert cards">
+          <input
+            type="checkbox"
+            checked={content.home?.showBestMatchAdCards !== false}
+            onChange={(e) => updateContent('home', { showBestMatchAdCards: e.target.checked })}
+          />
+        </Field>
+        <Field label="Best Matches ad cards JSON">
+          <JsonEditor value={content.home?.bestMatchAdCards || []} onValidChange={(value) => updateContent('home', { bestMatchAdCards: value })} placeholder="[]" />
+        </Field>
         <Field label="Support email"><TextInput value={content.support?.email || ''} onChange={(e) => updateContent('support', { email: e.target.value })} /></Field>
         <button className="primary-btn" onClick={() => onSave('content')} type="button">Save content</button>
       </Section>

@@ -584,6 +584,16 @@ data class PhoneEntryContentData(
     val submitCta: String = "Send OTP"
 )
 
+data class HomeBestMatchAdData(
+    val id: String = "",
+    val type: String = "marriage",
+    val title: String = "",
+    val body: String = "",
+    val cta: String = "Explore",
+    @SerializedName("imageUrl") val imageUrl: String = "",
+    val destination: String = "search"
+)
+
 data class HomeContentData(
     val eyebrow: String = "SoulMatch",
     val headerSubtitle: String = "Premium matrimonial matches ranked by family fit, intent, activity, and compatibility.",
@@ -591,6 +601,12 @@ data class HomeContentData(
     val upgradeDetail: String = "Upgrade to view verified phone numbers, get more profile reach, and continue high-intent conversations.",
     val bestMatchesTitle: String = "Best matches",
     val bestMatchesSubtitle: String = "High-signal cards with interest, shortlist, profile, and more actions",
+    val bestMatchMinimumProfiles: Int = 5,
+    val bestMatchInsertFrequency: Int = 2,
+    val showBestMatchInsertCards: Boolean = true,
+    val showBestMatchUpgradeCards: Boolean = true,
+    val showBestMatchAdCards: Boolean = true,
+    val bestMatchAdCards: List<HomeBestMatchAdData> = defaultHomeBestMatchAds(),
     val emptyTitle: String = "Your profile needs a little more detail",
     val emptyBody: String = "Complete career, family, lifestyle, and privacy sections to unlock stronger recommendations.",
     val emptyCta: String = "Improve my profile",
@@ -598,6 +614,33 @@ data class HomeContentData(
     val shortlistHint: String = "shortlisted from current filters. Saved in Activity > Saved.",
     val filterTitle: String = "Filters",
     val filterSubtitle: String = "Any age, any location, any community"
+)
+
+fun defaultHomeBestMatchAds(): List<HomeBestMatchAdData> = listOf(
+    HomeBestMatchAdData(
+        id = "wedding-services",
+        type = "marriage",
+        title = "Wedding services nearby",
+        body = "Shortlist decorators, photographers, and venues once both families are ready.",
+        cta = "View ideas",
+        destination = "search"
+    ),
+    HomeBestMatchAdData(
+        id = "family-horoscope",
+        type = "astrology",
+        title = "Family horoscope support",
+        body = "Add horoscope details and compare compatibility before the first family call.",
+        cta = "Open astrology",
+        destination = "astrology_services"
+    ),
+    HomeBestMatchAdData(
+        id = "verified-profiles",
+        type = "profiles",
+        title = "Verified profiles first",
+        body = "Focus on members with stronger trust signals and active intent.",
+        cta = "Browse profiles",
+        destination = "search"
+    )
 )
 
 data class NavigationContentData(

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -48,6 +50,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -67,9 +70,14 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.HomeContentData
+import com.soulmatch.app.data.models.HomeBestMatchAdData
 import com.soulmatch.app.data.models.InterestListItem
 import com.soulmatch.app.data.models.ProfileSummary
+import com.soulmatch.app.data.models.SubscriptionData
+import com.soulmatch.app.data.models.defaultHomeBestMatchAds
 import com.soulmatch.app.data.models.fullName
+import com.soulmatch.app.data.upgrade.UpgradePackage
+import com.soulmatch.app.data.upgrade.UpgradePackageGroup
 import com.soulmatch.app.ui.components.MemberPhoto
 import com.soulmatch.app.ui.components.PremiumCard
 import com.soulmatch.app.ui.components.PremiumScreen
@@ -82,11 +90,14 @@ import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.viewmodels.DashboardViewModel
 import com.soulmatch.app.ui.viewmodels.NotificationsViewModel
+import com.soulmatch.app.ui.viewmodels.SubscriptionViewModel
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 private val HomeBackground = Color(0xFFFFF9F2)
 private val HomePrimary = Color(0xFFD12E5E)
 private val SoftBorder = Color(0xFFE1BEC2)
+private const val CANONICAL_PLATINUM_RANK = 3_000
 
 @Composable
 fun DashboardScreen(
@@ -102,16 +113,22 @@ fun DashboardScreen(
     onProfileMenuDestination: (String) -> Unit = {},
     onOpenSubscription: () -> Unit = {},
     vm: DashboardViewModel = hiltViewModel(),
-    notificationsVm: NotificationsViewModel = hiltViewModel()
+    notificationsVm: NotificationsViewModel = hiltViewModel(),
+    subscriptionVm: SubscriptionViewModel = hiltViewModel()
 ) {
     val matches by vm.matches.collectAsStateWithLifecycle()
     val pendingInvitations by vm.pendingInvitations.collectAsStateWithLifecycle()
     val myProfile by vm.myProfile.collectAsStateWithLifecycle()
     val loading by vm.isLoading.collectAsStateWithLifecycle()
     val notifications by notificationsVm.notifications.collectAsStateWithLifecycle()
+    val packageGroups by subscriptionVm.packageGroups.collectAsStateWithLifecycle()
+    val subscription by subscriptionVm.subscription.collectAsStateWithLifecycle()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var partnerPromptSkipped by rememberSaveable(myProfile.profileId) { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        subscriptionVm.load()
+    }
     val unreadNotificationCount = notifications.count {
         it.readAt.isNullOrBlank() && !it.status.equals("read", ignoreCase = true)
     }
@@ -124,8 +141,14 @@ fun DashboardScreen(
         compareByDescending<ProfileSummary> { it.compatibilityScore }
             .thenBy { it.name }
     )
-    val bestMatches = rankedMatches.take(2)
-    val newProfiles = rankedMatches.drop(2).take(8).ifEmpty { rankedMatches.take(6) }
+    val profileStrengthScore = myProfile.completionScore.coerceIn(0, 100)
+    val bestMatchProfileTarget = content.bestMatchMinimumProfiles.coerceAtLeast(5)
+    val bestMatches = rankedMatches.take(bestMatchProfileTarget)
+    val newProfiles = rankedMatches.drop(bestMatchProfileTarget).take(8).ifEmpty { rankedMatches.take(6) }
+    val canShowUpgradeInsert = content.showBestMatchInsertCards &&
+        content.showBestMatchUpgradeCards &&
+        shouldShowHomeUpgrade(subscription, packageGroups)
+    val adCards = homeBestMatchAdCards(content)
 
     ProfileSideDrawer(
         drawerState = drawerState,
@@ -166,12 +189,14 @@ fun DashboardScreen(
                         item {
                             WelcomeSection(firstName = myProfile.firstName.ifBlank { "Member" })
                         }
-                        item {
-                            ProfileStrengthCard(
-                                score = myProfile.completionScore.coerceIn(0, 100),
-                                detail = ProfileStrengthAdvisor.summary(myProfile),
-                                onClick = onOpenProfile
-                            )
+                        if (profileStrengthScore < 100) {
+                            item {
+                                ProfileStrengthCard(
+                                    score = profileStrengthScore,
+                                    detail = ProfileStrengthAdvisor.summary(myProfile),
+                                    onClick = onOpenProfile
+                                )
+                            }
                         }
                         if (shouldPromptPartnerPreference && partnerPromptSkipped) {
                             item {
@@ -198,13 +223,26 @@ fun DashboardScreen(
                                 )
                             }
                         } else {
-                            items(bestMatches, key = { it.profileId }) { profile ->
+                            itemsIndexed(bestMatches, key = { _, profile -> profile.profileId }) { index, profile ->
                                 HomeMatchCard(
                                     profile = profile,
                                     onOpen = { onViewProfile(profile.profileId) },
                                     onInterest = { vm.sendInterest(profile.profileId) },
                                     onShortlist = { vm.toggleShortlist(profile.profileId) }
                                 )
+                                if (shouldInsertBestMatchCard(content, index, bestMatches.lastIndex)) {
+                                    BestMatchInsertCard(
+                                        slot = index / content.bestMatchInsertFrequency.coerceIn(1, 5),
+                                        adCards = adCards,
+                                        showUpgrade = canShowUpgradeInsert,
+                                        showAds = content.showBestMatchInsertCards && content.showBestMatchAdCards,
+                                        upgradeTitle = content.upgradeTitle,
+                                        upgradeDetail = content.upgradeDetail,
+                                        onOpenSubscription = onOpenSubscription,
+                                        onOpenSearch = onOpenSearch,
+                                        onOpenAstrology = { onProfileMenuDestination("astrology_services") }
+                                    )
+                                }
                             }
                         }
                         item {
@@ -389,6 +427,181 @@ private fun ProfileStrengthCard(score: Int, detail: String, onClick: () -> Unit)
             )
             Text(detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
         }
+    }
+}
+
+@Composable
+private fun BestMatchInsertCard(
+    slot: Int,
+    adCards: List<HomeBestMatchAdData>,
+    showUpgrade: Boolean,
+    showAds: Boolean,
+    upgradeTitle: String,
+    upgradeDetail: String,
+    onOpenSubscription: () -> Unit,
+    onOpenSearch: () -> Unit,
+    onOpenAstrology: () -> Unit
+) {
+    val ad = adCards.getOrNull(slot % adCards.size.coerceAtLeast(1))
+    val preferUpgrade = showUpgrade && (slot % 2 == 0 || !showAds || ad == null)
+    when {
+        preferUpgrade -> HomeUpgradeInsertCard(
+            title = upgradeTitle,
+            detail = upgradeDetail,
+            onOpenSubscription = onOpenSubscription
+        )
+        showAds && ad != null -> HomeAdInsertCard(
+            ad = ad,
+            onOpen = {
+                when (ad.destination.lowercase(Locale.getDefault())) {
+                    "membership", "subscription", "upgrade" -> onOpenSubscription()
+                    "astrology", "astrology_services" -> onOpenAstrology()
+                    else -> onOpenSearch()
+                }
+            }
+        )
+        showUpgrade -> HomeUpgradeInsertCard(
+            title = upgradeTitle,
+            detail = upgradeDetail,
+            onOpenSubscription = onOpenSubscription
+        )
+    }
+}
+
+@Composable
+private fun HomeUpgradeInsertCard(title: String, detail: String, onOpenSubscription: () -> Unit) {
+    PremiumCard(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        containerColor = Color(0xFFFFF0F4),
+        contentPadding = PaddingValues(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(42.dp),
+                shape = RoundedCornerShape(14.dp),
+                color = HomePrimary.copy(alpha = 0.12f)
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Star, contentDescription = null, tint = HomePrimary, modifier = Modifier.size(22.dp))
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    title.ifBlank { "Upgrade for stronger reach" },
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = PrimaryDark
+                )
+                Text(
+                    detail.ifBlank { "Unlock more contact access, visibility, and assisted discovery." },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Button(onClick = onOpenSubscription) {
+                Text("Upgrade")
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeAdInsertCard(ad: HomeBestMatchAdData, onOpen: () -> Unit) {
+    PremiumCard(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentPadding = PaddingValues(16.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    HomeTag(ad.type.ifBlank { "Sponsored" })
+                    Text(
+                        ad.title.ifBlank { "Recommended service" },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = PrimaryDark,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                OutlinedButton(onClick = onOpen) {
+                    Text(ad.cta.ifBlank { "Open" })
+                }
+            }
+            Text(
+                ad.body.ifBlank { "Explore useful services and profiles selected for matrimony journeys." },
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+private fun shouldInsertBestMatchCard(content: HomeContentData, index: Int, lastIndex: Int): Boolean {
+    if (!content.showBestMatchInsertCards || index >= lastIndex) return false
+    val frequency = content.bestMatchInsertFrequency.coerceIn(1, 5)
+    return (index + 1) % frequency == 0
+}
+
+private fun homeBestMatchAdCards(content: HomeContentData): List<HomeBestMatchAdData> {
+    return content.bestMatchAdCards
+        .ifEmpty { defaultHomeBestMatchAds() }
+        .filter { it.title.isNotBlank() || it.body.isNotBlank() }
+}
+
+private fun shouldShowHomeUpgrade(
+    subscription: SubscriptionData,
+    packageGroups: List<UpgradePackageGroup>
+): Boolean {
+    val currentPlanId = subscription.planId.ifBlank { "free" }
+    if (!subscription.isActive || currentPlanId.equals("free", ignoreCase = true)) return true
+    val currentCanonicalRank = canonicalPlanRank(currentPlanId)
+    val highestCanonicalRank = packageGroups
+        .flatMap { it.packages }
+        .map { canonicalPlanRank(it.planId) }
+        .filter { it > 0 }
+        .maxOrNull()
+        ?: CANONICAL_PLATINUM_RANK
+    if (currentCanonicalRank > 0) return currentCanonicalRank < highestCanonicalRank
+
+    val allPackages = packageGroups.flatMap { it.packages }
+    if (allPackages.isEmpty()) return true
+    val currentPackageRank = allPackages
+        .firstOrNull { it.planId == currentPlanId || it.pkgId.toString() == currentPlanId }
+        ?.let(::upgradePackageRank)
+        ?: 0
+    val highestPackageRank = allPackages.maxOfOrNull(::upgradePackageRank) ?: currentPackageRank
+    return currentPackageRank < highestPackageRank
+}
+
+private fun upgradePackageRank(packageInfo: UpgradePackage): Int {
+    val canonical = canonicalPlanRank(packageInfo.planId)
+    return if (canonical > 0) {
+        (canonical * 1000) + packageInfo.pkgDurationDays.coerceAtLeast(0)
+    } else {
+        packageInfo.payableAmount + packageInfo.pkgDurationDays.coerceAtLeast(0)
+    }
+}
+
+private fun canonicalPlanRank(planId: String): Int {
+    return when (planId.lowercase(Locale.getDefault())) {
+        "silver" -> 1_000
+        "gold" -> 2_000
+        "platinum" -> CANONICAL_PLATINUM_RANK
+        else -> 0
     }
 }
 

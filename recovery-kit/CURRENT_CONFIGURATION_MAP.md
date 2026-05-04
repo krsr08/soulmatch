@@ -82,6 +82,24 @@ curl http://127.0.0.1:3011/health
 curl http://127.0.0.1/api/v1/public/config
 ```
 
+Home page merchandising config:
+
+1. Open Admin Web.
+2. Go to `CMS`.
+3. Open `Mobile App Content` or `Page-wise Static Content`.
+4. Edit `content.home`.
+
+Important Home keys:
+
+| Key | Purpose |
+| --- | --- |
+| `bestMatchMinimumProfiles` | Minimum real profile cards shown in Best Matches. Keep `5` or higher. |
+| `bestMatchInsertFrequency` | How often to insert upgrade/ad cards between profiles. `2` means after every two profile cards. |
+| `showBestMatchInsertCards` | Master ON/OFF for all insert cards. |
+| `showBestMatchUpgradeCards` | ON/OFF for membership upgrade cards. The Android app still hides them for highest-plan users. |
+| `showBestMatchAdCards` | ON/OFF for ad cards. |
+| `bestMatchAdCards` | Product, marriage, astrology, or profile ad cards shown between profile cards. |
+
 ## 3. GitHub
 
 Repository:
@@ -156,4 +174,3 @@ https://YOUR_DOMAIN/api/v1/payment/webhook
 ```
 
 Until a domain is added, Android payment can still confirm payment through the app verify call, but Razorpay webhook delivery needs a public HTTPS endpoint.
-
