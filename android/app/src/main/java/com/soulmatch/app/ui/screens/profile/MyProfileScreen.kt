@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -48,6 +49,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -80,6 +82,7 @@ import com.soulmatch.app.data.models.PhotoAccessRequestData
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.ProfilePhoto
 import com.soulmatch.app.data.models.SubscriptionData
+import com.soulmatch.app.data.models.TrustFactorData
 import com.soulmatch.app.data.models.VerificationRequestData
 import com.soulmatch.app.data.models.ViewerData
 import com.soulmatch.app.data.models.fullName
@@ -128,6 +131,7 @@ fun MyProfileScreen(
     onOpenSettings: (() -> Unit)? = null,
     onOpenAssist: (() -> Unit)? = null,
     onOpenPartnerPreferences: (() -> Unit)? = null,
+    onOpenTrustDetails: (() -> Unit)? = null,
     onOpenFamilyBoard: (() -> Unit)? = null,
     profileId: String = "",
     chatId: String = "",
@@ -153,11 +157,13 @@ fun MyProfileScreen(
     val openSettings: () -> Unit = onOpenSettings ?: {}
     val openAssist: () -> Unit = onOpenAssist ?: {}
     val openPartnerPreferences: () -> Unit = onOpenPartnerPreferences ?: {}
+    val openTrustDetails: () -> Unit = onOpenTrustDetails ?: {}
     val openFamilyBoard: () -> Unit = onOpenFamilyBoard ?: {}
     val openSubscription: () -> Unit = onSubscribe ?: {}
     val viewProfile: (String) -> Unit = onViewProfile ?: { _ -> }
     val context = LocalContext.current
     var localPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var showRecentViewers by remember { mutableStateOf(false) }
 
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         if (uris.isNotEmpty()) {
@@ -273,22 +279,23 @@ fun MyProfileScreen(
                             )
                         }
                         item {
-                            TrustAndFamilyBoardCard(
+                            TrustDetailsCard(
                                 profile = data,
-                                familyDecisions = familyDecisions,
-                                onOpenFamilyBoard = openFamilyBoard
+                                onOpenTrustDetails = openTrustDetails
                             )
                         }
-                        item {
-                            VerificationStatusCard(
-                                profile = data,
-                                photos = photos,
-                                verifications = verifications,
-                                isSubmitting = submittingVerification,
-                                onSubmit = vm::submitProfileVerification,
-                                onCompleteProfile = { editSection(checklist.firstOrNull { !it.isComplete }?.editStep ?: 1) },
-                                onAddPhoto = { photoPicker.launch("image/*") }
-                            )
+                        if (!data.verificationStatus.equals("verified", ignoreCase = true)) {
+                            item {
+                                VerificationStatusCard(
+                                    profile = data,
+                                    photos = photos,
+                                    verifications = verifications,
+                                    isSubmitting = submittingVerification,
+                                    onSubmit = vm::submitProfileVerification,
+                                    onCompleteProfile = { editSection(checklist.firstOrNull { !it.isComplete }?.editStep ?: 1) },
+                                    onAddPhoto = { photoPicker.launch("image/*") }
+                                )
+                            }
                         }
                         item {
                             PhotoGalleryCard(
@@ -311,27 +318,23 @@ fun MyProfileScreen(
                                 onDecline = { requestId -> vm.respondPhotoAccessRequest(requestId, approved = false) }
                             )
                         }
-                        if (viewers.isNotEmpty()) {
-                            item {
-                                SectionTitle(
-                                    title = "Recent viewers",
-                                    subtitle = "Warm signals from members already checking your profile",
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                                )
+                        item {
+                            RecentViewersToggleCard(
+                                count = viewers.size,
+                                enabled = showRecentViewers,
+                                onToggle = { showRecentViewers = it }
+                            )
+                        }
+                        if (showRecentViewers) {
+                            if (viewers.isEmpty()) {
+                                item {
+                                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), containerColor = SurfaceSoft) {
+                                        Text("No recent viewers yet.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                                    }
+                                }
                             }
                             items(viewers.take(5), key = { "${it.profileId}-${it.viewedAt}" }) { viewer ->
                                 ViewerRow(viewer = viewer, onOpen = { viewProfile(viewer.profileId) })
-                            }
-                        }
-                        item {
-                            PremiumCard(modifier = Modifier.padding(16.dp), containerColor = SurfaceWarm) {
-                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    SectionTitle("Privacy first", "Control photo access, visibility, contact filters, hidden profiles, and blocked profiles in one place")
-                                    Button(onClick = openSettings, modifier = Modifier.fillMaxWidth()) {
-                                        Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Text("Open privacy settings")
-                                    }
-                                }
                             }
                         }
                     }
@@ -397,6 +400,88 @@ fun PartnerPreferencesScreen(
                         preferences = preferences,
                         onSave = vm::updatePartnerPreferences
                     )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TrustDetailsScreen(
+    onBack: () -> Unit,
+    vm: MyProfileViewModel = hiltViewModel()
+) {
+    val profile by vm.profile.collectAsStateWithLifecycle()
+    val visibleFactors = profile?.trustFactors.orEmpty().filterNot { it.isFirebaseTrustFactor() }
+    val verified = profile?.verificationStatus.equals("verified", ignoreCase = true)
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Trust details", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        PremiumScreen(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item {
+                    PremiumCard(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TrustMetricTile(
+                                    label = "Trust Score",
+                                    value = "${profile?.trustScore?.coerceIn(0, 100) ?: 0}%",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TrustMetricTile(
+                                    label = "Identity",
+                                    value = if (verified) "Verified" else "Pending",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Text(
+                                "Each item below shows only the current status. Internal platform checks are not shown to members.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                }
+                if (visibleFactors.isEmpty()) {
+                    item {
+                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), containerColor = SurfaceSoft) {
+                            Text("Trust details will appear after verification signals are available.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                        }
+                    }
+                } else {
+                    items(visibleFactors, key = { "${it.key}-${it.label}" }) { factor ->
+                        TrustFactorStatusRow(
+                            label = factor.label,
+                            detail = factor.detail,
+                            status = factor.status
+                        )
+                    }
                 }
             }
         }
@@ -847,46 +932,115 @@ private fun PhotoGalleryCard(
     onDelete: (String) -> Unit,
     onSetPrimary: (String) -> Unit
 ) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionTitle(
-                title = "Photos and trust",
-                subtitle = "Primary photo, gallery, verification, and photo privacy",
-                actionLabel = if (uploadingPhotos) null else "Add",
-                onAction = if (uploadingPhotos) null else onUpload
+    val primaryLocal = localPhotoUris.firstOrNull()
+    val primaryPhoto = photos.firstOrNull { it.isPrimary } ?: photos.firstOrNull()
+    Column(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Photos", style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Serif), fontWeight = FontWeight.ExtraBold)
+            TextButton(onClick = onUpload, enabled = !uploadingPhotos) {
+                Text("Manage Photos", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            ProfilePhotoSquare(
+                localUri = primaryLocal,
+                photoUrl = primaryPhoto?.photoUrl,
+                modifier = Modifier
+                    .weight(1f)
+                    .aspectRatio(1f),
+                onClick = onUpload
             )
+            AddMorePhotoSquare(
+                uploadingPhotos = uploadingPhotos,
+                modifier = Modifier
+                    .weight(1f)
+                    .aspectRatio(1f),
+                onUpload = onUpload
+            )
+        }
+        if (photos.size + localPhotoUris.size > 1) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(localPhotoUris.drop(1), key = { "local-${it}" }) { uri ->
+                    LocalPhotoTile(uri = uri, onDelete = onDeleteLocal)
+                }
+                items(photos.filter { it.photoId != primaryPhoto?.photoId }, key = { it.photoId }) { photo ->
+                    PhotoTile(photo = photo, onDelete = onDelete, onSetPrimary = onSetPrimary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfilePhotoSquare(
+    localUri: Uri?,
+    photoUrl: String?,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = SurfaceSoft,
+        border = BorderStroke(1.dp, Divider)
+    ) {
+        if (localUri != null) {
+            AsyncImage(
+                model = localUri,
+                contentDescription = "Profile photo",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else if (!photoUrl.isNullOrBlank()) {
+            MemberPhoto(
+                photoUrl = photoUrl,
+                contentDescription = "Profile photo",
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(18.dp)
+            )
+        } else {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(Icons.Filled.PhotoCamera, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(34.dp))
+                Text("Add photo", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddMorePhotoSquare(
+    uploadingPhotos: Boolean,
+    modifier: Modifier = Modifier,
+    onUpload: () -> Unit
+) {
+    Surface(
+        modifier = modifier.clickable(enabled = !uploadingPhotos, onClick = onUpload),
+        shape = RoundedCornerShape(18.dp),
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
             if (uploadingPhotos) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Text("Uploading photos", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                }
-            }
-            Surface(shape = RoundedCornerShape(16.dp), color = SurfaceWarm, border = BorderStroke(1.dp, Divider)) {
-                Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Lock, contentDescription = null, tint = PrimaryDark)
-                    Text("Photo visibility: $photoPrivacyLabel", style = MaterialTheme.typography.bodyMedium, color = PrimaryDark, fontWeight = FontWeight.SemiBold)
-                }
-            }
-            if (photos.isEmpty() && localPhotoUris.isEmpty()) {
-                Surface(shape = RoundedCornerShape(18.dp), color = SurfaceSoft, border = BorderStroke(1.dp, Divider)) {
-                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Filled.PhotoCamera, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(34.dp))
-                        Text("No profile photos yet", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Text("Add at least one clear photo to improve trust and ranking.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                        Button(onClick = onUpload, enabled = !uploadingPhotos) {
-                            Text("Add photos")
-                        }
-                    }
-                }
+                CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
+                Text("Uploading", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
             } else {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(localPhotoUris, key = { "local-${it}" }) { uri ->
-                        LocalPhotoTile(uri = uri, onDelete = onDeleteLocal)
-                    }
-                    items(photos, key = { it.photoId }) { photo ->
-                        PhotoTile(photo = photo, onDelete = onDelete, onSetPrimary = onSetPrimary)
-                    }
-                }
+                Icon(Icons.Filled.PhotoCamera, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
+                Text("Add more", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
             }
         }
     }
@@ -937,53 +1091,34 @@ private fun PhotoAccessRequestsCard(
 }
 
 @Composable
-private fun TrustAndFamilyBoardCard(
+private fun TrustDetailsCard(
     profile: ProfileData,
-    familyDecisions: List<FamilyDecisionData>,
-    onOpenFamilyBoard: () -> Unit
+    onOpenTrustDetails: () -> Unit
 ) {
-    val activeDecisions = familyDecisions.filterNot { it.status.equals("archived", ignoreCase = true) }
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionTitle("Trust and family decisions", "Use proof signals and a shared shortlist before moving to calls")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                MetricPill(
-                    "Trust",
-                    if (profile.trustScore > 0) "${profile.trustScore}%" else "New",
-                    modifier = Modifier.weight(1f),
-                    background = if (profile.trustScore >= 80) SuccessSoft else SurfaceSoft,
-                    accent = if (profile.trustScore >= 80) Success else TextSecondary
-                )
-                MetricPill(
-                    "Family board",
-                    activeDecisions.size.toString(),
-                    modifier = Modifier.weight(1f),
-                    background = SurfaceSoft
-                )
-                MetricPill(
-                    "Serious",
-                    if (profile.seriousnessScore > 0) "${profile.seriousnessScore}%" else "New",
-                    modifier = Modifier.weight(1f),
-                    background = SurfaceSoft,
-                    accent = if (profile.seriousnessScore >= 70) Success else TextSecondary
-                )
+    val verified = profile.verificationStatus.equals("verified", ignoreCase = true)
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surface) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SectionTitle("Trust Details")
+                TextButton(onClick = onOpenTrustDetails) {
+                    Text("View Details", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+                }
             }
-            val trustLabels = profile.trustSignals.ifEmpty {
-                listOf("Complete profile", "Add photos", "Request verification")
-            }
-            SignalChips(labels = trustLabels.take(3), tone = ChipTone.Info)
-            profile.trustExplanation?.summary?.takeIf { it.isNotBlank() }?.let { summary ->
-                Text(summary, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-            }
-            profile.trustFactors.take(4).forEach { factor ->
-                Text(
-                    "${factor.label}: ${factor.detail}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (factor.status.equals("positive", ignoreCase = true)) Success else TextSecondary
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                TrustMetricTile(
+                    label = "Trust Score",
+                    value = if (profile.trustScore > 0) "${profile.trustScore.coerceIn(0, 100)}%" else "New",
+                    modifier = Modifier.weight(1f)
                 )
-            }
-            Button(onClick = onOpenFamilyBoard, modifier = Modifier.fillMaxWidth()) {
-                Text("Open family decision board")
+                TrustMetricTile(
+                    label = "Identity",
+                    value = if (verified) "Verified" else "Pending",
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }
@@ -1358,6 +1493,68 @@ private fun preferenceLabel(value: String): String {
 }
 
 @Composable
+private fun TrustMetricTile(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = SurfaceWarm,
+        border = BorderStroke(1.dp, Divider.copy(alpha = 0.7f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(value, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+@Composable
+private fun TrustFactorStatusRow(
+    label: String,
+    detail: String,
+    status: String
+) {
+    val normalized = status.lowercase(Locale.getDefault())
+    val statusLabel = when {
+        normalized in listOf("positive", "verified", "complete", "passed", "approved") -> "Verified"
+        normalized in listOf("pending", "review", "in_review") -> "Pending"
+        normalized in listOf("negative", "missing", "failed", "rejected") -> "Needs update"
+        else -> titleCase(status.ifBlank { "Pending" }.replace('_', ' '))
+    }
+    val color = when (statusLabel) {
+        "Verified" -> Success
+        "Needs update" -> Error
+        else -> TextSecondary
+    }
+    PremiumCard(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = RoundedCornerShape(14.dp), color = color.copy(alpha = 0.12f), modifier = Modifier.size(44.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Verified, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+                if (detail.isNotBlank()) {
+                    Text(detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                }
+            }
+            Text(statusLabel, style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.ExtraBold)
+        }
+    }
+}
+
+@Composable
 private fun PartnerPreferencesSummaryCard(
     preferences: PartnerPreferencesData,
     onEdit: () -> Unit
@@ -1380,8 +1577,8 @@ private fun PartnerPreferencesSummaryCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 SectionTitle("Partner Preferences")
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Filled.Edit, contentDescription = "Edit partner preferences", tint = MaterialTheme.colorScheme.primary)
+                TextButton(onClick = onEdit) {
+                    Text("Edit", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
                 }
             }
             ProfileInfoLine(Icons.Filled.Favorite, "Age", "${preferences.ageMin}-${preferences.ageMax}")
@@ -1402,52 +1599,27 @@ private fun SoulMatchAssistProfileCard(
     onOpenAssist: () -> Unit
 ) {
     val enabled = assistStatus.isOptedIn
-    val mode = titleCase((if (enabled) assistStatus.supportLevel else "self_service").replace('_', ' '))
-    val status = titleCase(assistStatus.requestStatus.replace('_', ' '))
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         containerColor = SurfaceWarm
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)) {
-                    Icon(
-                        Icons.Filled.AutoAwesome,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(10.dp)
-                    )
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("SoulMatch Assistance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
-                    Text(
-                        "Choose Yes to share your profile with SoulMatch advisors and select an assisted membership type.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
-                    )
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                MetricPill("Mode", mode, modifier = Modifier.weight(1f), background = SurfaceSoft)
-                MetricPill("Status", status, modifier = Modifier.weight(1f), background = SurfaceSoft)
-            }
-            if (assistStatus.location.city.isNotBlank() || assistStatus.location.pincode.isNotBlank()) {
-                SignalChips(
-                    labels = listOfNotNull(
-                        assistStatus.location.city.takeIf { it.isNotBlank() },
-                        assistStatus.location.pincode.takeIf { it.isNotBlank() }
-                    ),
-                    tone = ChipTone.Info
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("SoulMatch Assistance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    "Enable AI-guided advisor support and curated shortlists",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.weight(1f)) {
-                    Text(if (enabled) "Enabled" else "No")
-                }
-                Button(onClick = onOpenAssist, modifier = Modifier.weight(1f)) {
-                    Text(if (enabled) "Manage" else "Yes")
-                }
-            }
+            Switch(
+                checked = enabled,
+                onCheckedChange = { onOpenAssist() }
+            )
         }
     }
 }
@@ -1545,6 +1717,34 @@ private fun ViewerRow(viewer: ViewerData, onOpen: () -> Unit) {
 }
 
 @Composable
+private fun RecentViewersToggleCard(
+    count: Int,
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    PremiumCard(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Recent viewers", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    if (enabled) "$count profile(s) can be reviewed below" else "Turn on to see who viewed your profile",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+            }
+            Switch(checked = enabled, onCheckedChange = onToggle)
+        }
+    }
+}
+
+@Composable
 private fun ChecklistRow(item: ProfileChecklistItem, onEdit: () -> Unit) {
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
@@ -1620,4 +1820,9 @@ private fun formatProfileId(profileId: String): String {
     if (digits.isNotBlank()) return "SM-${digits.takeLast(4).padStart(4, '0')}"
     val hash = kotlin.math.abs(clean.hashCode()).toString().takeLast(4).padStart(4, '0')
     return "SM-$hash"
+}
+
+private fun TrustFactorData.isFirebaseTrustFactor(): Boolean {
+    val text = listOf(key, label, detail).joinToString(" ").lowercase(Locale.getDefault())
+    return "firebase" in text || "fcm" in text
 }
