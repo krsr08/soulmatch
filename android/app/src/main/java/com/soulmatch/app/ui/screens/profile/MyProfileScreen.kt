@@ -23,11 +23,21 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FamilyRestroom
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,7 +64,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -114,6 +127,7 @@ fun MyProfileScreen(
     onLogout: (() -> Unit)? = null,
     onOpenSettings: (() -> Unit)? = null,
     onOpenAssist: (() -> Unit)? = null,
+    onOpenPartnerPreferences: (() -> Unit)? = null,
     onOpenFamilyBoard: (() -> Unit)? = null,
     profileId: String = "",
     chatId: String = "",
@@ -138,6 +152,7 @@ fun MyProfileScreen(
     val editSection: (Int) -> Unit = onEditSection ?: { _ -> }
     val openSettings: () -> Unit = onOpenSettings ?: {}
     val openAssist: () -> Unit = onOpenAssist ?: {}
+    val openPartnerPreferences: () -> Unit = onOpenPartnerPreferences ?: {}
     val openFamilyBoard: () -> Unit = onOpenFamilyBoard ?: {}
     val openSubscription: () -> Unit = onSubscribe ?: {}
     val viewProfile: (String) -> Unit = onViewProfile ?: { _ -> }
@@ -223,6 +238,48 @@ fun MyProfileScreen(
                             }
                         }
                         item {
+                            ProfileStrengthOverviewCard(
+                                profile = data,
+                                checklist = checklist,
+                                onComplete = { editSection(checklist.firstOrNull { !it.isComplete }?.editStep ?: 1) }
+                            )
+                        }
+                        item {
+                            ProfileQuickStatsRow(
+                                checklist = checklist,
+                                photos = photos,
+                                subscription = subscription
+                            )
+                        }
+                        item {
+                            SectionTitle(
+                                title = "Profile Details",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+                        items(checklist, key = { it.title }) { item ->
+                            ChecklistRow(item = item, onEdit = { editSection(item.editStep) })
+                        }
+                        item {
+                            PartnerPreferencesSummaryCard(
+                                preferences = preferences,
+                                onEdit = openPartnerPreferences
+                            )
+                        }
+                        item {
+                            SoulMatchAssistProfileCard(
+                                assistStatus = assistStatus,
+                                onOpenAssist = openAssist
+                            )
+                        }
+                        item {
+                            TrustAndFamilyBoardCard(
+                                profile = data,
+                                familyDecisions = familyDecisions,
+                                onOpenFamilyBoard = openFamilyBoard
+                            )
+                        }
+                        item {
                             VerificationStatusCard(
                                 profile = data,
                                 photos = photos,
@@ -254,22 +311,6 @@ fun MyProfileScreen(
                                 onDecline = { requestId -> vm.respondPhotoAccessRequest(requestId, approved = false) }
                             )
                         }
-                        item {
-                            PartnerPreferencesCard(preferences = preferences, onSave = vm::updatePartnerPreferences)
-                        }
-                        item {
-                            SoulMatchAssistSummaryCard(
-                                assistStatus = assistStatus,
-                                onOpenAssist = openAssist
-                            )
-                        }
-                        item {
-                            TrustAndFamilyBoardCard(
-                                profile = data,
-                                familyDecisions = familyDecisions,
-                                onOpenFamilyBoard = openFamilyBoard
-                            )
-                        }
                         if (viewers.isNotEmpty()) {
                             item {
                                 SectionTitle(
@@ -283,16 +324,6 @@ fun MyProfileScreen(
                             }
                         }
                         item {
-                            SectionTitle(
-                                title = "Profile checklist",
-                                subtitle = "Keep the profile complete and trustworthy",
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                            )
-                        }
-                        items(checklist, key = { it.title }) { item ->
-                            ChecklistRow(item = item, onEdit = { editSection(item.editStep) })
-                        }
-                        item {
                             PremiumCard(modifier = Modifier.padding(16.dp), containerColor = SurfaceWarm) {
                                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                     SectionTitle("Privacy first", "Control photo access, visibility, contact filters, hidden profiles, and blocked profiles in one place")
@@ -304,6 +335,68 @@ fun MyProfileScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PartnerPreferencesScreen(
+    onBack: () -> Unit,
+    vm: MyProfileViewModel = hiltViewModel()
+) {
+    val preferences by vm.preferences.collectAsStateWithLifecycle()
+    val status by vm.status.collectAsStateWithLifecycle()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Partner preferences", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        PremiumScreen(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item {
+                    PremiumCard(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        containerColor = SurfaceWarm
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SectionTitle(
+                                title = "Set match filters",
+                                subtitle = "Fill each tab carefully. These preferences are used by Best Matches, Search ranking, and future assisted matchmaking."
+                            )
+                            SignalChips(
+                                labels = listOf("Basics", "Career", "Lifestyle", "Family", "Horoscope"),
+                                tone = ChipTone.Info
+                            )
+                        }
+                    }
+                }
+                if (!status.isNullOrBlank()) {
+                    item { StatusCard(status = status ?: "") }
+                }
+                item {
+                    PartnerPreferencesCard(
+                        preferences = preferences,
+                        onSave = vm::updatePartnerPreferences
+                    )
                 }
             }
         }
@@ -358,71 +451,176 @@ private fun ProfileOwnerHeader(
     onSettings: () -> Unit,
     onUploadPhoto: () -> Unit
 ) {
-    val completed = checklist.count { it.isComplete }
-    val pendingRequired = checklist
-        .filter { !it.isComplete && !it.statusLabel.equals("Optional", ignoreCase = true) }
-        .map { it.title.lowercase(Locale.getDefault()) }
-    val strengthDetail = if (pendingRequired.isEmpty()) {
-        ProfileStrengthAdvisor.summary(profile)
-    } else {
-        "Next: ${pendingRequired.take(2).joinToString(", ")}."
-    }
     val headerPhoto = localPhotoUris.firstOrNull()?.toString()
         ?: photos.firstOrNull { it.isPrimary }?.photoUrl
         ?: photos.firstOrNull()?.photoUrl
         ?: profile.primaryPhotoUrl
-    val activePaidPlan = subscription.hasActivePaidPlan()
     val planLabel = subscription.displayPlanName()
-    PremiumHeader(
-        eyebrow = "Account",
-        title = profile.fullName(),
-        subtitle = listOf(profile.occupation, profile.workingCity).filter { it.isNotBlank() }.joinToString(" | ").ifBlank { "Build a complete matrimonial profile" },
-        trailing = {
-            ProfilePhotoButton(
-                photoUrl = headerPhoto,
-                onClick = onUploadPhoto
-            )
-        }
-    )
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp), containerColor = MaterialTheme.colorScheme.surface) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            LabeledProgress(
-                label = "Profile strength",
-                value = profile.completionScore,
-                detail = strengthDetail
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                MetricPill("Sections", "$completed/${checklist.size}", modifier = Modifier.weight(1f), background = SurfaceWarm)
-                MetricPill("Photos", photos.size.toString(), modifier = Modifier.weight(1f), background = SurfaceSoft)
-                MetricPill("Plan", planLabel, modifier = Modifier.weight(1f), accent = if (activePaidPlan) Success else TextSecondary, background = if (activePaidPlan) SuccessSoft else SurfaceSoft)
-            }
-            SignalChips(
-                labels = listOf(
-                    if (profile.profileStatus.equals("inactive", ignoreCase = true)) "Profile inactive" else "Profile active",
-                    "Created by ${titleCase(profile.profileCreatedBy)}",
-                    if (profile.isPartnerPrefSet) "Preferences synced" else "Preferences pending",
-                    if (profile.trustScore > 0) "Trust ${profile.trustScore}%" else "Trust building"
-                ),
-                tone = ChipTone.Success
-            )
-            if (activePaidPlan) {
-                MembershipActiveCard(subscription = subscription)
-            } else {
-                UpgradePlanGate(
-                    title = "Upgrade your member reach",
-                    detail = "Premium membership adds contact views, visitor insights, and stronger visibility in search.",
-                    onUpgrade = onSubscribe,
-                    compact = true
+    val memberLabel = if (subscription.hasActivePaidPlan()) {
+        "${planLabel.uppercase(Locale.getDefault())} MEMBER"
+    } else {
+        "STANDARD MEMBER"
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 22.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box {
+            Surface(
+                modifier = Modifier
+                    .size(132.dp)
+                    .clickable(onClick = onUploadPhoto),
+                shape = RoundedCornerShape(999.dp),
+                color = SurfaceSoft,
+                border = BorderStroke(4.dp, Color(0xFFE9E1DC)),
+                shadowElevation = 8.dp
+            ) {
+                MemberPhoto(
+                    photoUrl = headerPhoto,
+                    contentDescription = "Profile photo. Tap to upload",
+                    modifier = Modifier
+                        .padding(4.dp)
+                        .fillMaxSize(),
+                    shape = RoundedCornerShape(999.dp)
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = onSubscribe, modifier = Modifier.weight(1f)) {
-                    Text(if (activePaidPlan) "Manage membership" else "View plans")
-                }
-                OutlinedButton(onClick = onSettings, modifier = Modifier.weight(1f)) {
-                    Text("Account settings")
+            if (profile.verificationStatus.equals("verified", ignoreCase = true)) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(34.dp),
+                    shape = RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    border = BorderStroke(2.dp, Color.White)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Verified, contentDescription = "Verified profile", tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
                 }
             }
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(
+                profile.fullName(),
+                style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.Serif),
+                color = Color(0xFF1E1B18),
+                fontWeight = FontWeight.ExtraBold,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                ) {
+                    Text(
+                        memberLabel,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1
+                    )
+                }
+                Text("|", color = TextSecondary)
+                Text(
+                    "ID: ${formatProfileId(profile.profileId)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileStrengthOverviewCard(
+    profile: ProfileData,
+    checklist: List<ProfileChecklistItem>,
+    onComplete: () -> Unit
+) {
+    val score = profile.completionScore.coerceIn(0, 100)
+    val next = checklist.firstOrNull { !it.isComplete && !it.statusLabel.equals("Optional", ignoreCase = true) }
+    PremiumCard(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                Text(
+                    "Profile Strength",
+                    style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Serif),
+                    color = Color(0xFF1E1B18),
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Text("$score% Complete", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+            }
+            LabeledProgress(label = "", value = score, detail = "")
+            Text(
+                next?.let { "Add your ${it.title.lowercase(Locale.getDefault())} to reach 100% and get better match recommendations." }
+                    ?: "Your profile has the key details needed for strong recommendations.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary
+            )
+            if (next != null) {
+                TextButton(onClick = onComplete) {
+                    Text("Complete Now", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+                    Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileQuickStatsRow(
+    checklist: List<ProfileChecklistItem>,
+    photos: List<ProfilePhoto>,
+    subscription: SubscriptionData
+) {
+    val completed = checklist.count { it.isComplete }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        QuickStatCard(Icons.Filled.WorkspacePremium, "Sections", "$completed / ${checklist.size}", Modifier.weight(1f))
+        QuickStatCard(Icons.Filled.PhotoLibrary, "Photos", if (photos.isEmpty()) "0 Active" else "${photos.size} Active", Modifier.weight(1f))
+        QuickStatCard(Icons.Filled.Verified, "Plan", subscription.displayPlanName(), Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun QuickStatCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = SurfaceSoft,
+        border = BorderStroke(1.dp, Divider.copy(alpha = 0.6f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary, maxLines = 1)
+            Text(value, style = MaterialTheme.typography.labelMedium, color = Color(0xFF1E1B18), fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -1160,6 +1358,126 @@ private fun preferenceLabel(value: String): String {
 }
 
 @Composable
+private fun PartnerPreferencesSummaryCard(
+    preferences: PartnerPreferencesData,
+    onEdit: () -> Unit
+) {
+    val education = preferences.educationLevels.joinToString(", ").ifBlank { "Any education" }
+    val location = preferences.locations.joinToString(", ").ifBlank { "Any city" }
+    val height = listOfNotNull(
+        preferences.heightMinCm?.let { "${it}cm+" },
+        preferences.heightMaxCm?.let { "up to ${it}cm" }
+    ).joinToString(" ").ifBlank { "Open" }
+
+    PremiumCard(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SectionTitle("Partner Preferences")
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Filled.Edit, contentDescription = "Edit partner preferences", tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+            ProfileInfoLine(Icons.Filled.Favorite, "Age", "${preferences.ageMin}-${preferences.ageMax}")
+            ProfileInfoLine(Icons.Filled.School, "Education", education)
+            ProfileInfoLine(Icons.Filled.Work, "Career", preferences.occupations.joinToString(", ").ifBlank { "Any profession" })
+            ProfileInfoLine(Icons.Filled.Person, "Location", location)
+            ProfileInfoLine(Icons.Filled.AutoAwesome, "Height", height)
+            if (preferences.dealBreakers.isNotEmpty()) {
+                ProfileInfoLine(Icons.Filled.Lock, "Deal breakers", preferences.dealBreakers.joinToString(", "))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SoulMatchAssistProfileCard(
+    assistStatus: AssistStatusData,
+    onOpenAssist: () -> Unit
+) {
+    val enabled = assistStatus.isOptedIn
+    val mode = titleCase((if (enabled) assistStatus.supportLevel else "self_service").replace('_', ' '))
+    val status = titleCase(assistStatus.requestStatus.replace('_', ' '))
+    PremiumCard(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        containerColor = SurfaceWarm
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)) {
+                    Icon(
+                        Icons.Filled.AutoAwesome,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(10.dp)
+                    )
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("SoulMatch Assistance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                    Text(
+                        "Choose Yes to share your profile with SoulMatch advisors and select an assisted membership type.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                MetricPill("Mode", mode, modifier = Modifier.weight(1f), background = SurfaceSoft)
+                MetricPill("Status", status, modifier = Modifier.weight(1f), background = SurfaceSoft)
+            }
+            if (assistStatus.location.city.isNotBlank() || assistStatus.location.pincode.isNotBlank()) {
+                SignalChips(
+                    labels = listOfNotNull(
+                        assistStatus.location.city.takeIf { it.isNotBlank() },
+                        assistStatus.location.pincode.takeIf { it.isNotBlank() }
+                    ),
+                    tone = ChipTone.Info
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.weight(1f)) {
+                    Text(if (enabled) "Enabled" else "No")
+                }
+                Button(onClick = onOpenAssist, modifier = Modifier.weight(1f)) {
+                    Text(if (enabled) "Manage" else "Yes")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileInfoLine(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        Text(
+            text = "$label: ",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextSecondary,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF1E1B18),
+            modifier = Modifier.weight(1f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
 private fun SoulMatchAssistSummaryCard(
     assistStatus: AssistStatusData,
     onOpenAssist: () -> Unit
@@ -1228,31 +1546,22 @@ private fun ViewerRow(viewer: ViewerData, onOpen: () -> Unit) {
 
 @Composable
 private fun ChecklistRow(item: ProfileChecklistItem, onEdit: () -> Unit) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+    PremiumCard(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = when {
-                    item.isComplete -> SuccessSoft
-                    item.statusLabel.equals("Optional", ignoreCase = true) -> SurfaceSoft
-                    else -> ErrorSoft
-                },
-                modifier = Modifier.size(46.dp)
+                color = if (item.isComplete) SuccessSoft else SurfaceSoft,
+                modifier = Modifier.size(56.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Filled.CheckCircle,
-                        contentDescription = null,
-                        tint = when {
-                            item.isComplete -> Success
-                            item.statusLabel.equals("Optional", ignoreCase = true) -> TextSecondary
-                            else -> Error
-                        }
-                    )
+                    Icon(profileChecklistIcon(item.title), contentDescription = null, tint = if (item.isComplete) Success else TextSecondary)
                 }
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(item.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(item.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
                 Text(item.description, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                 Text(
                     item.statusLabel,
@@ -1266,9 +1575,21 @@ private fun ChecklistRow(item: ProfileChecklistItem, onEdit: () -> Unit) {
                 )
             }
             OutlinedButton(onClick = onEdit) {
-                Text("Edit")
+                Text(if (item.isComplete) "Edit" else "Add")
             }
         }
+    }
+}
+
+private fun profileChecklistIcon(title: String): androidx.compose.ui.graphics.vector.ImageVector {
+    val normalized = title.lowercase(Locale.getDefault())
+    return when {
+        "work" in normalized || "education" in normalized -> Icons.Filled.Work
+        "family" in normalized -> Icons.Filled.FamilyRestroom
+        "lifestyle" in normalized -> Icons.Filled.Favorite
+        "horoscope" in normalized || "astro" in normalized -> Icons.Filled.AutoAwesome
+        "physical" in normalized -> Icons.Filled.Person
+        else -> Icons.Filled.Person
     }
 }
 
@@ -1289,4 +1610,14 @@ private fun photoPrivacyLabel(value: String): String {
         "private" -> "Private"
         else -> titleCase(value.replace('_', ' '))
     }
+}
+
+private fun formatProfileId(profileId: String): String {
+    val clean = profileId.trim()
+    if (clean.isBlank()) return "SM-0000"
+    if (clean.startsWith("SM-", ignoreCase = true)) return clean.uppercase(Locale.getDefault())
+    val digits = clean.filter { it.isDigit() }
+    if (digits.isNotBlank()) return "SM-${digits.takeLast(4).padStart(4, '0')}"
+    val hash = kotlin.math.abs(clean.hashCode()).toString().takeLast(4).padStart(4, '0')
+    return "SM-$hash"
 }
