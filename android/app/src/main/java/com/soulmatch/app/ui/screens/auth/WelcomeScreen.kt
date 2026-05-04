@@ -19,13 +19,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -126,27 +131,35 @@ fun WelcomeScreen(
             .background(LoginCream)
     ) {
         val compact = maxHeight < 850.dp
-        val heroHeight = if (compact) 392.dp else 476.dp
-        val cardTop = heroHeight - if (compact) 88.dp else 104.dp
-        val waveHeight = if (compact) 52.dp else 78.dp
+        val heroHeight = if (compact) 360.dp else 428.dp
+        val cardTop = heroHeight - if (compact) 26.dp else 34.dp
+        val waveHeight = if (compact) 58.dp else 76.dp
 
         HeroBackdrop(
             imageUrl = branding.previewImageUrl,
             height = heroHeight
         )
+        HeroWaveSeparator(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = heroHeight - waveHeight)
+                .fillMaxWidth()
+                .height(waveHeight)
+        )
         HeroIntro(
             appTitle = branding.appTitle.ifBlank { "SoulMatch" },
-            tagline = branding.tagline.ifBlank { "Serious matchmaking for modern families" },
-            trustLabels = content.trustChips,
+            heroTitle = if (content.heroTitle == "Serious matchmaking for modern families") "Trusted matchmaking for" else content.heroTitle,
+            heroSubtitle = if (content.heroSubtitle == "Serious matchmaking for modern families") "families & agents" else content.heroSubtitle,
             heroHeight = heroHeight,
             compact = compact
         )
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
+                .verticalScroll(rememberScrollState())
                 .padding(top = cardTop, start = 20.dp, end = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(if (compact) 20.dp else 34.dp)
+            verticalArrangement = Arrangement.spacedBy(if (compact) 18.dp else 24.dp)
         ) {
             AuthCard(
                 state = state,
@@ -154,6 +167,7 @@ fun WelcomeScreen(
                 compact = compact,
                 onRegister = onRegister,
                 onLogin = onLogin,
+                onAgentRegister = onContinue,
                 onGoogle = {
                     vm.clearError()
                     if (webClientId.isBlank()) {
@@ -243,91 +257,68 @@ private fun HeroBackdrop(imageUrl: String, height: Dp) {
 @Composable
 private fun HeroIntro(
     appTitle: String,
-    tagline: String,
-    trustLabels: List<String>,
+    heroTitle: String,
+    heroSubtitle: String,
     heroHeight: Dp,
     compact: Boolean
 ) {
-    val resolvedTrust = trustLabels.filter { it.isNotBlank() }.ifEmpty {
-        listOf("Verified profiles", "Private photos")
-    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .height(heroHeight)
             .padding(horizontal = 26.dp)
-            .padding(top = if (compact) 58.dp else 86.dp),
+            .padding(top = if (compact) 72.dp else 94.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             appTitle,
             color = Color.White,
-            fontSize = if (compact) 26.sp else 30.sp,
+            fontSize = if (compact) 42.sp else 52.sp,
             fontWeight = FontWeight.Bold,
-            fontStyle = FontStyle.Italic,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
             textAlign = TextAlign.Center
         )
-        Spacer(Modifier.height(if (compact) 12.dp else 18.dp))
+        Spacer(Modifier.height(if (compact) 18.dp else 22.dp))
+        HeroAccentDivider(compact = compact)
+        Spacer(Modifier.height(if (compact) 22.dp else 28.dp))
         Text(
-            tagline,
-            color = Color.White,
+            heroTitle,
+            color = LoginGold,
             fontSize = if (compact) 24.sp else 28.sp,
-            lineHeight = if (compact) 31.sp else 36.sp,
+            lineHeight = if (compact) 30.sp else 34.sp,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 12.dp)
         )
-        Spacer(Modifier.height(if (compact) 54.dp else 72.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 18.dp)
-        ) {
-            HeroTrustPill(
-                label = resolvedTrust.getOrElse(0) { "Verified profiles" },
-                icon = Icons.Filled.VerifiedUser,
-                compact = compact,
-                modifier = Modifier.weight(1f)
-            )
-            HeroTrustPill(
-                label = resolvedTrust.getOrElse(1) { "Private photos" },
-                icon = Icons.Filled.Lock,
-                compact = compact,
-                modifier = Modifier.weight(1f)
-            )
-        }
+        Text(
+            heroSubtitle,
+            color = Color.White,
+            fontSize = if (compact) 30.sp else 36.sp,
+            lineHeight = if (compact) 38.sp else 44.sp,
+            fontWeight = FontWeight.ExtraBold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
     }
 }
 
 @Composable
-private fun HeroTrustPill(
-    label: String,
-    icon: ImageVector,
-    compact: Boolean,
-    modifier: Modifier = Modifier
+private fun HeroAccentDivider(
+    compact: Boolean
 ) {
-    Surface(
-        modifier = modifier.height(if (compact) 76.dp else 92.dp),
-        shape = RoundedCornerShape(48.dp),
-        color = Color.White.copy(alpha = 0.22f),
-        border = BorderStroke(1.2.dp, Color.White.copy(alpha = 0.48f))
+    Row(
+        modifier = Modifier.fillMaxWidth(0.72f),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = if (compact) 14.dp else 18.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(if (compact) 22.dp else 26.dp))
-            Spacer(Modifier.size(if (compact) 10.dp else 14.dp))
-            Text(
-                label.uppercase(),
-                color = Color.White,
-                fontSize = if (compact) 18.sp else 22.sp,
-                lineHeight = if (compact) 27.sp else 33.sp,
-                letterSpacing = 1.8.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center
-            )
-        }
+        Divider(modifier = Modifier.weight(1f), color = Color.White.copy(alpha = 0.72f), thickness = 1.dp)
+        Icon(
+            Icons.Filled.Favorite,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(if (compact) 16.dp else 18.dp)
+        )
+        Divider(modifier = Modifier.weight(1f), color = Color.White.copy(alpha = 0.72f), thickness = 1.dp)
     }
 }
 
@@ -339,79 +330,75 @@ private fun AuthCard(
     modifier: Modifier = Modifier,
     onRegister: () -> Unit,
     onLogin: () -> Unit,
+    onAgentRegister: () -> Unit,
     onGoogle: () -> Unit
 ) {
-    Surface(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = LoginPanel,
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.75f)),
-        shadowElevation = 22.dp
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(if (compact) 16.dp else 22.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = if (compact) 22.dp else 30.dp, vertical = if (compact) 20.dp else 28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(if (compact) 14.dp else 20.dp)
+        Button(
+            onClick = onRegister,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(if (compact) 60.dp else 72.dp),
+            shape = RoundedCornerShape(18.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = LoginPink, contentColor = Color.White),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 10.dp)
         ) {
-            Button(
-                onClick = onRegister,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(if (compact) 58.dp else 70.dp),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = LoginPink, contentColor = Color.White),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
-            ) {
-                Icon(Icons.Filled.PhoneAndroid, contentDescription = null, modifier = Modifier.size(if (compact) 26.dp else 32.dp))
-                Spacer(Modifier.size(if (compact) 14.dp else 18.dp))
-                Text(
-                    content.registerCta.ifBlank { "Register with mobile" },
-                    fontWeight = FontWeight.Bold,
-                    fontSize = if (compact) 20.sp else 24.sp
-                )
-            }
-
-            OrDivider(compact)
-
-            SocialButton(
-                label = content.googleCta.ifBlank { "Continue with Google" },
-                enabled = state !is AuthUiState.Loading,
-                compact = compact,
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onGoogle
+            Icon(Icons.Filled.PhoneAndroid, contentDescription = null, modifier = Modifier.size(if (compact) 26.dp else 30.dp))
+            Spacer(Modifier.size(if (compact) 12.dp else 16.dp))
+            Text(
+                "Continue with Mobile",
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = if (compact) 20.sp else 24.sp
             )
+        }
 
-            if (state is AuthUiState.Loading) {
-                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = LoginPink)
-            } else if (state is AuthUiState.Error) {
-                Text(
-                    state.message,
-                    color = LoginPink,
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center
-                )
-            }
+        OrDivider(compact)
 
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+        SocialButton(
+            label = content.googleCta.ifBlank { "Continue with Google" },
+            enabled = state !is AuthUiState.Loading,
+            compact = compact,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onGoogle
+        )
+
+        if (state is AuthUiState.Loading) {
+            CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = LoginPink)
+        } else if (state is AuthUiState.Error) {
+            Text(
+                state.message,
+                color = LoginPink,
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center
+            )
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                "Already have an account?",
+                color = LoginDeepText,
+                fontSize = if (compact) 18.sp else 22.sp
+            )
+            TextButton(onClick = onLogin) {
                 Text(
-                    "Already have an account?",
-                    color = LoginDeepText,
+                    "Log in",
+                    color = LoginDarkPink,
+                    fontWeight = FontWeight.ExtraBold,
                     fontSize = if (compact) 18.sp else 22.sp
                 )
-                TextButton(onClick = onLogin) {
-                    Text(
-                        "Log In",
-                        color = LoginDarkPink,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = if (compact) 18.sp else 22.sp
-                    )
-                }
             }
         }
+
+        AgentRegistrationCard(compact = compact, onRegister = onAgentRegister)
+        SafetyHighlights(compact = compact)
     }
 }
 
@@ -424,11 +411,11 @@ private fun OrDivider(compact: Boolean) {
     ) {
         Divider(Modifier.weight(1f), color = LoginPanelLine)
         Text(
-            "OR CONTINUE WITH",
+            "OR",
             color = LoginMuted,
             fontSize = if (compact) 18.sp else 22.sp,
-            letterSpacing = 3.2.sp,
-            fontWeight = FontWeight.Medium
+            letterSpacing = 1.sp,
+            fontWeight = FontWeight.SemiBold
         )
         Divider(Modifier.weight(1f), color = LoginPanelLine)
     }
@@ -482,28 +469,208 @@ private fun FooterLegal(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(if (compact) 18.dp else 28.dp)
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Divider(modifier = Modifier.weight(1f), color = LoginPanelLine)
+            Icon(Icons.Filled.Security, contentDescription = null, tint = LoginMuted, modifier = Modifier.size(if (compact) 18.dp else 20.dp))
+            Divider(modifier = Modifier.weight(1f), color = LoginPanelLine)
+        }
         LegalLinks(
             compact = compact,
             prefix = prefix.ifBlank { "By continuing, you agree to our" },
             onOpenTerms = onOpenTerms,
             onOpenPrivacy = onOpenPrivacy
         )
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = Color.White.copy(alpha = 0.66f),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.65f)),
+            shadowElevation = 6.dp
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = if (compact) 18.dp else 22.dp, vertical = if (compact) 10.dp else 12.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.Lock, contentDescription = null, tint = LoginProtection, modifier = Modifier.size(if (compact) 18.dp else 20.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "End-to-End Encrypted  •  No Spam  •  No Fake Profiles",
+                    color = LoginProtection,
+                    fontSize = if (compact) 16.sp else 18.sp,
+                    lineHeight = if (compact) 22.sp else 24.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AgentRegistrationCard(
+    compact: Boolean,
+    onRegister: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = Color.White.copy(alpha = 0.52f),
+        border = BorderStroke(1.dp, LoginSocialBorder.copy(alpha = 0.95f))
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(horizontal = if (compact) 18.dp else 22.dp, vertical = if (compact) 18.dp else 22.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Filled.Security, contentDescription = null, tint = LoginProtection, modifier = Modifier.size(if (compact) 22.dp else 26.dp))
-            Spacer(Modifier.size(if (compact) 20.dp else 28.dp))
-            Text(
-                "End-to-End Encrypted Data\nProtection",
-                color = LoginProtection,
-                fontSize = if (compact) 18.sp else 22.sp,
-                lineHeight = if (compact) 27.sp else 32.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center
-            )
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = LoginPink.copy(alpha = 0.1f),
+                modifier = Modifier.size(if (compact) 56.dp else 64.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Work, contentDescription = null, tint = LoginPink, modifier = Modifier.size(if (compact) 28.dp else 32.dp))
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    "Are you a Matrimony Agent?",
+                    color = LoginDeepText,
+                    fontSize = if (compact) 22.sp else 26.sp,
+                    lineHeight = if (compact) 28.sp else 32.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Text(
+                    "Manage multiple profiles and help families find the perfect match.",
+                    color = LoginSocialText,
+                    fontSize = if (compact) 16.sp else 18.sp,
+                    lineHeight = if (compact) 22.sp else 25.sp
+                )
+            }
+            OutlinedButton(
+                onClick = onRegister,
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.2.dp, LoginPink.copy(alpha = 0.65f)),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color.White,
+                    contentColor = LoginPink
+                )
+            ) {
+                Text(
+                    "Register\nas Agent",
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = if (compact) 16.sp else 18.sp,
+                    lineHeight = if (compact) 19.sp else 22.sp
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun SafetyHighlights(compact: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 14.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        SafetyHighlightItem(
+            icon = Icons.Filled.VerifiedUser,
+            title = "Verified Profiles",
+            body = "Every profile is verified for your safety.",
+            compact = compact,
+            modifier = Modifier.weight(1f)
+        )
+        HighlightDivider(compact = compact)
+        SafetyHighlightItem(
+            icon = Icons.Filled.Lock,
+            title = "Private Photos",
+            body = "Your photos stay private and access is controlled.",
+            compact = compact,
+            modifier = Modifier.weight(1f)
+        )
+        HighlightDivider(compact = compact)
+        SafetyHighlightItem(
+            icon = Icons.Filled.Security,
+            title = "Safe & Secure",
+            body = "We use advanced security to protect you always.",
+            compact = compact,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun HighlightDivider(compact: Boolean) {
+    Spacer(
+        modifier = Modifier
+            .padding(top = if (compact) 12.dp else 14.dp)
+            .width(1.dp)
+            .height(if (compact) 112.dp else 124.dp)
+            .background(LoginPanelLine)
+    )
+}
+
+@Composable
+private fun SafetyHighlightItem(
+    icon: ImageVector,
+    title: String,
+    body: String,
+    compact: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 12.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = LoginPink.copy(alpha = 0.1f),
+            modifier = Modifier.size(if (compact) 54.dp else 62.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = LoginPink, modifier = Modifier.size(if (compact) 24.dp else 28.dp))
+            }
+        }
+        Text(
+            title,
+            color = LoginDeepText,
+            fontSize = if (compact) 18.sp else 20.sp,
+            lineHeight = if (compact) 24.sp else 26.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            body,
+            color = LoginSocialText,
+            fontSize = if (compact) 14.sp else 16.sp,
+            lineHeight = if (compact) 20.sp else 22.sp,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun HeroWaveSeparator(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val path = Path().apply {
+            moveTo(0f, size.height * 0.48f)
+            cubicTo(size.width * 0.16f, size.height * 0.08f, size.width * 0.34f, size.height * 0.86f, size.width * 0.54f, size.height * 0.52f)
+            cubicTo(size.width * 0.76f, size.height * 0.12f, size.width * 0.9f, size.height * 0.72f, size.width, size.height * 0.2f)
+            lineTo(size.width, size.height)
+            lineTo(0f, size.height)
+            close()
+        }
+        drawPath(path = path, color = LoginCream)
     }
 }
 
@@ -580,6 +747,7 @@ private fun rememberGoogleWebClientId(configuredClientId: String): String {
 private val LoginCream = Color(0xFFFFF8EF)
 private val LoginPink = Color(0xFFD72964)
 private val LoginDarkPink = Color(0xFFB50742)
+private val LoginGold = Color(0xFFFFD68A)
 private val LoginHeroOverlay = Color(0xCCBF0B4E)
 private val LoginPanel = Color(0xFFFFEEF3)
 private val LoginPanelLine = Color(0xFFEFD6DA)
