@@ -16,6 +16,8 @@ const ALLOWED_MATCH_FEEDBACK_ACTIONS = new Set([
 ]);
 const isBlank = (value) => typeof value !== 'string' || !value.trim();
 const hasPositiveNumber = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const INDIAN_DATE_RE = /^\d{2}[-/]\d{2}[-/]\d{4}$/;
 
 function auditMeta(req) {
   return {
@@ -72,6 +74,49 @@ function validateStepData(step, data) {
     default:
       return 'Step must be 1-6';
   }
+}
+
+function parseDateParts(value) {
+  const raw = String(value || '').trim();
+  if (ISO_DATE_RE.test(raw)) {
+    const [year, month, day] = raw.split('-').map(Number);
+    return { year, month, day };
+  }
+  if (INDIAN_DATE_RE.test(raw)) {
+    const [day, month, year] = raw.replace(/\//g, '-').split('-').map(Number);
+    return { year, month, day };
+  }
+  return null;
+}
+
+function normalizeDateOfBirth(value) {
+  const parts = parseDateParts(value);
+  if (!parts) return null;
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  const isRealDate = date.getUTCFullYear() === parts.year &&
+    date.getUTCMonth() === parts.month - 1 &&
+    date.getUTCDate() === parts.day;
+  if (!isRealDate) return null;
+
+  const today = new Date();
+  const youngestAllowed = new Date(Date.UTC(today.getUTCFullYear() - 18, today.getUTCMonth(), today.getUTCDate()));
+  const oldestAllowed = new Date(Date.UTC(today.getUTCFullYear() - 80, today.getUTCMonth(), today.getUTCDate()));
+  if (date > youngestAllowed || date < oldestAllowed) return null;
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeStepData(step, data) {
+  const normalized = { ...data };
+  if (step === 1) {
+    const dob = normalizeDateOfBirth(data.dob);
+    if (!dob) {
+      return {
+        error: 'Enter date of birth as YYYY-MM-DD or DD-MM-YYYY. Age must be between 18 and 80 years.'
+      };
+    }
+    normalized.dob = dob;
+  }
+  return { data: normalized };
 }
 
 function normalizeVerificationType(type) {
@@ -159,17 +204,20 @@ exports.createOrUpdateStep = async (req, res, next) => {
     const normalizedStep = Number.parseInt(step, 10);
     let profile = await repo.findByUserId(userId);
     if (!profile && normalizedStep !== 1) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Complete Step 1 first'));
-    const validationError = validateStepData(normalizedStep, data);
+    const normalizedStepData = normalizeStepData(normalizedStep, data);
+    if (normalizedStepData.error) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, normalizedStepData.error));
+    const dataForSave = normalizedStepData.data || data;
+    const validationError = validateStepData(normalizedStep, dataForSave);
     if (validationError) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, validationError));
     const before = profile?.profile_id ? await repo.findFullById(profile.profile_id) : null;
     let result;
     switch (normalizedStep) {
-      case 1: result = await repo.upsertBasicInfo(userId, data); break;
-      case 2: result = await repo.upsertPhysical(userId, data); break;
-      case 3: result = await repo.upsertEducation(userId, data); break;
-      case 4: result = await repo.upsertFamily(userId, data); break;
-      case 5: result = await repo.upsertLifestyle(userId, data); break;
-      case 6: result = await repo.upsertHoroscope(userId, data); break;
+      case 1: result = await repo.upsertBasicInfo(userId, dataForSave); break;
+      case 2: result = await repo.upsertPhysical(userId, dataForSave); break;
+      case 3: result = await repo.upsertEducation(userId, dataForSave); break;
+      case 4: result = await repo.upsertFamily(userId, dataForSave); break;
+      case 5: result = await repo.upsertLifestyle(userId, dataForSave); break;
+      case 6: result = await repo.upsertHoroscope(userId, dataForSave); break;
       default: return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Step must be 1-6'));
     }
     const score = await repo.calcCompletion(result.profile_id);

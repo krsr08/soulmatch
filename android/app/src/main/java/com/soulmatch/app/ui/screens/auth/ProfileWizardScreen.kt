@@ -65,6 +65,9 @@ import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.titleCase
 import com.soulmatch.app.ui.viewmodels.ProfileViewModel
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 
 private data class WizardStepCopy(
     val title: String,
@@ -331,14 +334,17 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
     var maritalStatus by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.maritalStatus?.ifBlank { "never_married" } ?: "never_married") }
     var gender by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.gender?.ifBlank { "male" } ?: "male") }
     var profileCreatedBy by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.profileCreatedBy?.ifBlank { "self" } ?: "self") }
+    val normalizedDob = normalizeDateOfBirth(dob)
+    val dobHasError = dob.isNotBlank() && normalizedDob == null
 
-    val isValid = listOf(firstName, lastName, dob, gender, religion, caste, motherTongue, maritalStatus).all { it.isNotBlank() }
-    LaunchedEffect(firstName, lastName, dob, gender, religion, caste, motherTongue, maritalStatus, profileCreatedBy) {
+    val isValid = listOf(firstName, lastName, gender, religion, caste, motherTongue, maritalStatus).all { it.isNotBlank() } &&
+        normalizedDob != null
+    LaunchedEffect(firstName, lastName, normalizedDob, dobHasError, gender, religion, caste, motherTongue, maritalStatus, profileCreatedBy) {
         vm.updateStep1Data(
             mapOf(
                 "firstName" to firstName,
                 "lastName" to lastName,
-                "dob" to dob,
+                "dob" to (normalizedDob ?: dob.trim()),
                 "gender" to gender,
                 "religion" to religion,
                 "caste" to caste,
@@ -357,7 +363,14 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
                 RequiredTextField(firstName, { firstName = it }, "First name", Modifier.weight(1f))
                 RequiredTextField(lastName, { lastName = it }, "Last name", Modifier.weight(1f))
             }
-            RequiredTextField(dob, { dob = it }, "Date of birth (YYYY-MM-DD)", keyboardType = KeyboardType.Text)
+            RequiredTextField(
+                dob,
+                { value -> dob = value.filter { it.isDigit() || it == '-' || it == '/' }.take(10) },
+                "Date of birth",
+                keyboardType = KeyboardType.Number,
+                isError = dobHasError,
+                supportingText = if (dobHasError) "Use YYYY-MM-DD or DD-MM-YYYY. Example: 1998-05-24." else "Format: YYYY-MM-DD or DD-MM-YYYY"
+            )
             ChipRow("Gender", listOf("male", "female"), gender) { gender = it }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RequiredTextField(religion, { religion = it }, "Religion", Modifier.weight(1f))
@@ -604,12 +617,16 @@ private fun RequiredTextField(
     onValueChange: (String) -> Unit,
     label: String,
     modifier: Modifier = Modifier,
-    keyboardType: KeyboardType = KeyboardType.Text
+    keyboardType: KeyboardType = KeyboardType.Text,
+    isError: Boolean = false,
+    supportingText: String? = null
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text("$label *") },
+        isError = isError,
+        supportingText = supportingText?.let { message -> { Text(message) } },
         modifier = modifier.fillMaxWidth(),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         singleLine = true
@@ -629,3 +646,25 @@ private fun NumberField(value: String, onValueChange: (String) -> Unit, label: S
 }
 
 private fun Int?.orZero(): Int = this ?: 0
+
+private fun normalizeDateOfBirth(value: String): String? {
+    val trimmed = value.trim()
+    if (trimmed.isBlank()) return null
+    val normalizedSeparator = trimmed.replace('/', '-')
+    val candidates = listOf(
+        DateTimeFormatter.ISO_LOCAL_DATE,
+        DateTimeFormatter.ofPattern("dd-MM-uuuu")
+    )
+    val dob = candidates.firstNotNullOfOrNull { formatter ->
+        try {
+            LocalDate.parse(normalizedSeparator, formatter)
+        } catch (_: DateTimeParseException) {
+            null
+        }
+    } ?: return null
+    val today = LocalDate.now()
+    val oldestAllowed = today.minusYears(80)
+    val youngestAllowed = today.minusYears(18)
+    if (dob.isBefore(oldestAllowed) || dob.isAfter(youngestAllowed)) return null
+    return dob.format(DateTimeFormatter.ISO_LOCAL_DATE)
+}
