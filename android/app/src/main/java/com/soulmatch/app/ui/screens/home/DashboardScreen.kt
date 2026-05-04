@@ -170,7 +170,9 @@ fun DashboardScreen(
         drawerState = drawerState,
         profileName = myProfile.fullName(),
         profilePhotoUrl = myProfile.primaryPhotoUrl,
+        profileId = myProfile.profileId,
         isVerified = myProfile.verificationStatus.equals("verified", ignoreCase = true),
+        membershipLabel = drawerMembershipLabel(subscription),
         onDestinationSelected = { destination ->
             scope.launch { drawerState.close() }
             onProfileMenuDestination(destination)
@@ -621,6 +623,27 @@ private fun shouldShowHomeUpgrade(
         ?: 0
     val highestPackageRank = allPackages.maxOfOrNull(::upgradePackageRank) ?: currentPackageRank
     return currentPackageRank < highestPackageRank
+}
+
+private fun drawerMembershipLabel(subscription: SubscriptionData): String {
+    if (!subscription.isActive || subscription.planId.equals("free", ignoreCase = true)) {
+        return "Free member"
+    }
+    val rawPlan = subscription.planName
+        .ifBlank { subscription.planId }
+        .replace("_", " ")
+        .replace("-", " ")
+        .trim()
+    val planLabel = rawPlan
+        .split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+        .joinToString(" ") { word ->
+            word.lowercase(Locale.getDefault()).replaceFirstChar { first ->
+                if (first.isLowerCase()) first.titlecase(Locale.getDefault()) else first.toString()
+            }
+        }
+        .ifBlank { "Premium" }
+    return if (planLabel.contains("member", ignoreCase = true)) planLabel else "$planLabel member"
 }
 
 private fun upgradePackageRank(packageInfo: UpgradePackage): Int {

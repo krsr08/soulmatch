@@ -2,29 +2,30 @@ package com.soulmatch.app.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Help
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.HelpOutline
+import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.SupportAgent
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.VerifiedUser
+import androidx.compose.material.icons.outlined.WorkspacePremium
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,11 +42,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.SurfaceSoft
 import com.soulmatch.app.ui.theme.TextSecondary
 
@@ -71,15 +72,15 @@ private data class DrawerAction(
 )
 
 private val primaryActions = listOf(
-    DrawerAction("Edit Profile", ProfileDrawerRoutes.EditProfile, Icons.Filled.Edit),
-    DrawerAction("Partner Preference", ProfileDrawerRoutes.PartnerPreference, Icons.Filled.Favorite),
-    DrawerAction("SoulMatch Assist", ProfileDrawerRoutes.SoulMatchAssist, Icons.Filled.SupportAgent),
-    DrawerAction("Spotlight", ProfileDrawerRoutes.Spotlight, Icons.Filled.Star),
-    DrawerAction("Astrology Services", ProfileDrawerRoutes.AstrologyServices, Icons.Filled.Star),
-    DrawerAction("Account & Settings", ProfileDrawerRoutes.AccountSettings, Icons.Filled.Settings),
-    DrawerAction("Safety Center", ProfileDrawerRoutes.SafetyCenter, Icons.Filled.Lock),
-    DrawerAction("Subscription History", ProfileDrawerRoutes.SubscriptionHistory, Icons.Filled.List),
-    DrawerAction("Help & Support", ProfileDrawerRoutes.HelpSupport, Icons.Filled.Help)
+    DrawerAction("Edit Profile", ProfileDrawerRoutes.EditProfile, Icons.Outlined.Edit),
+    DrawerAction("Partner Preference", ProfileDrawerRoutes.PartnerPreference, Icons.Outlined.Tune),
+    DrawerAction("SoulMatch Assist", ProfileDrawerRoutes.SoulMatchAssist, Icons.Outlined.SupportAgent),
+    DrawerAction("Spotlight", ProfileDrawerRoutes.Spotlight, Icons.Outlined.WorkspacePremium),
+    DrawerAction("Astrology Services", ProfileDrawerRoutes.AstrologyServices, Icons.Outlined.AutoAwesome),
+    DrawerAction("Account & Settings", ProfileDrawerRoutes.AccountSettings, Icons.Outlined.Settings),
+    DrawerAction("Safety Center", ProfileDrawerRoutes.SafetyCenter, Icons.Outlined.VerifiedUser),
+    DrawerAction("Subscription History", ProfileDrawerRoutes.SubscriptionHistory, Icons.Outlined.ReceiptLong),
+    DrawerAction("Help & Support", ProfileDrawerRoutes.HelpSupport, Icons.Outlined.HelpOutline)
 )
 
 @Composable
@@ -87,7 +88,9 @@ fun ProfileSideDrawer(
     drawerState: DrawerState,
     profileName: String,
     profilePhotoUrl: String?,
+    profileId: String = "",
     isVerified: Boolean,
+    membershipLabel: String = "Free member",
     onDestinationSelected: (String) -> Unit,
     content: @Composable () -> Unit
 ) {
@@ -108,7 +111,9 @@ fun ProfileSideDrawer(
                     DrawerHeader(
                         profileName = profileName,
                         profilePhotoUrl = profilePhotoUrl,
-                        isVerified = isVerified
+                        profileId = profileId,
+                        isVerified = isVerified,
+                        membershipLabel = membershipLabel
                     )
                     primaryActions.forEach { action ->
                         DrawerItem(action = action, onClick = { onDestinationSelected(action.route) })
@@ -142,49 +147,93 @@ fun ProfileSideDrawer(
 private fun DrawerHeader(
     profileName: String,
     profilePhotoUrl: String?,
-    isVerified: Boolean
+    profileId: String,
+    isVerified: Boolean,
+    membershipLabel: String
 ) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = SurfaceSoft,
-        border = BorderStroke(1.dp, Divider)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.Start
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            MemberPhoto(
-                photoUrl = profilePhotoUrl,
-                contentDescription = "Profile photo",
-                modifier = Modifier.size(56.dp),
-                shape = RoundedCornerShape(999.dp)
-            )
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    profileName.ifBlank { "SoulMatch member" },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.ExtraBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+        Box(modifier = Modifier.padding(start = 2.dp)) {
+            Surface(
+                modifier = Modifier.size(92.dp),
+                shape = RoundedCornerShape(999.dp),
+                color = Color(0xFFFFF1F6),
+                border = BorderStroke(5.dp, Color(0xFFF4C3D5))
+            ) {
+                MemberPhoto(
+                    photoUrl = profilePhotoUrl,
+                    contentDescription = "Profile photo",
+                    modifier = Modifier
+                        .padding(5.dp)
+                        .fillMaxSize(),
+                    shape = RoundedCornerShape(999.dp)
                 )
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            }
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(34.dp),
+                shape = RoundedCornerShape(999.dp),
+                color = MaterialTheme.colorScheme.primary,
+                border = BorderStroke(2.dp, MaterialTheme.colorScheme.surface)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        imageVector = if (isVerified) Icons.Filled.Verified else Icons.Filled.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        if (isVerified) "Verified profile" else "Verification pending",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary
+                        imageVector = Icons.Filled.Verified,
+                        contentDescription = if (isVerified) "Verified profile" else "Verification pending",
+                        tint = Color.White,
+                        modifier = Modifier.size(19.dp)
                     )
                 }
             }
         }
+        Text(
+            profileName.ifBlank { "SoulMatch member" },
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Surface(
+                modifier = Modifier.size(10.dp),
+                shape = RoundedCornerShape(999.dp),
+                color = if (isVerified) MaterialTheme.colorScheme.primary else TextSecondary
+            ) {}
+            Text(
+                if (isVerified) "Verified profile" else "Verification pending",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = Color(0xFFFFE6EF),
+            border = BorderStroke(1.dp, Color(0xFFF0B5CB))
+        ) {
+            Text(
+                membershipLabel.ifBlank { "Free member" }.uppercase(),
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Text(
+            "ID: ${formatSoulMatchId(profileId)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -195,7 +244,11 @@ private fun DrawerItem(action: DrawerAction, onClick: () -> Unit) {
         selected = false,
         icon = { Icon(action.icon, contentDescription = null) },
         onClick = onClick,
-        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = MaterialTheme.colorScheme.surface)
+        colors = NavigationDrawerItemDefaults.colors(
+            unselectedContainerColor = MaterialTheme.colorScheme.surface,
+            unselectedIconColor = Color(0xFF4A252E),
+            unselectedTextColor = Color(0xFF4A252E)
+        )
     )
 }
 
@@ -209,4 +262,13 @@ private fun YearItem(year: String, route: String, onDestinationSelected: (String
         modifier = Modifier.padding(start = 18.dp),
         colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = MaterialTheme.colorScheme.surface)
     )
+}
+
+private fun formatSoulMatchId(profileId: String): String {
+    val trimmed = profileId.trim()
+    if (trimmed.isBlank()) return "SM----"
+    if (trimmed.startsWith("SM-", ignoreCase = true)) return trimmed.uppercase()
+    val digits = trimmed.filter { it.isDigit() }.takeLast(4)
+    if (digits.isNotBlank()) return "SM-${digits.padStart(4, '0')}"
+    return "SM-${java.lang.Math.floorMod(trimmed.hashCode(), 10000).toString().padStart(4, '0')}"
 }
