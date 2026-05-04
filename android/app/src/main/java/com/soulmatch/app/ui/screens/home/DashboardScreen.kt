@@ -20,9 +20,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
@@ -30,11 +31,14 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.MailOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -51,22 +55,28 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.HomeContentData
@@ -98,6 +108,12 @@ private val HomeBackground = Color(0xFFFFF9F2)
 private val HomePrimary = Color(0xFFD12E5E)
 private val SoftBorder = Color(0xFFE1BEC2)
 private const val CANONICAL_PLATINUM_RANK = 3_000
+
+private data class BestMatchCarouselSlot(
+    val key: String,
+    val profile: ProfileSummary? = null,
+    val insertSlot: Int = 0
+)
 
 @Composable
 fun DashboardScreen(
@@ -163,7 +179,6 @@ fun DashboardScreen(
         Scaffold(
             topBar = {
                 HomeTopBar(
-                    profilePhoto = myProfile.primaryPhotoUrl,
                     unreadCount = notificationBadgeCount,
                     onOpenProfile = { scope.launch { drawerState.open() } },
                     onOpenNotifications = onOpenNotifications
@@ -223,33 +238,27 @@ fun DashboardScreen(
                                 )
                             }
                         } else {
-                            itemsIndexed(bestMatches, key = { _, profile -> profile.profileId }) { index, profile ->
-                                HomeMatchCard(
-                                    profile = profile,
-                                    onOpen = { onViewProfile(profile.profileId) },
-                                    onInterest = { vm.sendInterest(profile.profileId) },
-                                    onShortlist = { vm.toggleShortlist(profile.profileId) }
+                            item {
+                                BestMatchesCarousel(
+                                    profiles = bestMatches,
+                                    content = content,
+                                    adCards = adCards,
+                                    showUpgrade = canShowUpgradeInsert,
+                                    showAds = content.showBestMatchInsertCards && content.showBestMatchAdCards,
+                                    onViewProfile = onViewProfile,
+                                    onInterest = { vm.sendInterest(it) },
+                                    onShortlist = { vm.toggleShortlist(it) },
+                                    onOpenSubscription = onOpenSubscription,
+                                    onOpenSearch = onOpenSearch,
+                                    onOpenAstrology = { onProfileMenuDestination("astrology_services") }
                                 )
-                                if (shouldInsertBestMatchCard(content, index, bestMatches.lastIndex)) {
-                                    BestMatchInsertCard(
-                                        slot = index / content.bestMatchInsertFrequency.coerceIn(1, 5),
-                                        adCards = adCards,
-                                        showUpgrade = canShowUpgradeInsert,
-                                        showAds = content.showBestMatchInsertCards && content.showBestMatchAdCards,
-                                        upgradeTitle = content.upgradeTitle,
-                                        upgradeDetail = content.upgradeDetail,
-                                        onOpenSubscription = onOpenSubscription,
-                                        onOpenSearch = onOpenSearch,
-                                        onOpenAstrology = { onProfileMenuDestination("astrology_services") }
-                                    )
-                                }
                             }
                         }
                         item {
                             HomeSectionHeader(
                                 title = "New Profiles",
                                 modifier = Modifier.padding(top = 24.dp),
-                                actionText = "View All",
+                                actionText = "See all",
                                 onAction = onOpenSearch
                             )
                         }
@@ -261,28 +270,23 @@ fun DashboardScreen(
                         }
                         item {
                             HomeSectionHeader(
-                                title = "Pending Invitations (${pendingInvitations.size})",
+                                title = "Pending Invitations",
                                 modifier = Modifier.padding(top = 24.dp),
-                                actionText = "Activity",
-                                onAction = onOpenInterests
+                                actionText = if (pendingInvitations.isEmpty()) null else "View all (${pendingInvitations.size})",
+                                onAction = if (pendingInvitations.isEmpty()) null else onOpenInterests
                             )
                         }
                         if (pendingInvitations.isEmpty()) {
                             item {
-                                EmptyHomeCard(
-                                    title = "No pending invitations",
-                                    body = "New invitations will appear here with quick accept and decline actions.",
-                                    action = "Browse matches",
-                                    onAction = onOpenSearch
-                                )
+                                NoPendingInvitationsCard(onBrowse = onOpenSearch)
                             }
                         } else {
-                            items(pendingInvitations.take(2), key = { it.interestId }) { invitation ->
-                                PendingInvitationCard(
-                                    invitation = invitation,
-                                    onOpen = { onViewProfile(invitation.profileId) },
-                                    onAccept = { vm.respondToInvitation(invitation.interestId, "accepted") },
-                                    onDecline = { vm.respondToInvitation(invitation.interestId, "declined") }
+                            item {
+                                PendingInvitationsCarousel(
+                                    invitations = pendingInvitations,
+                                    onViewProfile = onViewProfile,
+                                    onAccept = { vm.respondToInvitation(it, "accepted") },
+                                    onDecline = { vm.respondToInvitation(it, "declined") }
                                 )
                             }
                         }
@@ -304,45 +308,35 @@ fun DashboardScreen(
 
 @Composable
 private fun HomeTopBar(
-    profilePhoto: String?,
     unreadCount: Int,
     onOpenProfile: () -> Unit,
     onOpenNotifications: () -> Unit
 ) {
     Surface(
-        color = HomeBackground,
-        border = BorderStroke(1.dp, HomePrimary.copy(alpha = 0.10f))
+        color = Color(0xFFFFFCFA),
+        shadowElevation = 2.dp,
+        border = BorderStroke(1.dp, SoftBorder.copy(alpha = 0.28f))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
-                .padding(horizontal = 16.dp),
+                .height(56.dp)
+                .padding(horizontal = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Surface(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clickable(onClick = onOpenProfile),
-                    shape = RoundedCornerShape(999.dp),
-                    border = BorderStroke(2.dp, HomePrimary),
-                    color = MaterialTheme.colorScheme.surface
-                ) {
-                    MemberPhoto(
-                        photoUrl = profilePhoto,
-                        contentDescription = "Open profile",
-                        modifier = Modifier
-                            .fillMaxSize(),
-                        shape = RoundedCornerShape(999.dp)
-                    )
+                IconButton(onClick = onOpenProfile, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Filled.Menu, contentDescription = "Open menu", tint = Color(0xFF1E1B18))
                 }
                 Text(
                     "SoulMatch",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = HomePrimary,
-                    fontWeight = FontWeight.ExtraBold
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontFamily = FontFamily.Serif,
+                        fontStyle = FontStyle.Italic,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = Color(0xFF9B0044)
                 )
             }
             IconButton(onClick = onOpenNotifications) {
@@ -350,21 +344,21 @@ private fun HomeTopBar(
                     modifier = Modifier.size(30.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Filled.Notifications, contentDescription = "Notifications", tint = TextSecondary)
+                    Icon(Icons.Filled.Notifications, contentDescription = "Notifications", tint = Color(0xFF1E1B18))
                     if (unreadCount > 0) {
                         val badgeText = if (unreadCount > 99) "99+" else unreadCount.toString()
                         Surface(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .defaultMinSize(minWidth = 16.dp)
-                                .height(16.dp),
+                                .defaultMinSize(minWidth = 14.dp)
+                                .height(14.dp),
                             shape = RoundedCornerShape(999.dp),
-                            color = HomePrimary,
+                            color = Color(0xFF9B0044),
                             border = BorderStroke(1.dp, HomeBackground)
                         ) {
                             Text(
                                 badgeText,
-                                modifier = Modifier.padding(horizontal = 4.dp),
+                                modifier = Modifier.padding(horizontal = 3.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.White,
                                 fontWeight = FontWeight.ExtraBold,
@@ -382,19 +376,22 @@ private fun HomeTopBar(
 @Composable
 private fun WelcomeSection(firstName: String) {
     Column(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 22.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
             "Hello, $firstName",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.onBackground
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.Bold,
+                lineHeight = 34.sp
+            ),
+            color = Color(0xFF1E1B18)
         )
         Text(
             "Your journey to a meaningful connection continues.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary
+            style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 25.sp),
+            color = Color(0xFF594045)
         )
     }
 }
@@ -404,17 +401,22 @@ private fun ProfileStrengthCard(score: Int, detail: String, onClick: () -> Unit)
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = 20.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, HomePrimary.copy(alpha = 0.12f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBF8)),
+        border = BorderStroke(1.dp, SoftBorder.copy(alpha = 0.36f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Profile Strength", style = MaterialTheme.typography.labelLarge, color = PrimaryDark)
-                Text("$score%", style = MaterialTheme.typography.labelLarge, color = HomePrimary, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    "$score% PROFILE STRENGTH",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color(0xFF9B0044),
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Icon(Icons.Filled.Verified, contentDescription = null, tint = Color(0xFF9B0044), modifier = Modifier.size(21.dp))
             }
             LinearProgressIndicator(
                 progress = score / 100f,
@@ -422,10 +424,18 @@ private fun ProfileStrengthCard(score: Int, detail: String, onClick: () -> Unit)
                     .fillMaxWidth()
                     .height(6.dp)
                     .clip(RoundedCornerShape(999.dp)),
-                color = HomePrimary,
-                trackColor = SurfaceSoft
+                color = Color(0xFFB0004B),
+                trackColor = Color(0xFFE6E2DC)
             )
-            Text(detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            Button(
+                onClick = onClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(999.dp)
+            ) {
+                Text("Review partner preferences", fontWeight = FontWeight.ExtraBold)
+            }
         }
     }
 }
@@ -438,6 +448,7 @@ private fun BestMatchInsertCard(
     showAds: Boolean,
     upgradeTitle: String,
     upgradeDetail: String,
+    modifier: Modifier = Modifier,
     onOpenSubscription: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenAstrology: () -> Unit
@@ -448,10 +459,12 @@ private fun BestMatchInsertCard(
         preferUpgrade -> HomeUpgradeInsertCard(
             title = upgradeTitle,
             detail = upgradeDetail,
+            modifier = modifier,
             onOpenSubscription = onOpenSubscription
         )
         showAds && ad != null -> HomeAdInsertCard(
             ad = ad,
+            modifier = modifier,
             onOpen = {
                 when (ad.destination.lowercase(Locale.getDefault())) {
                     "membership", "subscription", "upgrade" -> onOpenSubscription()
@@ -463,15 +476,21 @@ private fun BestMatchInsertCard(
         showUpgrade -> HomeUpgradeInsertCard(
             title = upgradeTitle,
             detail = upgradeDetail,
+            modifier = modifier,
             onOpenSubscription = onOpenSubscription
         )
     }
 }
 
 @Composable
-private fun HomeUpgradeInsertCard(title: String, detail: String, onOpenSubscription: () -> Unit) {
+private fun HomeUpgradeInsertCard(
+    title: String,
+    detail: String,
+    modifier: Modifier = Modifier,
+    onOpenSubscription: () -> Unit
+) {
     PremiumCard(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = modifier,
         containerColor = Color(0xFFFFF0F4),
         contentPadding = PaddingValues(16.dp)
     ) {
@@ -512,9 +531,9 @@ private fun HomeUpgradeInsertCard(title: String, detail: String, onOpenSubscript
 }
 
 @Composable
-private fun HomeAdInsertCard(ad: HomeBestMatchAdData, onOpen: () -> Unit) {
+private fun HomeAdInsertCard(ad: HomeBestMatchAdData, modifier: Modifier = Modifier, onOpen: () -> Unit) {
     PremiumCard(
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = modifier,
         containerColor = MaterialTheme.colorScheme.surface,
         contentPadding = PaddingValues(16.dp)
     ) {
@@ -554,6 +573,23 @@ private fun shouldInsertBestMatchCard(content: HomeContentData, index: Int, last
     if (!content.showBestMatchInsertCards || index >= lastIndex) return false
     val frequency = content.bestMatchInsertFrequency.coerceIn(1, 5)
     return (index + 1) % frequency == 0
+}
+
+private fun buildBestMatchSlots(
+    profiles: List<ProfileSummary>,
+    content: HomeContentData,
+    hasInsertContent: Boolean
+): List<BestMatchCarouselSlot> {
+    var insertSlot = 0
+    return buildList {
+        profiles.forEachIndexed { index, profile ->
+            add(BestMatchCarouselSlot(key = "profile-${profile.profileId}", profile = profile))
+            if (hasInsertContent && shouldInsertBestMatchCard(content, index, profiles.lastIndex)) {
+                add(BestMatchCarouselSlot(key = "insert-$index", insertSlot = insertSlot))
+                insertSlot += 1
+            }
+        }
+    }
 }
 
 private fun homeBestMatchAdCards(content: HomeContentData): List<HomeBestMatchAdData> {
@@ -699,22 +735,118 @@ private fun HomeSectionHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.Bottom
     ) {
-        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+        Text(
+            title,
+            style = MaterialTheme.typography.headlineSmall.copy(
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.Bold
+            ),
+            color = Color(0xFF1E1B18)
+        )
         when {
             trailing != null -> trailing()
             actionText != null && onAction != null -> {
                 Text(
                     actionText,
                     modifier = Modifier.clickable(onClick = onAction),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = HomePrimary,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF9B0044),
                     fontWeight = FontWeight.ExtraBold
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun BestMatchesCarousel(
+    profiles: List<ProfileSummary>,
+    content: HomeContentData,
+    adCards: List<HomeBestMatchAdData>,
+    showUpgrade: Boolean,
+    showAds: Boolean,
+    onViewProfile: (String) -> Unit,
+    onInterest: (String) -> Unit,
+    onShortlist: (String) -> Unit,
+    onOpenSubscription: () -> Unit,
+    onOpenSearch: () -> Unit,
+    onOpenAstrology: () -> Unit
+) {
+    val slots = remember(profiles, content, showUpgrade, showAds, adCards) {
+        buildBestMatchSlots(
+            profiles = profiles,
+            content = content,
+            hasInsertContent = showUpgrade || (showAds && adCards.isNotEmpty())
+        )
+    }
+    val state = rememberLazyListState()
+    LazyRow(
+        state = state,
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        items(slots, key = { it.key }) { slot ->
+            if (slot.profile != null) {
+                HomeMatchCard(
+                    profile = slot.profile,
+                    modifier = Modifier.fillParentMaxWidth(0.88f),
+                    onOpen = { onViewProfile(slot.profile.profileId) },
+                    onInterest = { onInterest(slot.profile.profileId) },
+                    onShortlist = { onShortlist(slot.profile.profileId) }
+                )
+            } else {
+                BestMatchInsertCard(
+                    slot = slot.insertSlot,
+                    adCards = adCards,
+                    showUpgrade = showUpgrade,
+                    showAds = showAds,
+                    upgradeTitle = content.upgradeTitle,
+                    upgradeDetail = content.upgradeDetail,
+                    modifier = Modifier
+                        .fillParentMaxWidth(0.88f)
+                        .aspectRatio(4f / 5f),
+                    onOpenSubscription = onOpenSubscription,
+                    onOpenSearch = onOpenSearch,
+                    onOpenAstrology = onOpenAstrology
+                )
+            }
+        }
+    }
+    BestMatchDots(state = state, slots = slots, profileCount = profiles.size)
+}
+
+@Composable
+private fun BestMatchDots(
+    state: LazyListState,
+    slots: List<BestMatchCarouselSlot>,
+    profileCount: Int
+) {
+    val activeProfileIndex by remember(state, slots) {
+        derivedStateOf {
+            val visible = state.firstVisibleItemIndex.coerceIn(0, slots.lastIndex.coerceAtLeast(0))
+            slots.take(visible + 1).count { it.profile != null }.minus(1).coerceAtLeast(0)
+        }
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(profileCount.coerceAtMost(5)) { index ->
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 3.dp)
+                    .width(if (index == activeProfileIndex) 14.dp else 5.dp)
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (index == activeProfileIndex) Color(0xFFB0004B) else Color(0xFFE6E2DC))
+            )
         }
     }
 }
@@ -723,124 +855,145 @@ private fun HomeSectionHeader(
 @Composable
 private fun HomeMatchCard(
     profile: ProfileSummary,
+    modifier: Modifier = Modifier,
     onOpen: () -> Unit,
     onInterest: () -> Unit,
     onShortlist: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+        modifier = modifier
+            .aspectRatio(4f / 5f)
             .clickable(onClick = onOpen),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, Divider.copy(alpha = 0.5f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
-        Column {
-            Box(modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f)) {
-                MemberPhoto(
-                    photoUrl = profile.primaryPhoto,
-                    contentDescription = "Photo of ${profile.name}",
-                    modifier = Modifier.fillMaxSize(),
-                    shape = RoundedCornerShape(0.dp)
-                )
-                if (profile.isPhotoPrivate && profile.primaryPhoto.isNullOrBlank()) {
-                    Surface(
-                        modifier = Modifier.align(Alignment.Center),
-                        shape = RoundedCornerShape(999.dp),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.86f),
-                        border = BorderStroke(1.dp, Divider.copy(alpha = 0.72f))
-                    ) {
-                        Text(
-                            "Request photo",
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = PrimaryDark,
-                            fontWeight = FontWeight.ExtraBold
+        Box(modifier = Modifier.fillMaxSize()) {
+            MemberPhoto(
+                photoUrl = profile.primaryPhoto,
+                contentDescription = "Photo of ${profile.name}",
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(24.dp)
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.18f),
+                                Color.Black.copy(alpha = 0.84f)
+                            )
                         )
-                    }
-                }
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    RoundImageAction(
-                        selected = profile.interestSent,
-                        selectedContentDescription = "Interest sent",
-                        unselectedContentDescription = "Send interest",
-                        onClick = onInterest
-                    ) {
-                        Icon(
-                            imageVector = if (profile.interestSent) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                            contentDescription = null,
-                            tint = HomePrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    RoundImageAction(
-                        selected = profile.shortlisted,
-                        selectedContentDescription = "Shortlisted",
-                        unselectedContentDescription = "Save profile",
-                        onClick = onShortlist
-                    ) {
-                        Icon(
-                            imageVector = if (profile.shortlisted) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                            contentDescription = null,
-                            tint = if (profile.shortlisted) HomePrimary else TextSecondary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
+                    )
+            )
+            if (profile.isPhotoPrivate && profile.primaryPhoto.isNullOrBlank()) {
                 Surface(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(14.dp),
+                    modifier = Modifier.align(Alignment.Center),
                     shape = RoundedCornerShape(999.dp),
-                    color = HomePrimary.copy(alpha = 0.92f)
+                    color = Color.White.copy(alpha = 0.86f),
+                    border = BorderStroke(1.dp, Divider.copy(alpha = 0.72f))
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        Icon(Icons.Filled.Bolt, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                        Text("${profile.compatibilityScore}% Match", style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.ExtraBold)
-                    }
+                    Text(
+                        "Request photo",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = PrimaryDark,
+                        fontWeight = FontWeight.ExtraBold
+                    )
                 }
             }
             Column(
-                Modifier
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                RoundImageAction(
+                    selected = profile.interestSent,
+                    selectedContentDescription = "Interest sent",
+                    unselectedContentDescription = "Send interest",
+                    onClick = onInterest
+                ) {
+                    Icon(
+                        imageVector = if (profile.interestSent) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                RoundImageAction(
+                    selected = profile.shortlisted,
+                    selectedContentDescription = "Shortlisted",
+                    unselectedContentDescription = "Save profile",
+                    onClick = onShortlist
+                ) {
+                    Icon(
+                        imageVector = if (profile.shortlisted) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    OverlayTag("Created by ${profileOwnerLabel(profile.profileCreatedBy)}")
+                    OverlayTag(profile.matchReasons.firstOrNull { it.isNotBlank() } ?: "Fits age range")
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "${profile.name.removeSuffix(".")}, ${profile.age}",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontFamily = FontFamily.Serif,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (profile.isVerified) {
+                            Spacer(Modifier.width(6.dp))
+                            Icon(Icons.Filled.Verified, contentDescription = "Verified", tint = Color.White, modifier = Modifier.size(17.dp))
+                        }
+                    }
                     Text(
-                        "${profile.name.removeSuffix(".")}, ${profile.age}",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
+                        "${profile.occupation.ifBlank { "Profession not added" }} | ${profile.location.ifBlank { "Location not added" }}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.86f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (profile.isVerified) {
-                        Spacer(Modifier.width(5.dp))
-                        Icon(Icons.Filled.Verified, contentDescription = "Verified", tint = HomePrimary, modifier = Modifier.size(17.dp))
-                    }
                 }
-                Text(
-                    "${profile.occupation.ifBlank { "Profession not added" }} | ${profile.location.ifBlank { "Location not added" }}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    HomeTag("Created by ${profileOwnerLabel(profile.profileCreatedBy)}")
-                    profile.matchReasons.take(3).ifEmpty { listOf(profile.education, profile.community) }
-                        .filter { it.isNotBlank() }
-                        .forEach { label -> HomeTag(label) }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Surface(
+                        modifier = Modifier.size(32.dp),
+                        shape = RoundedCornerShape(999.dp),
+                        color = Color(0xFFB0004B),
+                        border = BorderStroke(2.dp, Color.White)
+                    ) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                "${profile.compatibilityScore.coerceIn(0, 99)}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                    }
+                    Text(
+                        "Match Compatibility",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.92f),
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }
@@ -849,6 +1002,25 @@ private fun HomeMatchCard(
 
 private fun profileOwnerLabel(profileCreatedBy: String): String =
     if (profileCreatedBy.equals("mediator", ignoreCase = true)) "Mediator" else "Self"
+
+@Composable
+private fun OverlayTag(label: String) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = Color.White.copy(alpha = 0.20f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.28f))
+    ) {
+        Text(
+            label.uppercase(Locale.getDefault()),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
 
 @Composable
 private fun RoundImageAction(
@@ -866,8 +1038,8 @@ private fun RoundImageAction(
             }
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-        border = BorderStroke(1.dp, Divider.copy(alpha = 0.6f))
+        color = Color.White.copy(alpha = 0.22f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.24f))
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -902,8 +1074,8 @@ private fun NewProfilesCarousel(
     onOpenProfile: (String) -> Unit
 ) {
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         items(profiles, key = { it.profileId }) { profile ->
             NewProfileTile(profile = profile, onClick = { onOpenProfile(profile.profileId) })
@@ -915,35 +1087,57 @@ private fun NewProfilesCarousel(
 private fun NewProfileTile(profile: ProfileSummary, onClick: () -> Unit) {
     Column(
         modifier = Modifier
-            .width(102.dp)
+            .width(146.dp)
             .clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.Start
     ) {
         MemberPhoto(
             photoUrl = profile.primaryPhoto,
             contentDescription = profile.name,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(128.dp),
-            shape = RoundedCornerShape(12.dp)
+                .aspectRatio(3f / 4f),
+            shape = RoundedCornerShape(16.dp)
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
         Text(
             "${profile.name.removeSuffix(".")}, ${profile.age}",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onBackground,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF1E1B18),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Start
         )
         Text(
             profile.location,
             style = MaterialTheme.typography.labelSmall,
-            color = TextSecondary,
+            color = Color(0xFF594045),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Start
         )
+    }
+}
+
+@Composable
+private fun PendingInvitationsCarousel(
+    invitations: List<InterestListItem>,
+    onViewProfile: (String) -> Unit,
+    onAccept: (String) -> Unit,
+    onDecline: (String) -> Unit
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        items(invitations, key = { it.interestId }) { invitation ->
+            PendingInvitationCard(
+                invitation = invitation,
+                onOpen = { onViewProfile(invitation.profileId) },
+                onAccept = { onAccept(invitation.interestId) },
+                onDecline = { onDecline(invitation.interestId) }
+            )
+        }
     }
 }
 
@@ -956,56 +1150,127 @@ private fun PendingInvitationCard(
 ) {
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .width(272.dp)
             .clickable(onClick = onOpen),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, Divider.copy(alpha = 0.6f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBF8)),
+        border = BorderStroke(1.dp, SoftBorder.copy(alpha = 0.34f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            MemberPhoto(
-                photoUrl = invitation.primaryPhotoUrl,
-                contentDescription = invitation.fullName(),
-                modifier = Modifier
-                    .size(52.dp),
-                shape = RoundedCornerShape(999.dp)
-            )
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    "${invitation.firstName.ifBlank { invitation.fullName() }} sent an invitation",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+        Column {
+            Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+                MemberPhoto(
+                    photoUrl = invitation.primaryPhotoUrl,
+                    contentDescription = invitation.fullName(),
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(0.dp)
                 )
-                Text("Recently", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
+                    shape = RoundedCornerShape(999.dp),
+                    color = Color.White.copy(alpha = 0.92f)
+                ) {
+                    Text(
+                        invitationAgeLabel(invitation.sentAt).uppercase(Locale.getDefault()),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF9B0044),
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1
+                    )
+                }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                InviteActionButton(
-                    icon = Icons.Filled.Close,
-                    contentDescription = "Decline invitation",
-                    background = MaterialTheme.colorScheme.surface,
-                    contentColor = TextSecondary,
-                    border = Divider,
-                    onClick = onDecline
-                )
-                InviteActionButton(
-                    icon = Icons.Filled.Check,
-                    contentDescription = "Accept invitation",
-                    background = HomePrimary,
-                    contentColor = Color.White,
-                    border = HomePrimary,
-                    onClick = onAccept
-                )
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        invitation.fullName().ifBlank { "Pending invitation" },
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = Color(0xFF1E1B18),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Icons.Filled.LocationOn, contentDescription = null, tint = Color(0xFF594045), modifier = Modifier.size(14.dp))
+                        Text(
+                            "Open profile to review details",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color(0xFF594045),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Button(
+                        onClick = onAccept,
+                        modifier = Modifier.weight(1f).height(42.dp),
+                        shape = RoundedCornerShape(999.dp)
+                    ) {
+                        Text("Accept", fontWeight = FontWeight.ExtraBold)
+                    }
+                    OutlinedButton(
+                        onClick = onDecline,
+                        modifier = Modifier.weight(1f).height(42.dp),
+                        shape = RoundedCornerShape(999.dp)
+                    ) {
+                        Text("Decline")
+                    }
+                }
             }
         }
     }
+}
+
+@Composable
+private fun NoPendingInvitationsCard(onBrowse: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = Color(0xFFF5ECE7).copy(alpha = 0.46f),
+        border = BorderStroke(1.dp, SoftBorder.copy(alpha = 0.42f))
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Surface(
+                modifier = Modifier.size(48.dp),
+                shape = RoundedCornerShape(999.dp),
+                color = Color.White,
+                shadowElevation = 1.dp
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.MailOutline, contentDescription = null, tint = TextSecondary)
+                }
+            }
+            Text(
+                "No pending invitations",
+                style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold),
+                color = Color(0xFF1E1B18)
+            )
+            Text(
+                "Keep exploring to find your perfect match.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF594045),
+                textAlign = TextAlign.Center
+            )
+            OutlinedButton(onClick = onBrowse, shape = RoundedCornerShape(999.dp)) {
+                Text("Browse matches", color = Color(0xFF9B0044), fontWeight = FontWeight.ExtraBold)
+            }
+        }
+    }
+}
+
+private fun invitationAgeLabel(sentAt: String): String {
+    return if (sentAt.isBlank()) "Recently" else "Recently"
 }
 
 @Composable

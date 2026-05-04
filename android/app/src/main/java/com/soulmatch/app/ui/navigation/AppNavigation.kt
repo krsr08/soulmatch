@@ -1,12 +1,17 @@
 package com.soulmatch.app.ui.navigation
 
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
@@ -20,7 +25,9 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -408,32 +415,55 @@ private fun AppBottomNavigation(
     labels: NavigationContentData,
     onNavigate: (String) -> Unit
 ) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
-        bottomNavItems.forEach { item ->
-            val label = when (item.label) {
-                "home" -> labels.home
-                "search" -> labels.search
-                "activity" -> labels.activity
-                "chat" -> labels.chat
-                "profile" -> labels.profile
-                else -> item.label
-            }
-            val selected = item.routePrefixes.any { prefix ->
-                currentRoute == prefix || currentRoute.startsWith(prefix)
-            }
-            NavigationBarItem(
-                selected = selected,
-                onClick = { onNavigate(item.route) },
-                icon = { Icon(item.icon, contentDescription = label) },
-                label = { Text(label) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color.White,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.primary,
-                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        shadowElevation = 8.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.24f))
+    ) {
+        NavigationBar(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(82.dp)
+                .padding(horizontal = 8.dp),
+            containerColor = Color.Transparent,
+            tonalElevation = 0.dp
+        ) {
+            bottomNavItems.forEach { item ->
+                val label = when (item.label) {
+                    "home" -> labels.home
+                    "search" -> labels.search
+                    "activity" -> labels.activity
+                    "chat" -> labels.chat
+                    "profile" -> labels.profile
+                    else -> item.label
+                }
+                val selected = item.routePrefixes.any { prefix ->
+                    currentRoute == prefix || currentRoute.startsWith(prefix)
+                }
+                NavigationBarItem(
+                    selected = selected,
+                    onClick = { onNavigate(item.route) },
+                    icon = { Icon(item.icon, contentDescription = label) },
+                    label = {
+                        Text(
+                            label.uppercase(),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Serif,
+                                fontWeight = FontWeight.Medium
+                            )
+                        )
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = Color(0xFFFFF0F4),
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.70f),
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.70f)
+                    )
                 )
-            )
+            }
         }
     }
 }
