@@ -1,6 +1,8 @@
 package com.soulmatch.app.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -104,7 +106,9 @@ fun ProfileSideDrawer(
                 drawerContainerColor = MaterialTheme.colorScheme.surface
             ) {
                 Column(
-                    modifier = Modifier.padding(18.dp),
+                    modifier = Modifier
+                        .padding(18.dp)
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     DrawerHeader(
@@ -150,20 +154,19 @@ private fun DrawerHeader(
     isVerified: Boolean,
     membershipLabel: String
 ) {
-    val statusColor = if (isVerified) MaterialTheme.colorScheme.primary else Color(0xFFA7A29F)
     val memberPillColor = if (isVerified) Color(0xFFFFE6EF) else Color(0xFFF5F3F1)
     val memberPillBorder = if (isVerified) Color(0xFFF0B5CB) else Color(0xFFE0DCDA)
     val memberPillText = if (isVerified) MaterialTheme.colorScheme.primary else Color(0xFF6F6864)
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 10.dp, bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        horizontalAlignment = Alignment.Start
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(modifier = Modifier.padding(start = 2.dp)) {
+        Box {
             Surface(
-                modifier = Modifier.size(92.dp),
+                modifier = Modifier.size(82.dp),
                 shape = RoundedCornerShape(999.dp),
                 color = Color(0xFFFFF1F6),
                 border = BorderStroke(5.dp, Color(0xFFF4C3D5))
@@ -181,7 +184,7 @@ private fun DrawerHeader(
                 Surface(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .size(34.dp),
+                        .size(30.dp),
                     shape = RoundedCornerShape(999.dp),
                     color = MaterialTheme.colorScheme.primary,
                     border = BorderStroke(2.dp, MaterialTheme.colorScheme.surface)
@@ -191,54 +194,46 @@ private fun DrawerHeader(
                             imageVector = Icons.Filled.Verified,
                             contentDescription = "Verified profile",
                             tint = Color.White,
-                            modifier = Modifier.size(19.dp)
+                            modifier = Modifier.size(17.dp)
                         )
                     }
                 }
             }
         }
-        Text(
-            profileName.ifBlank { "SoulMatch member" },
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.ExtraBold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            Surface(
-                modifier = Modifier.size(10.dp),
-                shape = RoundedCornerShape(999.dp),
-                color = statusColor
-            ) {}
-            Text(
-                if (isVerified) "Verified profile" else "Unverified profile",
-                style = MaterialTheme.typography.bodyMedium,
-                color = statusColor,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        Surface(
-            shape = RoundedCornerShape(999.dp),
-            color = memberPillColor,
-            border = BorderStroke(1.dp, memberPillBorder)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             Text(
-                membershipLabel.ifBlank { "Free member" }.uppercase(),
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
-                style = MaterialTheme.typography.labelLarge,
-                color = memberPillText,
+                profileName.ifBlank { "SoulMatch member" },
+                style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+            Text(
+                "Profile ID: ${formatSoulMatchId(profileId)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = memberPillColor,
+                border = BorderStroke(1.dp, memberPillBorder)
+            ) {
+                Text(
+                    membershipLabel.ifBlank { "Free member" }.uppercase(),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = memberPillText,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
-        Text(
-            "ID: ${formatSoulMatchId(profileId)}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }
 
