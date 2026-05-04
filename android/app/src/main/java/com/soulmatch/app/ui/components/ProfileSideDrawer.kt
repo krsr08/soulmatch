@@ -14,18 +14,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Help
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Verified
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.HelpOutline
-import androidx.compose.material.icons.outlined.ReceiptLong
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.SupportAgent
-import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material.icons.outlined.VerifiedUser
-import androidx.compose.material.icons.outlined.WorkspacePremium
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -72,15 +71,15 @@ private data class DrawerAction(
 )
 
 private val primaryActions = listOf(
-    DrawerAction("Edit Profile", ProfileDrawerRoutes.EditProfile, Icons.Outlined.Edit),
-    DrawerAction("Partner Preference", ProfileDrawerRoutes.PartnerPreference, Icons.Outlined.Tune),
-    DrawerAction("SoulMatch Assist", ProfileDrawerRoutes.SoulMatchAssist, Icons.Outlined.SupportAgent),
-    DrawerAction("Spotlight", ProfileDrawerRoutes.Spotlight, Icons.Outlined.WorkspacePremium),
-    DrawerAction("Astrology Services", ProfileDrawerRoutes.AstrologyServices, Icons.Outlined.AutoAwesome),
-    DrawerAction("Account & Settings", ProfileDrawerRoutes.AccountSettings, Icons.Outlined.Settings),
-    DrawerAction("Safety Center", ProfileDrawerRoutes.SafetyCenter, Icons.Outlined.VerifiedUser),
-    DrawerAction("Subscription History", ProfileDrawerRoutes.SubscriptionHistory, Icons.Outlined.ReceiptLong),
-    DrawerAction("Help & Support", ProfileDrawerRoutes.HelpSupport, Icons.Outlined.HelpOutline)
+    DrawerAction("Edit Profile", ProfileDrawerRoutes.EditProfile, Icons.Filled.Edit),
+    DrawerAction("Partner Preference", ProfileDrawerRoutes.PartnerPreference, Icons.Filled.Favorite),
+    DrawerAction("SoulMatch Assist", ProfileDrawerRoutes.SoulMatchAssist, Icons.Filled.SupportAgent),
+    DrawerAction("Spotlight", ProfileDrawerRoutes.Spotlight, Icons.Filled.Star),
+    DrawerAction("Astrology Services", ProfileDrawerRoutes.AstrologyServices, Icons.Filled.Star),
+    DrawerAction("Account & Settings", ProfileDrawerRoutes.AccountSettings, Icons.Filled.Settings),
+    DrawerAction("Safety Center", ProfileDrawerRoutes.SafetyCenter, Icons.Filled.Lock),
+    DrawerAction("Subscription History", ProfileDrawerRoutes.SubscriptionHistory, Icons.Filled.List),
+    DrawerAction("Help & Support", ProfileDrawerRoutes.HelpSupport, Icons.Filled.Help)
 )
 
 @Composable
@@ -250,11 +249,7 @@ private fun DrawerItem(action: DrawerAction, onClick: () -> Unit) {
         selected = false,
         icon = { Icon(action.icon, contentDescription = null) },
         onClick = onClick,
-        colors = NavigationDrawerItemDefaults.colors(
-            unselectedContainerColor = MaterialTheme.colorScheme.surface,
-            unselectedIconColor = Color(0xFF4A252E),
-            unselectedTextColor = Color(0xFF4A252E)
-        )
+        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = MaterialTheme.colorScheme.surface)
     )
 }
 
