@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.view.MotionEvent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -51,6 +52,18 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) registerCurrentFcmToken()
+    }
+
+    override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean {
+        return try {
+            super.dispatchGenericMotionEvent(ev)
+        } catch (error: IllegalStateException) {
+            if (error.message?.contains("ACTION_HOVER_EXIT event was not cleared") == true) {
+                true
+            } else {
+                throw error
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
