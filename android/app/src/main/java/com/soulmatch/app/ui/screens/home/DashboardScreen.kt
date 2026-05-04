@@ -627,7 +627,7 @@ private fun shouldShowHomeUpgrade(
 
 private fun drawerMembershipLabel(subscription: SubscriptionData): String {
     if (!subscription.isActive || subscription.planId.equals("free", ignoreCase = true)) {
-        return "Free member"
+        return "Standard member"
     }
     val rawPlan = subscription.planName
         .ifBlank { subscription.planId }

@@ -151,6 +151,10 @@ private fun DrawerHeader(
     isVerified: Boolean,
     membershipLabel: String
 ) {
+    val statusColor = if (isVerified) MaterialTheme.colorScheme.primary else Color(0xFFA7A29F)
+    val memberPillColor = if (isVerified) Color(0xFFFFE6EF) else Color(0xFFF5F3F1)
+    val memberPillBorder = if (isVerified) Color(0xFFF0B5CB) else Color(0xFFE0DCDA)
+    val memberPillText = if (isVerified) MaterialTheme.colorScheme.primary else Color(0xFF6F6864)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -174,21 +178,23 @@ private fun DrawerHeader(
                     shape = RoundedCornerShape(999.dp)
                 )
             }
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .size(34.dp),
-                shape = RoundedCornerShape(999.dp),
-                color = MaterialTheme.colorScheme.primary,
-                border = BorderStroke(2.dp, MaterialTheme.colorScheme.surface)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Filled.Verified,
-                        contentDescription = if (isVerified) "Verified profile" else "Verification pending",
-                        tint = Color.White,
-                        modifier = Modifier.size(19.dp)
-                    )
+            if (isVerified) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(34.dp),
+                    shape = RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.surface)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Filled.Verified,
+                            contentDescription = "Verified profile",
+                            tint = Color.White,
+                            modifier = Modifier.size(19.dp)
+                        )
+                    }
                 }
             }
         }
@@ -203,25 +209,25 @@ private fun DrawerHeader(
             Surface(
                 modifier = Modifier.size(10.dp),
                 shape = RoundedCornerShape(999.dp),
-                color = if (isVerified) MaterialTheme.colorScheme.primary else TextSecondary
+                color = statusColor
             ) {}
             Text(
-                if (isVerified) "Verified profile" else "Verification pending",
+                if (isVerified) "Verified profile" else "Unverified profile",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = statusColor,
                 fontWeight = FontWeight.Bold
             )
         }
         Surface(
             shape = RoundedCornerShape(999.dp),
-            color = Color(0xFFFFE6EF),
-            border = BorderStroke(1.dp, Color(0xFFF0B5CB))
+            color = memberPillColor,
+            border = BorderStroke(1.dp, memberPillBorder)
         ) {
             Text(
                 membershipLabel.ifBlank { "Free member" }.uppercase(),
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
+                color = memberPillText,
                 fontWeight = FontWeight.ExtraBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
