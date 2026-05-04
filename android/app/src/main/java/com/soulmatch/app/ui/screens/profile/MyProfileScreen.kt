@@ -44,6 +44,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -284,7 +285,11 @@ fun MyProfileScreen(
                                 onOpenTrustDetails = openTrustDetails
                             )
                         }
-                        if (!data.verificationStatus.equals("verified", ignoreCase = true)) {
+                        if (data.verificationStatus.equals("verified", ignoreCase = true)) {
+                            item {
+                                VerifiedProfileCard(onOpenTrustDetails = openTrustDetails)
+                            }
+                        } else {
                             item {
                                 VerificationStatusCard(
                                     profile = data,
@@ -301,7 +306,6 @@ fun MyProfileScreen(
                             PhotoGalleryCard(
                                 photos = photos,
                                 localPhotoUris = localPhotoUris,
-                                photoPrivacyLabel = photoPrivacyLabel(data.photoPrivacy),
                                 uploadingPhotos = uploadingPhotos,
                                 onUpload = { photoPicker.launch("image/*") },
                                 onDeleteLocal = { uri ->
@@ -309,6 +313,12 @@ fun MyProfileScreen(
                                 },
                                 onDelete = vm::deletePhoto,
                                 onSetPrimary = vm::setPrimaryPhoto
+                            )
+                        }
+                        item {
+                            PrivacySettingsCard(
+                                profile = data,
+                                onUpdatePhotoPrivacy = vm::updatePrivacySettings
                             )
                         }
                         item {
@@ -414,7 +424,6 @@ fun TrustDetailsScreen(
 ) {
     val profile by vm.profile.collectAsStateWithLifecycle()
     val visibleFactors = profile?.trustFactors.orEmpty().filterNot { it.isFirebaseTrustFactor() }
-    val verified = profile?.verificationStatus.equals("verified", ignoreCase = true)
 
     Scaffold(
         topBar = {
@@ -444,24 +453,13 @@ fun TrustDetailsScreen(
                         containerColor = MaterialTheme.colorScheme.surface
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                TrustMetricTile(
-                                    label = "Trust Score",
-                                    value = "${profile?.trustScore?.coerceIn(0, 100) ?: 0}%",
-                                    modifier = Modifier.weight(1f)
-                                )
-                                TrustMetricTile(
-                                    label = "Identity",
-                                    value = if (verified) "Verified" else "Pending",
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
+                            TrustMetricTile(
+                                label = "Trust Score",
+                                value = "${profile?.trustScore?.coerceIn(0, 100) ?: 0}%",
+                                modifier = Modifier.fillMaxWidth()
+                            )
                             Text(
-                                "Each item below shows only the current status. Internal platform checks are not shown to members.",
+                                "Each item below shows the member-visible verification and profile quality signals used for this score.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary
                             )
@@ -647,9 +645,16 @@ private fun ProfileStrengthOverviewCard(
                     color = Color(0xFF1E1B18),
                     fontWeight = FontWeight.ExtraBold
                 )
-                Text("$score% Complete", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
             }
-            LabeledProgress(label = "", value = score, detail = "")
+            LinearProgressIndicator(
+                progress = score / 100f,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(999.dp)),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = SurfaceSoft
+            )
             Text(
                 next?.let { "Add your ${it.title.lowercase(Locale.getDefault())} to reach 100% and get better match recommendations." }
                     ?: "Your profile has the key details needed for strong recommendations.",
@@ -925,7 +930,6 @@ private fun VerificationStatusCard(
 private fun PhotoGalleryCard(
     photos: List<ProfilePhoto>,
     localPhotoUris: List<Uri>,
-    photoPrivacyLabel: String,
     uploadingPhotos: Boolean,
     onUpload: () -> Unit,
     onDeleteLocal: (Uri) -> Unit,
@@ -1095,32 +1099,135 @@ private fun TrustDetailsCard(
     profile: ProfileData,
     onOpenTrustDetails: () -> Unit
 ) {
-    val verified = profile.verificationStatus.equals("verified", ignoreCase = true)
     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surface) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                modifier = Modifier.size(54.dp)
             ) {
-                SectionTitle("Trust Details")
-                TextButton(onClick = onOpenTrustDetails) {
-                    Text("View Details", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Verified, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                TrustMetricTile(
-                    label = "Trust Score",
-                    value = if (profile.trustScore > 0) "${profile.trustScore.coerceIn(0, 100)}%" else "New",
-                    modifier = Modifier.weight(1f)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Trust Details", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    "Tap the score to review profile trust status.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
                 )
-                TrustMetricTile(
-                    label = "Identity",
-                    value = if (verified) "Verified" else "Pending",
-                    modifier = Modifier.weight(1f)
+            }
+            Surface(
+                modifier = Modifier.clickable(onClick = onOpenTrustDetails),
+                shape = RoundedCornerShape(18.dp),
+                color = SurfaceWarm,
+                border = BorderStroke(1.dp, Divider)
+            ) {
+                Text(
+                    text = if (profile.trustScore > 0) "${profile.trustScore.coerceIn(0, 100)}%" else "New",
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.ExtraBold
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun VerifiedProfileCard(
+    onOpenTrustDetails: () -> Unit
+) {
+    PremiumCard(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        containerColor = SurfaceWarm
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(52.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Verified, contentDescription = null, tint = Color.White)
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("Verified Profile", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    "Government ID and mobile verified for security.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+                )
+            }
+            IconButton(onClick = onOpenTrustDetails) {
+                Icon(Icons.Filled.Verified, contentDescription = "Open verification details", tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PrivacySettingsCard(
+    profile: ProfileData,
+    onUpdatePhotoPrivacy: (String, String) -> Unit
+) {
+    val showPhotoToEveryone = profile.photoPrivacy.equals("all", ignoreCase = true)
+    var hideLastSeen by remember(profile.profileId) { mutableStateOf(false) }
+
+    PremiumCard(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Lock, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(22.dp))
+                Text(
+                    "Privacy Settings",
+                    style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Serif),
+                    color = Color(0xFF1E1B18),
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
+            PrivacySwitchRow(
+                label = "Show photo to everyone",
+                checked = showPhotoToEveryone,
+                onCheckedChange = { enabled ->
+                    onUpdatePhotoPrivacy(if (enabled) "all" else "request_only", profile.profileVisibility)
+                }
+            )
+            PrivacySwitchRow(
+                label = "Hide last seen",
+                checked = hideLastSeen,
+                onCheckedChange = { hideLastSeen = it }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PrivacySwitchRow(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF1E1B18))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
@@ -1570,13 +1677,18 @@ private fun PartnerPreferencesSummaryCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         containerColor = MaterialTheme.colorScheme.surface
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                SectionTitle("Partner Preferences")
+                Text(
+                    "Partner Preferences",
+                    style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Serif),
+                    color = Color(0xFF1E1B18),
+                    fontWeight = FontWeight.ExtraBold
+                )
                 TextButton(onClick = onEdit) {
                     Text("Edit", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
                 }

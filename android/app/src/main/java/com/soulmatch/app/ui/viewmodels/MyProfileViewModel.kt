@@ -13,6 +13,7 @@ import com.soulmatch.app.data.models.PhotoAccessRequestData
 import com.soulmatch.app.data.models.AssistStatusData
 import com.soulmatch.app.data.models.AssistStatusRequest
 import com.soulmatch.app.data.models.FamilyDecisionData
+import com.soulmatch.app.data.models.PrivacySettingsRequest
 import com.soulmatch.app.data.models.ProfilePhoto
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.SubscriptionData
@@ -328,6 +329,37 @@ class MyProfileViewModel @Inject constructor(
                 }
             } finally {
                 _isLoading.value = false
+            }
+        }
+    }
+
+    fun updatePrivacySettings(photoPrivacy: String, profileVisibility: String) {
+        val current = _profile.value ?: return
+        val profileId = current.profileId
+        if (profileId.isBlank()) return
+        _profile.value = current.copy(photoPrivacy = photoPrivacy, profileVisibility = profileVisibility)
+        viewModelScope.launch {
+            _status.value = null
+            try {
+                val response = profileApi.updatePrivacy(
+                    profileId,
+                    PrivacySettingsRequest(
+                        photoPrivacy = photoPrivacy,
+                        profileVisibility = profileVisibility
+                    )
+                )
+                if (response.isSuccessful && response.body()?.success == true) {
+                    _status.value = "Privacy settings updated."
+                } else {
+                    _profile.value = current
+                    _status.value = response.body()?.error?.message ?: "Couldn't update privacy settings right now."
+                }
+            } catch (error: Exception) {
+                _profile.value = current
+                _status.value = when (error) {
+                    is IOException -> "Couldn't reach the server. Check your connection and try again."
+                    else -> "Couldn't update privacy settings right now. Please try again."
+                }
             }
         }
     }
