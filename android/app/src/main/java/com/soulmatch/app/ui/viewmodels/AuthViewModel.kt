@@ -95,13 +95,20 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = AuthUiState.Loading
             try {
-                val verificationId = prefs.pendingOtpVerificationId.first()
-                if (verificationId.isNullOrBlank()) {
-                    _state.value = AuthUiState.Error("OTP session expired. Please request a new code.")
-                    return@launch
+                val response = authApi.verifyOTP(
+                    VerifyOTPRequest(
+                        phone = phone,
+                        otp = otp
+                    )
+                )
+                if (response.isSuccessful && response.body()?.success == true) {
+                    val authData = response.body()!!.data!!
+                    prefs.clearPendingOtpSession()
+                    val route = persistSessionAndResolveRoute(authData)
+                    _state.value = AuthUiState.Verified(authData.isNewUser, route)
+                } else {
+                    _state.value = AuthUiState.Error(response.body()?.error?.message ?: "Could not verify OTP.")
                 }
-                val credential = PhoneAuthProvider.getCredential(verificationId, otp)
-                completeFirebasePhoneVerification(phone, credential)
             } catch (e: Exception) {
                 _state.value = AuthUiState.Error(e.message ?: "Could not verify OTP.")
             }
@@ -166,6 +173,7 @@ class AuthViewModel @Inject constructor(
         prefs.saveAuthToken(data.accessToken)
         prefs.saveRefreshToken(data.refreshToken)
         prefs.saveUserId(data.userId)
+        prefs.saveUserType(data.userType.ifBlank { "member" })
         return if (data.isNewUser) {
             prefs.clearProfileProgress()
             prefs.saveWizardStep(1)

@@ -268,6 +268,12 @@ fun MyProfileScreen(
                             ChecklistRow(item = item, onEdit = { editSection(item.editStep) })
                         }
                         item {
+                            TrustDetailsCard(
+                                profile = data,
+                                onOpenTrustDetails = openTrustDetails
+                            )
+                        }
+                        item {
                             PartnerPreferencesSummaryCard(
                                 preferences = preferences,
                                 onEdit = openPartnerPreferences
@@ -279,17 +285,7 @@ fun MyProfileScreen(
                                 onOpenAssist = openAssist
                             )
                         }
-                        item {
-                            TrustDetailsCard(
-                                profile = data,
-                                onOpenTrustDetails = openTrustDetails
-                            )
-                        }
-                        if (data.verificationStatus.equals("verified", ignoreCase = true)) {
-                            item {
-                                VerifiedProfileCard(onOpenTrustDetails = openTrustDetails)
-                            }
-                        } else {
+                        if (!data.verificationStatus.equals("verified", ignoreCase = true)) {
                             item {
                                 VerificationStatusCard(
                                     profile = data,
@@ -313,12 +309,6 @@ fun MyProfileScreen(
                                 },
                                 onDelete = vm::deletePhoto,
                                 onSetPrimary = vm::setPrimaryPhoto
-                            )
-                        }
-                        item {
-                            PrivacySettingsCard(
-                                profile = data,
-                                onUpdatePhotoPrivacy = vm::updatePrivacySettings
                             )
                         }
                         item {
@@ -346,6 +336,12 @@ fun MyProfileScreen(
                             items(viewers.take(5), key = { "${it.profileId}-${it.viewedAt}" }) { viewer ->
                                 ViewerRow(viewer = viewer, onOpen = { viewProfile(viewer.profileId) })
                             }
+                        }
+                        item {
+                            PrivacySettingsCard(
+                                profile = data,
+                                onUpdatePhotoPrivacy = vm::updatePrivacySettings
+                            )
                         }
                     }
                 }
@@ -643,6 +639,12 @@ private fun ProfileStrengthOverviewCard(
                     "Profile Strength",
                     style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Serif),
                     color = Color(0xFF1E1B18),
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Text(
+                    "$score%",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.ExtraBold
                 )
             }
@@ -1180,10 +1182,10 @@ private fun VerifiedProfileCard(
 @Composable
 private fun PrivacySettingsCard(
     profile: ProfileData,
-    onUpdatePhotoPrivacy: (String, String) -> Unit
+    onUpdatePhotoPrivacy: (String, String, Boolean) -> Unit
 ) {
     val showPhotoToEveryone = profile.photoPrivacy.equals("all", ignoreCase = true)
-    var hideLastSeen by remember(profile.profileId) { mutableStateOf(false) }
+    var hideLastSeen by remember(profile.profileId, profile.hideLastSeen) { mutableStateOf(profile.hideLastSeen) }
 
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -1203,13 +1205,20 @@ private fun PrivacySettingsCard(
                 label = "Show photo to everyone",
                 checked = showPhotoToEveryone,
                 onCheckedChange = { enabled ->
-                    onUpdatePhotoPrivacy(if (enabled) "all" else "request_only", profile.profileVisibility)
+                    onUpdatePhotoPrivacy(
+                        if (enabled) "all" else "request_only",
+                        profile.profileVisibility,
+                        hideLastSeen
+                    )
                 }
             )
             PrivacySwitchRow(
                 label = "Hide last seen",
                 checked = hideLastSeen,
-                onCheckedChange = { hideLastSeen = it }
+                onCheckedChange = {
+                    hideLastSeen = it
+                    onUpdatePhotoPrivacy(profile.photoPrivacy, profile.profileVisibility, it)
+                }
             )
         }
     }

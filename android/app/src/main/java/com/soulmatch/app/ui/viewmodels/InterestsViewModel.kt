@@ -151,6 +151,9 @@ class InterestsViewModel @Inject constructor(
                     firstName = detail.firstName,
                     lastName = detail.lastName,
                     primaryPhotoUrl = detail.primaryPhotoUrl,
+                    occupation = detail.occupation,
+                    workingCity = detail.workingCity,
+                    familyCity = detail.familyCity,
                     status = "pending",
                     sentAt = Instant.now().toString()
                 )

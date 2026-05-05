@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS profiles (
     video_url TEXT,
     photo_privacy VARCHAR(20) DEFAULT 'all',
     profile_visibility VARCHAR(20) DEFAULT 'all',
+    hide_last_seen BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );

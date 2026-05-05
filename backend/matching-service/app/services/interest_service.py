@@ -116,7 +116,29 @@ async def get_received_interests(user_id: str) -> list:
         current_profile_id = await _get_profile_id_for_user(conn, user_id)
         if not current_profile_id:
             return []
-        rows = await conn.fetch('SELECT i.interest_id,i.status,i.sent_at,p.profile_id,p.user_id,p.first_name,p.last_name,p.primary_photo_url FROM interests i JOIN profiles p ON p.profile_id=i.sender_id WHERE i.receiver_id=$1 ORDER BY i.sent_at DESC', current_profile_id)
+        rows = await conn.fetch(
+            '''
+            SELECT
+                i.interest_id,
+                i.status,
+                i.sent_at,
+                p.profile_id,
+                p.user_id,
+                p.first_name,
+                p.last_name,
+                p.primary_photo_url,
+                COALESCE(ec.occupation, '') AS occupation,
+                COALESCE(ec.working_city, '') AS working_city,
+                COALESCE(fd.family_city, '') AS family_city
+            FROM interests i
+            JOIN profiles p ON p.profile_id=i.sender_id
+            LEFT JOIN education_career ec ON ec.profile_id=p.profile_id
+            LEFT JOIN family_details fd ON fd.profile_id=p.profile_id
+            WHERE i.receiver_id=$1
+            ORDER BY i.sent_at DESC
+            ''',
+            current_profile_id
+        )
         return [dict(r) for r in rows]
 
 
@@ -126,7 +148,29 @@ async def get_sent_interests(user_id: str) -> list:
         current_profile_id = await _get_profile_id_for_user(conn, user_id)
         if not current_profile_id:
             return []
-        rows = await conn.fetch('SELECT i.interest_id,i.status,i.sent_at,p.profile_id,p.user_id,p.first_name,p.last_name,p.primary_photo_url FROM interests i JOIN profiles p ON p.profile_id=i.receiver_id WHERE i.sender_id=$1 ORDER BY i.sent_at DESC', current_profile_id)
+        rows = await conn.fetch(
+            '''
+            SELECT
+                i.interest_id,
+                i.status,
+                i.sent_at,
+                p.profile_id,
+                p.user_id,
+                p.first_name,
+                p.last_name,
+                p.primary_photo_url,
+                COALESCE(ec.occupation, '') AS occupation,
+                COALESCE(ec.working_city, '') AS working_city,
+                COALESCE(fd.family_city, '') AS family_city
+            FROM interests i
+            JOIN profiles p ON p.profile_id=i.receiver_id
+            LEFT JOIN education_career ec ON ec.profile_id=p.profile_id
+            LEFT JOIN family_details fd ON fd.profile_id=p.profile_id
+            WHERE i.sender_id=$1
+            ORDER BY i.sent_at DESC
+            ''',
+            current_profile_id
+        )
         return [dict(r) for r in rows]
 
 

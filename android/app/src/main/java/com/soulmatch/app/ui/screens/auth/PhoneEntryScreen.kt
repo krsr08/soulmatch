@@ -1,8 +1,5 @@
 package com.soulmatch.app.ui.screens.auth
 
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -38,7 +35,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -78,8 +74,6 @@ fun PhoneEntryScreen(
         if (state is AuthUiState.OTPSent) onOTPSent(countryCode + phone)
         if (state is AuthUiState.Verified) onVerified((state as AuthUiState.Verified).route)
     }
-    val activity = LocalContext.current.findActivity()
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -168,11 +162,7 @@ fun PhoneEntryScreen(
 
                         Button(
                             onClick = {
-                                if (activity == null) {
-                                    vm.reportError("This screen needs an active Android activity to verify your phone.")
-                                } else {
-                                    vm.sendFirebaseOTP(activity, countryCode + phone)
-                                }
+                                vm.sendOTP(countryCode + phone)
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -209,12 +199,6 @@ fun PhoneEntryScreen(
             }
         }
     }
-}
-
-private fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
 }
 
 @Composable

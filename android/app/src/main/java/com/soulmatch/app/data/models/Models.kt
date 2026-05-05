@@ -165,7 +165,8 @@ data class MatchFeedbackRequest(
 
 data class PrivacySettingsRequest(
     @SerializedName("photoPrivacy") val photoPrivacy: String,
-    @SerializedName("profileVisibility") val profileVisibility: String
+    @SerializedName("profileVisibility") val profileVisibility: String,
+    @SerializedName("hideLastSeen") val hideLastSeen: Boolean = false
 )
 
 data class ProfileStatusRequest(
@@ -344,6 +345,9 @@ data class ProfileData(
     @SerializedName("photo_access_status") val photoAccessStatus: String = "visible",
     @SerializedName("photo_access_request_id") val photoAccessRequestId: String? = null,
     @SerializedName("profile_visibility") val profileVisibility: String = "all",
+    @SerializedName("hide_last_seen") val hideLastSeen: Boolean = false,
+    @SerializedName("last_login") val lastLogin: String? = null,
+    @SerializedName("updated_at") val updatedAt: String? = null,
     @SerializedName("education_level") val educationLevel: String = "",
     val occupation: String = "",
     @SerializedName("annual_income") val annualIncome: String = "",
@@ -548,6 +552,9 @@ data class InterestListItem(
     @SerializedName("first_name") val firstName: String = "",
     @SerializedName("last_name") val lastName: String = "",
     @SerializedName("primary_photo_url") val primaryPhotoUrl: String? = null,
+    val occupation: String = "",
+    @SerializedName("working_city") val workingCity: String = "",
+    @SerializedName("family_city") val familyCity: String = "",
     val status: String = "pending",
     @SerializedName("sent_at") val sentAt: String = ""
 )

@@ -6,6 +6,44 @@ const { isChatEnabled } = require('../middleware/featureGate');
 const logger = require('../utils/logger');
 const makeChatId = (a, b) => [a, b].sort().join('_');
 const MAX_MESSAGE_LENGTH = parseInt(process.env.MAX_CHAT_MESSAGE_LENGTH || '2000', 10);
+const NOTIFICATION_API_URL = process.env.NOTIFICATION_API_URL;
+const INTERNAL_SERVICE_SECRET = process.env.INTERNAL_SERVICE_SECRET;
+
+const buildMessagePreview = (type, content) => {
+  if (type && type !== 'text') return 'You received a new ' + type + ' message on SoulMatch.';
+  const text = String(content || '').trim();
+  if (!text) return 'You received a new message on SoulMatch.';
+  return text.length > 120 ? text.slice(0, 117) + '...' : text;
+};
+
+const sendChatNotification = async ({ receiverId, senderId, chatId, type, content }) => {
+  if (!NOTIFICATION_API_URL || !INTERNAL_SERVICE_SECRET || typeof fetch !== 'function') return;
+  try {
+    const response = await fetch(NOTIFICATION_API_URL.replace(/\/$/, '') + '/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-service-secret': INTERNAL_SERVICE_SECRET
+      },
+      body: JSON.stringify({
+        userId: receiverId,
+        title: 'New message',
+        body: buildMessagePreview(type, content),
+        data: {
+          type: 'chat_message',
+          chatId,
+          senderUserId: senderId
+        }
+      })
+    });
+    if (!response.ok) {
+      logger.warn('Chat notification push failed with status ' + response.status);
+    }
+  } catch (err) {
+    logger.warn('Chat notification push failed: ' + err.message);
+  }
+};
+
 const getProfileIdByUserId = async (db, userId) => {
   const res = await db.query(
     `SELECT p.profile_id
@@ -97,6 +135,7 @@ exports.setupSocketHandlers = (io) => {
         );
         const msgData = { messageId:msg._id.toString(), chatId:cid, senderId:socket.userId, receiverId, type:resolvedType, content, duration, sentAt:msg.sentAt, status:'sent' };
         io.to('user:'+receiverId).emit('message:received', msgData);
+        await sendChatNotification({ receiverId, senderId: socket.userId, chatId: cid, type: resolvedType, content });
         cb && cb({ success:true, message:msgData });
       } catch (err) { logger.error('message:send error: '+err.message); cb && cb({ error:'Failed to send' }); }
     });

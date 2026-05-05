@@ -333,11 +333,15 @@ class MyProfileViewModel @Inject constructor(
         }
     }
 
-    fun updatePrivacySettings(photoPrivacy: String, profileVisibility: String) {
+    fun updatePrivacySettings(photoPrivacy: String, profileVisibility: String, hideLastSeen: Boolean) {
         val current = _profile.value ?: return
         val profileId = current.profileId
         if (profileId.isBlank()) return
-        _profile.value = current.copy(photoPrivacy = photoPrivacy, profileVisibility = profileVisibility)
+        _profile.value = current.copy(
+            photoPrivacy = photoPrivacy,
+            profileVisibility = profileVisibility,
+            hideLastSeen = hideLastSeen
+        )
         viewModelScope.launch {
             _status.value = null
             try {
@@ -345,7 +349,8 @@ class MyProfileViewModel @Inject constructor(
                     profileId,
                     PrivacySettingsRequest(
                         photoPrivacy = photoPrivacy,
-                        profileVisibility = profileVisibility
+                        profileVisibility = profileVisibility,
+                        hideLastSeen = hideLastSeen
                     )
                 )
                 if (response.isSuccessful && response.body()?.success == true) {

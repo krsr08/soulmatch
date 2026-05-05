@@ -66,6 +66,7 @@ import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.SubscriptionData
 import com.soulmatch.app.data.models.TrustFactorData
 import com.soulmatch.app.data.models.fullName
+import com.soulmatch.app.ui.formatDate
 import com.soulmatch.app.ui.components.ChipTone
 import com.soulmatch.app.ui.components.CompatibilityBar
 import com.soulmatch.app.ui.components.DetailGrid
@@ -280,15 +281,19 @@ fun ProfileDetailScreen(
                             DetailSection(
                                 title = "Work and lifestyle",
                                 subtitle = "Career, city, habits, and daily rhythm",
-                                rows = listOf(
-                                    "Education" to data.educationLevel,
-                                    "Occupation" to data.occupation,
-                                    "Income" to data.annualIncome,
-                                    "Working city" to data.workingCity,
-                                    "Diet" to titleCase(data.diet),
-                                    "Smoking" to titleCase(data.smoking),
-                                    "Drinking" to titleCase(data.drinking)
-                                )
+                                rows = buildList {
+                                    add("Education" to data.educationLevel)
+                                    add("Occupation" to data.occupation)
+                                    add("Income" to data.annualIncome)
+                                    add("Working city" to data.workingCity)
+                                    add(
+                                        (if (data.hideLastSeen) "Updated" else "Last seen") to
+                                            formatDate((if (data.hideLastSeen) data.updatedAt else data.lastLogin ?: data.updatedAt))
+                                    )
+                                    add("Diet" to titleCase(data.diet))
+                                    add("Smoking" to titleCase(data.smoking))
+                                    add("Drinking" to titleCase(data.drinking))
+                                }
                             )
                         }
                         item {

@@ -1541,6 +1541,7 @@ exports.findFullByUserId = async (userId) => {
   const r = await db.query(
     `SELECT
        p.*,
+       u.last_login,
        EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
        pd.height_cm,
        pd.weight_kg,
@@ -1570,6 +1571,7 @@ exports.findFullByUserId = async (userId) => {
        hd.birth_city,
        hd.gotra
      FROM profiles p
+     JOIN users u ON u.user_id=p.user_id
      LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id
      LEFT JOIN education_career ec ON p.profile_id=ec.profile_id
      LEFT JOIN family_details fd ON p.profile_id=fd.profile_id
@@ -1586,6 +1588,7 @@ exports.findFullById = async (profileId) => {
   const r = await db.query(
     `SELECT
        p.*,
+       u.last_login,
        EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
        pd.height_cm,
        pd.weight_kg,
@@ -1615,6 +1618,7 @@ exports.findFullById = async (profileId) => {
        hd.birth_city,
        hd.gotra
      FROM profiles p
+     JOIN users u ON u.user_id=p.user_id
      LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id
      LEFT JOIN education_career ec ON p.profile_id=ec.profile_id
      LEFT JOIN family_details fd ON p.profile_id=fd.profile_id
@@ -1637,7 +1641,11 @@ exports.updatePrivacy = async (profileId, data) => {
   const allowedVisibility = ['all', 'matches_only', 'hidden'];
   const photoPrivacy = allowedPhoto.includes(data.photoPrivacy) ? data.photoPrivacy : null;
   const profileVisibility = allowedVisibility.includes(data.profileVisibility) ? data.profileVisibility : null;
-  await db.query('UPDATE profiles SET photo_privacy=COALESCE($1,photo_privacy),profile_visibility=COALESCE($2,profile_visibility),updated_at=NOW() WHERE profile_id=$3', [photoPrivacy,profileVisibility,profileId]);
+  const hideLastSeen = typeof data.hideLastSeen === 'boolean' ? data.hideLastSeen : null;
+  await db.query(
+    'UPDATE profiles SET photo_privacy=COALESCE($1,photo_privacy),profile_visibility=COALESCE($2,profile_visibility),hide_last_seen=COALESCE($3,hide_last_seen),updated_at=NOW() WHERE profile_id=$4',
+    [photoPrivacy, profileVisibility, hideLastSeen, profileId]
+  );
 };
 exports.updateProfileStatus = async (profileId, status) => {
   const normalized = normalizeProfileStatus(status);

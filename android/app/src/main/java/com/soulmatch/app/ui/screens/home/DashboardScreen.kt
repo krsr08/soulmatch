@@ -1132,7 +1132,10 @@ private fun NewProfileTile(profile: ProfileSummary, onClick: () -> Unit) {
             textAlign = TextAlign.Start
         )
         Text(
-            profile.location,
+            listOf(profile.occupation, profile.location)
+                .filter { it.isNotBlank() }
+                .joinToString(" | ")
+                .ifBlank { "Details in progress" },
             style = MaterialTheme.typography.labelSmall,
             color = Color(0xFF594045),
             maxLines = 1,
@@ -1220,7 +1223,12 @@ private fun PendingInvitationCard(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Icon(Icons.Filled.LocationOn, contentDescription = null, tint = Color(0xFF594045), modifier = Modifier.size(14.dp))
                         Text(
-                            "Open profile to review details",
+                            listOf(
+                                invitation.occupation,
+                                invitation.workingCity.ifBlank { invitation.familyCity }
+                            ).filter { it.isNotBlank() }
+                                .joinToString(" | ")
+                                .ifBlank { "Open profile to review details" },
                             style = MaterialTheme.typography.labelSmall,
                             color = Color(0xFF594045),
                             maxLines = 1,

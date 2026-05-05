@@ -304,6 +304,7 @@ fun AppNavigation(
         composable("interests") {
             InterestsScreen(
                 onViewProfile = { nav.navigate("profile/$it") },
+                onOpenChat = { participantId, name -> nav.navigate("chat/$participantId/${Uri.encode(name)}") },
                 onSubscribe = { nav.navigate("subscription") },
                 onBack = { nav.popBackStack() }
             )
