@@ -1,4 +1,4 @@
-package com.soulmatch.app.ui.screens.auth
+﻿package com.soulmatch.app.ui.screens.auth
 
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -128,10 +128,10 @@ fun WelcomeScreen(
             .fillMaxSize()
             .background(LoginCream)
     ) {
-        val compact = maxHeight < 940.dp
-        val heroHeight = if (compact) 300.dp else 428.dp
-        val cardTop = heroHeight - if (compact) 20.dp else 34.dp
-        val waveHeight = if (compact) 48.dp else 76.dp
+        val compact = maxHeight < 980.dp
+        val heroHeight = if (compact) 260.dp else 428.dp
+        val cardTop = heroHeight - if (compact) 32.dp else 34.dp
+        val waveHeight = if (compact) 34.dp else 76.dp
 
         HeroBackdrop(
             imageUrl = branding.previewImageUrl,
@@ -156,7 +156,7 @@ fun WelcomeScreen(
                 .align(Alignment.TopCenter)
                 .padding(top = cardTop, start = 20.dp, end = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(if (compact) 14.dp else 24.dp)
+            verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 24.dp)
         ) {
             AuthCard(
                 state = state,
@@ -264,25 +264,25 @@ private fun HeroIntro(
             .fillMaxWidth()
             .height(heroHeight)
             .padding(horizontal = 26.dp)
-            .padding(top = if (compact) 56.dp else 94.dp),
+            .padding(top = if (compact) 34.dp else 94.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             appTitle,
             color = Color.White,
-            fontSize = if (compact) 36.sp else 52.sp,
+            fontSize = if (compact) 30.sp else 52.sp,
             fontWeight = FontWeight.Bold,
             fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
             textAlign = TextAlign.Center
         )
-        Spacer(Modifier.height(if (compact) 12.dp else 22.dp))
+        Spacer(Modifier.height(if (compact) 8.dp else 22.dp))
         HeroAccentDivider(compact = compact)
-        Spacer(Modifier.height(if (compact) 14.dp else 28.dp))
+        Spacer(Modifier.height(if (compact) 10.dp else 28.dp))
         Text(
             heroTitle,
             color = LoginGold,
-            fontSize = if (compact) 20.sp else 28.sp,
-            lineHeight = if (compact) 25.sp else 34.sp,
+            fontSize = if (compact) 18.sp else 28.sp,
+            lineHeight = if (compact) 22.sp else 34.sp,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 12.dp)
@@ -290,8 +290,8 @@ private fun HeroIntro(
         Text(
             heroSubtitle,
             color = Color.White,
-            fontSize = if (compact) 24.sp else 36.sp,
-            lineHeight = if (compact) 30.sp else 44.sp,
+            fontSize = if (compact) 20.sp else 36.sp,
+            lineHeight = if (compact) 25.sp else 44.sp,
             fontWeight = FontWeight.ExtraBold,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 16.dp)
@@ -306,7 +306,7 @@ private fun HeroAccentDivider(
     Row(
         modifier = Modifier.fillMaxWidth(0.66f),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 16.dp)
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 16.dp)
     ) {
         Divider(modifier = Modifier.weight(1f), color = Color.White.copy(alpha = 0.72f), thickness = 1.dp)
         Icon(
@@ -333,23 +333,23 @@ private fun AuthCard(
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 22.dp)
+        verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 22.dp)
     ) {
         Button(
             onClick = onRegister,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(if (compact) 54.dp else 72.dp),
-            shape = RoundedCornerShape(18.dp),
+                .height(if (compact) 50.dp else 72.dp),
+            shape = RoundedCornerShape(if (compact) 16.dp else 18.dp),
             colors = ButtonDefaults.buttonColors(containerColor = LoginPink, contentColor = Color.White),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 10.dp)
         ) {
-            Icon(Icons.Filled.PhoneAndroid, contentDescription = null, modifier = Modifier.size(if (compact) 22.dp else 30.dp))
-            Spacer(Modifier.size(if (compact) 10.dp else 16.dp))
+            Icon(Icons.Filled.PhoneAndroid, contentDescription = null, modifier = Modifier.size(if (compact) 20.dp else 30.dp))
+            Spacer(Modifier.size(if (compact) 8.dp else 16.dp))
             Text(
                 "Continue with Mobile",
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = if (compact) 18.sp else 24.sp
+                fontSize = if (compact) 16.sp else 24.sp
             )
         }
 
@@ -382,14 +382,14 @@ private fun AuthCard(
             Text(
                 "Already have an account?",
                 color = LoginDeepText,
-                fontSize = if (compact) 16.sp else 22.sp
+                fontSize = if (compact) 14.sp else 22.sp
             )
             TextButton(onClick = onLogin) {
                 Text(
                     "Log in",
                     color = LoginDarkPink,
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = if (compact) 16.sp else 22.sp
+                    fontSize = if (compact) 14.sp else 22.sp
                 )
             }
         }
@@ -410,7 +410,7 @@ private fun OrDivider(compact: Boolean) {
         Text(
             "OR",
             color = LoginMuted,
-            fontSize = if (compact) 16.sp else 22.sp,
+            fontSize = if (compact) 15.sp else 22.sp,
             letterSpacing = 0.6.sp,
             fontWeight = FontWeight.SemiBold
         )
@@ -429,8 +429,8 @@ private fun SocialButton(
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.height(if (compact) 54.dp else 70.dp),
-        shape = RoundedCornerShape(10.dp),
+        modifier = modifier.height(if (compact) 50.dp else 70.dp),
+        shape = RoundedCornerShape(if (compact) 8.dp else 10.dp),
         border = BorderStroke(1.dp, LoginSocialBorder),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = Color.White,
@@ -447,7 +447,7 @@ private fun SocialButton(
         Spacer(Modifier.size(if (compact) 8.dp else 14.dp))
         Text(
             label,
-            fontSize = if (compact) 17.sp else 22.sp,
+            fontSize = if (compact) 15.sp else 22.sp,
             fontWeight = FontWeight.Medium
         )
     }
@@ -464,15 +464,15 @@ private fun FooterLegal(
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 28.dp)
+        verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 28.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 14.dp)
         ) {
             Divider(modifier = Modifier.weight(1f), color = LoginPanelLine)
-            Icon(Icons.Filled.Security, contentDescription = null, tint = LoginMuted, modifier = Modifier.size(if (compact) 18.dp else 20.dp))
+            Icon(Icons.Filled.Security, contentDescription = null, tint = LoginMuted, modifier = Modifier.size(if (compact) 16.dp else 20.dp))
             Divider(modifier = Modifier.weight(1f), color = LoginPanelLine)
         }
         LegalLinks(
@@ -488,17 +488,17 @@ private fun FooterLegal(
             shadowElevation = 6.dp
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = if (compact) 14.dp else 22.dp, vertical = if (compact) 8.dp else 12.dp),
+                modifier = Modifier.padding(horizontal = if (compact) 12.dp else 22.dp, vertical = if (compact) 7.dp else 12.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Filled.Lock, contentDescription = null, tint = LoginProtection, modifier = Modifier.size(if (compact) 16.dp else 20.dp))
-                Spacer(Modifier.width(8.dp))
+                Icon(Icons.Filled.Lock, contentDescription = null, tint = LoginProtection, modifier = Modifier.size(if (compact) 14.dp else 20.dp))
+                Spacer(Modifier.width(if (compact) 6.dp else 8.dp))
                 Text(
-                    "End-to-End Encrypted  •  No Spam  •  No Fake Profiles",
+                    "End-to-End Encrypted | No Spam | No Fake Profiles",
                     color = LoginProtection,
-                    fontSize = if (compact) 12.sp else 18.sp,
-                    lineHeight = if (compact) 16.sp else 24.sp,
+                    fontSize = if (compact) 10.sp else 18.sp,
+                    lineHeight = if (compact) 13.sp else 24.sp,
                     fontWeight = FontWeight.Medium,
                     textAlign = TextAlign.Center
                 )
@@ -519,17 +519,17 @@ private fun AgentRegistrationCard(
         border = BorderStroke(1.dp, LoginSocialBorder.copy(alpha = 0.95f))
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = if (compact) 14.dp else 22.dp, vertical = if (compact) 14.dp else 22.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 16.dp),
+            modifier = Modifier.padding(horizontal = if (compact) 12.dp else 22.dp, vertical = if (compact) 12.dp else 22.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
                 color = LoginPink.copy(alpha = 0.1f),
-                modifier = Modifier.size(if (compact) 48.dp else 64.dp)
+                modifier = Modifier.size(if (compact) 42.dp else 64.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Work, contentDescription = null, tint = LoginPink, modifier = Modifier.size(if (compact) 24.dp else 32.dp))
+                    Icon(Icons.Filled.Work, contentDescription = null, tint = LoginPink, modifier = Modifier.size(if (compact) 22.dp else 32.dp))
                 }
             }
             Column(
@@ -539,15 +539,15 @@ private fun AgentRegistrationCard(
                 Text(
                     "Are you a Matrimony Agent?",
                     color = LoginDeepText,
-                    fontSize = if (compact) 18.sp else 26.sp,
-                    lineHeight = if (compact) 23.sp else 32.sp,
+                    fontSize = if (compact) 16.sp else 26.sp,
+                    lineHeight = if (compact) 20.sp else 32.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
                 Text(
                     "Manage multiple profiles and help families find the perfect match.",
                     color = LoginSocialText,
-                    fontSize = if (compact) 13.sp else 18.sp,
-                    lineHeight = if (compact) 18.sp else 25.sp
+                    fontSize = if (compact) 11.sp else 18.sp,
+                    lineHeight = if (compact) 15.sp else 25.sp
                 )
             }
             OutlinedButton(
@@ -563,8 +563,8 @@ private fun AgentRegistrationCard(
                     "Register\nas Agent",
                     textAlign = TextAlign.Center,
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = if (compact) 14.sp else 18.sp,
-                    lineHeight = if (compact) 17.sp else 22.sp
+                    fontSize = if (compact) 13.sp else 18.sp,
+                    lineHeight = if (compact) 16.sp else 22.sp
                 )
             }
         }
@@ -575,13 +575,12 @@ private fun AgentRegistrationCard(
 private fun SafetyHighlights(compact: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 14.dp),
         verticalAlignment = Alignment.Top
     ) {
         SafetyHighlightItem(
             icon = Icons.Filled.VerifiedUser,
             title = "Verified Profiles",
-            body = "Every profile is verified for your safety.",
             compact = compact,
             modifier = Modifier.weight(1f)
         )
@@ -589,7 +588,6 @@ private fun SafetyHighlights(compact: Boolean) {
         SafetyHighlightItem(
             icon = Icons.Filled.Lock,
             title = "Private Photos",
-            body = "Your photos stay private and access is controlled.",
             compact = compact,
             modifier = Modifier.weight(1f)
         )
@@ -597,7 +595,6 @@ private fun SafetyHighlights(compact: Boolean) {
         SafetyHighlightItem(
             icon = Icons.Filled.Security,
             title = "Safe & Secure",
-            body = "We use advanced security to protect you always.",
             compact = compact,
             modifier = Modifier.weight(1f)
         )
@@ -608,9 +605,9 @@ private fun SafetyHighlights(compact: Boolean) {
 private fun HighlightDivider(compact: Boolean) {
     Spacer(
         modifier = Modifier
-            .padding(top = if (compact) 12.dp else 14.dp)
+            .padding(top = if (compact) 8.dp else 14.dp)
             .width(1.dp)
-            .height(if (compact) 88.dp else 124.dp)
+            .height(if (compact) 56.dp else 124.dp)
             .background(LoginPanelLine)
     )
 }
@@ -619,38 +616,29 @@ private fun HighlightDivider(compact: Boolean) {
 private fun SafetyHighlightItem(
     icon: ImageVector,
     title: String,
-    body: String,
     compact: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp)
+        verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 12.dp)
     ) {
         Surface(
             shape = RoundedCornerShape(999.dp),
             color = LoginPink.copy(alpha = 0.1f),
-            modifier = Modifier.size(if (compact) 42.dp else 62.dp)
+            modifier = Modifier.size(if (compact) 34.dp else 62.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = LoginPink, modifier = Modifier.size(if (compact) 18.dp else 28.dp))
+                Icon(icon, contentDescription = null, tint = LoginPink, modifier = Modifier.size(if (compact) 16.dp else 28.dp))
             }
         }
         Text(
             title,
             color = LoginDeepText,
-            fontSize = if (compact) 14.sp else 20.sp,
-            lineHeight = if (compact) 18.sp else 26.sp,
+            fontSize = if (compact) 11.sp else 20.sp,
+            lineHeight = if (compact) 14.sp else 26.sp,
             fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center
-        )
-        Text(
-            body,
-            color = LoginSocialText,
-            fontSize = if (compact) 11.sp else 16.sp,
-            lineHeight = if (compact) 15.sp else 22.sp,
-            fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center
         )
     }
@@ -702,8 +690,8 @@ private fun LegalLinks(
         modifier = Modifier.fillMaxWidth(),
         style = TextStyle(
             textAlign = TextAlign.Center,
-            fontSize = if (compact) 14.sp else 22.sp,
-            lineHeight = if (compact) 20.sp else 34.sp,
+            fontSize = if (compact) 12.sp else 22.sp,
+            lineHeight = if (compact) 17.sp else 34.sp,
             fontWeight = FontWeight.Medium
         ),
         onClick = { offset ->
@@ -757,3 +745,4 @@ private val LoginLegalStrong = Color(0xFF4C2832)
 private val LoginProtection = Color(0xFF73716E)
 private val LoginWave = Color(0xFFF5C9D1)
 private val GoogleBlue = Color(0xFF4285F4)
+

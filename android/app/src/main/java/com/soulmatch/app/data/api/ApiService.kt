@@ -16,6 +16,10 @@ interface AuthApiService {
 interface ProfileApiService {
     @POST("profile/create") suspend fun createProfileStep(@Body req: Map<String, @JvmSuppressWildcards Any>): Response<GenericResponse<ProfileStepResponse>>
     @GET("profile/me") suspend fun getMyProfile(): Response<GenericResponse<ProfileData>>
+    @GET("profile/agent/me") suspend fun getAgentProfile(): Response<GenericResponse<AgentProfileData>>
+    @PUT("profile/agent/me") suspend fun upsertAgentProfile(@Body req: AgentProfileUpsertRequest): Response<GenericResponse<AgentProfileData>>
+    @GET("profile/agent/leads") suspend fun getAgentLeads(): Response<GenericResponse<List<AgentLeadData>>>
+    @GET("profile/agent/leads/{profileId}") suspend fun getAgentLead(@Path("profileId") profileId: String): Response<GenericResponse<AgentLeadData>>
     @GET("profile/assist/status") suspend fun getAssistStatus(): Response<GenericResponse<AssistStatusData>>
     @PUT("profile/assist/status") suspend fun updateAssistStatus(@Body req: AssistStatusRequest): Response<GenericResponse<AssistStatusData>>
     @GET("profile/family-decisions") suspend fun getFamilyDecisions(): Response<GenericResponse<List<FamilyDecisionData>>>

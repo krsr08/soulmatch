@@ -15,13 +15,21 @@ data class ErrorData(
 )
 
 data class SendOTPRequest(val phone: String)
-data class VerifyOTPRequest(val phone: String, val otp: String)
-data class GoogleLoginRequest(val googleToken: String)
+data class VerifyOTPRequest(
+    val phone: String,
+    val otp: String,
+    val userType: String = "member"
+)
+data class GoogleLoginRequest(
+    val googleToken: String,
+    val userType: String = "member"
+)
 data class FirebasePhoneLoginRequest(
     val firebaseToken: String,
     val phone: String? = null,
     val inviteCode: String? = null,
-    val acquisitionSource: String? = null
+    val acquisitionSource: String? = null,
+    val userType: String = "member"
 )
 data class RefreshTokenRequest(val refreshToken: String)
 data class FcmTokenRequest(val token: String)
@@ -40,7 +48,84 @@ data class AuthData(
     val accessToken: String,
     val refreshToken: String,
     val userId: String,
-    val isNewUser: Boolean
+    val isNewUser: Boolean,
+    val userType: String = "member"
+)
+
+data class AgentServiceAreaData(
+    @SerializedName("advisorServiceAreaId") val advisorServiceAreaId: String = "",
+    val city: String = "",
+    val state: String = "",
+    val locality: String = "",
+    val pincode: String = "",
+    @SerializedName("radiusKm") val radiusKm: Int = 15,
+    @SerializedName("isPrimary") val isPrimary: Boolean = false
+)
+
+data class AgentProfileData(
+    @SerializedName("advisorId") val advisorId: String? = null,
+    @SerializedName("userId") val userId: String = "",
+    @SerializedName("userType") val userType: String = "agent",
+    @SerializedName("fullName") val fullName: String = "",
+    val phone: String = "",
+    val email: String = "",
+    @SerializedName("serviceLabel") val serviceLabel: String = "SoulMatch Advisor",
+    val bio: String = "",
+    val city: String = "",
+    val state: String = "",
+    val locality: String = "",
+    val pincode: String = "",
+    val languages: List<String> = emptyList(),
+    val communities: List<String> = emptyList(),
+    @SerializedName("membershipPlan") val membershipPlan: String = "starter",
+    @SerializedName("membershipExpiresAt") val membershipExpiresAt: String? = null,
+    @SerializedName("kycStatus") val kycStatus: String = "pending",
+    val status: String = "draft",
+    @SerializedName("maxActiveProfiles") val maxActiveProfiles: Int = 25,
+    @SerializedName("activeAssignedProfiles") val activeAssignedProfiles: Int = 0,
+    @SerializedName("successRate") val successRate: Double = 0.0,
+    @SerializedName("averageRating") val averageRating: Double = 0.0,
+    @SerializedName("complaintScore") val complaintScore: Double = 0.0,
+    @SerializedName("serviceAreas") val serviceAreas: List<AgentServiceAreaData> = emptyList(),
+    @SerializedName("isOnboarded") val isOnboarded: Boolean = false
+)
+
+data class AgentProfileUpsertRequest(
+    val fullName: String,
+    val email: String = "",
+    val phone: String = "",
+    val city: String,
+    val state: String = "",
+    val locality: String = "",
+    val pincode: String = "",
+    val languages: List<String> = emptyList(),
+    val communities: List<String> = emptyList(),
+    val bio: String = "",
+    val serviceLabel: String = "SoulMatch Advisor"
+)
+
+data class AgentLeadData(
+    @SerializedName("profileId") val profileId: String = "",
+    @SerializedName("userId") val userId: String = "",
+    val name: String = "",
+    val age: Int = 0,
+    val religion: String = "",
+    val community: String = "",
+    @SerializedName("motherTongue") val motherTongue: String = "",
+    @SerializedName("workingCity") val workingCity: String = "",
+    @SerializedName("familyCity") val familyCity: String = "",
+    val occupation: String = "",
+    @SerializedName("primaryPhotoUrl") val primaryPhotoUrl: String? = null,
+    @SerializedName("trustScore") val trustScore: Int = 0,
+    @SerializedName("trustLevel") val trustLevel: String = "low",
+    @SerializedName("supportLevel") val supportLevel: String = "advisor_assisted",
+    @SerializedName("requestStatus") val requestStatus: String = "assigned",
+    @SerializedName("familyContactName") val familyContactName: String = "",
+    @SerializedName("familyContactPhone") val familyContactPhone: String = "",
+    @SerializedName("preferredContactWindow") val preferredContactWindow: String = "",
+    val notes: String = "",
+    @SerializedName("assignedAt") val assignedAt: String? = null,
+    @SerializedName("nextReviewAt") val nextReviewAt: String? = null
 )
 
 data class ProfileStepResponse(

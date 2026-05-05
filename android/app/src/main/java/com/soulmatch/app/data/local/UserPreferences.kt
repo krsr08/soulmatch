@@ -16,6 +16,8 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
         val AUTH_TOKEN = stringPreferencesKey("auth_token")
         val REFRESH_TOKEN = stringPreferencesKey("refresh_token")
         val USER_ID = stringPreferencesKey("user_id")
+        val USER_TYPE = stringPreferencesKey("user_type")
+        val ADVISOR_ID = stringPreferencesKey("advisor_id")
         val PROFILE_ID = stringPreferencesKey("profile_id")
         val PLAN_ID = stringPreferencesKey("plan_id")
         val PAGE_TO_LAND_AFTER_REFRESH = stringPreferencesKey("page_to_land_after_refresh")
@@ -30,6 +32,8 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
     val authToken: Flow<String?> = store.data.map { it[AUTH_TOKEN] }
     val refreshToken: Flow<String?> = store.data.map { it[REFRESH_TOKEN] }
     val userId: Flow<String?> = store.data.map { it[USER_ID] }
+    val userType: Flow<String?> = store.data.map { it[USER_TYPE] }
+    val advisorId: Flow<String?> = store.data.map { it[ADVISOR_ID] }
     val profileId: Flow<String?> = store.data.map { it[PROFILE_ID] }
     val planId: Flow<String?> = store.data.map { it[PLAN_ID] ?: "free" }
     val pageToLandAfterRefresh: Flow<String?> = store.data.map { it[PAGE_TO_LAND_AFTER_REFRESH] }
@@ -43,6 +47,12 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
     suspend fun saveAuthToken(t: String) { store.edit { it[AUTH_TOKEN] = t } }
     suspend fun saveRefreshToken(t: String) { store.edit { it[REFRESH_TOKEN] = t } }
     suspend fun saveUserId(id: String) { store.edit { it[USER_ID] = id } }
+    suspend fun saveUserType(type: String) { store.edit { it[USER_TYPE] = type } }
+    suspend fun saveAdvisorId(id: String) {
+        store.edit {
+            if (id.isBlank()) it.remove(ADVISOR_ID) else it[ADVISOR_ID] = id
+        }
+    }
     suspend fun saveProfileId(id: String) { store.edit { it[PROFILE_ID] = id } }
     suspend fun savePlanId(p: String) { store.edit { it[PLAN_ID] = p } }
     suspend fun savePageToLandAfterRefresh(tabKey: String) { store.edit { it[PAGE_TO_LAND_AFTER_REFRESH] = tabKey } }
