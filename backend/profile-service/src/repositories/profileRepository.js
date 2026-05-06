@@ -1795,3 +1795,697 @@ exports.calcCompletion = async (profileId) => {
   await db.query('UPDATE profiles SET completion_score=$1 WHERE profile_id=$2', [score,profileId]);
   return score;
 };
+
+const AGENT_PLAN_LIMITS = {
+  free: { planId: 'free', monthlyPrice: 0, profilesAllowed: 5, visibleMatches: 10, contactViews: 0, hasAnalytics: false, hasRelationshipManager: false, featuredBadge: false },
+  silver: { planId: 'silver', monthlyPrice: 999, profilesAllowed: 25, visibleMatches: 50, contactViews: 20, hasAnalytics: false, hasRelationshipManager: false, featuredBadge: false },
+  gold: { planId: 'gold', monthlyPrice: 2499, profilesAllowed: 100, visibleMatches: -1, contactViews: 100, hasAnalytics: true, hasRelationshipManager: false, featuredBadge: true },
+  platinum: { planId: 'platinum', monthlyPrice: 4999, profilesAllowed: -1, visibleMatches: -1, contactViews: -1, hasAnalytics: true, hasRelationshipManager: true, featuredBadge: true }
+};
+
+function normalizeAgentPlan(planId) {
+  const normalized = String(planId || 'free').trim().toLowerCase();
+  return AGENT_PLAN_LIMITS[normalized] ? normalized : 'free';
+}
+
+function normalizeAgentReviewStatus(value) {
+  const normalized = String(value || 'draft').trim().toLowerCase();
+  return ['draft', 'submitted', 'under_review', 'verified', 'rejected'].includes(normalized) ? normalized : 'draft';
+}
+
+function normalizeProfileDocumentStatus(value) {
+  const normalized = String(value || 'uploaded').trim().toLowerCase();
+  return ['not_uploaded', 'uploaded', 'under_review', 'verified', 'rejected'].includes(normalized) ? normalized : 'uploaded';
+}
+
+function normalizeProfileDocumentType(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['aadhaar', 'pan', 'voter_id', 'education_certificate', 'horoscope_pdf', 'divorce_decree'].includes(normalized) ? normalized : null;
+}
+
+function normalizeDocumentSide(value) {
+  const normalized = String(value || 'single').trim().toLowerCase();
+  return ['front', 'back', 'single'].includes(normalized) ? normalized : 'single';
+}
+
+function normalizeOnboardingStatus(value) {
+  const normalized = String(value || 'pending').trim().toLowerCase();
+  return ['pending', 'approved', 'rejected', 'more_info'].includes(normalized) ? normalized : 'pending';
+}
+
+async function getAdvisorByUserId(userId, client = null) {
+  const db = client || await getDB();
+  const result = await db.query(
+    `SELECT *
+     FROM advisors
+     WHERE user_id = $1
+     LIMIT 1`,
+    [userId]
+  );
+  return result.rows[0] || null;
+}
+
+async function requireAgentAdvisor(userId, client = null) {
+  const advisor = await getAdvisorByUserId(userId, client);
+  if (!advisor) return null;
+  return advisor;
+}
+
+async function buildAgentProfile(advisorId, client = null) {
+  const db = client || await getDB();
+  const result = await db.query(
+    `SELECT
+       a.advisor_id,
+       a.user_id,
+       'agent' AS user_type,
+       a.agent_code,
+       a.full_name,
+       a.phone,
+       a.email,
+       a.business_name,
+       a.referral_code,
+       a.service_label,
+       a.bio,
+       a.city,
+       a.state,
+       a.pincode,
+       a.profile_photo_url,
+       a.years_experience,
+       a.membership_plan,
+       a.membership_expires_at,
+       a.auto_renew,
+       a.contact_views_used,
+       a.languages,
+       a.communities,
+       a.fee_preferences,
+       a.kyc_status,
+       a.onboarding_status,
+       a.onboarding_rejection_reason,
+       a.approved_at,
+       a.rejected_at,
+       COALESCE(
+         json_agg(
+           json_build_object(
+             'advisorServiceAreaId', asa.advisor_service_area_id,
+             'city', asa.city,
+             'state', asa.state,
+             'locality', asa.locality,
+             'pincode', asa.pincode,
+             'radiusKm', asa.radius_km,
+             'priority', asa.priority,
+             'isPrimary', asa.is_primary
+           )
+           ORDER BY asa.is_primary DESC, asa.priority DESC, asa.created_at ASC
+         ) FILTER (WHERE asa.advisor_service_area_id IS NOT NULL),
+         '[]'::json
+       ) AS service_areas,
+       COALESCE(
+         json_agg(
+           json_build_object(
+             'advisorKycDocumentId', akd.advisor_kyc_document_id,
+             'documentType', akd.document_type,
+             'documentSide', akd.document_side,
+             'fileUrl', akd.file_url,
+             'status', akd.status,
+             'reviewComment', akd.review_comment,
+             'uploadedAt', akd.uploaded_at,
+             'reviewedAt', akd.reviewed_at
+           )
+           ORDER BY akd.created_at ASC
+         ) FILTER (WHERE akd.advisor_kyc_document_id IS NOT NULL),
+         '[]'::json
+       ) AS kyc_documents
+     FROM advisors a
+     LEFT JOIN advisor_service_areas asa ON asa.advisor_id = a.advisor_id
+     LEFT JOIN advisor_kyc_documents akd ON akd.advisor_id = a.advisor_id
+     WHERE a.advisor_id = $1
+     GROUP BY a.advisor_id`,
+    [advisorId]
+  );
+  const row = result.rows[0] || null;
+  if (!row) return null;
+  return {
+    advisorId: row.advisor_id,
+    userId: row.user_id,
+    userType: row.user_type,
+    agentCode: row.agent_code || '',
+    fullName: row.full_name || '',
+    phone: row.phone || '',
+    email: row.email || '',
+    businessName: row.business_name || '',
+    referralCode: row.referral_code || '',
+    serviceLabel: row.service_label || 'SoulMatch Advisor',
+    bio: row.bio || '',
+    city: row.city || '',
+    state: row.state || '',
+    pincode: row.pincode || '',
+    profilePhotoUrl: row.profile_photo_url || '',
+    yearsExperience: row.years_experience || 0,
+    membershipPlan: normalizeAgentPlan(row.membership_plan),
+    membershipExpiresAt: row.membership_expires_at,
+    autoRenew: row.auto_renew === true,
+    contactViewsUsed: Number(row.contact_views_used || 0),
+    languages: parseJsonList(row.languages),
+    communities: parseJsonList(row.communities),
+    feePreferences: row.fee_preferences || {},
+    kycStatus: row.kyc_status || 'pending',
+    onboardingStatus: row.onboarding_status || 'pending',
+    onboardingRejectionReason: row.onboarding_rejection_reason || '',
+    approvedAt: row.approved_at,
+    rejectedAt: row.rejected_at,
+    serviceAreas: row.service_areas || [],
+    kycDocuments: row.kyc_documents || [],
+    isOnboarded: row.onboarding_status === 'approved'
+  };
+}
+
+exports.getAgentProfileByUserId = async (userId) => {
+  const advisor = await getAdvisorByUserId(userId);
+  if (!advisor) return null;
+  return buildAgentProfile(advisor.advisor_id);
+};
+
+exports.upsertAgentOnboarding = async (userId, payload = {}) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const existing = await getAdvisorByUserId(userId, client);
+    let advisorId = existing?.advisor_id || randomUUID();
+    if (!existing) {
+      await client.query(
+        `INSERT INTO advisors (
+           advisor_id, user_id, full_name, phone, email, city, state, business_name, referral_code,
+           service_label, onboarding_status, kyc_status, membership_plan, created_at, updated_at
+         )
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending','pending','free',NOW(),NOW())`,
+        [
+          advisorId,
+          userId,
+          payload.fullName,
+          payload.phone,
+          payload.email || null,
+          payload.city,
+          payload.state || null,
+          payload.businessName || null,
+          payload.referralCode || null,
+          payload.serviceLabel || 'SoulMatch Agent'
+        ]
+      );
+    } else {
+      advisorId = existing.advisor_id;
+      await client.query(
+        `UPDATE advisors
+         SET full_name = COALESCE($2, full_name),
+             phone = COALESCE($3, phone),
+             email = COALESCE($4, email),
+             city = COALESCE($5, city),
+             state = COALESCE($6, state),
+             business_name = COALESCE($7, business_name),
+             referral_code = COALESCE($8, referral_code),
+             service_label = COALESCE($9, service_label),
+             onboarding_status = 'pending',
+             onboarding_rejection_reason = NULL,
+             updated_at = NOW()
+         WHERE advisor_id = $1`,
+        [advisorId, payload.fullName, payload.phone, payload.email || null, payload.city, payload.state || null, payload.businessName || null, payload.referralCode || null, payload.serviceLabel || null]
+      );
+      await client.query('DELETE FROM advisor_kyc_documents WHERE advisor_id = $1', [advisorId]);
+      await client.query('DELETE FROM advisor_service_areas WHERE advisor_id = $1', [advisorId]);
+    }
+
+    const serviceAreas = Array.isArray(payload.serviceAreas) && payload.serviceAreas.length
+      ? payload.serviceAreas
+      : [{ city: payload.city, state: payload.state || '', pincode: payload.pincode || '', locality: payload.locality || '', radiusKm: 25, isPrimary: true, priority: 10 }];
+    for (const [index, area] of serviceAreas.entries()) {
+      if (!area?.city) continue;
+      await client.query(
+        `INSERT INTO advisor_service_areas (
+           advisor_service_area_id, advisor_id, state, city, locality, pincode, radius_km, priority, is_primary, created_at
+         )
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
+        [randomUUID(), advisorId, area.state || null, area.city, area.locality || null, area.pincode || null, toIntegerOrDefault(area.radiusKm ?? area.radius_km, 25), toIntegerOrDefault(area.priority, index === 0 ? 10 : 0), area.isPrimary !== false]
+      );
+    }
+
+    const kycDocuments = Array.isArray(payload.kycDocuments) ? payload.kycDocuments : [];
+    for (const document of kycDocuments) {
+      const documentType = ['aadhaar', 'pan', 'voter_id'].includes(String(document.documentType || document.document_type || '').trim().toLowerCase())
+        ? String(document.documentType || document.document_type).trim().toLowerCase()
+        : null;
+      const fileUrl = cleanShortText(document.fileUrl || document.file_url, 2048);
+      if (!documentType || !fileUrl) continue;
+      await client.query(
+        `INSERT INTO advisor_kyc_documents (
+           advisor_kyc_document_id, advisor_id, document_type, document_side, file_url, status, uploaded_at, created_at, updated_at
+         )
+         VALUES ($1,$2,$3,$4,$5,'uploaded',NOW(),NOW(),NOW())`,
+        [randomUUID(), advisorId, documentType, normalizeDocumentSide(document.documentSide || document.document_side), fileUrl]
+      );
+    }
+
+    await client.query('UPDATE users SET user_type = $2, updated_at = NOW() WHERE user_id = $1', [userId, 'agent']);
+    await client.query('COMMIT');
+    return buildAgentProfile(advisorId);
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+exports.updateAgentProfileByUserId = async (userId, payload = {}) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const advisor = await requireAgentAdvisor(userId, client);
+    if (!advisor) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    await client.query(
+      `UPDATE advisors
+       SET full_name = COALESCE($2, full_name),
+           email = COALESCE($3, email),
+           profile_photo_url = COALESCE($4, profile_photo_url),
+           bio = COALESCE($5, bio),
+           city = COALESCE($6, city),
+           state = COALESCE($7, state),
+           pincode = COALESCE($8, pincode),
+           business_name = COALESCE($9, business_name),
+           years_experience = COALESCE($10, years_experience),
+           languages = COALESCE($11::jsonb, languages),
+           communities = COALESCE($12::jsonb, communities),
+           fee_preferences = COALESCE($13::jsonb, fee_preferences),
+           updated_at = NOW()
+       WHERE advisor_id = $1`,
+      [
+        advisor.advisor_id,
+        payload.fullName || null,
+        payload.email || null,
+        payload.profilePhotoUrl || null,
+        payload.bio || null,
+        payload.city || null,
+        payload.state || null,
+        payload.pincode || null,
+        payload.businessName || null,
+        payload.yearsExperience !== undefined ? toIntegerOrDefault(payload.yearsExperience, 0) : null,
+        payload.languages !== undefined ? JSON.stringify(toTextArray(payload.languages)) : null,
+        payload.communities !== undefined ? JSON.stringify(toTextArray(payload.communities)) : null,
+        payload.feePreferences !== undefined ? JSON.stringify(payload.feePreferences || {}) : null
+      ]
+    );
+    if (Array.isArray(payload.serviceAreas)) {
+      await client.query('DELETE FROM advisor_service_areas WHERE advisor_id = $1', [advisor.advisor_id]);
+      for (const [index, area] of payload.serviceAreas.entries()) {
+        if (!area?.city) continue;
+        await client.query(
+          `INSERT INTO advisor_service_areas (
+             advisor_service_area_id, advisor_id, state, city, locality, pincode, radius_km, priority, is_primary, created_at
+           )
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())`,
+          [randomUUID(), advisor.advisor_id, area.state || null, area.city, area.locality || null, area.pincode || null, toIntegerOrDefault(area.radiusKm ?? area.radius_km, 25), toIntegerOrDefault(area.priority, index === 0 ? 10 : 0), area.isPrimary !== false]
+        );
+      }
+    }
+    await client.query('COMMIT');
+    return buildAgentProfile(advisor.advisor_id);
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+exports.getAgentMembershipByUserId = async (userId) => {
+  const advisor = await getAdvisorByUserId(userId);
+  if (!advisor) return null;
+  const planId = normalizeAgentPlan(advisor.membership_plan);
+  return {
+    ...AGENT_PLAN_LIMITS[planId],
+    autoRenew: advisor.auto_renew === true,
+    contactViewsUsed: Number(advisor.contact_views_used || 0),
+    membershipExpiresAt: advisor.membership_expires_at,
+    onboardingStatus: advisor.onboarding_status || 'pending'
+  };
+};
+
+exports.getAgentMembershipPlans = async () => Object.values(AGENT_PLAN_LIMITS);
+
+exports.listManagedProfilesByAgentUserId = async (userId) => {
+  const advisor = await getAdvisorByUserId(userId);
+  if (!advisor) return [];
+  const db = await getDB();
+  const result = await db.query(
+    `SELECT
+       p.profile_id,
+       p.user_id,
+       p.first_name,
+       p.last_name,
+       p.gender,
+       p.dob,
+       p.religion,
+       p.caste,
+       p.mother_tongue,
+       p.primary_photo_url,
+       p.completion_score,
+       p.review_status,
+       p.verification_status,
+       p.rejection_reason,
+       p.created_at,
+       p.updated_at,
+       ec.occupation,
+       ec.annual_income,
+       ec.working_city,
+       fd.family_city,
+       fd.family_state,
+       COALESCE(view_stats.view_count, 0) AS view_count,
+       COALESCE(match_stats.match_count, 0) AS match_count,
+       COALESCE(document_stats.verified_count, 0) AS verified_document_count,
+       COALESCE(document_stats.total_count, 0) AS total_document_count
+     FROM profiles p
+     LEFT JOIN education_career ec ON ec.profile_id = p.profile_id
+     LEFT JOIN family_details fd ON fd.profile_id = p.profile_id
+     LEFT JOIN (
+       SELECT viewed_profile_id, COUNT(*)::int AS view_count
+       FROM profile_views
+       GROUP BY viewed_profile_id
+     ) view_stats ON view_stats.viewed_profile_id = p.profile_id
+     LEFT JOIN (
+       SELECT sender_id AS profile_id, COUNT(*)::int AS match_count
+       FROM interests
+       WHERE status = 'accepted'
+       GROUP BY sender_id
+     ) match_stats ON match_stats.profile_id = p.profile_id
+     LEFT JOIN (
+       SELECT profile_id,
+              COUNT(*)::int AS total_count,
+              COUNT(*) FILTER (WHERE status = 'verified')::int AS verified_count
+       FROM profile_documents
+       GROUP BY profile_id
+     ) document_stats ON document_stats.profile_id = p.profile_id
+     WHERE p.created_by_advisor_id = $1
+     ORDER BY p.updated_at DESC, p.created_at DESC`,
+    [advisor.advisor_id]
+  );
+  return result.rows.map((row) => ({
+    profileId: row.profile_id,
+    userId: row.user_id,
+    firstName: row.first_name || '',
+    lastName: row.last_name || '',
+    gender: row.gender || '',
+    dob: row.dob,
+    religion: row.religion || '',
+    caste: row.caste || '',
+    motherTongue: row.mother_tongue || '',
+    primaryPhotoUrl: row.primary_photo_url || '',
+    completionScore: Number(row.completion_score || 0),
+    reviewStatus: row.review_status || 'draft',
+    verificationStatus: row.verification_status || 'pending',
+    rejectionReason: row.rejection_reason || '',
+    occupation: row.occupation || '',
+    annualIncome: row.annual_income || '',
+    city: row.working_city || row.family_city || '',
+    state: row.family_state || '',
+    viewCount: Number(row.view_count || 0),
+    matchCount: Number(row.match_count || 0),
+    documentChecklistPercent: Number(row.total_document_count || 0) > 0 ? Math.round((Number(row.verified_document_count || 0) / Number(row.total_document_count || 0)) * 100) : 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  }));
+};
+
+exports.getManagedProfileByAgentUserId = async (userId, profileId) => {
+  const advisor = await getAdvisorByUserId(userId);
+  if (!advisor) return null;
+  const profile = await exports.findFullById(profileId);
+  if (!profile || profile.created_by_advisor_id !== advisor.advisor_id) return null;
+  profile.review_status = profile.review_status || 'draft';
+  profile.rejection_reason = profile.rejection_reason || '';
+  profile.review_notes = profile.review_notes || '';
+  return profile;
+};
+
+exports.createManagedProfileByAgentUserId = async (userId, payload = {}) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const advisor = await requireAgentAdvisor(userId, client);
+    if (!advisor) {
+      await client.query('ROLLBACK');
+      return { status: 'advisor_not_found' };
+    }
+    if (advisor.onboarding_status !== 'approved') {
+      await client.query('ROLLBACK');
+      return { status: 'advisor_not_approved' };
+    }
+    const plan = AGENT_PLAN_LIMITS[normalizeAgentPlan(advisor.membership_plan)];
+    const countResult = await client.query('SELECT COUNT(*)::int AS total FROM profiles WHERE created_by_advisor_id = $1', [advisor.advisor_id]);
+    const totalProfiles = Number(countResult.rows[0]?.total || 0);
+    if (plan.profilesAllowed >= 0 && totalProfiles >= plan.profilesAllowed) {
+      await client.query('ROLLBACK');
+      return { status: 'profile_limit_reached', limit: plan.profilesAllowed };
+    }
+
+    const memberUserId = randomUUID();
+    const profileId = randomUUID();
+    await client.query(
+      `INSERT INTO users (user_id, phone, email, is_verified, user_type, created_at, updated_at)
+       VALUES ($1,$2,$3,false,'member',NOW(),NOW())`,
+      [memberUserId, payload.mobile ? String(payload.mobile).trim() : null, payload.email ? String(payload.email).trim() : null]
+    );
+    await client.query(
+      `INSERT INTO profiles (
+         profile_id, user_id, first_name, last_name, dob, gender, religion, caste, mother_tongue, marital_status,
+         is_published, profile_created_by, created_by_advisor_id, verification_status, review_status, admin_status, created_at, updated_at
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,'mediator',$11,'pending','draft','active',NOW(),NOW())`,
+      [
+        profileId,
+        memberUserId,
+        payload.firstName || '',
+        payload.lastName || '',
+        payload.dob || null,
+        payload.gender || null,
+        payload.religion || null,
+        payload.caste || null,
+        payload.motherTongue || null,
+        payload.maritalStatus || 'never_married',
+        advisor.advisor_id
+      ]
+    );
+    await client.query(
+      `INSERT INTO physical_details (profile_id, height_cm, weight_kg, complexion, created_at)
+       VALUES ($1,$2,$3,$4,NOW())
+       ON CONFLICT (profile_id) DO UPDATE SET height_cm = EXCLUDED.height_cm, weight_kg = EXCLUDED.weight_kg, complexion = EXCLUDED.complexion`,
+      [profileId, toIntegerOrNull(payload.heightCm), toIntegerOrNull(payload.weightKg), cleanShortText(payload.complexion, 30)]
+    );
+    await client.query(
+      `INSERT INTO education_career (profile_id, education_level, occupation, annual_income, working_city, created_at)
+       VALUES ($1,$2,$3,$4,$5,NOW())
+       ON CONFLICT (profile_id) DO UPDATE SET education_level = EXCLUDED.education_level, occupation = EXCLUDED.occupation, annual_income = EXCLUDED.annual_income, working_city = EXCLUDED.working_city`,
+      [profileId, cleanShortText(payload.educationLevel, 50), cleanShortText(payload.occupation, 100), cleanShortText(payload.annualIncome, 50), cleanShortText(payload.city || payload.workingCity, 100)]
+    );
+    await client.query(
+      `INSERT INTO family_details (profile_id, father_occupation, mother_occupation, num_brothers, num_sisters, family_type, family_city, family_state, family_pincode, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+       ON CONFLICT (profile_id) DO UPDATE SET father_occupation = EXCLUDED.father_occupation, mother_occupation = EXCLUDED.mother_occupation, num_brothers = EXCLUDED.num_brothers, num_sisters = EXCLUDED.num_sisters, family_type = EXCLUDED.family_type, family_city = EXCLUDED.family_city, family_state = EXCLUDED.family_state, family_pincode = EXCLUDED.family_pincode`,
+      [profileId, cleanShortText(payload.fatherOccupation, 100), cleanShortText(payload.motherOccupation, 100), toIntegerOrDefault(payload.numBrothers, 0), toIntegerOrDefault(payload.numSisters, 0), cleanShortText(payload.familyType, 30), cleanShortText(payload.city || payload.familyCity, 100), cleanShortText(payload.state || payload.familyState, 100), cleanShortText(payload.pincode || payload.familyPincode, 12)]
+    );
+    await client.query(
+      `INSERT INTO lifestyle_details (profile_id, diet, smoking, drinking, about_me, created_at)
+       VALUES ($1,$2,$3,$4,$5,NOW())
+       ON CONFLICT (profile_id) DO UPDATE SET diet = EXCLUDED.diet, smoking = EXCLUDED.smoking, drinking = EXCLUDED.drinking, about_me = EXCLUDED.about_me`,
+      [profileId, cleanShortText(payload.diet, 30), cleanShortText(payload.smoking, 20) || 'never', cleanShortText(payload.drinking, 20) || 'never', cleanShortText(payload.aboutMe || payload.specialNotes, 1000)]
+    );
+    await client.query(
+      `INSERT INTO horoscope_details (profile_id, rashi, gotra, created_at)
+       VALUES ($1,$2,$3,NOW())
+       ON CONFLICT (profile_id) DO UPDATE SET rashi = EXCLUDED.rashi, gotra = EXCLUDED.gotra`,
+      [profileId, cleanShortText(payload.rashi, 30), cleanShortText(payload.subCaste || payload.gotra, 100)]
+    );
+    await client.query('COMMIT');
+    return { status: 'created', profile: await exports.findFullById(profileId) };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    if (error.code === '23505') return { status: 'duplicate_contact' };
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+exports.updateManagedProfileByAgentUserId = async (userId, profileId, payload = {}) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const advisor = await requireAgentAdvisor(userId, client);
+    const profile = advisor ? await exports.findById(profileId) : null;
+    if (!advisor || !profile || profile.created_by_advisor_id !== advisor.advisor_id) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    await client.query(
+      `UPDATE profiles
+       SET first_name = COALESCE($2, first_name),
+           last_name = COALESCE($3, last_name),
+           dob = COALESCE($4, dob),
+           gender = COALESCE($5, gender),
+           religion = COALESCE($6, religion),
+           caste = COALESCE($7, caste),
+           mother_tongue = COALESCE($8, mother_tongue),
+           marital_status = COALESCE($9, marital_status),
+           review_status = CASE WHEN review_status = 'rejected' THEN 'draft' ELSE review_status END,
+           rejection_reason = CASE WHEN review_status = 'rejected' THEN NULL ELSE rejection_reason END,
+           updated_at = NOW()
+       WHERE profile_id = $1`,
+      [profileId, payload.firstName || null, payload.lastName || null, payload.dob || null, payload.gender || null, payload.religion || null, payload.caste || null, payload.motherTongue || null, payload.maritalStatus || null]
+    );
+    if (payload.mobile !== undefined || payload.email !== undefined) {
+      await client.query(
+        `UPDATE users
+         SET phone = COALESCE($2, phone),
+             email = COALESCE($3, email),
+             updated_at = NOW()
+         WHERE user_id = $1`,
+        [profile.user_id, payload.mobile ? String(payload.mobile).trim() : null, payload.email ? String(payload.email).trim() : null]
+      );
+    }
+    await client.query(
+      `INSERT INTO physical_details (profile_id, height_cm, weight_kg, complexion, created_at)
+       VALUES ($1,$2,$3,$4,NOW())
+       ON CONFLICT (profile_id) DO UPDATE SET height_cm = COALESCE(EXCLUDED.height_cm, physical_details.height_cm), weight_kg = COALESCE(EXCLUDED.weight_kg, physical_details.weight_kg), complexion = COALESCE(EXCLUDED.complexion, physical_details.complexion)`,
+      [profileId, toIntegerOrNull(payload.heightCm), toIntegerOrNull(payload.weightKg), cleanShortText(payload.complexion, 30)]
+    );
+    await client.query(
+      `INSERT INTO education_career (profile_id, education_level, occupation, annual_income, working_city, created_at)
+       VALUES ($1,$2,$3,$4,$5,NOW())
+       ON CONFLICT (profile_id) DO UPDATE SET education_level = COALESCE(EXCLUDED.education_level, education_career.education_level), occupation = COALESCE(EXCLUDED.occupation, education_career.occupation), annual_income = COALESCE(EXCLUDED.annual_income, education_career.annual_income), working_city = COALESCE(EXCLUDED.working_city, education_career.working_city)`,
+      [profileId, cleanShortText(payload.educationLevel, 50), cleanShortText(payload.occupation, 100), cleanShortText(payload.annualIncome, 50), cleanShortText(payload.city || payload.workingCity, 100)]
+    );
+    await client.query(
+      `INSERT INTO family_details (profile_id, father_occupation, mother_occupation, num_brothers, num_sisters, family_type, family_city, family_state, family_pincode, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+       ON CONFLICT (profile_id) DO UPDATE SET father_occupation = COALESCE(EXCLUDED.father_occupation, family_details.father_occupation), mother_occupation = COALESCE(EXCLUDED.mother_occupation, family_details.mother_occupation), num_brothers = COALESCE(EXCLUDED.num_brothers, family_details.num_brothers), num_sisters = COALESCE(EXCLUDED.num_sisters, family_details.num_sisters), family_type = COALESCE(EXCLUDED.family_type, family_details.family_type), family_city = COALESCE(EXCLUDED.family_city, family_details.family_city), family_state = COALESCE(EXCLUDED.family_state, family_details.family_state), family_pincode = COALESCE(EXCLUDED.family_pincode, family_details.family_pincode)`,
+      [profileId, cleanShortText(payload.fatherOccupation, 100), cleanShortText(payload.motherOccupation, 100), toIntegerOrNull(payload.numBrothers), toIntegerOrNull(payload.numSisters), cleanShortText(payload.familyType, 30), cleanShortText(payload.city || payload.familyCity, 100), cleanShortText(payload.state || payload.familyState, 100), cleanShortText(payload.pincode || payload.familyPincode, 12)]
+    );
+    await client.query(
+      `INSERT INTO lifestyle_details (profile_id, diet, smoking, drinking, about_me, created_at)
+       VALUES ($1,$2,$3,$4,$5,NOW())
+       ON CONFLICT (profile_id) DO UPDATE SET diet = COALESCE(EXCLUDED.diet, lifestyle_details.diet), smoking = COALESCE(EXCLUDED.smoking, lifestyle_details.smoking), drinking = COALESCE(EXCLUDED.drinking, lifestyle_details.drinking), about_me = COALESCE(EXCLUDED.about_me, lifestyle_details.about_me)`,
+      [profileId, cleanShortText(payload.diet, 30), cleanShortText(payload.smoking, 20), cleanShortText(payload.drinking, 20), cleanShortText(payload.aboutMe || payload.specialNotes, 1000)]
+    );
+    await client.query('COMMIT');
+    return exports.findFullById(profileId);
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    if (error.code === '23505') return { status: 'duplicate_contact' };
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+exports.deleteManagedProfileByAgentUserId = async (userId, profileId) => {
+  const advisor = await getAdvisorByUserId(userId);
+  if (!advisor) return false;
+  const profile = await exports.findById(profileId);
+  if (!profile || profile.created_by_advisor_id !== advisor.advisor_id) return false;
+  if (normalizeAgentReviewStatus(profile.review_status) !== 'draft') return { status: 'not_draft' };
+  const db = await getDB();
+  await db.query('DELETE FROM users WHERE user_id = $1', [profile.user_id]);
+  return true;
+};
+
+exports.submitManagedProfileByAgentUserId = async (userId, profileId) => {
+  const advisor = await getAdvisorByUserId(userId);
+  if (!advisor) return { status: 'advisor_not_found' };
+  const profile = await exports.findFullById(profileId);
+  if (!profile || profile.created_by_advisor_id !== advisor.advisor_id) return { status: 'not_found' };
+  const completionScore = await exports.calcCompletion(profileId);
+  const photoCount = await exports.getPhotoCount(profileId);
+  if (completionScore < 40) return { status: 'incomplete_profile', completionScore };
+  if (photoCount < 1) return { status: 'photos_required' };
+  const db = await getDB();
+  await db.query(
+    `UPDATE profiles
+     SET review_status = 'submitted',
+         verification_status = 'pending',
+         submitted_at = NOW(),
+         reviewed_at = NULL,
+         rejection_reason = NULL,
+         review_notes = NULL,
+         updated_at = NOW()
+     WHERE profile_id = $1`,
+    [profileId]
+  );
+  return { status: 'submitted', profile: await exports.findFullById(profileId) };
+};
+
+exports.listManagedProfileDocumentsByAgentUserId = async (userId, profileId) => {
+  const advisor = await getAdvisorByUserId(userId);
+  if (!advisor) return null;
+  const profile = await exports.findById(profileId);
+  if (!profile || profile.created_by_advisor_id !== advisor.advisor_id) return null;
+  const db = await getDB();
+  const result = await db.query(
+    `SELECT
+       profile_document_id,
+       document_type,
+       document_side,
+       file_url,
+       status,
+       review_comment,
+       uploaded_at,
+       reviewed_at
+     FROM profile_documents
+     WHERE profile_id = $1
+     ORDER BY document_type ASC, document_side ASC, created_at ASC`,
+    [profileId]
+  );
+  return result.rows.map((row) => ({
+    profileDocumentId: row.profile_document_id,
+    documentType: row.document_type,
+    documentSide: row.document_side,
+    fileUrl: row.file_url,
+    status: row.status,
+    reviewComment: row.review_comment || '',
+    uploadedAt: row.uploaded_at,
+    reviewedAt: row.reviewed_at
+  }));
+};
+
+exports.upsertManagedProfileDocumentByAgentUserId = async (userId, profileId, payload = {}) => {
+  const advisor = await getAdvisorByUserId(userId);
+  if (!advisor) return { status: 'advisor_not_found' };
+  const profile = await exports.findById(profileId);
+  if (!profile || profile.created_by_advisor_id !== advisor.advisor_id) return { status: 'not_found' };
+  const documentType = normalizeProfileDocumentType(payload.documentType || payload.document_type);
+  const fileUrl = cleanShortText(payload.fileUrl || payload.file_url, 2048);
+  if (!documentType || !fileUrl) return { status: 'invalid_document' };
+  const documentSide = normalizeDocumentSide(payload.documentSide || payload.document_side);
+  const db = await getDB();
+  const result = await db.query(
+    `INSERT INTO profile_documents (
+       profile_document_id, profile_id, advisor_id, document_type, document_side, file_url, status, review_comment, uploaded_at, created_at, updated_at
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,'uploaded',NULL,NOW(),NOW(),NOW())
+     ON CONFLICT (profile_id, document_type, document_side) DO UPDATE SET
+       advisor_id = EXCLUDED.advisor_id,
+       file_url = EXCLUDED.file_url,
+       status = 'uploaded',
+       review_comment = NULL,
+       uploaded_at = NOW(),
+       reviewed_at = NULL,
+       reviewed_by = NULL,
+       updated_at = NOW()
+     RETURNING *`,
+    [randomUUID(), profileId, advisor.advisor_id, documentType, documentSide, fileUrl]
+  );
+  return { status: 'saved', document: result.rows[0] };
+};

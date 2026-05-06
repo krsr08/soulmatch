@@ -18,8 +18,10 @@ interface ProfileApiService {
     @GET("profile/me") suspend fun getMyProfile(): Response<GenericResponse<ProfileData>>
     @GET("profile/agent/me") suspend fun getAgentProfile(): Response<GenericResponse<AgentProfileData>>
     @PUT("profile/agent/me") suspend fun upsertAgentProfile(@Body req: AgentProfileUpsertRequest): Response<GenericResponse<AgentProfileData>>
-    @GET("profile/agent/leads") suspend fun getAgentLeads(): Response<GenericResponse<List<AgentLeadData>>>
-    @GET("profile/agent/leads/{profileId}") suspend fun getAgentLead(@Path("profileId") profileId: String): Response<GenericResponse<AgentLeadData>>
+    @POST("profile/agent/onboarding") suspend fun submitAgentOnboarding(@Body req: AgentOnboardingRequest): Response<GenericResponse<AgentProfileData>>
+    @GET("profile/agent/membership") suspend fun getAgentMembership(): Response<GenericResponse<AgentMembershipData>>
+    @GET("profile/agent/membership/plans") suspend fun getAgentMembershipPlans(): Response<GenericResponse<List<AgentMembershipData>>>
+    @GET("profile/agent/managed-profiles") suspend fun getAgentManagedProfiles(): Response<GenericResponse<List<AgentManagedProfileSummaryData>>>
     @GET("profile/assist/status") suspend fun getAssistStatus(): Response<GenericResponse<AssistStatusData>>
     @PUT("profile/assist/status") suspend fun updateAssistStatus(@Body req: AssistStatusRequest): Response<GenericResponse<AssistStatusData>>
     @GET("profile/family-decisions") suspend fun getFamilyDecisions(): Response<GenericResponse<List<FamilyDecisionData>>>

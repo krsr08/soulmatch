@@ -58,6 +58,7 @@ import com.soulmatch.app.ui.viewmodels.AuthViewModel
 @Composable
 fun PhoneEntryScreen(
     content: PhoneEntryContentData = PhoneEntryContentData(),
+    userType: String = "member",
     onOTPSent: (String) -> Unit,
     onVerified: (String) -> Unit = {},
     onBack: () -> Unit,
@@ -162,7 +163,7 @@ fun PhoneEntryScreen(
 
                         Button(
                             onClick = {
-                                vm.sendOTP(countryCode + phone)
+                                vm.sendOTP(countryCode + phone, userType)
                             },
                             modifier = Modifier
                                 .fillMaxWidth()

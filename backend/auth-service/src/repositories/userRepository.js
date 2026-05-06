@@ -39,6 +39,12 @@ function buildPhoneCandidates(phone) {
 }
 
 exports.normalizePhone = normalizePhone;
+function normalizeUserType(userType) {
+  const normalized = String(userType || 'member').trim().toLowerCase();
+  return ['member', 'agent', 'admin'].includes(normalized) ? normalized : 'member';
+}
+
+exports.normalizeUserType = normalizeUserType;
 exports.findByPhone = async (phone) => {
   const db = await getDB();
   const candidates = buildPhoneCandidates(phone);
@@ -54,10 +60,11 @@ exports.findById = async (userId) => { const db = await getDB(); const r = await
 exports.create = async (data) => {
   const db = await getDB();
   const normalizedPhone = normalizePhone(data.phone);
+  const userType = normalizeUserType(data.user_type);
   const r = await db.query(
     `INSERT INTO users (
-       user_id, phone, email, google_id, is_verified, referred_by_code, acquisition_source, referred_at
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+       user_id, phone, email, google_id, is_verified, referred_by_code, acquisition_source, referred_at, user_type
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
     [
       randomUUID(),
       normalizedPhone || null,
@@ -66,7 +73,8 @@ exports.create = async (data) => {
       data.is_verified || false,
       data.referred_by_code || null,
       data.acquisition_source || null,
-      data.referred_at || null
+      data.referred_at || null,
+      userType
     ]
   );
   return r.rows[0];

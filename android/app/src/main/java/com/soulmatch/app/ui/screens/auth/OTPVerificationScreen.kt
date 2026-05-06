@@ -26,7 +26,7 @@ import com.soulmatch.app.ui.viewmodels.AuthUiState
 import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OTPVerificationScreen(phone: String, onVerified: (String) -> Unit, onBack: () -> Unit, vm: AuthViewModel = hiltViewModel()) {
+fun OTPVerificationScreen(phone: String, userType: String = "member", onVerified: (String) -> Unit, onBack: () -> Unit, vm: AuthViewModel = hiltViewModel()) {
     val boxes = remember { mutableStateListOf("","","","","","") }
     val focusers = remember { List(6) { FocusRequester() } }
     val state by vm.uiState.collectAsStateWithLifecycle()
@@ -45,13 +45,13 @@ fun OTPVerificationScreen(phone: String, onVerified: (String) -> Unit, onBack: (
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 boxes.forEachIndexed { i, v ->
                     val borderColor = when { state is AuthUiState.Error -> MaterialTheme.colorScheme.error; v.isNotEmpty() -> Primary; else -> MaterialTheme.colorScheme.outline }
-                    BasicTextField(value = v, onValueChange = { nv -> if (nv.length <= 1 && nv.all(Char::isDigit)) { boxes[i] = nv; if (nv.isNotEmpty() && i < 5) focusers[i+1].requestFocus(); if (boxes.joinToString("").length == 6) vm.verifyOTP(phone, boxes.joinToString("")) } }, modifier = Modifier.size(48.dp).border(2.dp, borderColor, RoundedCornerShape(8.dp)).focusRequester(focusers[i]), textStyle = TextStyle(fontSize=20.sp, fontWeight=FontWeight.Bold, textAlign=TextAlign.Center, color=MaterialTheme.colorScheme.onSurface), keyboardOptions = KeyboardOptions(keyboardType=KeyboardType.NumberPassword), singleLine = true, decorationBox = { inner -> Box(Modifier.fillMaxSize(), contentAlignment=Alignment.Center) { inner() } })
+                    BasicTextField(value = v, onValueChange = { nv -> if (nv.length <= 1 && nv.all(Char::isDigit)) { boxes[i] = nv; if (nv.isNotEmpty() && i < 5) focusers[i+1].requestFocus(); if (boxes.joinToString("").length == 6) vm.verifyOTP(phone, boxes.joinToString(""), userType) } }, modifier = Modifier.size(48.dp).border(2.dp, borderColor, RoundedCornerShape(8.dp)).focusRequester(focusers[i]), textStyle = TextStyle(fontSize=20.sp, fontWeight=FontWeight.Bold, textAlign=TextAlign.Center, color=MaterialTheme.colorScheme.onSurface), keyboardOptions = KeyboardOptions(keyboardType=KeyboardType.NumberPassword), singleLine = true, decorationBox = { inner -> Box(Modifier.fillMaxSize(), contentAlignment=Alignment.Center) { inner() } })
                 }
             }
             if (state is AuthUiState.Error) Text((state as AuthUiState.Error).message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top=8.dp))
             Spacer(Modifier.height(32.dp))
             if (canResend) TextButton(onClick = {
-                vm.sendOTP(phone)
+                vm.sendOTP(phone, userType)
                 countdown=30
                 canResend=false
                 resendCycle++
