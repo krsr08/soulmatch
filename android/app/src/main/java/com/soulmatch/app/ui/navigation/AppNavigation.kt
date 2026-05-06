@@ -126,7 +126,7 @@ fun AppNavigation(
                 branding = branding,
                 content = content.auth,
                 googleWebClientId = clientIntegrations.googleWebClientId,
-                onOtpSent = { phone -> nav.navigate("otp/${Uri.encode(phone)}?userType=") },
+                onOtpSent = { phone -> nav.navigate(buildOtpRoute(phone)) },
                 onOpenTerms = { nav.navigate("legal/terms") },
                 onOpenPrivacy = { nav.navigate("legal/privacy") },
                 onAuthenticated = { route ->
@@ -169,7 +169,7 @@ fun AppNavigation(
                 content = content.phoneEntry,
                 userType = userType,
                 entryMode = entryMode,
-                onOTPSent = { phone -> nav.navigate("otp/${Uri.encode(phone)}?userType=${userType.orEmpty()}") },
+                onOTPSent = { phone -> nav.navigate(buildOtpRoute(phone, userType)) },
                 onVerified = { route ->
                     nav.navigate(route) { popUpTo("welcome") { inclusive = true } }
                 },
@@ -590,4 +590,13 @@ private fun String.shouldShowBottomNavigation(): Boolean {
         !startsWith("agent_") &&
         !startsWith("profile_wizard") &&
         !startsWith("legal/")
+}
+
+private fun buildOtpRoute(phone: String, userType: String? = null): String {
+    val encodedPhone = Uri.encode(phone)
+    return if (userType.isNullOrBlank()) {
+        "otp/$encodedPhone"
+    } else {
+        "otp/$encodedPhone?userType=${Uri.encode(userType)}"
+    }
 }
