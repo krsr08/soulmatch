@@ -14,22 +14,22 @@ data class ErrorData(
     val message: String = ""
 )
 
-data class SendOTPRequest(val phone: String, val userType: String = "member")
+data class SendOTPRequest(val phone: String, val userType: String? = null)
 data class VerifyOTPRequest(
     val phone: String,
     val otp: String,
-    val userType: String = "member"
+    val userType: String? = null
 )
 data class GoogleLoginRequest(
     val googleToken: String,
-    val userType: String = "member"
+    val userType: String? = null
 )
 data class FirebasePhoneLoginRequest(
     val firebaseToken: String,
     val phone: String? = null,
     val inviteCode: String? = null,
     val acquisitionSource: String? = null,
-    val userType: String = "member"
+    val userType: String? = null
 )
 data class RefreshTokenRequest(val refreshToken: String)
 data class FcmTokenRequest(val token: String)

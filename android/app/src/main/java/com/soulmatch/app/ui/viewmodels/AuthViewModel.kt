@@ -53,7 +53,7 @@ class AuthViewModel @Inject constructor(
         _state.value = AuthUiState.Error(message)
     }
 
-    fun sendOTP(phone: String, userType: String = "member") {
+    fun sendOTP(phone: String, userType: String? = null) {
         viewModelScope.launch {
             _state.value = AuthUiState.Loading
             try {
@@ -67,7 +67,7 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun sendFirebaseOTP(activity: Activity, phone: String, userType: String = "member") {
+    fun sendFirebaseOTP(activity: Activity, phone: String, userType: String? = null) {
         _state.value = AuthUiState.Loading
         val options = PhoneAuthOptions.newBuilder(firebaseAuth)
             .setPhoneNumber(phone)
@@ -98,7 +98,7 @@ class AuthViewModel @Inject constructor(
         PhoneAuthProvider.verifyPhoneNumber(options)
     }
 
-    fun verifyOTP(phone: String, otp: String, userType: String = "member") {
+    fun verifyOTP(phone: String, otp: String, userType: String? = null) {
         viewModelScope.launch {
             _state.value = AuthUiState.Loading
             try {
@@ -123,7 +123,7 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun googleLogin(googleIdToken: String?, userType: String = "member") {
+    fun googleLogin(googleIdToken: String?, userType: String? = null) {
         if (googleIdToken.isNullOrBlank()) {
             _state.value = AuthUiState.Error("Google sign-in did not return an ID token. Check OAuth client configuration and try again.")
             return
@@ -145,7 +145,7 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    private suspend fun completeFirebasePhoneVerification(phone: String, credential: PhoneAuthCredential, userType: String = "member") {
+    private suspend fun completeFirebasePhoneVerification(phone: String, credential: PhoneAuthCredential, userType: String? = null) {
         try {
             val signInResult = firebaseAuth.signInWithCredential(credential).await()
             val user = signInResult.user

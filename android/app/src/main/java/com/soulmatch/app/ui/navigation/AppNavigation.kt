@@ -44,8 +44,12 @@ import com.soulmatch.app.ui.screens.auth.OTPVerificationScreen
 import com.soulmatch.app.ui.screens.auth.PhoneEntryScreen
 import com.soulmatch.app.ui.screens.auth.ProfileWizardScreen
 import com.soulmatch.app.ui.screens.auth.WelcomeScreen
+import com.soulmatch.app.ui.screens.agent.AgentAccountScreen
+import com.soulmatch.app.ui.screens.agent.AgentClientProfileScreen
 import com.soulmatch.app.ui.screens.agent.AgentDashboardScreen
 import com.soulmatch.app.ui.screens.agent.AgentOnboardingScreen
+import com.soulmatch.app.ui.screens.agent.AgentPlansScreen
+import com.soulmatch.app.ui.screens.agent.AgentProfilesScreen
 import com.soulmatch.app.ui.screens.chat.ChatListScreen
 import com.soulmatch.app.ui.screens.chat.ChatScreen
 import com.soulmatch.app.ui.screens.home.BestMatchesScreen
@@ -121,9 +125,9 @@ fun AppNavigation(
                 branding = branding,
                 content = content.auth,
                 googleWebClientId = clientIntegrations.googleWebClientId,
-                onLogin = { nav.navigate("phone_entry?userType=member") },
-                onRegister = { nav.navigate("phone_entry?userType=member") },
-                onContinue = { nav.navigate("phone_entry?userType=agent") },
+                onLogin = { nav.navigate("phone_entry?entryMode=login&userType=") },
+                onRegisterAsUser = { nav.navigate("phone_entry?entryMode=register&userType=member") },
+                onRegisterAsAgent = { nav.navigate("phone_entry?entryMode=register&userType=agent") },
                 onOpenTerms = { nav.navigate("legal/terms") },
                 onOpenPrivacy = { nav.navigate("legal/privacy") },
                 onAuthenticated = { route ->
@@ -148,19 +152,25 @@ fun AppNavigation(
             )
         }
         composable(
-            "phone_entry?userType={userType}",
+            "phone_entry?entryMode={entryMode}&userType={userType}",
             arguments = listOf(
+                navArgument("entryMode") {
+                    type = NavType.StringType
+                    defaultValue = "login"
+                },
                 navArgument("userType") {
                     type = NavType.StringType
-                    defaultValue = "member"
+                    defaultValue = ""
                 }
             )
         ) { backStack ->
-            val userType = backStack.arguments?.getString("userType") ?: "member"
+            val userType = backStack.arguments?.getString("userType")?.takeIf { it.isNotBlank() }
+            val entryMode = backStack.arguments?.getString("entryMode") ?: "login"
             PhoneEntryScreen(
                 content = content.phoneEntry,
                 userType = userType,
-                onOTPSent = { phone -> nav.navigate("otp/${Uri.encode(phone)}?userType=$userType") },
+                entryMode = entryMode,
+                onOTPSent = { phone -> nav.navigate("otp/${Uri.encode(phone)}?userType=${userType.orEmpty()}") },
                 onVerified = { route ->
                     nav.navigate(route) { popUpTo("welcome") { inclusive = true } }
                 },
@@ -173,13 +183,13 @@ fun AppNavigation(
                 navArgument("phone") { type = NavType.StringType },
                 navArgument("userType") {
                     type = NavType.StringType
-                    defaultValue = "member"
+                    defaultValue = ""
                 }
             )
         ) { backStack ->
             OTPVerificationScreen(
                 phone = Uri.decode(backStack.arguments?.getString("phone") ?: ""),
-                userType = backStack.arguments?.getString("userType") ?: "member",
+                userType = backStack.arguments?.getString("userType")?.takeIf { it.isNotBlank() },
                 onVerified = { route ->
                     nav.navigate(route) { popUpTo("welcome") { inclusive = true } }
                 },
@@ -194,13 +204,58 @@ fun AppNavigation(
                         popUpTo("agent_onboarding") { inclusive = true }
                         launchSingleTop = true
                     }
-                }
+                },
+                onOpenDashboard = { nav.navigate("agent_dashboard") },
+                onOpenProfiles = { nav.navigate("agent_profiles") },
+                onOpenPlans = { nav.navigate("agent_plans") },
+                onOpenAccount = { nav.navigate("agent_account") }
             )
         }
         composable("agent_dashboard") {
             AgentDashboardScreen(
-                onBack = { nav.popBackStack() },
+                onOpenOnboarding = { nav.navigate("agent_onboarding") },
+                onOpenProfiles = { nav.navigate("agent_profiles") },
+                onOpenPlans = { nav.navigate("agent_plans") },
+                onOpenAccount = { nav.navigate("agent_account") },
+                onOpenCreateProfile = { nav.navigate("agent_client_profile") }
+            )
+        }
+        composable("agent_profiles") {
+            AgentProfilesScreen(
+                onOpenDashboard = { nav.navigate("agent_dashboard") },
+                onOpenPlans = { nav.navigate("agent_plans") },
+                onOpenAccount = { nav.navigate("agent_account") },
+                onOpenCreateProfile = { nav.navigate("agent_client_profile") }
+            )
+        }
+        composable("agent_plans") {
+            AgentPlansScreen(
+                onOpenDashboard = { nav.navigate("agent_dashboard") },
+                onOpenProfiles = { nav.navigate("agent_profiles") },
+                onOpenAccount = { nav.navigate("agent_account") }
+            )
+        }
+        composable("agent_account") {
+            AgentAccountScreen(
+                onOpenDashboard = { nav.navigate("agent_dashboard") },
+                onOpenProfiles = { nav.navigate("agent_profiles") },
+                onOpenPlans = { nav.navigate("agent_plans") },
                 onOpenOnboarding = { nav.navigate("agent_onboarding") }
+            )
+        }
+        composable("agent_client_profile") {
+            AgentClientProfileScreen(
+                onBack = { nav.popBackStack() },
+                onSaved = {
+                    nav.navigate("agent_profiles") {
+                        popUpTo("agent_client_profile") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+                onOpenDashboard = { nav.navigate("agent_dashboard") },
+                onOpenProfiles = { nav.navigate("agent_profiles") },
+                onOpenPlans = { nav.navigate("agent_plans") },
+                onOpenAccount = { nav.navigate("agent_account") }
             )
         }
         composable(

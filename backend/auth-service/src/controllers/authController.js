@@ -9,12 +9,19 @@ const { getDB } = require('../config/database');
 const { recordAnalyticsEvent } = require('../../shared/controlPlane');
 
 function normalizeRequestedUserType(value) {
-  return userRepo.normalizeUserType(value);
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  return userRepo.normalizeUserType(text);
 }
 
 function ensureRequestedUserType(user, requestedUserType) {
   const currentUserType = userRepo.normalizeUserType(user?.user_type);
+  if (!requestedUserType) return currentUserType;
   if (currentUserType !== requestedUserType) {
+    if (requestedUserType === 'agent' && currentUserType === 'member') {
+      throw new AppError(409, ErrorCodes.VALIDATION_ERROR, 'This mobile number is already registered as a user. Please use a different number to register as an agent.');
+    }
     throw new AppError(409, ErrorCodes.VALIDATION_ERROR, `This account is already registered as a ${currentUserType}. Please continue with that account type.`);
   }
   return currentUserType;
@@ -77,10 +84,11 @@ exports.verifyOTP = async (req, res, next) => {
       if (!referral) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Invite code is invalid or expired'));
     }
     if (isNewUser) {
+      const newUserType = requestedUserType || 'member';
       user = await userRepo.create({
         phone: normalizedPhone,
         is_verified: true,
-        user_type: requestedUserType,
+        user_type: newUserType,
         referred_by_code: referral?.code || null,
         acquisition_source: acquisitionSource || referral?.channel || null,
         referred_at: referral ? new Date() : null
@@ -97,7 +105,7 @@ exports.verifyOTP = async (req, res, next) => {
       ensureRequestedUserType(user, requestedUserType);
       await userRepo.updateLastLogin(user.user_id);
     }
-    const resolvedUserType = userRepo.normalizeUserType(user.user_type || requestedUserType);
+    const resolvedUserType = ensureRequestedUserType(user, requestedUserType);
     const { accessToken, refreshToken } = tokenService.generatePair({ userId: user.user_id, phone: user.phone, userType: resolvedUserType });
     await tokenService.storeRefresh(user.user_id, refreshToken);
     if (isNewUser) {
@@ -134,11 +142,12 @@ exports.googleLogin = async (req, res, next) => {
       if (!referral) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Invite code is invalid or expired'));
     }
     if (isNewUser) {
+      const newUserType = requestedUserType || 'member';
       user = await userRepo.create({
         google_id: googleId,
         email,
         is_verified: true,
-        user_type: requestedUserType,
+        user_type: newUserType,
         referred_by_code: referral?.code || null,
         acquisition_source: acquisitionSource || referral?.channel || null,
         referred_at: referral ? new Date() : null
@@ -153,8 +162,9 @@ exports.googleLogin = async (req, res, next) => {
       }
     } else {
       ensureRequestedUserType(user, requestedUserType);
+      await userRepo.updateLastLogin(user.user_id);
     }
-    const resolvedUserType = userRepo.normalizeUserType(user.user_type || requestedUserType);
+    const resolvedUserType = ensureRequestedUserType(user, requestedUserType);
     const { accessToken, refreshToken } = tokenService.generatePair({ userId: user.user_id, email: user.email, userType: resolvedUserType });
     await tokenService.storeRefresh(user.user_id, refreshToken);
     if (isNewUser) {
@@ -200,10 +210,11 @@ exports.firebasePhoneLogin = async (req, res, next) => {
     }
 
     if (isNewUser) {
+      const newUserType = requestedUserType || 'member';
       user = await userRepo.create({
         phone: verifiedPhone,
         is_verified: true,
-        user_type: requestedUserType,
+        user_type: newUserType,
         referred_by_code: referral?.code || null,
         acquisition_source: acquisitionSource || referral?.channel || null,
         referred_at: referral ? new Date() : null
@@ -221,7 +232,7 @@ exports.firebasePhoneLogin = async (req, res, next) => {
       await userRepo.updateLastLogin(user.user_id);
     }
 
-    const resolvedUserType = userRepo.normalizeUserType(user.user_type || requestedUserType);
+    const resolvedUserType = ensureRequestedUserType(user, requestedUserType);
     const { accessToken, refreshToken } = tokenService.generatePair({ userId: user.user_id, phone: user.phone, userType: resolvedUserType });
     await tokenService.storeRefresh(user.user_id, refreshToken);
 

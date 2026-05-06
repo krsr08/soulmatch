@@ -26,7 +26,7 @@ import com.soulmatch.app.ui.viewmodels.AuthUiState
 import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OTPVerificationScreen(phone: String, userType: String = "member", onVerified: (String) -> Unit, onBack: () -> Unit, vm: AuthViewModel = hiltViewModel()) {
+fun OTPVerificationScreen(phone: String, userType: String? = null, onVerified: (String) -> Unit, onBack: () -> Unit, vm: AuthViewModel = hiltViewModel()) {
     val boxes = remember { mutableStateListOf("","","","","","") }
     val focusers = remember { List(6) { FocusRequester() } }
     val state by vm.uiState.collectAsStateWithLifecycle()
