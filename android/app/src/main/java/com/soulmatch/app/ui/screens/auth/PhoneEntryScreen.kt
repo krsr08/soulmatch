@@ -58,7 +58,8 @@ import com.soulmatch.app.ui.viewmodels.AuthViewModel
 @Composable
 fun PhoneEntryScreen(
     content: PhoneEntryContentData = PhoneEntryContentData(),
-    userType: String = "member",
+    userType: String? = null,
+    entryMode: String = "login",
     onOTPSent: (String) -> Unit,
     onVerified: (String) -> Unit = {},
     onBack: () -> Unit,
@@ -101,12 +102,20 @@ fun PhoneEntryScreen(
                 PremiumCard(containerColor = SurfaceWarm) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
-                            content.title.ifBlank { "Enter your mobile number" },
+                            when {
+                                entryMode == "register" && userType == "agent" -> "Create your agent account"
+                                entryMode == "register" -> "Create your account"
+                                else -> content.title.ifBlank { "Enter your mobile number" }
+                            },
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.ExtraBold
                         )
                         Text(
-                            content.subtitle.ifBlank { "We use this number for OTP login, account recovery, and important match alerts." },
+                            when {
+                                entryMode == "register" && userType == "agent" -> "We will verify this number before your agent onboarding starts."
+                                entryMode == "register" -> "We will use this number for OTP registration, recovery, and match alerts."
+                                else -> content.subtitle.ifBlank { "We use this number for OTP login, account recovery, and important match alerts." }
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextSecondary
                         )

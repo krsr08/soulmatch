@@ -34,6 +34,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -42,6 +43,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -86,8 +89,8 @@ fun WelcomeScreen(
     content: AuthContentData = AuthContentData(),
     googleWebClientId: String = "",
     onLogin: () -> Unit,
-    onRegister: () -> Unit,
-    onContinue: () -> Unit,
+    onRegisterAsUser: () -> Unit,
+    onRegisterAsAgent: () -> Unit,
     onOpenTerms: () -> Unit,
     onOpenPrivacy: () -> Unit,
     onAuthenticated: (String) -> Unit = {},
@@ -95,6 +98,7 @@ fun WelcomeScreen(
 ) {
     val context = LocalContext.current
     val state by vm.uiState.collectAsStateWithLifecycle()
+    val showRoleDialog = remember { mutableStateOf(false) }
     val webClientId = rememberGoogleWebClientId(googleWebClientId)
     val googleClient = GoogleSignIn.getClient(
         context,
@@ -109,7 +113,7 @@ fun WelcomeScreen(
         val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
         try {
             val account = task.getResult(ApiException::class.java)
-            vm.googleLogin(account.idToken)
+            vm.googleLogin(account.idToken, null)
         } catch (error: ApiException) {
             val statusName = GoogleSignInStatusCodes.getStatusCodeString(error.statusCode)
             Log.e("WelcomeScreen", "Google sign-in failed: statusCode=${error.statusCode}, status=$statusName", error)
@@ -121,6 +125,37 @@ fun WelcomeScreen(
         if (state is AuthUiState.Verified) {
             onAuthenticated((state as AuthUiState.Verified).route)
         }
+    }
+
+    if (showRoleDialog.value) {
+        AlertDialog(
+            onDismissRequest = { showRoleDialog.value = false },
+            title = { Text("Register as Agent?", fontWeight = FontWeight.Bold) },
+            text = { Text("Select Yes if this account is for an agent. Select No to continue as a normal user.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showRoleDialog.value = false
+                        onRegisterAsAgent()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = LoginPink)
+                ) {
+                    Text("Yes")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        showRoleDialog.value = false
+                        onRegisterAsUser()
+                    },
+                    border = BorderStroke(1.dp, LoginPink.copy(alpha = 0.55f))
+                ) {
+                    Text("No", color = LoginPink)
+                }
+            },
+            containerColor = Color.White
+        )
     }
 
     BoxWithConstraints(
@@ -162,9 +197,8 @@ fun WelcomeScreen(
                 state = state,
                 content = content,
                 compact = compact,
-                onRegister = onRegister,
+                onRegister = { showRoleDialog.value = true },
                 onLogin = onLogin,
-                onAgentRegister = onContinue,
                 onGoogle = {
                     vm.clearError()
                     if (webClientId.isBlank()) {
@@ -327,7 +361,6 @@ private fun AuthCard(
     modifier: Modifier = Modifier,
     onRegister: () -> Unit,
     onLogin: () -> Unit,
-    onAgentRegister: () -> Unit,
     onGoogle: () -> Unit
 ) {
     Column(
@@ -393,8 +426,6 @@ private fun AuthCard(
                 )
             }
         }
-
-        AgentRegistrationCard(compact = compact, onRegister = onAgentRegister)
         SafetyHighlights(compact = compact)
     }
 }
@@ -501,70 +532,6 @@ private fun FooterLegal(
                     lineHeight = if (compact) 13.sp else 24.sp,
                     fontWeight = FontWeight.Medium,
                     textAlign = TextAlign.Center
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AgentRegistrationCard(
-    compact: Boolean,
-    onRegister: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = Color.White.copy(alpha = 0.52f),
-        border = BorderStroke(1.dp, LoginSocialBorder.copy(alpha = 0.95f))
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = if (compact) 12.dp else 22.dp, vertical = if (compact) 12.dp else 22.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = LoginPink.copy(alpha = 0.1f),
-                modifier = Modifier.size(if (compact) 42.dp else 64.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Work, contentDescription = null, tint = LoginPink, modifier = Modifier.size(if (compact) 22.dp else 32.dp))
-                }
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    "Are you a Matrimony Agent?",
-                    color = LoginDeepText,
-                    fontSize = if (compact) 16.sp else 26.sp,
-                    lineHeight = if (compact) 20.sp else 32.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
-                Text(
-                    "Manage multiple profiles and help families find the perfect match.",
-                    color = LoginSocialText,
-                    fontSize = if (compact) 11.sp else 18.sp,
-                    lineHeight = if (compact) 15.sp else 25.sp
-                )
-            }
-            OutlinedButton(
-                onClick = onRegister,
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.2.dp, LoginPink.copy(alpha = 0.65f)),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = Color.White,
-                    contentColor = LoginPink
-                )
-            ) {
-                Text(
-                    "Register\nas Agent",
-                    textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = if (compact) 13.sp else 18.sp,
-                    lineHeight = if (compact) 16.sp else 22.sp
                 )
             }
         }
