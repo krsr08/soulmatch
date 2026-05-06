@@ -14,7 +14,7 @@ data class ErrorData(
     val message: String = ""
 )
 
-data class SendOTPRequest(val phone: String)
+data class SendOTPRequest(val phone: String, val userType: String = "member")
 data class VerifyOTPRequest(
     val phone: String,
     val otp: String,
@@ -66,28 +66,44 @@ data class AgentProfileData(
     @SerializedName("advisorId") val advisorId: String? = null,
     @SerializedName("userId") val userId: String = "",
     @SerializedName("userType") val userType: String = "agent",
+    @SerializedName("agentCode") val agentCode: String = "",
     @SerializedName("fullName") val fullName: String = "",
     val phone: String = "",
     val email: String = "",
+    @SerializedName("businessName") val businessName: String = "",
+    @SerializedName("referralCode") val referralCode: String = "",
     @SerializedName("serviceLabel") val serviceLabel: String = "SoulMatch Advisor",
     val bio: String = "",
     val city: String = "",
     val state: String = "",
-    val locality: String = "",
     val pincode: String = "",
+    @SerializedName("profilePhotoUrl") val profilePhotoUrl: String = "",
+    @SerializedName("yearsExperience") val yearsExperience: Int = 0,
     val languages: List<String> = emptyList(),
     val communities: List<String> = emptyList(),
-    @SerializedName("membershipPlan") val membershipPlan: String = "starter",
+    @SerializedName("membershipPlan") val membershipPlan: String = "free",
     @SerializedName("membershipExpiresAt") val membershipExpiresAt: String? = null,
+    @SerializedName("autoRenew") val autoRenew: Boolean = false,
+    @SerializedName("contactViewsUsed") val contactViewsUsed: Int = 0,
     @SerializedName("kycStatus") val kycStatus: String = "pending",
-    val status: String = "draft",
-    @SerializedName("maxActiveProfiles") val maxActiveProfiles: Int = 25,
-    @SerializedName("activeAssignedProfiles") val activeAssignedProfiles: Int = 0,
+    @SerializedName("onboardingStatus") val onboardingStatus: String = "pending",
+    @SerializedName("onboardingRejectionReason") val onboardingRejectionReason: String = "",
+    @SerializedName("feePreferences") val feePreferences: Map<String, String> = emptyMap(),
     @SerializedName("successRate") val successRate: Double = 0.0,
     @SerializedName("averageRating") val averageRating: Double = 0.0,
     @SerializedName("complaintScore") val complaintScore: Double = 0.0,
     @SerializedName("serviceAreas") val serviceAreas: List<AgentServiceAreaData> = emptyList(),
+    @SerializedName("kycDocuments") val kycDocuments: List<AgentKycDocumentData> = emptyList(),
     @SerializedName("isOnboarded") val isOnboarded: Boolean = false
+)
+
+data class AgentKycDocumentData(
+    @SerializedName("advisorKycDocumentId") val advisorKycDocumentId: String = "",
+    @SerializedName("documentType") val documentType: String = "",
+    @SerializedName("documentSide") val documentSide: String = "single",
+    @SerializedName("fileUrl") val fileUrl: String = "",
+    val status: String = "uploaded",
+    @SerializedName("reviewComment") val reviewComment: String = ""
 )
 
 data class AgentProfileUpsertRequest(
@@ -102,6 +118,64 @@ data class AgentProfileUpsertRequest(
     val communities: List<String> = emptyList(),
     val bio: String = "",
     val serviceLabel: String = "SoulMatch Advisor"
+)
+
+data class AgentOnboardingRequest(
+    val fullName: String,
+    val phone: String,
+    val email: String = "",
+    val city: String,
+    val state: String,
+    val businessName: String,
+    val referralCode: String = "",
+    val serviceLabel: String = "SoulMatch Agent",
+    val serviceAreas: List<AgentServiceAreaData> = emptyList(),
+    val kycDocuments: List<AgentKycDocumentInput> = emptyList()
+)
+
+data class AgentKycDocumentInput(
+    val documentType: String,
+    val documentSide: String = "single",
+    val fileUrl: String
+)
+
+data class AgentManagedProfileSummaryData(
+    @SerializedName("profileId") val profileId: String = "",
+    @SerializedName("userId") val userId: String = "",
+    @SerializedName("firstName") val firstName: String = "",
+    @SerializedName("lastName") val lastName: String = "",
+    val gender: String = "",
+    val dob: String? = null,
+    val religion: String = "",
+    val caste: String = "",
+    @SerializedName("motherTongue") val motherTongue: String = "",
+    @SerializedName("primaryPhotoUrl") val primaryPhotoUrl: String = "",
+    @SerializedName("completionScore") val completionScore: Int = 0,
+    @SerializedName("reviewStatus") val reviewStatus: String = "draft",
+    @SerializedName("verificationStatus") val verificationStatus: String = "pending",
+    @SerializedName("rejectionReason") val rejectionReason: String = "",
+    val occupation: String = "",
+    @SerializedName("annualIncome") val annualIncome: String = "",
+    val city: String = "",
+    val state: String = "",
+    @SerializedName("viewCount") val viewCount: Int = 0,
+    @SerializedName("matchCount") val matchCount: Int = 0,
+    @SerializedName("documentChecklistPercent") val documentChecklistPercent: Int = 0
+)
+
+data class AgentMembershipData(
+    @SerializedName("planId") val planId: String = "free",
+    @SerializedName("monthlyPrice") val monthlyPrice: Int = 0,
+    @SerializedName("profilesAllowed") val profilesAllowed: Int = 5,
+    @SerializedName("visibleMatches") val visibleMatches: Int = 10,
+    @SerializedName("contactViews") val contactViews: Int = 0,
+    @SerializedName("hasAnalytics") val hasAnalytics: Boolean = false,
+    @SerializedName("hasRelationshipManager") val hasRelationshipManager: Boolean = false,
+    @SerializedName("featuredBadge") val featuredBadge: Boolean = false,
+    @SerializedName("autoRenew") val autoRenew: Boolean = false,
+    @SerializedName("contactViewsUsed") val contactViewsUsed: Int = 0,
+    @SerializedName("membershipExpiresAt") val membershipExpiresAt: String? = null,
+    @SerializedName("onboardingStatus") val onboardingStatus: String = "pending"
 )
 
 data class AgentLeadData(

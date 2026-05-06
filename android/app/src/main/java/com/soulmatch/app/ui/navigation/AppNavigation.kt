@@ -44,6 +44,8 @@ import com.soulmatch.app.ui.screens.auth.OTPVerificationScreen
 import com.soulmatch.app.ui.screens.auth.PhoneEntryScreen
 import com.soulmatch.app.ui.screens.auth.ProfileWizardScreen
 import com.soulmatch.app.ui.screens.auth.WelcomeScreen
+import com.soulmatch.app.ui.screens.agent.AgentDashboardScreen
+import com.soulmatch.app.ui.screens.agent.AgentOnboardingScreen
 import com.soulmatch.app.ui.screens.chat.ChatListScreen
 import com.soulmatch.app.ui.screens.chat.ChatScreen
 import com.soulmatch.app.ui.screens.home.BestMatchesScreen
@@ -119,9 +121,9 @@ fun AppNavigation(
                 branding = branding,
                 content = content.auth,
                 googleWebClientId = clientIntegrations.googleWebClientId,
-                onLogin = { nav.navigate("phone_entry") },
-                onRegister = { nav.navigate("phone_entry") },
-                onContinue = { nav.navigate("phone_entry") },
+                onLogin = { nav.navigate("phone_entry?userType=member") },
+                onRegister = { nav.navigate("phone_entry?userType=member") },
+                onContinue = { nav.navigate("phone_entry?userType=agent") },
                 onOpenTerms = { nav.navigate("legal/terms") },
                 onOpenPrivacy = { nav.navigate("legal/privacy") },
                 onAuthenticated = { route ->
@@ -145,23 +147,60 @@ fun AppNavigation(
                 onBack = { nav.popBackStack() }
             )
         }
-        composable("phone_entry") {
+        composable(
+            "phone_entry?userType={userType}",
+            arguments = listOf(
+                navArgument("userType") {
+                    type = NavType.StringType
+                    defaultValue = "member"
+                }
+            )
+        ) { backStack ->
+            val userType = backStack.arguments?.getString("userType") ?: "member"
             PhoneEntryScreen(
                 content = content.phoneEntry,
-                onOTPSent = { phone -> nav.navigate("otp/$phone") },
+                userType = userType,
+                onOTPSent = { phone -> nav.navigate("otp/$phone?userType=$userType") },
                 onVerified = { route ->
                     nav.navigate(route) { popUpTo("welcome") { inclusive = true } }
                 },
                 onBack = { nav.popBackStack() }
             )
         }
-        composable("otp/{phone}", arguments = listOf(navArgument("phone") { type = NavType.StringType })) { backStack ->
+        composable(
+            "otp/{phone}?userType={userType}",
+            arguments = listOf(
+                navArgument("phone") { type = NavType.StringType },
+                navArgument("userType") {
+                    type = NavType.StringType
+                    defaultValue = "member"
+                }
+            )
+        ) { backStack ->
             OTPVerificationScreen(
                 phone = backStack.arguments?.getString("phone") ?: "",
+                userType = backStack.arguments?.getString("userType") ?: "member",
                 onVerified = { route ->
                     nav.navigate(route) { popUpTo("welcome") { inclusive = true } }
                 },
                 onBack = { nav.popBackStack() }
+            )
+        }
+        composable("agent_onboarding") {
+            AgentOnboardingScreen(
+                onBack = { nav.popBackStack() },
+                onCompleted = {
+                    nav.navigate("agent_dashboard") {
+                        popUpTo("agent_onboarding") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+        composable("agent_dashboard") {
+            AgentDashboardScreen(
+                onBack = { nav.popBackStack() },
+                onOpenOnboarding = { nav.navigate("agent_onboarding") }
             )
         }
         composable(
@@ -484,6 +523,7 @@ private fun String.shouldShowBottomNavigation(): Boolean {
     return !startsWith("welcome") &&
         !startsWith("phone_entry") &&
         !startsWith("otp/") &&
+        !startsWith("agent_") &&
         !startsWith("profile_wizard") &&
         !startsWith("legal/")
 }

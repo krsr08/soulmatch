@@ -10,8 +10,22 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => cb(null, Date.now() + '-' + Math.random().toString(36).slice(2) + path.extname(file.originalname))
 });
 const photoUpload = multer({ storage, limits: { fileSize: 5*1024*1024 }, fileFilter: (req, file, cb) => { const ok = ['image/jpeg','image/png','image/webp'].includes(file.mimetype); cb(ok?null:new Error('JPG/PNG/WebP only'), ok); } });
+const documentUpload = multer({ storage, limits: { fileSize: 10*1024*1024 }, fileFilter: (req, file, cb) => { const ok = ['image/jpeg','image/png','image/webp','application/pdf'].includes(file.mimetype); cb(ok?null:new Error('JPG/PNG/WebP/PDF only'), ok); } });
 router.post('/create', authenticate, ctrl.createOrUpdateStep);
 router.get('/me', authenticate, ctrl.getMyProfile);
+router.get('/agent/me', authenticate, ctrl.getAgentProfile);
+router.post('/agent/onboarding', authenticate, documentUpload.array('documents', 6), ctrl.upsertAgentOnboarding);
+router.put('/agent/me', authenticate, ctrl.updateAgentProfile);
+router.get('/agent/membership', authenticate, ctrl.getAgentMembership);
+router.get('/agent/membership/plans', authenticate, ctrl.getAgentMembershipPlans);
+router.get('/agent/managed-profiles', authenticate, ctrl.listManagedProfiles);
+router.post('/agent/managed-profiles', authenticate, ctrl.createManagedProfile);
+router.get('/agent/managed-profiles/:profileId', authenticate, ctrl.getManagedProfile);
+router.put('/agent/managed-profiles/:profileId', authenticate, ctrl.updateManagedProfile);
+router.delete('/agent/managed-profiles/:profileId', authenticate, ctrl.deleteManagedProfile);
+router.post('/agent/managed-profiles/:profileId/submit', authenticate, ctrl.submitManagedProfile);
+router.get('/agent/managed-profiles/:profileId/documents', authenticate, ctrl.listManagedProfileDocuments);
+router.post('/agent/managed-profiles/:profileId/documents', authenticate, documentUpload.array('documents', 4), ctrl.upsertManagedProfileDocument);
 router.get('/assist/status', authenticate, ctrl.getAssistStatus);
 router.put('/assist/status', authenticate, ctrl.updateAssistStatus);
 router.patch('/status', authenticate, ctrl.updateProfileStatus);

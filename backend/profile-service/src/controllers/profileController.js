@@ -18,6 +18,13 @@ const isBlank = (value) => typeof value !== 'string' || !value.trim();
 const hasPositiveNumber = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const INDIAN_DATE_RE = /^\d{2}[-/]\d{2}[-/]\d{4}$/;
+const AGENT_REVIEW_STATUSES = new Set(['draft', 'submitted', 'under_review', 'verified', 'rejected']);
+
+function requireAgentAccount(req) {
+  if (req.user?.userType !== 'agent') {
+    throw new AppError(403, ErrorCodes.FORBIDDEN, 'This action is available only to approved agent accounts.');
+  }
+}
 
 function auditMeta(req) {
   return {
@@ -141,6 +148,18 @@ function normalizeProfileStatus(value) {
 function normalizeAssistSupportLevel(value) {
   const normalized = String(value || '').trim().toLowerCase();
   return ALLOWED_ASSIST_SUPPORT_LEVELS.has(normalized) ? normalized : null;
+}
+
+function normalizeAgentReviewStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return AGENT_REVIEW_STATUSES.has(normalized) ? normalized : null;
+}
+
+function resolveUploadUrls(files = []) {
+  return files.map((file) => {
+    const normalized = file.path.replace(/\\/g, '/');
+    return normalized.startsWith('/uploads/') ? normalized : `/uploads/${normalized.split('/').slice(-1)[0]}`;
+  });
 }
 
 function normalizeFamilyDecisionPayload(body = {}) {
@@ -673,5 +692,191 @@ exports.submitVerification = async (req, res, next) => {
       return res.json({ success: true, data: result.verification, message: 'Your verification request is already in review.' });
     }
     res.json({ success: true, data: result.verification, message: 'Verification request submitted for admin review.' });
+  } catch (err) { next(err); }
+};
+
+exports.getAgentProfile = async (req, res, next) => {
+  try {
+    requireAgentAccount(req);
+    const profile = await repo.getAgentProfileByUserId(req.user.userId);
+    res.json({ success: true, data: profile, isNewAgent: !profile });
+  } catch (err) { next(err); }
+};
+
+exports.upsertAgentOnboarding = async (req, res, next) => {
+  try {
+    requireAgentAccount(req);
+    const body = req.body || {};
+    if (isBlank(body.fullName) || isBlank(body.phone) || isBlank(body.city) || isBlank(body.state) || isBlank(body.businessName)) {
+      return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Full name, phone, city, state, and business name are required.'));
+    }
+    const uploadUrls = resolveUploadUrls(req.files || []);
+    const kycDocuments = (Array.isArray(body.kycDocuments) ? body.kycDocuments : []).concat(
+      uploadUrls.map((fileUrl, index) => ({ documentType: index < 2 ? 'aadhaar' : 'pan', documentSide: index === 1 ? 'back' : 'single', fileUrl }))
+    );
+    const saved = await repo.upsertAgentOnboarding(req.user.userId, {
+      ...body,
+      kycDocuments
+    });
+    await auditUserChange(req, {
+      entityType: 'agent_onboarding',
+      entityId: saved?.advisorId,
+      action: 'agent_onboarding.submit',
+      beforeData: {},
+      afterData: saved || {}
+    });
+    res.json({ success: true, data: saved, message: 'Agent onboarding submitted for review.' });
+  } catch (err) { next(err); }
+};
+
+exports.updateAgentProfile = async (req, res, next) => {
+  try {
+    requireAgentAccount(req);
+    const before = await repo.getAgentProfileByUserId(req.user.userId);
+    const saved = await repo.updateAgentProfileByUserId(req.user.userId, req.body || {});
+    if (!saved) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Agent profile not found'));
+    await auditUserChange(req, {
+      entityType: 'agent_profile',
+      entityId: saved.advisorId,
+      action: 'agent_profile.update',
+      beforeData: before || {},
+      afterData: saved
+    });
+    res.json({ success: true, data: saved });
+  } catch (err) { next(err); }
+};
+
+exports.getAgentMembership = async (req, res, next) => {
+  try {
+    requireAgentAccount(req);
+    const membership = await repo.getAgentMembershipByUserId(req.user.userId);
+    if (!membership) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Agent membership not found'));
+    res.json({ success: true, data: membership });
+  } catch (err) { next(err); }
+};
+
+exports.getAgentMembershipPlans = async (req, res, next) => {
+  try {
+    requireAgentAccount(req);
+    res.json({ success: true, data: await repo.getAgentMembershipPlans() });
+  } catch (err) { next(err); }
+};
+
+exports.listManagedProfiles = async (req, res, next) => {
+  try {
+    requireAgentAccount(req);
+    res.json({ success: true, data: await repo.listManagedProfilesByAgentUserId(req.user.userId) });
+  } catch (err) { next(err); }
+};
+
+exports.getManagedProfile = async (req, res, next) => {
+  try {
+    requireAgentAccount(req);
+    const profile = await repo.getManagedProfileByAgentUserId(req.user.userId, req.params.profileId);
+    if (!profile) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Managed profile not found'));
+    res.json({ success: true, data: profile });
+  } catch (err) { next(err); }
+};
+
+exports.createManagedProfile = async (req, res, next) => {
+  try {
+    requireAgentAccount(req);
+    const result = await repo.createManagedProfileByAgentUserId(req.user.userId, req.body || {});
+    if (result.status === 'advisor_not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Agent profile not found'));
+    if (result.status === 'advisor_not_approved') return next(new AppError(403, ErrorCodes.FORBIDDEN, 'Your agent account must be approved before creating member profiles.'));
+    if (result.status === 'profile_limit_reached') return next(new AppError(403, ErrorCodes.FORBIDDEN, `Your current plan allows up to ${result.limit} active profiles.`));
+    if (result.status === 'duplicate_contact') return next(new AppError(409, ErrorCodes.VALIDATION_ERROR, 'This mobile number or email is already linked to another profile.'));
+    await auditUserChange(req, {
+      profileId: result.profile?.profile_id,
+      entityType: 'managed_profile',
+      entityId: result.profile?.profile_id,
+      action: 'managed_profile.create',
+      beforeData: {},
+      afterData: result.profile || {}
+    });
+    res.status(201).json({ success: true, data: result.profile });
+  } catch (err) { next(err); }
+};
+
+exports.updateManagedProfile = async (req, res, next) => {
+  try {
+    requireAgentAccount(req);
+    const before = await repo.getManagedProfileByAgentUserId(req.user.userId, req.params.profileId);
+    if (!before) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Managed profile not found'));
+    const updated = await repo.updateManagedProfileByAgentUserId(req.user.userId, req.params.profileId, req.body || {});
+    if (updated?.status === 'duplicate_contact') return next(new AppError(409, ErrorCodes.VALIDATION_ERROR, 'This mobile number or email is already linked to another profile.'));
+    await auditUserChange(req, {
+      profileId: req.params.profileId,
+      entityType: 'managed_profile',
+      entityId: req.params.profileId,
+      action: 'managed_profile.update',
+      beforeData: before,
+      afterData: updated || {}
+    });
+    res.json({ success: true, data: updated });
+  } catch (err) { next(err); }
+};
+
+exports.deleteManagedProfile = async (req, res, next) => {
+  try {
+    requireAgentAccount(req);
+    const result = await repo.deleteManagedProfileByAgentUserId(req.user.userId, req.params.profileId);
+    if (result === false) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Managed profile not found'));
+    if (result?.status === 'not_draft') return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Only draft profiles can be deleted.'));
+    res.json({ success: true });
+  } catch (err) { next(err); }
+};
+
+exports.submitManagedProfile = async (req, res, next) => {
+  try {
+    requireAgentAccount(req);
+    const result = await repo.submitManagedProfileByAgentUserId(req.user.userId, req.params.profileId);
+    if (result.status === 'advisor_not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Agent profile not found'));
+    if (result.status === 'not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Managed profile not found'));
+    if (result.status === 'incomplete_profile') return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, `Complete more profile details before submitting. Current completion: ${result.completionScore}%.`));
+    if (result.status === 'photos_required') return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Upload at least one profile photo before submitting.'));
+    await auditUserChange(req, {
+      profileId: req.params.profileId,
+      entityType: 'managed_profile',
+      entityId: req.params.profileId,
+      action: 'managed_profile.submit',
+      beforeData: {},
+      afterData: result.profile || {}
+    });
+    res.json({ success: true, data: result.profile, message: 'Profile submitted for admin review.' });
+  } catch (err) { next(err); }
+};
+
+exports.listManagedProfileDocuments = async (req, res, next) => {
+  try {
+    requireAgentAccount(req);
+    const documents = await repo.listManagedProfileDocumentsByAgentUserId(req.user.userId, req.params.profileId);
+    if (!documents) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Managed profile not found'));
+    res.json({ success: true, data: documents });
+  } catch (err) { next(err); }
+};
+
+exports.upsertManagedProfileDocument = async (req, res, next) => {
+  try {
+    requireAgentAccount(req);
+    const uploadUrls = resolveUploadUrls(req.files || []);
+    const fileUrl = uploadUrls[0] || normalizeDocumentUrl(req.body);
+    if (fileUrl === false) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Document URL must be an HTTPS URL or a SoulMatch upload path.'));
+    const result = await repo.upsertManagedProfileDocumentByAgentUserId(req.user.userId, req.params.profileId, {
+      ...req.body,
+      fileUrl
+    });
+    if (result.status === 'advisor_not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Agent profile not found'));
+    if (result.status === 'not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Managed profile not found'));
+    if (result.status === 'invalid_document') return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Document type and file are required.'));
+    await auditUserChange(req, {
+      profileId: req.params.profileId,
+      entityType: 'managed_profile_document',
+      entityId: result.document?.profile_document_id,
+      action: 'managed_profile_document.upsert',
+      beforeData: {},
+      afterData: result.document || {}
+    });
+    res.json({ success: true, data: result.document });
   } catch (err) { next(err); }
 };

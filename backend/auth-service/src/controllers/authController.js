@@ -8,6 +8,18 @@ const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const { getDB } = require('../config/database');
 const { recordAnalyticsEvent } = require('../../shared/controlPlane');
 
+function normalizeRequestedUserType(value) {
+  return userRepo.normalizeUserType(value);
+}
+
+function ensureRequestedUserType(user, requestedUserType) {
+  const currentUserType = userRepo.normalizeUserType(user?.user_type);
+  if (currentUserType !== requestedUserType) {
+    throw new AppError(409, ErrorCodes.VALIDATION_ERROR, `This account is already registered as a ${currentUserType}. Please continue with that account type.`);
+  }
+  return currentUserType;
+}
+
 exports.sendOTP = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -44,7 +56,8 @@ exports.verifyOTP = async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, errors.array()[0].msg));
-    const { phone, otp, inviteCode, acquisitionSource } = req.body;
+    const { phone, otp, inviteCode, acquisitionSource, userType } = req.body;
+    const requestedUserType = normalizeRequestedUserType(userType);
     const normalizedPhone = userRepo.normalizePhone(phone) || phone;
     if (!await otpService.hasOTP(phone)) return next(new AppError(400, ErrorCodes.OTP_EXPIRED, 'OTP expired. Request new one.'));
     const validOtp = await otpService.verifyStoredOTP(phone, otp);
@@ -67,6 +80,7 @@ exports.verifyOTP = async (req, res, next) => {
       user = await userRepo.create({
         phone: normalizedPhone,
         is_verified: true,
+        user_type: requestedUserType,
         referred_by_code: referral?.code || null,
         acquisition_source: acquisitionSource || referral?.channel || null,
         referred_at: referral ? new Date() : null
@@ -79,9 +93,12 @@ exports.verifyOTP = async (req, res, next) => {
           metadata: { phone: normalizedPhone, acquisitionSource: acquisitionSource || null }
         });
       }
+    } else {
+      ensureRequestedUserType(user, requestedUserType);
+      await userRepo.updateLastLogin(user.user_id);
     }
-    else await userRepo.updateLastLogin(user.user_id);
-    const { accessToken, refreshToken } = tokenService.generatePair({ userId: user.user_id, phone: user.phone });
+    const resolvedUserType = userRepo.normalizeUserType(user.user_type || requestedUserType);
+    const { accessToken, refreshToken } = tokenService.generatePair({ userId: user.user_id, phone: user.phone, userType: resolvedUserType });
     await tokenService.storeRefresh(user.user_id, refreshToken);
     if (isNewUser) {
       const db = await getDB();
@@ -96,7 +113,7 @@ exports.verifyOTP = async (req, res, next) => {
         }
       });
     }
-    res.json({ success: true, data: { accessToken, refreshToken, userId: user.user_id, isNewUser } });
+    res.json({ success: true, data: { accessToken, refreshToken, userId: user.user_id, isNewUser, userType: resolvedUserType } });
   } catch (err) { next(err); }
 };
 
@@ -104,7 +121,8 @@ exports.googleLogin = async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, errors.array()[0].msg));
-    const { googleToken, inviteCode, acquisitionSource } = req.body;
+    const { googleToken, inviteCode, acquisitionSource, userType } = req.body;
+    const requestedUserType = normalizeRequestedUserType(userType);
     if (!googleToken) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'googleToken required'));
     const payload = await tokenService.verifyGoogleToken(googleToken);
     const { sub: googleId, email } = payload;
@@ -120,6 +138,7 @@ exports.googleLogin = async (req, res, next) => {
         google_id: googleId,
         email,
         is_verified: true,
+        user_type: requestedUserType,
         referred_by_code: referral?.code || null,
         acquisition_source: acquisitionSource || referral?.channel || null,
         referred_at: referral ? new Date() : null
@@ -132,8 +151,11 @@ exports.googleLogin = async (req, res, next) => {
           metadata: { email, acquisitionSource: acquisitionSource || null, method: 'google' }
         });
       }
+    } else {
+      ensureRequestedUserType(user, requestedUserType);
     }
-    const { accessToken, refreshToken } = tokenService.generatePair({ userId: user.user_id, email: user.email });
+    const resolvedUserType = userRepo.normalizeUserType(user.user_type || requestedUserType);
+    const { accessToken, refreshToken } = tokenService.generatePair({ userId: user.user_id, email: user.email, userType: resolvedUserType });
     await tokenService.storeRefresh(user.user_id, refreshToken);
     if (isNewUser) {
       const db = await getDB();
@@ -148,7 +170,7 @@ exports.googleLogin = async (req, res, next) => {
         }
       });
     }
-    res.json({ success: true, data: { accessToken, refreshToken, userId: user.user_id, isNewUser } });
+    res.json({ success: true, data: { accessToken, refreshToken, userId: user.user_id, isNewUser, userType: resolvedUserType } });
   } catch (err) { next(err); }
 };
 
@@ -156,7 +178,8 @@ exports.firebasePhoneLogin = async (req, res, next) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, errors.array()[0].msg));
-    const { firebaseToken, phone, inviteCode, acquisitionSource } = req.body;
+    const { firebaseToken, phone, inviteCode, acquisitionSource, userType } = req.body;
+    const requestedUserType = normalizeRequestedUserType(userType);
     if (!firebaseToken) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'firebaseToken required'));
 
     const decoded = await firebaseAuthService.verifyPhoneToken(firebaseToken);
@@ -180,6 +203,7 @@ exports.firebasePhoneLogin = async (req, res, next) => {
       user = await userRepo.create({
         phone: verifiedPhone,
         is_verified: true,
+        user_type: requestedUserType,
         referred_by_code: referral?.code || null,
         acquisition_source: acquisitionSource || referral?.channel || null,
         referred_at: referral ? new Date() : null
@@ -193,10 +217,12 @@ exports.firebasePhoneLogin = async (req, res, next) => {
         });
       }
     } else {
+      ensureRequestedUserType(user, requestedUserType);
       await userRepo.updateLastLogin(user.user_id);
     }
 
-    const { accessToken, refreshToken } = tokenService.generatePair({ userId: user.user_id, phone: user.phone });
+    const resolvedUserType = userRepo.normalizeUserType(user.user_type || requestedUserType);
+    const { accessToken, refreshToken } = tokenService.generatePair({ userId: user.user_id, phone: user.phone, userType: resolvedUserType });
     await tokenService.storeRefresh(user.user_id, refreshToken);
 
     if (isNewUser) {
@@ -213,7 +239,7 @@ exports.firebasePhoneLogin = async (req, res, next) => {
       });
     }
 
-    res.json({ success: true, data: { accessToken, refreshToken, userId: user.user_id, isNewUser } });
+    res.json({ success: true, data: { accessToken, refreshToken, userId: user.user_id, isNewUser, userType: resolvedUserType } });
   } catch (err) { next(err); }
 };
 
@@ -225,7 +251,8 @@ exports.refreshToken = async (req, res, next) => {
     const stored = await tokenService.getRefresh(decoded.userId);
     if (stored !== refreshToken) return next(new AppError(401, ErrorCodes.UNAUTHORIZED, 'Invalid refresh token'));
     const user = await userRepo.findById(decoded.userId);
-    const tokens = tokenService.generatePair({ userId: decoded.userId });
+    const resolvedUserType = userRepo.normalizeUserType(user?.user_type || decoded.userType);
+    const tokens = tokenService.generatePair({ userId: decoded.userId, userType: resolvedUserType });
     await tokenService.storeRefresh(decoded.userId, tokens.refreshToken);
     res.json({
       success: true,
@@ -233,7 +260,8 @@ exports.refreshToken = async (req, res, next) => {
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         userId: user?.user_id || decoded.userId,
-        isNewUser: false
+        isNewUser: false,
+        userType: resolvedUserType
       }
     });
   } catch (err) { next(err); }

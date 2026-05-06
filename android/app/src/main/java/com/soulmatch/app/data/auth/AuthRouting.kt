@@ -1,6 +1,7 @@
 package com.soulmatch.app.data.auth
 
 import com.soulmatch.app.data.models.ProfileData
+import com.soulmatch.app.data.models.AgentProfileData
 
 private fun safeText(value: String?): String = value.orEmpty()
 
@@ -45,5 +46,13 @@ fun resolvePostLoginRoute(profile: ProfileData?): String {
         "profile_wizard/$nextWizardStep"
     } else {
         "dashboard"
+    }
+}
+
+fun resolveAgentRoute(agentProfile: AgentProfileData?): String {
+    return if (agentProfile?.isOnboarded == true) {
+        "agent_dashboard"
+    } else {
+        "agent_onboarding"
     }
 }

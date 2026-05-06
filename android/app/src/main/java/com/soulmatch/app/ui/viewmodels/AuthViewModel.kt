@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.soulmatch.app.data.api.AuthApiService
 import com.soulmatch.app.data.api.ProfileApiService
+import com.soulmatch.app.data.auth.resolveAgentRoute
 import com.soulmatch.app.data.auth.resolvePostLoginRoute
 import com.soulmatch.app.data.auth.resolveWizardStep
 import com.soulmatch.app.data.local.UserPreferences
@@ -50,17 +51,17 @@ class AuthViewModel @Inject constructor(
         _state.value = AuthUiState.Error(message)
     }
 
-    fun sendOTP(phone: String) {
+    fun sendOTP(phone: String, userType: String = "member") {
         viewModelScope.launch {
             _state.value = AuthUiState.Loading
             try {
-                val r = authApi.sendOTP(SendOTPRequest(phone))
+                val r = authApi.sendOTP(SendOTPRequest(phone = phone, userType = userType))
                 _state.value = if (r.isSuccessful && r.body()?.success == true) AuthUiState.OTPSent else AuthUiState.Error(r.body()?.error?.message ?: "Failed to send OTP")
             } catch (e: Exception) { _state.value = AuthUiState.Error(e.message ?: "Network error") }
         }
     }
 
-    fun sendFirebaseOTP(activity: Activity, phone: String) {
+    fun sendFirebaseOTP(activity: Activity, phone: String, userType: String = "member") {
         _state.value = AuthUiState.Loading
         val options = PhoneAuthOptions.newBuilder(firebaseAuth)
             .setPhoneNumber(phone)
@@ -69,7 +70,7 @@ class AuthViewModel @Inject constructor(
             .setCallbacks(object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
                 override fun onVerificationCompleted(credential: PhoneAuthCredential) {
                     viewModelScope.launch {
-                        completeFirebasePhoneVerification(phone, credential)
+                        completeFirebasePhoneVerification(phone, credential, userType)
                     }
                 }
 
@@ -91,14 +92,15 @@ class AuthViewModel @Inject constructor(
         PhoneAuthProvider.verifyPhoneNumber(options)
     }
 
-    fun verifyOTP(phone: String, otp: String) {
+    fun verifyOTP(phone: String, otp: String, userType: String = "member") {
         viewModelScope.launch {
             _state.value = AuthUiState.Loading
             try {
                 val response = authApi.verifyOTP(
                     VerifyOTPRequest(
                         phone = phone,
-                        otp = otp
+                        otp = otp,
+                        userType = userType
                     )
                 )
                 if (response.isSuccessful && response.body()?.success == true) {
@@ -115,7 +117,7 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun googleLogin(googleIdToken: String?) {
+    fun googleLogin(googleIdToken: String?, userType: String = "member") {
         if (googleIdToken.isNullOrBlank()) {
             _state.value = AuthUiState.Error("Google sign-in did not return an ID token. Check OAuth client configuration and try again.")
             return
@@ -123,7 +125,7 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = AuthUiState.Loading
             try {
-                val r = authApi.googleLogin(GoogleLoginRequest(googleIdToken))
+                val r = authApi.googleLogin(GoogleLoginRequest(googleToken = googleIdToken, userType = userType))
                 if (r.isSuccessful && r.body()?.success == true) {
                     val d = r.body()!!.data!!
                     val route = persistSessionAndResolveRoute(d)
@@ -137,7 +139,7 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    private suspend fun completeFirebasePhoneVerification(phone: String, credential: PhoneAuthCredential) {
+    private suspend fun completeFirebasePhoneVerification(phone: String, credential: PhoneAuthCredential, userType: String = "member") {
         try {
             val signInResult = firebaseAuth.signInWithCredential(credential).await()
             val user = signInResult.user
@@ -153,7 +155,8 @@ class AuthViewModel @Inject constructor(
             val response = authApi.firebasePhoneLogin(
                 FirebasePhoneLoginRequest(
                     firebaseToken = firebaseToken,
-                    phone = phone
+                    phone = phone,
+                    userType = userType
                 )
             )
             if (response.isSuccessful && response.body()?.success == true) {
@@ -174,6 +177,12 @@ class AuthViewModel @Inject constructor(
         prefs.saveRefreshToken(data.refreshToken)
         prefs.saveUserId(data.userId)
         prefs.saveUserType(data.userType.ifBlank { "member" })
+        if (data.userType == "agent") {
+            val agentProfile = runCatching {
+                profileApi.getAgentProfile().body()?.takeIf { it.success }?.data
+            }.getOrNull()
+            return resolveAgentRoute(agentProfile)
+        }
         return if (data.isNewUser) {
             prefs.clearProfileProgress()
             prefs.saveWizardStep(1)

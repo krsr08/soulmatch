@@ -49,6 +49,20 @@ function normalizeAdvisorKycStatus(value) {
   return ['pending', 'approved', 'rejected'].includes(normalized) ? normalized : null;
 }
 
+function makeAgentCode() {
+  return `SMAGT-${new Date().getFullYear()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+}
+
+function normalizeReviewStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['draft', 'submitted', 'under_review', 'verified', 'rejected'].includes(normalized) ? normalized : null;
+}
+
+function normalizeDocumentReviewStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return ['uploaded', 'under_review', 'verified', 'rejected'].includes(normalized) ? normalized : null;
+}
+
 function normalizeAssistRequestStatus(value) {
   const normalized = String(value || '').trim().toLowerCase();
   return ['not_requested', 'waiting_assignment', 'assigned', 'paused'].includes(normalized) ? normalized : null;
@@ -758,6 +772,77 @@ exports.updateAdvisorStatus = async (req, res) => {
   }
 };
 
+exports.approveAgent = async (req, res) => {
+  try {
+    const db = await getDB();
+    const advisorId = req.params.id;
+    const result = await db.query(
+      `UPDATE advisors
+       SET onboarding_status = 'approved',
+           kyc_status = 'approved',
+           status = COALESCE($2, status),
+           approved_at = NOW(),
+           approved_by = $3,
+           rejected_at = NULL,
+           onboarding_rejection_reason = NULL,
+           agent_code = COALESCE(agent_code, $4),
+           updated_at = NOW()
+       WHERE advisor_id = $1
+       RETURNING *`,
+      [advisorId, normalizeAdvisorStatus(req.body?.status) || 'active', req.admin?.email || 'admin', makeAgentCode()]
+    );
+    const advisor = result.rows[0];
+    if (!advisor) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Agent not found.' } });
+    await auditLog(db, req, 'agent.approve', 'advisor', advisorId, { agentCode: advisor.agent_code });
+    if (advisor.user_id) {
+      await notifyMember(
+        db,
+        advisor.user_id,
+        'Agent account approved',
+        `Your SoulMatch agent account is approved. Agent ID ${advisor.agent_code} is now active.`,
+        { type: 'agent_onboarding', status: 'approved', advisorId, agentCode: advisor.agent_code }
+      ).catch((error) => logger.warn(`Agent approval notification skipped: ${error.message}`));
+    }
+    res.json({ success: true, data: advisor });
+  } catch (err) {
+    respondServerError(res, err, 'Unable to approve this agent right now.');
+  }
+};
+
+exports.rejectAgent = async (req, res) => {
+  try {
+    const db = await getDB();
+    const advisorId = req.params.id;
+    const note = String(req.body?.note || '').trim();
+    const result = await db.query(
+      `UPDATE advisors
+       SET onboarding_status = 'rejected',
+           kyc_status = 'rejected',
+           onboarding_rejection_reason = $2,
+           rejected_at = NOW(),
+           updated_at = NOW()
+       WHERE advisor_id = $1
+       RETURNING *`,
+      [advisorId, note || 'Your registration needs clearer business details or KYC documents.']
+    );
+    const advisor = result.rows[0];
+    if (!advisor) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Agent not found.' } });
+    await auditLog(db, req, 'agent.reject', 'advisor', advisorId, { note });
+    if (advisor.user_id) {
+      await notifyMember(
+        db,
+        advisor.user_id,
+        'Agent account needs attention',
+        note || 'Your SoulMatch agent registration was declined. Please update your details and submit again.',
+        { type: 'agent_onboarding', status: 'rejected', advisorId }
+      ).catch((error) => logger.warn(`Agent rejection notification skipped: ${error.message}`));
+    }
+    res.json({ success: true, data: advisor });
+  } catch (err) {
+    respondServerError(res, err, 'Unable to reject this agent right now.');
+  }
+};
+
 exports.getAssistedAssignments = async (req, res) => {
   try {
     const db = await getDB();
@@ -1255,6 +1340,108 @@ exports.rejectVerification = async (req, res) => {
     respondServerError(res, err, 'Unable to reject this verification request right now.');
   } finally {
     client.release();
+  }
+};
+
+exports.getPendingProfileDocuments = async (req, res) => {
+  try {
+    const db = await getDB();
+    const result = await db.query(
+      `SELECT
+         pd.*,
+         p.first_name,
+         p.last_name,
+         p.review_status,
+         p.primary_photo_url,
+         a.full_name AS agent_name,
+         a.business_name AS agent_business_name,
+         a.agent_code
+       FROM profile_documents pd
+       JOIN profiles p ON p.profile_id = pd.profile_id
+       LEFT JOIN advisors a ON a.advisor_id = pd.advisor_id
+       WHERE pd.status IN ('uploaded', 'under_review')
+       ORDER BY pd.created_at ASC`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    respondDegraded(res, err, [], 'Profile document queue is unavailable.');
+  }
+};
+
+exports.approveProfileDocument = async (req, res) => {
+  try {
+    const db = await getDB();
+    const note = String(req.body?.note || '').trim() || null;
+    const result = await db.query(
+      `UPDATE profile_documents
+       SET status = 'verified',
+           review_comment = $2,
+           reviewed_at = NOW(),
+           reviewed_by = $3,
+           updated_at = NOW()
+       WHERE profile_document_id = $1
+       RETURNING *`,
+      [req.params.id, note, req.admin?.email || 'admin']
+    );
+    const document = result.rows[0];
+    if (!document) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile document not found.' } });
+    await db.query(
+      `UPDATE profiles
+       SET review_status = CASE WHEN review_status IN ('submitted', 'draft', 'rejected') THEN 'under_review' ELSE review_status END,
+           reviewed_at = NOW(),
+           review_notes = COALESCE($2, review_notes),
+           updated_at = NOW()
+       WHERE profile_id = $1`,
+      [document.profile_id, note]
+    );
+    await auditLog(db, req, 'profile_document.approve', 'profile_document', req.params.id, { note });
+    res.json({ success: true, data: document });
+  } catch (err) {
+    respondServerError(res, err, 'Unable to approve this profile document right now.');
+  }
+};
+
+exports.rejectProfileDocument = async (req, res) => {
+  try {
+    const db = await getDB();
+    const note = String(req.body?.note || '').trim() || 'Document needs a clearer upload or a valid supporting file.';
+    const result = await db.query(
+      `UPDATE profile_documents
+       SET status = 'rejected',
+           review_comment = $2,
+           reviewed_at = NOW(),
+           reviewed_by = $3,
+           updated_at = NOW()
+       WHERE profile_document_id = $1
+       RETURNING *`,
+      [req.params.id, note, req.admin?.email || 'admin']
+    );
+    const document = result.rows[0];
+    if (!document) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile document not found.' } });
+    const profileResult = await db.query(
+      `UPDATE profiles
+       SET review_status = 'rejected',
+           rejection_reason = $2,
+           reviewed_at = NOW(),
+           updated_at = NOW()
+       WHERE profile_id = $1
+       RETURNING user_id`,
+      [document.profile_id, note]
+    );
+    await auditLog(db, req, 'profile_document.reject', 'profile_document', req.params.id, { note });
+    const profileUserId = profileResult.rows[0]?.user_id;
+    if (profileUserId) {
+      await notifyMember(
+        db,
+        profileUserId,
+        'Profile document rejected',
+        note,
+        { type: 'profile_document_review', status: 'rejected', profileDocumentId: req.params.id, profileId: document.profile_id }
+      ).catch((error) => logger.warn(`Profile document rejection notification skipped: ${error.message}`));
+    }
+    res.json({ success: true, data: document });
+  } catch (err) {
+    respondServerError(res, err, 'Unable to reject this profile document right now.');
   }
 };
 
