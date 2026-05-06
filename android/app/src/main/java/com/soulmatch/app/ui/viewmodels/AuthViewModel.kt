@@ -151,6 +151,7 @@ class AuthViewModel @Inject constructor(
             prefs.clearProfileProgress()
             prefs.saveWizardStep(1)
             prefs.saveUserType("member")
+            prefs.savePendingAuthRoute("profile_wizard/1")
             _state.value = AuthUiState.Verified(isNewUser = true, route = "profile_wizard/1")
         }
     }
@@ -211,16 +212,14 @@ class AuthViewModel @Inject constructor(
         prefs.saveRefreshToken(data.refreshToken)
         prefs.saveUserId(data.userId)
         prefs.saveUserType(data.userType.ifBlank { "member" })
-        if (data.isNewUser && requestedUserType.isNullOrBlank()) {
-            return "auth_role_selection"
-        }
-        if (data.userType == "agent") {
+        val route = if (data.isNewUser && requestedUserType.isNullOrBlank()) {
+            "auth_role_selection"
+        } else if (data.userType == "agent") {
             val agentProfile = runCatching {
                 profileApi.getAgentProfile().body()?.takeIf { it.success }?.data
             }.getOrNull()
-            return resolveAgentRoute(agentProfile)
-        }
-        return if (data.isNewUser) {
+            resolveAgentRoute(agentProfile)
+        } else if (data.isNewUser) {
             prefs.clearProfileProgress()
             prefs.saveWizardStep(1)
             "profile_wizard/1"
@@ -237,6 +236,8 @@ class AuthViewModel @Inject constructor(
             prefs.saveWizardStep(resolvedStep ?: 7)
             resolvePostLoginRoute(profile)
         }
+        prefs.savePendingAuthRoute(route)
+        return route
     }
 
     private fun <T> extractErrorMessage(response: Response<T>, fallback: String): String {
