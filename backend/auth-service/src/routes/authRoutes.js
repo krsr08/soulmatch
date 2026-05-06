@@ -3,7 +3,7 @@ const { body } = require('express-validator');
 const controller = require('../controllers/authController');
 const { authenticate } = require('../middleware/authMiddleware');
 const router = express.Router();
-const userTypeVal = body('userType').optional().isIn(['member', 'agent', 'admin']).withMessage('userType must be member, agent, or admin');
+const userTypeVal = body('userType').optional({ checkFalsy: true, nullable: true }).isIn(['member', 'agent', 'admin']).withMessage('userType must be member, agent, or admin');
 const phoneVal = [body('phone').trim().matches(/^\+?[1-9]\d{9,14}$/).withMessage('Valid phone required')];
 const otpVal = [
   body('phone').trim().matches(/^\+?[1-9]\d{9,14}$/),
