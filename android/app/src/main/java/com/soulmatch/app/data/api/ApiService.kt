@@ -10,6 +10,7 @@ interface AuthApiService {
     @POST("auth/verify-otp") suspend fun verifyOTP(@Body req: VerifyOTPRequest): Response<GenericResponse<AuthData>>
     @POST("auth/google-login") suspend fun googleLogin(@Body req: GoogleLoginRequest): Response<GenericResponse<AuthData>>
     @POST("auth/firebase-phone-login") suspend fun firebasePhoneLogin(@Body req: FirebasePhoneLoginRequest): Response<GenericResponse<AuthData>>
+    @POST("auth/select-user-type") suspend fun selectUserType(@Body req: SelectUserTypeRequest): Response<GenericResponse<AuthData>>
     @POST("auth/refresh-token") suspend fun refreshToken(@Body req: RefreshTokenRequest): Response<GenericResponse<AuthData>>
     @POST("auth/logout") suspend fun logout(@Body req: Map<String, @JvmSuppressWildcards String>): Response<GenericResponse<Any>>
 }

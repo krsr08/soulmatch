@@ -27,6 +27,17 @@ function ensureRequestedUserType(user, requestedUserType) {
   return currentUserType;
 }
 
+async function ensureAgentUpgradeAllowed(userId) {
+  const db = await getDB();
+  const [memberProfile, advisorProfile] = await Promise.all([
+    db.query('SELECT 1 FROM profiles WHERE user_id=$1 LIMIT 1', [userId]),
+    db.query('SELECT 1 FROM advisors WHERE user_id=$1 LIMIT 1', [userId])
+  ]);
+  if (memberProfile.rows.length || advisorProfile.rows.length) {
+    throw new AppError(409, ErrorCodes.VALIDATION_ERROR, 'This mobile number is already registered as a user. Please use a different number to register as an agent.');
+  }
+}
+
 exports.sendOTP = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -282,5 +293,70 @@ exports.logout = async (req, res, next) => {
   try {
     await tokenService.clearRefresh(req.user.userId);
     res.json({ success: true, message: 'Logged out' });
+  } catch (err) { next(err); }
+};
+
+exports.selectUserType = async (req, res, next) => {
+  try {
+    const requestedUserType = normalizeRequestedUserType(req.body?.userType);
+    if (!requestedUserType || !['member', 'agent'].includes(requestedUserType)) {
+      return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'userType must be member or agent'));
+    }
+    const user = await userRepo.findById(req.user.userId);
+    if (!user) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Account not found'));
+
+    const currentUserType = userRepo.normalizeUserType(user.user_type);
+    if (currentUserType === requestedUserType) {
+      const { accessToken, refreshToken } = tokenService.generatePair({
+        userId: user.user_id,
+        phone: user.phone,
+        email: user.email,
+        userType: currentUserType
+      });
+      await tokenService.storeRefresh(user.user_id, refreshToken);
+      return res.json({
+        success: true,
+        data: {
+          accessToken,
+          refreshToken,
+          userId: user.user_id,
+          isNewUser: currentUserType === 'member',
+          userType: currentUserType
+        }
+      });
+    }
+
+    if (currentUserType !== 'member' || requestedUserType !== 'agent') {
+      return next(new AppError(409, ErrorCodes.VALIDATION_ERROR, `This account is already registered as a ${currentUserType}. Please continue with that account type.`));
+    }
+
+    await ensureAgentUpgradeAllowed(user.user_id);
+    const updated = await userRepo.updateUserType(user.user_id, 'agent');
+    const { accessToken, refreshToken } = tokenService.generatePair({
+      userId: updated.user_id,
+      phone: updated.phone,
+      email: updated.email,
+      userType: 'agent'
+    });
+    await tokenService.storeRefresh(updated.user_id, refreshToken);
+
+    const db = await getDB();
+    await recordAnalyticsEvent(db, {
+      eventType: 'account_type_selected',
+      serviceName: 'auth-service',
+      userId: updated.user_id,
+      payload: { selectedUserType: 'agent' }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        accessToken,
+        refreshToken,
+        userId: updated.user_id,
+        isNewUser: true,
+        userType: 'agent'
+      }
+    });
   } catch (err) { next(err); }
 };

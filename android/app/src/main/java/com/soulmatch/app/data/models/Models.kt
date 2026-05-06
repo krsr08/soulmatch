@@ -24,6 +24,9 @@ data class GoogleLoginRequest(
     val googleToken: String,
     val userType: String? = null
 )
+data class SelectUserTypeRequest(
+    val userType: String
+)
 data class FirebasePhoneLoginRequest(
     val firebaseToken: String,
     val phone: String? = null,

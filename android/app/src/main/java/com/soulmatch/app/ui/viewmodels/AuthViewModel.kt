@@ -11,6 +11,7 @@ import com.soulmatch.app.data.local.UserPreferences
 import com.soulmatch.app.data.models.AuthData
 import com.soulmatch.app.data.models.FirebasePhoneLoginRequest
 import com.soulmatch.app.data.models.GoogleLoginRequest
+import com.soulmatch.app.data.models.SelectUserTypeRequest
 import com.soulmatch.app.data.models.SendOTPRequest
 import com.soulmatch.app.data.models.VerifyOTPRequest
 import com.google.firebase.FirebaseException
@@ -112,7 +113,7 @@ class AuthViewModel @Inject constructor(
                 if (response.isSuccessful && response.body()?.success == true) {
                     val authData = response.body()!!.data!!
                     prefs.clearPendingOtpSession()
-                    val route = persistSessionAndResolveRoute(authData)
+                    val route = persistSessionAndResolveRoute(authData, userType)
                     _state.value = AuthUiState.Verified(authData.isNewUser, route)
                 } else {
                     _state.value = AuthUiState.Error(extractErrorMessage(response, "Could not verify OTP."))
@@ -134,13 +135,40 @@ class AuthViewModel @Inject constructor(
                 val r = authApi.googleLogin(GoogleLoginRequest(googleToken = googleIdToken, userType = userType))
                 if (r.isSuccessful && r.body()?.success == true) {
                     val d = r.body()!!.data!!
-                    val route = persistSessionAndResolveRoute(d)
+                    val route = persistSessionAndResolveRoute(d, userType)
                     _state.value = AuthUiState.Verified(d.isNewUser, route)
                 } else {
-                    _state.value = AuthUiState.Error(r.body()?.error?.message ?: "Google sign-in failed. Please try again.")
+                    _state.value = AuthUiState.Error(extractErrorMessage(r, "Google sign-in failed. Please try again."))
                 }
             } catch (e: Exception) {
-                _state.value = AuthUiState.Error("Google sign-in could not reach SoulMatch. Check your connection and retry.")
+                _state.value = AuthUiState.Error(e.message ?: "Google sign-in could not reach SoulMatch. Check your connection and retry.")
+            }
+        }
+    }
+
+    fun continueAsMember() {
+        viewModelScope.launch {
+            prefs.clearProfileProgress()
+            prefs.saveWizardStep(1)
+            prefs.saveUserType("member")
+            _state.value = AuthUiState.Verified(isNewUser = true, route = "profile_wizard/1")
+        }
+    }
+
+    fun selectUserType(userType: String) {
+        viewModelScope.launch {
+            _state.value = AuthUiState.Loading
+            try {
+                val response = authApi.selectUserType(SelectUserTypeRequest(userType = userType))
+                if (response.isSuccessful && response.body()?.success == true) {
+                    val authData = response.body()!!.data!!
+                    val route = persistSessionAndResolveRoute(authData, userType)
+                    _state.value = AuthUiState.Verified(authData.isNewUser, route)
+                } else {
+                    _state.value = AuthUiState.Error(extractErrorMessage(response, "We could not update the account type."))
+                }
+            } catch (e: Exception) {
+                _state.value = AuthUiState.Error(e.message ?: "We could not update the account type.")
             }
         }
     }
@@ -168,7 +196,7 @@ class AuthViewModel @Inject constructor(
             if (response.isSuccessful && response.body()?.success == true) {
                 val authData = response.body()!!.data!!
                 prefs.clearPendingOtpSession()
-                val route = persistSessionAndResolveRoute(authData)
+                val route = persistSessionAndResolveRoute(authData, userType)
                 _state.value = AuthUiState.Verified(authData.isNewUser, route)
             } else {
                 _state.value = AuthUiState.Error(extractErrorMessage(response, "SoulMatch could not complete phone sign-in."))
@@ -178,11 +206,14 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    private suspend fun persistSessionAndResolveRoute(data: AuthData): String {
+    private suspend fun persistSessionAndResolveRoute(data: AuthData, requestedUserType: String? = null): String {
         prefs.saveAuthToken(data.accessToken)
         prefs.saveRefreshToken(data.refreshToken)
         prefs.saveUserId(data.userId)
         prefs.saveUserType(data.userType.ifBlank { "member" })
+        if (data.isNewUser && requestedUserType.isNullOrBlank()) {
+            return "auth_role_selection"
+        }
         if (data.userType == "agent") {
             val agentProfile = runCatching {
                 profileApi.getAgentProfile().body()?.takeIf { it.success }?.data

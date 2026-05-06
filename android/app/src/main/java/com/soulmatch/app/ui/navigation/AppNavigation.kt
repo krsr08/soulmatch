@@ -43,6 +43,7 @@ import com.soulmatch.app.data.models.NavigationContentData
 import com.soulmatch.app.ui.screens.auth.OTPVerificationScreen
 import com.soulmatch.app.ui.screens.auth.PhoneEntryScreen
 import com.soulmatch.app.ui.screens.auth.ProfileWizardScreen
+import com.soulmatch.app.ui.screens.auth.RoleSelectionScreen
 import com.soulmatch.app.ui.screens.auth.WelcomeScreen
 import com.soulmatch.app.ui.screens.agent.AgentAccountScreen
 import com.soulmatch.app.ui.screens.agent.AgentClientProfileScreen
@@ -125,9 +126,7 @@ fun AppNavigation(
                 branding = branding,
                 content = content.auth,
                 googleWebClientId = clientIntegrations.googleWebClientId,
-                onLogin = { nav.navigate("phone_entry?entryMode=login&userType=") },
-                onRegisterAsUser = { nav.navigate("phone_entry?entryMode=register&userType=member") },
-                onRegisterAsAgent = { nav.navigate("phone_entry?entryMode=register&userType=agent") },
+                onOtpSent = { phone -> nav.navigate("otp/${Uri.encode(phone)}?userType=") },
                 onOpenTerms = { nav.navigate("legal/terms") },
                 onOpenPrivacy = { nav.navigate("legal/privacy") },
                 onAuthenticated = { route ->
@@ -430,6 +429,16 @@ fun AppNavigation(
                 onPaymentResultDone = {
                     nav.navigate("dashboard") {
                         popUpTo("dashboard") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+        composable("auth_role_selection") {
+            RoleSelectionScreen(
+                onResolved = { route ->
+                    nav.navigate(route) {
+                        popUpTo("welcome") { inclusive = true }
                         launchSingleTop = true
                     }
                 }
