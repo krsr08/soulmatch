@@ -22,6 +22,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import org.json.JSONObject
+import retrofit2.Response
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 sealed class AuthUiState {
@@ -56,7 +58,11 @@ class AuthViewModel @Inject constructor(
             _state.value = AuthUiState.Loading
             try {
                 val r = authApi.sendOTP(SendOTPRequest(phone = phone, userType = userType))
-                _state.value = if (r.isSuccessful && r.body()?.success == true) AuthUiState.OTPSent else AuthUiState.Error(r.body()?.error?.message ?: "Failed to send OTP")
+                _state.value = if (r.isSuccessful && r.body()?.success == true) {
+                    AuthUiState.OTPSent
+                } else {
+                    AuthUiState.Error(extractErrorMessage(r, "Failed to send OTP"))
+                }
             } catch (e: Exception) { _state.value = AuthUiState.Error(e.message ?: "Network error") }
         }
     }
@@ -109,7 +115,7 @@ class AuthViewModel @Inject constructor(
                     val route = persistSessionAndResolveRoute(authData)
                     _state.value = AuthUiState.Verified(authData.isNewUser, route)
                 } else {
-                    _state.value = AuthUiState.Error(response.body()?.error?.message ?: "Could not verify OTP.")
+                    _state.value = AuthUiState.Error(extractErrorMessage(response, "Could not verify OTP."))
                 }
             } catch (e: Exception) {
                 _state.value = AuthUiState.Error(e.message ?: "Could not verify OTP.")
@@ -165,7 +171,7 @@ class AuthViewModel @Inject constructor(
                 val route = persistSessionAndResolveRoute(authData)
                 _state.value = AuthUiState.Verified(authData.isNewUser, route)
             } else {
-                _state.value = AuthUiState.Error(response.body()?.error?.message ?: "SoulMatch could not complete phone sign-in.")
+                _state.value = AuthUiState.Error(extractErrorMessage(response, "SoulMatch could not complete phone sign-in."))
             }
         } catch (e: Exception) {
             _state.value = AuthUiState.Error(e.message ?: "Phone verification failed.")
@@ -200,5 +206,22 @@ class AuthViewModel @Inject constructor(
             prefs.saveWizardStep(resolvedStep ?: 7)
             resolvePostLoginRoute(profile)
         }
+    }
+
+    private fun <T> extractErrorMessage(response: Response<T>, fallback: String): String {
+        val body = response.body()
+        if (body is com.soulmatch.app.data.models.GenericResponse<*>) {
+            body.error?.message?.takeIf { it.isNotBlank() }?.let { return it }
+            body.message?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+        val raw = runCatching { response.errorBody()?.string().orEmpty() }.getOrDefault("")
+        if (raw.isNotBlank()) {
+            runCatching {
+                val json = JSONObject(raw)
+                json.optJSONObject("error")?.optString("message")?.takeIf { it.isNotBlank() }
+                    ?: json.optString("message").takeIf { it.isNotBlank() }
+            }.getOrNull()?.let { return it }
+        }
+        return fallback
     }
 }
