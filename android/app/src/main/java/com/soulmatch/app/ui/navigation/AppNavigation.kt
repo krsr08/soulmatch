@@ -160,7 +160,7 @@ fun AppNavigation(
             PhoneEntryScreen(
                 content = content.phoneEntry,
                 userType = userType,
-                onOTPSent = { phone -> nav.navigate("otp/$phone?userType=$userType") },
+                onOTPSent = { phone -> nav.navigate("otp/${Uri.encode(phone)}?userType=$userType") },
                 onVerified = { route ->
                     nav.navigate(route) { popUpTo("welcome") { inclusive = true } }
                 },
@@ -178,7 +178,7 @@ fun AppNavigation(
             )
         ) { backStack ->
             OTPVerificationScreen(
-                phone = backStack.arguments?.getString("phone") ?: "",
+                phone = Uri.decode(backStack.arguments?.getString("phone") ?: ""),
                 userType = backStack.arguments?.getString("userType") ?: "member",
                 onVerified = { route ->
                     nav.navigate(route) { popUpTo("welcome") { inclusive = true } }
