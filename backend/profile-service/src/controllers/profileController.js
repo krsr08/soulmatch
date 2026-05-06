@@ -19,6 +19,8 @@ const hasPositiveNumber = (value) => Number.isFinite(Number(value)) && Number(va
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const INDIAN_DATE_RE = /^\d{2}[-/]\d{2}[-/]\d{4}$/;
 const AGENT_REVIEW_STATUSES = new Set(['draft', 'submitted', 'under_review', 'verified', 'rejected']);
+const AGENT_KYC_DOCUMENT_TYPES = new Set(['aadhaar', 'pan', 'voter_id']);
+const AGENT_DOCUMENT_SIDES = new Set(['front', 'back', 'single']);
 
 function requireAgentAccount(req) {
   if (req.user?.userType !== 'agent') {
@@ -160,6 +162,27 @@ function resolveUploadUrls(files = []) {
     const normalized = file.path.replace(/\\/g, '/');
     return normalized.startsWith('/uploads/') ? normalized : `/uploads/${normalized.split('/').slice(-1)[0]}`;
   });
+}
+
+function normalizeAgentKycDocumentType(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return AGENT_KYC_DOCUMENT_TYPES.has(normalized) ? normalized : null;
+}
+
+function normalizeAgentDocumentSide(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return AGENT_DOCUMENT_SIDES.has(normalized) ? normalized : 'single';
+}
+
+function parseAgentKycMeta(rawValue) {
+  if (!rawValue) return [];
+  if (Array.isArray(rawValue)) return rawValue;
+  try {
+    const parsed = JSON.parse(String(rawValue));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
 }
 
 function normalizeFamilyDecisionPayload(body = {}) {
@@ -711,9 +734,18 @@ exports.upsertAgentOnboarding = async (req, res, next) => {
       return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Full name, phone, city, state, and business name are required.'));
     }
     const uploadUrls = resolveUploadUrls(req.files || []);
-    const kycDocuments = (Array.isArray(body.kycDocuments) ? body.kycDocuments : []).concat(
-      uploadUrls.map((fileUrl, index) => ({ documentType: index < 2 ? 'aadhaar' : 'pan', documentSide: index === 1 ? 'back' : 'single', fileUrl }))
-    );
+    const uploadedMeta = parseAgentKycMeta(body.kycDocumentMeta || body.kyc_document_meta);
+    const inferredUploadDocuments = uploadUrls.map((fileUrl, index) => {
+      const meta = uploadedMeta[index] || {};
+      const fallbackType = index === 0 ? 'aadhaar' : 'pan';
+      return {
+        documentType: normalizeAgentKycDocumentType(meta.documentType || meta.type) || fallbackType,
+        documentSide: normalizeAgentDocumentSide(meta.documentSide || meta.side),
+        fileUrl
+      };
+    });
+    const inlineDocuments = Array.isArray(body.kycDocuments) ? body.kycDocuments : [];
+    const kycDocuments = inlineDocuments.concat(inferredUploadDocuments);
     const saved = await repo.upsertAgentOnboarding(req.user.userId, {
       ...body,
       kycDocuments
