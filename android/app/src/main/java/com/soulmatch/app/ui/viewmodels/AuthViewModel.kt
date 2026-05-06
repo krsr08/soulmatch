@@ -208,6 +208,11 @@ class AuthViewModel @Inject constructor(
     }
 
     private suspend fun persistSessionAndResolveRoute(data: AuthData, requestedUserType: String? = null): String {
+        if (data.isNewUser && requestedUserType.isNullOrBlank()) {
+            prefs.savePendingAuthRoute("auth_role_selection")
+        } else {
+            prefs.clearPendingAuthRoute()
+        }
         prefs.saveAuthToken(data.accessToken)
         prefs.saveRefreshToken(data.refreshToken)
         prefs.saveUserId(data.userId)
@@ -236,7 +241,9 @@ class AuthViewModel @Inject constructor(
             prefs.saveWizardStep(resolvedStep ?: 7)
             resolvePostLoginRoute(profile)
         }
-        prefs.savePendingAuthRoute(route)
+        if (!(data.isNewUser && requestedUserType.isNullOrBlank())) {
+            prefs.savePendingAuthRoute(route)
+        }
         return route
     }
 
