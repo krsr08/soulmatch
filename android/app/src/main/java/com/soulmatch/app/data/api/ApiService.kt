@@ -1,6 +1,7 @@
 package com.soulmatch.app.data.api
 import com.soulmatch.app.data.models.*
 import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.http.DELETE
 import retrofit2.http.*
@@ -20,6 +21,12 @@ interface ProfileApiService {
     @GET("profile/agent/me") suspend fun getAgentProfile(): Response<GenericResponse<AgentProfileData>>
     @PUT("profile/agent/me") suspend fun upsertAgentProfile(@Body req: AgentProfileUpsertRequest): Response<GenericResponse<AgentProfileData>>
     @POST("profile/agent/onboarding") suspend fun submitAgentOnboarding(@Body req: AgentOnboardingRequest): Response<GenericResponse<AgentProfileData>>
+    @Multipart
+    @POST("profile/agent/onboarding")
+    suspend fun submitAgentOnboardingMultipart(
+        @PartMap fields: Map<String, @JvmSuppressWildcards RequestBody>,
+        @Part documents: List<MultipartBody.Part>
+    ): Response<GenericResponse<AgentProfileData>>
     @GET("profile/agent/membership") suspend fun getAgentMembership(): Response<GenericResponse<AgentMembershipData>>
     @GET("profile/agent/membership/plans") suspend fun getAgentMembershipPlans(): Response<GenericResponse<List<AgentMembershipData>>>
     @GET("profile/agent/managed-profiles") suspend fun getAgentManagedProfiles(): Response<GenericResponse<List<AgentManagedProfileSummaryData>>>

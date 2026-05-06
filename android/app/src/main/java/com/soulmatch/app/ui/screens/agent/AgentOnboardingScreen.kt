@@ -1,36 +1,63 @@
 package com.soulmatch.app.ui.screens.agent
 
+import android.content.Context
+import android.net.Uri
+import android.webkit.MimeTypeMap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Badge
+import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.AgentOnboardingRequest
 import com.soulmatch.app.ui.viewmodels.AgentViewModel
+import java.util.Locale
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 @Composable
 fun AgentOnboardingScreen(
@@ -43,6 +70,8 @@ fun AgentOnboardingScreen(
     vm: AgentViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
     var fullName by remember { mutableStateOf(state.agentProfile?.fullName.orEmpty()) }
     var phone by remember { mutableStateOf(state.agentProfile?.phone.orEmpty()) }
     var email by remember { mutableStateOf(state.agentProfile?.email.orEmpty()) }
@@ -50,8 +79,18 @@ fun AgentOnboardingScreen(
     var stateName by remember { mutableStateOf(state.agentProfile?.state.orEmpty()) }
     var businessName by remember { mutableStateOf(state.agentProfile?.businessName.orEmpty()) }
     var referralCode by remember { mutableStateOf(state.agentProfile?.referralCode.orEmpty()) }
+    var aadhaarUri by remember { mutableStateOf<Uri?>(null) }
+    var panUri by remember { mutableStateOf<Uri?>(null) }
+
+    val aadhaarPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        aadhaarUri = uri
+    }
+    val panPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        panUri = uri
+    }
+
     AgentScaffold(
-        title = "Agent Registration",
+        title = "SoulMatch",
         selectedTab = AgentTab.Account,
         onOpenDashboard = onOpenDashboard,
         onOpenProfiles = onOpenProfiles,
@@ -61,28 +100,16 @@ fun AgentOnboardingScreen(
         Column(
             modifier = modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            Text("STEP 1 OF 2", color = AgentColorsAccent, fontWeight = FontWeight.Bold)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .background(Color(0xFFE8DDD9), RoundedCornerShape(999.dp))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth(0.5f)
-                        .height(6.dp)
-                        .background(AgentColorsAccent, RoundedCornerShape(999.dp))
-                ) {}
-            }
-            Text("Business Details", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-            Text("Register your agent workspace. Once approved, you will manage clients from the agent dashboard only.", color = AgentColorsMuted)
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = AgentShapesCard
+            FeaturePreferenceBanner()
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color.White,
+                shape = AgentShapesCard,
+                border = BorderStroke(1.dp, Color(0xFFF0E0DB))
             ) {
                 Column(
                     modifier = Modifier
@@ -90,52 +117,133 @@ fun AgentOnboardingScreen(
                         .padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutlinedTextField(value = fullName, onValueChange = { fullName = it }, label = { Text("Full Name") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp))
-                    OutlinedTextField(value = businessName, onValueChange = { businessName = it }, label = { Text("Business / Agency Name") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp))
-                    OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Professional Email") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp))
-                    OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Mobile Number") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp))
-                    OutlinedTextField(value = city, onValueChange = { city = it }, label = { Text("City") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp))
-                    OutlinedTextField(value = stateName, onValueChange = { stateName = it }, label = { Text("State") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp))
-                    OutlinedTextField(value = referralCode, onValueChange = { referralCode = it }, label = { Text("Referral Code (Optional)") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp))
-                    Text("KYC Verification", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Please upload your primary identification documents for platform security.", color = AgentColorsMuted)
-                    DocumentBox("Aadhaar Card", "Recommended for faster approval", highlighted = true)
-                    DocumentBox("PAN Card", "Alternative verification", highlighted = false)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Verified Partnership", color = AgentColorsAccent, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Outlined.Verified, contentDescription = null, tint = AgentColorsAccent)
+                    }
+                    Text(
+                        "Our agents undergo a rigorous selection process to ensure the highest standards of trust.",
+                        color = AgentColorsMuted,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color.White,
+                shape = AgentShapesCard,
+                border = BorderStroke(1.dp, Color(0xFFF0E0DB))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("STEP 1 OF 2", color = AgentColorsAccent, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        Text("Business Details", color = AgentColorsMuted)
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .background(Color(0xFFE9E0DC), RoundedCornerShape(999.dp))
+                    ) {
+                        Spacer(
+                            modifier = Modifier
+                                .fillMaxWidth(0.5f)
+                                .height(6.dp)
+                                .background(AgentColorsAccent, RoundedCornerShape(999.dp))
+                        )
+                    }
+                    AgentTextField("Full Name", fullName) { fullName = it }
+                    AgentTextField("Business/Agency Name", businessName) { businessName = it }
+                    AgentTextField("Professional Email", email) { email = it }
+                    AgentTextField("Mobile Number", phone) { phone = it }
+                    AgentTextField("City", city) { city = it }
+                    AgentTextField("State", stateName) { stateName = it }
+                    AgentTextField("Referral Code (Optional)", referralCode) { referralCode = it }
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("KYC Verification", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                        Text("Please upload your primary identification documents for platform security.", color = AgentColorsMuted)
+                    }
+                    AgentDocumentCard(
+                        title = "Aadhaar Card",
+                        subtitle = "Recommended for faster approval",
+                        selectedName = aadhaarUri?.let { context.fileLabelFor(it) },
+                        highlighted = true,
+                        onPick = { aadhaarPicker.launch(arrayOf("image/*", "application/pdf")) }
+                    )
+                    AgentDocumentCard(
+                        title = "PAN Card",
+                        subtitle = "Alternative verification",
+                        selectedName = panUri?.let { context.fileLabelFor(it) },
+                        highlighted = false,
+                        onPick = { panPicker.launch(arrayOf("image/*", "application/pdf")) }
+                    )
+                    UploadDropZone(
+                        aadhaarReady = aadhaarUri != null,
+                        panReady = panUri != null,
+                        onPickAadhaar = { aadhaarPicker.launch(arrayOf("image/*", "application/pdf")) },
+                        onPickPan = { panPicker.launch(arrayOf("image/*", "application/pdf")) }
+                    )
                     state.error?.takeIf { it.isNotBlank() }?.let {
                         Text(it, color = AgentColorsAccent, fontWeight = FontWeight.SemiBold)
                     }
                     Button(
                         onClick = {
-                            vm.submitOnboarding(
-                                AgentOnboardingRequest(
-                                    fullName = fullName,
-                                    phone = phone,
-                                    email = email,
-                                    city = city,
-                                    state = stateName,
-                                    businessName = businessName,
-                                    referralCode = referralCode
-                                ),
+                            val request = AgentOnboardingRequest(
+                                fullName = fullName,
+                                phone = phone,
+                                email = email,
+                                city = city,
+                                state = stateName,
+                                businessName = businessName,
+                                referralCode = referralCode
+                            )
+                            val documents = listOfNotNull(
+                                aadhaarUri?.let { context.toAgentDocumentPart(it, "documents", 0) },
+                                panUri?.let { context.toAgentDocumentPart(it, "documents", 1) }
+                            )
+                            val documentMeta = buildList {
+                                aadhaarUri?.let { add(mapOf("documentType" to "aadhaar", "documentSide" to "single")) }
+                                panUri?.let { add(mapOf("documentType" to "pan", "documentSide" to "single")) }
+                            }
+                            vm.submitOnboardingWithDocuments(
+                                request = request,
+                                documents = documents,
+                                documentMeta = documentMeta,
                                 onCompleted = onCompleted
                             )
                         },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AgentColorsAccent),
                         enabled = !state.saving
                     ) {
                         if (state.saving) {
-                            CircularProgressIndicator(color = Color.White)
+                            CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
                         } else {
-                            Text("Register as Agent")
+                            Text("Register as Agent", fontWeight = FontWeight.Bold)
                         }
                     }
-                    Button(
-                        onClick = onBack,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = AgentColorsAccent)
-                    ) {
-                        Text("Back")
-                    }
+                    Text(
+                        "By registering, you agree to our Terms of Service and Privacy Policy.",
+                        color = AgentColorsMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }
@@ -143,19 +251,172 @@ fun AgentOnboardingScreen(
 }
 
 @Composable
-private fun DocumentBox(title: String, subtitle: String, highlighted: Boolean) {
-    Column(
+private fun FeaturePreferenceBanner() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color(0xFFFFF0F2),
+        shape = AgentShapesCard
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                PreferenceMiniCard("18-50", "Age")
+                PreferenceMiniCard("Any", "Cities")
+            }
+            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                PreferenceMiniCard("Any", "Education")
+                PreferenceMiniCard("Any", "Manglik")
+            }
+            Button(
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE54278), contentColor = Color.White)
+            ) {
+                Text("Save preferences", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreferenceMiniCard(value: String, label: String) {
+    Surface(
+        modifier = Modifier.width(136.dp),
+        color = Color(0xFFFFF9F7),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(value, color = AgentColorsAccent, fontWeight = FontWeight.Bold)
+            Text(label, color = AgentColorsMuted, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun AgentTextField(label: String, value: String, onValueChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        singleLine = true
+    )
+}
+
+@Composable
+private fun AgentDocumentCard(
+    title: String,
+    subtitle: String,
+    selectedName: String?,
+    highlighted: Boolean,
+    onPick: () -> Unit
+) {
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = if (highlighted) AgentColorsAccent else Color(0xFFEAD8D2),
-                shape = RoundedCornerShape(20.dp)
-            )
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .clickable(onClick = onPick),
+        color = if (highlighted) Color(0xFFFFF8F9) else Color(0xFFFFFBF9),
+        shape = RoundedCornerShape(22.dp),
+        border = BorderStroke(1.dp, if (highlighted) AgentColorsAccent else Color(0xFFE9D9D4))
     ) {
-        Text(title, fontWeight = FontWeight.Bold)
-        Text(subtitle, color = AgentColorsMuted)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .background(Color.White, RoundedCornerShape(14.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.Badge, contentDescription = null, tint = AgentColorsAccent)
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(title, fontWeight = FontWeight.Bold)
+                    Text(selectedName ?: subtitle, color = AgentColorsMuted, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            if (selectedName != null) {
+                Icon(Icons.Outlined.Verified, contentDescription = null, tint = AgentColorsAccent)
+            }
+        }
     }
+}
+
+@Composable
+private fun UploadDropZone(
+    aadhaarReady: Boolean,
+    panReady: Boolean,
+    onPickAadhaar: () -> Unit,
+    onPickPan: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        color = Color(0xFFFFF8F7),
+        border = BorderStroke(1.dp, Color(0xFFF0B8C5))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(Icons.Outlined.CloudUpload, contentDescription = null, tint = AgentColorsAccent, modifier = Modifier.size(30.dp))
+            Text("Click to upload or drag and drop", fontWeight = FontWeight.Bold)
+            Text("SVG, PNG, JPG or PDF (max. 10MB)", color = AgentColorsMuted, style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                MiniUploadStatus("Aadhaar", aadhaarReady, onPickAadhaar)
+                MiniUploadStatus("PAN", panReady, onPickPan)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MiniUploadStatus(label: String, uploaded: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.clickable(onClick = onClick),
+        color = if (uploaded) Color(0xFFFFEEF3) else Color.White,
+        border = BorderStroke(1.dp, if (uploaded) AgentColorsAccent else Color(0xFFE3D7D3)),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Outlined.Description, contentDescription = null, tint = AgentColorsAccent, modifier = Modifier.size(16.dp))
+            Text(if (uploaded) "$label added" else "Upload $label", color = AgentColorsAccent, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+private fun Context.fileLabelFor(uri: Uri): String {
+    val name = contentResolver.getType(uri)?.substringAfter('/')?.uppercase(Locale.US)
+    return name?.let { "$it selected" } ?: "Document selected"
+}
+
+private fun Context.toAgentDocumentPart(uri: Uri, formKey: String, index: Int): MultipartBody.Part? {
+    val contentType = contentResolver.getType(uri) ?: "application/octet-stream"
+    val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+    val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(contentType)?.lowercase(Locale.US)
+        ?: if (contentType == "application/pdf") "pdf" else "jpg"
+    val fileName = "agent-document-${System.currentTimeMillis()}-$index.$extension"
+    val body = bytes.toRequestBody(contentType.toMediaTypeOrNull())
+    return MultipartBody.Part.createFormData(formKey, fileName, body)
 }

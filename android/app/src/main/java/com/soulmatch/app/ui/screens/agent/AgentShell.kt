@@ -1,8 +1,11 @@
 package com.soulmatch.app.ui.screens.agent
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
@@ -10,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.ViewList
 import androidx.compose.material3.BottomAppBar
@@ -57,8 +61,18 @@ fun AgentScaffold(
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = AgentSurface),
                 title = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("SoulMatch Agent", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = AgentAccent)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Icon(Icons.Outlined.Menu, contentDescription = null, tint = Color(0xFF463A3C))
+                        Text("SoulMatch", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = AgentAccent)
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .background(Color(0xFFF8F0EE), CircleShape)
+                                .border(1.dp, AgentAccent.copy(alpha = 0.3f), CircleShape)
+                        )
                     }
                 }
             )
