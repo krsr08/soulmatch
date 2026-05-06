@@ -94,10 +94,18 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
             LaunchedEffect(token) {
                 startDestination = null
                 if (token.isNullOrEmpty()) {
+                    userPreferences.clearPendingAuthRoute()
                     startDestination = "welcome"
                     return@LaunchedEffect
                 }
                 ensurePushTokenRegistered()
+
+                val pendingAuthRoute = userPreferences.pendingAuthRoute.first()
+                if (!pendingAuthRoute.isNullOrBlank()) {
+                    userPreferences.clearPendingAuthRoute()
+                    startDestination = pendingAuthRoute
+                    return@LaunchedEffect
+                }
 
                 val response = runCatching { profileApi.getMyProfile() }.getOrNull()
                 val body = response?.body()
