@@ -54,7 +54,7 @@ android {
         buildConfigField "String", "PAYMENT_BASE_URL", '"' + (props.getProperty('PAYMENT_BASE_URL','http://10.0.2.2:3007/api/v1/')) + '"'
         buildConfigField "String", "CONTROL_PLANE_BASE_URL", '"' + (props.getProperty('CONTROL_PLANE_BASE_URL', serviceBaseFrom(authBase, 3011))) + '"'
         buildConfigField "String", "RAZORPAY_KEY", '"' + (props.getProperty('RAZORPAY_KEY_ID','rzp_test_placeholder')) + '"'
-        def googleWebClientId = props.getProperty('GOOGLE_WEB_CLIENT_ID', props.getProperty('GOOGLE_CLIENT_ID', '')).trim()
+        def googleWebClientId = props.getProperty('GOOGLE_CLIENT_ID', props.getProperty('GOOGLE_WEB_CLIENT_ID', '')).trim()
         buildConfigField "String", "GOOGLE_WEB_CLIENT_ID", '"' + googleWebClientId + '"'
     }
 

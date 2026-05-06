@@ -23,6 +23,7 @@ router.post('/send-otp', [...phoneVal, userTypeVal], controller.sendOTP);
 router.post('/verify-otp', otpVal, controller.verifyOTP);
 router.post('/google-login', googleVal, controller.googleLogin);
 router.post('/firebase-phone-login', firebasePhoneVal, controller.firebasePhoneLogin);
+router.post('/select-user-type', authenticate, [userTypeVal], controller.selectUserType);
 router.post('/refresh-token', controller.refreshToken);
 router.post('/logout', authenticate, controller.logout);
 module.exports = router;

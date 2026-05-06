@@ -135,7 +135,7 @@ const DEFAULT_CONFIG = {
     supportedLanguages: ['en-IN', 'hi-IN', 'ta-IN', 'te-IN', 'ml-IN', 'kn-IN', 'mr-IN', 'gu-IN', 'or-IN', 'pa-IN']
   },
   client_integrations: {
-    googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID || '',
+    googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '',
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
     supportEmail: 'support@soulmatch.app'
   },
@@ -396,7 +396,7 @@ function getPlanById(monetization, planId) {
 function getPublicRuntimeConfig(configMap) {
   const clientIntegrations = {
     ...configMap.client_integrations,
-    googleWebClientId: configMap.client_integrations?.googleWebClientId || process.env.GOOGLE_WEB_CLIENT_ID || '',
+    googleWebClientId: configMap.client_integrations?.googleWebClientId || process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '',
     razorpayKeyId: configMap.client_integrations?.razorpayKeyId || process.env.RAZORPAY_KEY_ID || ''
   };
   return {
