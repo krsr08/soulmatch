@@ -30,7 +30,8 @@ private data class AgentPlanCardData(
 fun AgentPlansScreen(
     onOpenDashboard: () -> Unit,
     onOpenProfiles: () -> Unit,
-    onOpenAccount: () -> Unit
+    onOpenAccount: () -> Unit,
+    onDrawerDestination: (AgentDrawerDestination) -> Unit
 ) {
     val plans = listOf(
         AgentPlanCardData("Free", "₹0 /month", listOf("5 Profile Limit", "Basic Visibility", "2 Contact Views")),
@@ -44,7 +45,8 @@ fun AgentPlansScreen(
         onOpenDashboard = onOpenDashboard,
         onOpenProfiles = onOpenProfiles,
         onOpenPlans = {},
-        onOpenAccount = onOpenAccount
+        onOpenAccount = onOpenAccount,
+        onDrawerDestination = onDrawerDestination
     ) { modifier ->
         LazyColumn(
             modifier = modifier

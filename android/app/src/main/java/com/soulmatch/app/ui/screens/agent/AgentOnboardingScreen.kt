@@ -67,6 +67,7 @@ fun AgentOnboardingScreen(
     onOpenProfiles: () -> Unit,
     onOpenPlans: () -> Unit,
     onOpenAccount: () -> Unit,
+    onDrawerDestination: (AgentDrawerDestination) -> Unit,
     vm: AgentViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -95,7 +96,8 @@ fun AgentOnboardingScreen(
         onOpenDashboard = onOpenDashboard,
         onOpenProfiles = onOpenProfiles,
         onOpenPlans = onOpenPlans,
-        onOpenAccount = onOpenAccount
+        onOpenAccount = onOpenAccount,
+        onDrawerDestination = onDrawerDestination
     ) { modifier ->
         Column(
             modifier = modifier

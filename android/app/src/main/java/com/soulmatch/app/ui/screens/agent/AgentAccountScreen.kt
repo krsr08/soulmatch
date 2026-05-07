@@ -38,6 +38,7 @@ fun AgentAccountScreen(
     onOpenProfiles: () -> Unit,
     onOpenPlans: () -> Unit,
     onOpenOnboarding: () -> Unit,
+    onDrawerDestination: (AgentDrawerDestination) -> Unit,
     vm: AgentViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -53,7 +54,8 @@ fun AgentAccountScreen(
         onOpenDashboard = onOpenDashboard,
         onOpenProfiles = onOpenProfiles,
         onOpenPlans = onOpenPlans,
-        onOpenAccount = {}
+        onOpenAccount = {},
+        onDrawerDestination = onDrawerDestination
     ) { modifier ->
         LazyColumn(
             modifier = modifier
