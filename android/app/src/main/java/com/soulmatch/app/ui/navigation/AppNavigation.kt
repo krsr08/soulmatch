@@ -79,6 +79,7 @@ import com.soulmatch.app.ui.components.ProfileDrawerRoutes
 @Composable
 fun AppNavigation(
     startDestination: String = "welcome",
+    isAuthenticated: Boolean = false,
     branding: BrandingConfig = BrandingConfig(),
     content: AppContentData = AppContentData(),
     legal: LegalContentData = LegalContentData(),
@@ -93,7 +94,7 @@ fun AppNavigation(
     }
     Scaffold(
         bottomBar = {
-            if (currentRoute.shouldShowBottomNavigation()) {
+            if (isAuthenticated && currentRoute.shouldShowBottomNavigation()) {
                 AppBottomNavigation(
                     currentRoute = currentRoute,
                     labels = content.navigation,
