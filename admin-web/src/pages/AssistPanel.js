@@ -375,6 +375,19 @@ export default function AssistPanel({
                   <td>
                     <StatusBadge tone={statusTone(advisor.kyc_status)}>{advisor.kyc_status}</StatusBadge>
                     <small style={{ marginTop: 6 }}><StatusBadge tone={statusTone(advisor.status)}>{advisor.status}</StatusBadge></small>
+                    <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+                      {(advisor.kyc_documents || []).length ? advisor.kyc_documents.map((document) => (
+                        <div key={document.advisorKycDocumentId} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <small>
+                            {String(document.documentType || '').replace(/_/g, ' ')} / {String(document.documentSide || 'single').replace(/_/g, ' ')}
+                          </small>
+                          <small><StatusBadge tone={statusTone(document.status)}>{document.status}</StatusBadge></small>
+                          {document.fileUrl ? (
+                            <a href={document.fileUrl} target="_blank" rel="noreferrer">View upload</a>
+                          ) : null}
+                        </div>
+                      )) : <small>No KYC uploads</small>}
+                    </div>
                   </td>
                   <td>
                     <strong>{compactNumber(advisor.active_assignments)} / {compactNumber(advisor.max_active_assignments)}</strong>
@@ -387,7 +400,9 @@ export default function AssistPanel({
                   <td>
                     <div className="inline-actions">
                       <button onClick={() => startEditAdvisor(advisor)} type="button">Edit</button>
-                      <button disabled={!canManageAdvisors || advisor.kyc_status === 'approved'} onClick={() => onUpdateAdvisorStatus(advisor.advisor_id, { kycStatus: 'approved' })} type="button">Approve KYC</button>
+                      <button disabled={!canManageAdvisors || advisor.kyc_status === 'approved'} onClick={() => onUpdateAdvisorStatus(advisor.advisor_id, { kycStatus: 'approved' })} type="button">Approve</button>
+                      <button disabled={!canManageAdvisors || advisor.kyc_status === 'pending'} onClick={() => onUpdateAdvisorStatus(advisor.advisor_id, { kycStatus: 'pending' })} type="button">In Progress</button>
+                      <button disabled={!canManageAdvisors || advisor.kyc_status === 'rejected'} onClick={() => onUpdateAdvisorStatus(advisor.advisor_id, { kycStatus: 'rejected' })} type="button">Decline</button>
                       <button disabled={!canManageAdvisors || advisor.status === 'active'} onClick={() => onUpdateAdvisorStatus(advisor.advisor_id, { status: 'active' })} type="button">Activate</button>
                       <button disabled={!canManageAdvisors || advisor.status === 'paused'} onClick={() => onUpdateAdvisorStatus(advisor.advisor_id, { status: 'paused' })} type="button">Pause</button>
                     </div>

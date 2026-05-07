@@ -3,6 +3,7 @@ package com.soulmatch.app.ui.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.soulmatch.app.data.api.ProfileApiService
+import com.soulmatch.app.data.local.UserPreferences
 import com.soulmatch.app.data.models.AgentManagedProfileSummaryData
 import com.soulmatch.app.data.models.AgentMembershipData
 import com.soulmatch.app.data.models.AgentManagedProfileCreateRequest
@@ -33,7 +34,8 @@ data class AgentUiState(
 
 @HiltViewModel
 class AgentViewModel @Inject constructor(
-    private val profileApi: ProfileApiService
+    private val profileApi: ProfileApiService,
+    private val userPreferences: UserPreferences
 ) : ViewModel() {
     private val _state = MutableStateFlow(AgentUiState(loading = true))
     val state: StateFlow<AgentUiState> = _state.asStateFlow()
@@ -97,7 +99,14 @@ class AgentViewModel @Inject constructor(
                     "businessName" to request.businessName.asPlainPart(),
                     "referralCode" to request.referralCode.asPlainPart(),
                     "serviceLabel" to request.serviceLabel.asPlainPart(),
-                    "kycDocumentMeta" to JSONArray(documentMeta).toString().asPlainPart()
+                    "kycDocumentMeta" to JSONArray(documentMeta).toString().asPlainPart(),
+                    "kycDocuments" to JSONArray(request.kycDocuments.map {
+                        mapOf(
+                            "documentType" to it.documentType,
+                            "documentSide" to it.documentSide,
+                            "fileUrl" to it.fileUrl
+                        )
+                    }).toString().asPlainPart()
                 )
                 val response = profileApi.submitAgentOnboardingMultipart(fields, documents).body()
                 if (response?.success == true) {
@@ -109,6 +118,27 @@ class AgentViewModel @Inject constructor(
                 }
             } catch (error: Exception) {
                 _state.value = _state.value.copy(saving = false, error = error.message ?: "Could not submit agent onboarding.")
+            }
+        }
+    }
+
+    fun saveAgentProfile(
+        request: AgentProfileUpsertRequest,
+        onCompleted: () -> Unit
+    ) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(saving = true, error = null, saveMessage = null)
+            try {
+                val response = profileApi.upsertAgentProfile(request).body()
+                if (response?.success == true) {
+                    _state.value = _state.value.copy(saving = false, saveMessage = "Agent profile updated.")
+                    refresh()
+                    onCompleted()
+                } else {
+                    _state.value = _state.value.copy(saving = false, error = response?.error?.message ?: "Could not update agent profile.")
+                }
+            } catch (error: Exception) {
+                _state.value = _state.value.copy(saving = false, error = error.message ?: "Could not update agent profile.")
             }
         }
     }
@@ -202,6 +232,13 @@ class AgentViewModel @Inject constructor(
             } catch (error: Exception) {
                 _state.value = _state.value.copy(saving = false, error = error.message ?: "Could not save commission settings.")
             }
+        }
+    }
+
+    fun logout(onCompleted: () -> Unit) {
+        viewModelScope.launch {
+            userPreferences.clearAll()
+            onCompleted()
         }
     }
 }

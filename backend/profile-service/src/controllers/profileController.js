@@ -51,6 +51,15 @@ async function requireOwnedProfile(profileId, userId) {
   return profile;
 }
 
+async function requireEditableProfileForUser(req, profileId) {
+  if (req.user?.userType === 'agent') {
+    const profile = await repo.getManagedProfileByAgentUserId(req.user.userId, profileId);
+    if (!profile) throw new AppError(404, ErrorCodes.NOT_FOUND, 'Managed profile not found');
+    return profile;
+  }
+  return requireOwnedProfile(profileId, req.user.userId);
+}
+
 function validateStepData(step, data) {
   switch (step) {
     case 1:
@@ -376,13 +385,13 @@ exports.updateProfile = async (req, res, next) => {
 };
 exports.getPhotos = async (req, res, next) => {
   try {
-    await requireOwnedProfile(req.params.profileId, req.user.userId);
+    await requireEditableProfileForUser(req, req.params.profileId);
     res.json({ success: true, data: await repo.getPhotos(req.params.profileId) });
   } catch (err) { next(err); }
 };
 exports.uploadPhotos = async (req, res, next) => {
   try {
-    await requireOwnedProfile(req.params.profileId, req.user.userId);
+    await requireEditableProfileForUser(req, req.params.profileId);
     if (!req.files || !req.files.length) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'No photos uploaded'));
     const before = await repo.getPhotos(req.params.profileId);
     const urls = await media.savePhotos(req.files, req.params.profileId);
@@ -400,7 +409,7 @@ exports.uploadPhotos = async (req, res, next) => {
 };
 exports.deletePhoto = async (req, res, next) => {
   try {
-    await requireOwnedProfile(req.params.profileId, req.user.userId);
+    await requireEditableProfileForUser(req, req.params.profileId);
     const before = await repo.getPhotos(req.params.profileId);
     await repo.deletePhoto(req.params.profileId, req.params.photoId);
     const after = await repo.getPhotos(req.params.profileId);
@@ -417,7 +426,7 @@ exports.deletePhoto = async (req, res, next) => {
 };
 exports.setPrimaryPhoto = async (req, res, next) => {
   try {
-    await requireOwnedProfile(req.params.profileId, req.user.userId);
+    await requireEditableProfileForUser(req, req.params.profileId);
     const before = await repo.getPhotos(req.params.profileId);
     const updated = await repo.setPrimaryPhoto(req.params.profileId, req.params.photoId);
     if (!updated) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Photo not found'));
@@ -744,7 +753,9 @@ exports.upsertAgentOnboarding = async (req, res, next) => {
         fileUrl
       };
     });
-    const inlineDocuments = Array.isArray(body.kycDocuments) ? body.kycDocuments : [];
+    const inlineDocuments = Array.isArray(body.kycDocuments)
+      ? body.kycDocuments
+      : parseAgentKycMeta(body.kycDocuments);
     const kycDocuments = inlineDocuments.concat(inferredUploadDocuments);
     const saved = await repo.upsertAgentOnboarding(req.user.userId, {
       ...body,

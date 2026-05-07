@@ -115,6 +115,8 @@ data class AgentProfileUpsertRequest(
     val phone: String = "",
     val city: String,
     val state: String = "",
+    val businessName: String = "",
+    val referralCode: String = "",
     val locality: String = "",
     val pincode: String = "",
     val languages: List<String> = emptyList(),

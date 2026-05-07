@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Badge
@@ -196,13 +195,7 @@ private fun AgentTopBar(
                 ),
                 color = AgentAccent
             )
-            IconButton(onClick = onMenu, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    imageVector = if (mode == AgentTopBarMode.Close) Icons.Filled.MoreVert else Icons.Filled.Menu,
-                    contentDescription = "More options",
-                    tint = Color(0xFF1E1B18)
-                )
-            }
+            Box(modifier = Modifier.size(40.dp))
         }
     }
 }
