@@ -6,12 +6,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -23,7 +25,9 @@ import androidx.compose.material.icons.outlined.ArrowOutward
 import androidx.compose.material.icons.outlined.AssignmentTurnedIn
 import androidx.compose.material.icons.outlined.Groups2
 import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -65,11 +69,12 @@ fun AgentDashboardScreen(
     vm: AgentViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val agentProfile = state.agentProfile
     val pendingProfiles = state.managedProfiles.filter { !it.isVerifiedForAgent() }
     val managedProfiles = state.managedProfiles.filter { it.isVerifiedForAgent() }
     val recentActivities = state.managedProfiles
         .sortedByDescending { it.updatedAt ?: it.createdAt ?: "" }
-        .take(5)
+        .take(3)
 
     val verificationProgress = when (state.agentProfile?.onboardingStatus) {
         "approved" -> 1f
@@ -107,23 +112,19 @@ fun AgentDashboardScreen(
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 item {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            "Agent Dashboard",
-                            fontFamily = FontFamily.Serif,
-                            fontSize = 34.sp,
-                            lineHeight = 38.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF24181B)
-                        )
-                        VerificationProgressCard(
-                            status = state.agentProfile?.onboardingStatus ?: "pending",
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        AgentHeroCard(
+                            fullName = agentProfile?.fullName.orEmpty(),
+                            agentCode = agentProfile?.agentCode.orEmpty(),
+                            businessName = agentProfile?.businessName.orEmpty(),
+                            city = agentProfile?.city.orEmpty(),
+                            stateName = agentProfile?.state.orEmpty(),
+                            status = agentProfile?.onboardingStatus ?: "pending",
                             progress = verificationProgress,
-                            rejectionReason = state.agentProfile?.onboardingRejectionReason.orEmpty(),
                             onOpenOnboarding = onOpenOnboarding
                         )
                         Button(
-                            onClick = if (state.agentProfile?.isOnboarded == true) onOpenCreateProfile else onOpenOnboarding,
+                            onClick = if (agentProfile?.isOnboarded == true) onOpenCreateProfile else onOpenOnboarding,
                             modifier = Modifier.height(50.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = AgentColorsAccent, contentColor = Color.White),
                             shape = RoundedCornerShape(999.dp)
@@ -134,45 +135,59 @@ fun AgentDashboardScreen(
                     }
                 }
                 item {
-                    DashboardSectionCard(
-                        title = "Pending Verifications",
-                        value = pendingProfiles.size.toString(),
-                        detail = if (pendingProfiles.isEmpty()) "No profiles waiting right now" else "Drafts and submitted profiles waiting for review",
-                        icon = Icons.Outlined.AccessTime,
-                        accent = Color(0xFF9D5B00),
-                        badge = if (pendingProfiles.isEmpty()) null else "${pendingProfiles.size} waiting",
-                        onClick = { onOpenProfiles("pending") }
-                    )
-                }
-                item {
-                    DashboardSectionCard(
+                    DashboardMetricCard(
                         title = "Managed Profiles",
                         value = managedProfiles.size.toString(),
-                        detail = if (managedProfiles.isEmpty()) "Verified profiles will appear here" else "Only verified profiles are counted as actively managed",
+                        detail = if (managedProfiles.isEmpty()) "No verified profiles yet" else "${managedProfiles.size} verified",
                         icon = Icons.Outlined.Groups2,
-                        accent = AgentColorsAccent,
-                        badge = if (managedProfiles.isEmpty()) null else "${managedProfiles.count { (it.viewCount + it.matchCount) > 0 }} active",
+                        accent = Color(0xFF24181B),
                         onClick = { onOpenProfiles("managed") }
                     )
                 }
                 item {
-                    DashboardStatStrip(
-                        verificationRate = if (state.managedProfiles.isEmpty()) 0 else ((managedProfiles.size.toFloat() / state.managedProfiles.size.toFloat()) * 100).roundToInt(),
-                        matchMomentum = managedProfiles.sumOf { it.matchCount }
+                    DashboardMetricCard(
+                        title = "Pending Verifications",
+                        value = pendingProfiles.size.toString(),
+                        detail = if (pendingProfiles.isEmpty()) "0 pending" else "${pendingProfiles.size} pending",
+                        icon = Icons.Outlined.AccessTime,
+                        accent = Color(0xFF24181B),
+                        onClick = { onOpenProfiles("pending") }
                     )
                 }
                 item {
+                    EngagementCard(
+                        verificationRate = if (state.managedProfiles.isEmpty()) 0 else ((managedProfiles.size.toFloat() / state.managedProfiles.size.toFloat()) * 100).roundToInt()
+                    )
+                }
+                item {
+                    DecorativeDashboardDivider()
+                }
+                item {
                     RecentActivityCard(
+                        title = "Client Activity Overview",
                         profiles = recentActivities,
                         onViewAll = onOpenActivities
                     )
                 }
-                if (commissionEnabled) {
-                    item {
+                item {
+                    if (commissionEnabled) {
                         MonthlyCommissionCard(
                             amountInr = monthlyCommission,
                             progress = monthlyProgress,
                             targetLabel = if (monthlyTarget > 0) "${(monthlyProgress * 100).roundToInt()}% reached monthly target" else "Monthly target not configured"
+                        )
+                    } else {
+                        QuickLinksCard(
+                            onReviewPending = { onOpenProfiles("pending") },
+                            onUpdateProfile = onOpenOnboarding
+                        )
+                    }
+                }
+                if (commissionEnabled) {
+                    item {
+                        QuickLinksCard(
+                            onReviewPending = { onOpenProfiles("pending") },
+                            onUpdateProfile = onOpenOnboarding
                         )
                     }
                 }
@@ -182,10 +197,14 @@ fun AgentDashboardScreen(
 }
 
 @Composable
-private fun VerificationProgressCard(
+private fun AgentHeroCard(
+    fullName: String,
+    agentCode: String,
+    businessName: String,
+    city: String,
+    stateName: String,
     status: String,
     progress: Float,
-    rejectionReason: String,
     onOpenOnboarding: () -> Unit
 ) {
     Card(
@@ -198,37 +217,77 @@ private fun VerificationProgressCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Verification Progress", color = Color(0xFF2F2326), fontWeight = FontWeight.SemiBold)
-                    Text(
-                        when (status) {
-                            "approved" -> "Your agent account is approved."
-                            "under_review" -> "Your onboarding is under admin review."
-                            "rejected" -> "Your details need an update before approval."
-                            else -> "Complete your details and KYC to unlock the full dashboard."
-                        },
-                        color = AgentColorsMuted,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
                 Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = Color(0xFFFFF1F4)
+                    modifier = Modifier.size(72.dp),
+                    shape = CircleShape,
+                    color = Color(0xFFF8E4EA),
+                    border = BorderStroke(2.dp, AgentColorsAccent)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            fullName.take(1).ifBlank { "A" },
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = AgentColorsAccent,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        status.replaceFirstChar { it.uppercase() },
-                        color = AgentColorsAccent,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fullName.ifBlank { "SoulMatch Agent" },
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF2B1D1F)
                     )
+                    Text(
+                        "ID: ${agentCode.ifBlank { "AGT-0000" }}",
+                        color = Color(0xFF3E2C31),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        "Business: ${businessName.ifBlank { "SoulMatch Partner" }}",
+                        color = Color(0xFF3E2C31),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        androidx.compose.material3.Icon(
+                            Icons.Outlined.LocationOn,
+                            contentDescription = null,
+                            tint = AgentColorsMuted,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            listOf(city, stateName).filter { it.isNotBlank() }.joinToString(", ").ifBlank { "Location pending" },
+                            color = AgentColorsMuted,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFFFFF8E7)
+                ) {
+                    Box(
+                        modifier = Modifier.size(28.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        androidx.compose.material3.Icon(
+                            Icons.Outlined.StarOutline,
+                            contentDescription = null,
+                            tint = Color(0xFFE0B628),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
             LinearProgressIndicator(
@@ -239,28 +298,40 @@ private fun VerificationProgressCard(
                 color = AgentColorsAccent,
                 trackColor = Color(0xFFF2E7E5)
             )
-            if (status == "rejected" && rejectionReason.isNotBlank()) {
-                Text(rejectionReason, color = Color(0xFF8F3C50), style = MaterialTheme.typography.bodySmall)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    when (status) {
+                        "approved" -> "Verification complete"
+                        "under_review" -> "Verification under review"
+                        "rejected" -> "Verification needs update"
+                        else -> "Verification in progress"
+                    },
+                    color = AgentColorsMuted,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "Update Profile",
+                    color = AgentColorsAccent,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable(onClick = onOpenOnboarding)
+                )
             }
-            Text(
-                "Update details",
-                color = AgentColorsAccent,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.clickable(onClick = onOpenOnboarding)
-            )
         }
     }
 }
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-private fun DashboardSectionCard(
+private fun DashboardMetricCard(
     title: String,
     value: String,
     detail: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     accent: Color,
-    badge: String?,
     onClick: () -> Unit
 ) {
     Card(
@@ -274,91 +345,50 @@ private fun DashboardSectionCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(accent.copy(alpha = 0.10f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    androidx.compose.material3.Icon(icon, contentDescription = null, tint = accent)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    badge?.let {
-                        Surface(shape = RoundedCornerShape(999.dp), color = Color(0xFFFFF3F5)) {
-                            Text(
-                                it,
-                                color = AgentColorsAccent,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                    }
-                    androidx.compose.material3.Icon(Icons.Outlined.ArrowOutward, contentDescription = null, tint = Color(0xFF6C5960))
-                }
+                Text(title, color = Color(0xFF2A1D20), fontWeight = FontWeight.Medium)
+                androidx.compose.material3.Icon(icon, contentDescription = null, tint = accent)
             }
-            Text(title, color = Color(0xFF2A1D20), fontWeight = FontWeight.SemiBold)
             Text(value, fontFamily = FontFamily.Serif, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color(0xFF161214))
-            Text(detail, color = AgentColorsMuted, style = MaterialTheme.typography.bodySmall)
+            Text(detail, color = Color(0xFFD7A12F), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
 
 @Composable
-private fun DashboardStatStrip(verificationRate: Int, matchMomentum: Int) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        MiniStatCard(
-            modifier = Modifier.weight(1f),
-            title = "Verification Rate",
-            value = "$verificationRate%",
-            icon = Icons.Outlined.AssignmentTurnedIn
-        )
-        MiniStatCard(
-            modifier = Modifier.weight(1f),
-            title = "Match Momentum",
-            value = matchMomentum.toString(),
-            icon = Icons.Outlined.Insights
-        )
-    }
-}
-
-@Composable
-private fun MiniStatCard(
-    modifier: Modifier,
-    title: String,
-    value: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
-) {
+private fun EngagementCard(verificationRate: Int) {
     Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBFA)),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, Color(0xFFF0E2DE))
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = AgentColorsAccent),
+        shape = AgentShapesCard
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            androidx.compose.material3.Icon(icon, contentDescription = null, tint = AgentColorsAccent)
-            Text(title, color = AgentColorsMuted, style = MaterialTheme.typography.bodySmall)
-            Text(value, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 24.sp)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Engagement Rate", color = Color.White, fontWeight = FontWeight.SemiBold)
+                androidx.compose.material3.Icon(Icons.Outlined.Insights, contentDescription = null, tint = Color.White)
+            }
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("$verificationRate%", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 30.sp, color = Color.White)
+                Text("Top 10% of agents", color = Color.White.copy(alpha = 0.84f), style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }
 
 @Composable
 private fun RecentActivityCard(
+    title: String,
     profiles: List<AgentManagedProfileSummaryData>,
     onViewAll: () -> Unit
 ) {
@@ -371,11 +401,11 @@ private fun RecentActivityCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(18.dp),
+                .padding(18.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Recent Activity", fontFamily = FontFamily.Serif, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                Text(title, fontFamily = FontFamily.Serif, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
                 Text("View all", color = AgentColorsAccent, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable(onClick = onViewAll))
             }
             if (profiles.isEmpty()) {
@@ -449,7 +479,7 @@ private fun MonthlyCommissionCard(
         ) {
             Text("Monthly Commission", fontFamily = FontFamily.Serif, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                "INR ${"%,d".format(amountInr)}",
+                "₹${"%,d".format(amountInr)}",
                 fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.Bold,
                 fontSize = 30.sp,
@@ -464,6 +494,73 @@ private fun MonthlyCommissionCard(
                 trackColor = Color(0xFFE7E1DE)
             )
             Text(targetLabel, color = AgentColorsMuted, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun DecorativeDashboardDivider() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Spacer(modifier = Modifier.width(70.dp).height(1.dp).background(Color(0xFFE2D198)))
+        Text(
+            "⚭",
+            modifier = Modifier.padding(horizontal = 12.dp),
+            color = Color(0xFFE0B628),
+            fontSize = 15.sp
+        )
+        Spacer(modifier = Modifier.width(70.dp).height(1.dp).background(Color(0xFFE2D198)))
+    }
+}
+
+@Composable
+private fun QuickLinksCard(
+    onReviewPending: () -> Unit,
+    onUpdateProfile: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFBF5F2)),
+        shape = AgentShapesCard,
+        border = BorderStroke(1.dp, Color(0xFFF0E2DE))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text("Quick Links", fontWeight = FontWeight.SemiBold, color = Color(0xFF2A1D20))
+            QuickLinkRow("Review Pending", onClick = onReviewPending)
+            QuickLinkRow("Update Profile", onClick = onUpdateProfile)
+        }
+    }
+}
+
+@Composable
+private fun QuickLinkRow(
+    label: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFE7D9D4))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, color = Color(0xFF4F232C), fontWeight = FontWeight.Medium)
+            androidx.compose.material3.Icon(Icons.Outlined.ArrowOutward, contentDescription = null, tint = Color(0xFF4F232C))
         }
     }
 }

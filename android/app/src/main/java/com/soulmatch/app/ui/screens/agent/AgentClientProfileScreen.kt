@@ -1,6 +1,8 @@
 package com.soulmatch.app.ui.screens.agent
 
+import android.content.Context
 import android.net.Uri
+import android.webkit.MimeTypeMap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -62,6 +64,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -73,6 +76,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.soulmatch.app.data.models.AgentManagedProfileCreateRequest
 import com.soulmatch.app.ui.viewmodels.AgentViewModel
+import java.util.Locale
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
@@ -87,6 +94,7 @@ fun AgentClientProfileScreen(
     vm: AgentViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     var step by remember { mutableStateOf(1) }
 
     var fullName by remember { mutableStateOf("") }
@@ -279,6 +287,11 @@ fun AgentClientProfileScreen(
                                 val nameParts = splitFullName(fullName)
                                 val interestsSummary = if (selectedInterests.isEmpty()) "" else "\nInterests: ${selectedInterests.joinToString()}"
                                 val companySummary = companyName.takeIf { it.isNotBlank() }?.let { "\nCompany: $it" }.orEmpty()
+                                val photoParts = listOfNotNull(
+                                    primaryPhotoUri?.let { context.toProfilePhotoPart(it, 0) },
+                                    secondaryPhotoUri?.let { context.toProfilePhotoPart(it, 1) },
+                                    tertiaryPhotoUri?.let { context.toProfilePhotoPart(it, 2) }
+                                )
                                 vm.createManagedProfile(
                                     AgentManagedProfileCreateRequest(
                                         firstName = nameParts.first,
@@ -307,6 +320,8 @@ fun AgentClientProfileScreen(
                                             }
                                         }
                                     ),
+                                    photoParts = photoParts,
+                                    publishProfile = publishProfile,
                                     onCompleted = onSaved
                                 )
                             }
@@ -1010,4 +1025,14 @@ private fun splitFullName(value: String): Pair<String, String> {
     if (parts.isEmpty()) return "" to ""
     if (parts.size == 1) return parts.first() to ""
     return parts.first() to parts.drop(1).joinToString(" ")
+}
+
+private fun Context.toProfilePhotoPart(uri: Uri, index: Int): MultipartBody.Part? {
+    val contentType = contentResolver.getType(uri) ?: "image/jpeg"
+    val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+    val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(contentType)?.lowercase(Locale.US)
+        ?: "jpg"
+    val fileName = "agent-profile-photo-${System.currentTimeMillis()}-$index.$extension"
+    val body = bytes.toRequestBody(contentType.toMediaTypeOrNull())
+    return MultipartBody.Part.createFormData("photos", fileName, body)
 }

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AssignmentTurnedIn
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
@@ -339,7 +340,7 @@ private val agentDrawerItems = listOf(
     AgentDrawerItem("Recent Activity", AgentDrawerDestination.Activities, Icons.Filled.Favorite),
     AgentDrawerItem("Plans", AgentDrawerDestination.Plans, Icons.Filled.Chat),
     AgentDrawerItem("Account", AgentDrawerDestination.Account, Icons.Filled.Person),
-    AgentDrawerItem("Registration Details", AgentDrawerDestination.Onboarding, Icons.Filled.MoreVert)
+    AgentDrawerItem("Update Profile", AgentDrawerDestination.Onboarding, Icons.Filled.Edit)
 )
 
 internal val AgentColorsAccent = AgentAccent
