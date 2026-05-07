@@ -249,6 +249,23 @@ fun AgentClientProfileScreen(
                         onPublishProfileChange = { publishProfile = it }
                     )
                 }
+
+                state.error?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        text = it,
+                        color = AgentColorsAccent,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                state.saveMessage?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        text = it,
+                        color = Color(0xFF0F8D57),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
 
             Surface(

@@ -3,10 +3,12 @@ package com.soulmatch.app.ui.screens.agent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -45,8 +47,13 @@ fun AgentAccountScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     val profile = state.agentProfile
     var enabled by remember(profile?.feePreferences) { mutableStateOf(profile?.feePreferences?.get("enabled").equals("true", ignoreCase = true)) }
-    var verifiedRate by remember(profile?.feePreferences) { mutableStateOf(profile?.feePreferences?.get("verifiedProfileRateInr").orEmpty()) }
-    var successfulMatchRate by remember(profile?.feePreferences) { mutableStateOf(profile?.feePreferences?.get("successfulMatchRateInr").orEmpty()) }
+    var isActive by remember(profile?.status) { mutableStateOf(!profile?.status.equals("inactive", ignoreCase = true)) }
+    var matchSearchingRate by remember(profile?.feePreferences) {
+        mutableStateOf(profile?.feePreferences?.get("matchSearchingRateInr") ?: profile?.feePreferences?.get("verifiedProfileRateInr").orEmpty())
+    }
+    var marriageSettingRate by remember(profile?.feePreferences) {
+        mutableStateOf(profile?.feePreferences?.get("marriageSettingRateInr") ?: profile?.feePreferences?.get("successfulMatchRateInr").orEmpty())
+    }
     var monthlyTarget by remember(profile?.feePreferences) { mutableStateOf(profile?.feePreferences?.get("monthlyTargetInr").orEmpty()) }
 
     AgentScaffold(
@@ -61,7 +68,7 @@ fun AgentAccountScreen(
         LazyColumn(
             modifier = modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
@@ -80,12 +87,22 @@ fun AgentAccountScreen(
                             .padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(profile?.fullName?.ifBlank { "Agent Profile" } ?: "Agent Profile", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            profile?.fullName?.ifBlank { "Agent Profile" } ?: "Agent Profile",
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = FontFamily.Serif,
+                            fontSize = 22.sp
+                        )
                         Text(profile?.businessName?.ifBlank { "Business details pending" } ?: "Business details pending", color = AgentColorsMuted)
                         Text(
-                            "Status: ${profile?.onboardingStatus?.replace('_', ' ') ?: "pending"} • KYC: ${profile?.kycStatus?.replace('_', ' ') ?: "pending"}",
+                            "${profile?.agentCode?.ifBlank { "ID pending" } ?: "ID pending"} | ${if (isActive) "Active" else "Inactive"}",
                             color = AgentColorsAccent,
                             fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            "KYC Status: ${formatStatusLabel(profile?.kycStatus ?: "pending")}",
+                            color = Color(0xFF5D4A52),
+                            style = MaterialTheme.typography.bodyMedium
                         )
                     }
                 }
@@ -103,8 +120,20 @@ fun AgentAccountScreen(
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         Text("Commission Settings", fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 22.sp)
-                        Text("Show the monthly commission card on the dashboard only when your rate card is configured.", color = AgentColorsMuted)
-                        androidx.compose.foundation.layout.Row(
+                        Text("Turn commission tracking on only when you want dashboard commission summaries and rate cards.", color = AgentColorsMuted)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Agent availability", fontWeight = FontWeight.Medium)
+                                Text("Set whether your agent profile is active on the platform.", color = AgentColorsMuted, style = MaterialTheme.typography.bodySmall)
+                            }
+                            Switch(checked = isActive, onCheckedChange = { isActive = it })
+                        }
+
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -114,30 +143,34 @@ fun AgentAccountScreen(
                             }
                             Switch(checked = enabled, onCheckedChange = { enabled = it })
                         }
-                        OutlinedTextField(
-                            value = verifiedRate,
-                            onValueChange = { verifiedRate = it },
-                            label = { Text("Verified profile rate (INR)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = successfulMatchRate,
-                            onValueChange = { successfulMatchRate = it },
-                            label = { Text("Successful match rate (INR)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = monthlyTarget,
-                            onValueChange = { monthlyTarget = it },
-                            label = { Text("Monthly target (INR)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                            singleLine = true
-                        )
+
+                        if (enabled) {
+                            OutlinedTextField(
+                                value = matchSearchingRate,
+                                onValueChange = { matchSearchingRate = it },
+                                label = { Text("Match Searching Rate") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = marriageSettingRate,
+                                onValueChange = { marriageSettingRate = it },
+                                label = { Text("Marriage Setting Rate") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = monthlyTarget,
+                                onValueChange = { monthlyTarget = it },
+                                label = { Text("Monthly target") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                singleLine = true
+                            )
+                        }
+
                         state.saveMessage?.takeIf { it.isNotBlank() }?.let {
                             Text(it, color = AgentColorsAccent, style = MaterialTheme.typography.bodySmall)
                         }
@@ -148,8 +181,9 @@ fun AgentAccountScreen(
                             onClick = {
                                 vm.saveCommissionPreferences(
                                     enabled = enabled,
-                                    verifiedProfileRate = verifiedRate,
-                                    successfulMatchRate = successfulMatchRate,
+                                    status = if (isActive) "active" else "inactive",
+                                    verifiedProfileRate = matchSearchingRate,
+                                    successfulMatchRate = marriageSettingRate,
                                     monthlyTarget = monthlyTarget
                                 )
                             },
@@ -176,4 +210,8 @@ fun AgentAccountScreen(
             }
         }
     }
+}
+
+private fun formatStatusLabel(value: String): String {
+    return value.replace('_', ' ').replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 }

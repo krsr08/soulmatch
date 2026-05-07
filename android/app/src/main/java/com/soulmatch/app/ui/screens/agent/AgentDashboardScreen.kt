@@ -19,15 +19,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccessTime
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowOutward
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Groups2
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.PersonOutline
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -74,17 +71,12 @@ fun AgentDashboardScreen(
         .sortedByDescending { it.updatedAt ?: it.createdAt ?: "" }
         .take(5)
 
-    val verificationProgress = when (agentProfile?.onboardingStatus) {
-        "approved" -> 1f
-        "under_review" -> 0.72f
-        "rejected" -> 0.4f
-        else -> 0.28f
-    }
+    val verificationProgress = calculateAgentProfileProgress(agentProfile)
 
     val feePrefs = agentProfile?.feePreferences.orEmpty()
     val commissionEnabled = feePrefs["enabled"].equals("true", ignoreCase = true)
-    val verifiedRate = feePrefs["verifiedProfileRateInr"]?.toIntOrNull() ?: 0
-    val successfulMatchRate = feePrefs["successfulMatchRateInr"]?.toIntOrNull() ?: 0
+    val verifiedRate = (feePrefs["matchSearchingRateInr"] ?: feePrefs["verifiedProfileRateInr"])?.toIntOrNull() ?: 0
+    val successfulMatchRate = (feePrefs["marriageSettingRateInr"] ?: feePrefs["successfulMatchRateInr"])?.toIntOrNull() ?: 0
     val monthlyTarget = feePrefs["monthlyTargetInr"]?.toIntOrNull() ?: 0
     val monthlyCommission = (managedProfiles.size * verifiedRate) + (managedProfiles.count { it.matchCount > 0 } * successfulMatchRate)
     val monthlyProgress = if (monthlyTarget > 0) (monthlyCommission.toFloat() / monthlyTarget.toFloat()).coerceIn(0f, 1f) else 0f
@@ -107,31 +99,20 @@ fun AgentDashboardScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 20.dp),
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 item {
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        AgentHeroCard(
-                            fullName = agentProfile?.fullName.orEmpty(),
-                            agentCode = agentProfile?.agentCode.orEmpty(),
-                            businessName = agentProfile?.businessName.orEmpty(),
-                            city = agentProfile?.city.orEmpty(),
-                            stateName = agentProfile?.state.orEmpty(),
-                            status = agentProfile?.onboardingStatus ?: "pending",
-                            progress = verificationProgress,
-                            onOpenOnboarding = onOpenOnboarding
-                        )
-                        Button(
-                            onClick = if (agentProfile?.isOnboarded == true) onOpenCreateProfile else onOpenOnboarding,
-                            modifier = Modifier.height(50.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = AgentColorsAccent, contentColor = Color.White),
-                            shape = RoundedCornerShape(999.dp)
-                        ) {
-                            androidx.compose.material3.Icon(Icons.Outlined.Add, contentDescription = null)
-                            Text("  Add New Member", fontWeight = FontWeight.Bold)
-                        }
-                    }
+                    AgentHeroCard(
+                        fullName = agentProfile?.fullName.orEmpty(),
+                        agentCode = agentProfile?.agentCode.orEmpty(),
+                        businessName = agentProfile?.businessName.orEmpty(),
+                        city = agentProfile?.city.orEmpty(),
+                        stateName = agentProfile?.state.orEmpty(),
+                        status = agentProfile?.onboardingStatus ?: "pending",
+                        progress = verificationProgress,
+                        onOpenOnboarding = onOpenOnboarding
+                    )
                 }
 
                 item {
@@ -361,8 +342,8 @@ private fun DashboardMetricCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -370,24 +351,26 @@ private fun DashboardMetricCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(title, color = Color(0xFF2A1D20), fontWeight = FontWeight.Medium)
-                Surface(shape = RoundedCornerShape(14.dp), color = iconTint.copy(alpha = 0.08f)) {
+                Surface(shape = RoundedCornerShape(16.dp), color = iconTint.copy(alpha = 0.1f)) {
                     Box(modifier = Modifier.padding(10.dp), contentAlignment = Alignment.Center) {
                         androidx.compose.material3.Icon(icon, contentDescription = null, tint = iconTint)
                     }
                 }
             }
+            Text(value, fontFamily = FontFamily.Serif, fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Color(0xFF161214))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(value, fontFamily = FontFamily.Serif, fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color(0xFF161214))
-                Surface(shape = RoundedCornerShape(999.dp), color = iconTint.copy(alpha = 0.12f)) {
-                    Text(
-                        detail,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        color = iconTint,
-                        style = MaterialTheme.typography.labelSmall
+                Text(detail, color = iconTint, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Open", color = Color(0xFF61464E), style = MaterialTheme.typography.labelSmall)
+                    androidx.compose.material3.Icon(
+                        Icons.Outlined.ArrowOutward,
+                        contentDescription = null,
+                        tint = Color(0xFF61464E),
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
@@ -625,4 +608,20 @@ internal fun profileTimelineLabel(rawIso: String?): String {
         today.minusDays(1) -> "Yesterday"
         else -> "${localDate.dayOfMonth}/${localDate.monthValue}/${localDate.year}"
     }
+}
+
+private fun calculateAgentProfileProgress(profile: com.soulmatch.app.data.models.AgentProfileData?): Float {
+    if (profile == null) return 0f
+    val checkpoints = listOf(
+        profile.fullName.isNotBlank(),
+        profile.phone.isNotBlank(),
+        profile.email.isNotBlank(),
+        profile.businessName.isNotBlank(),
+        profile.city.isNotBlank(),
+        profile.state.isNotBlank(),
+        profile.kycDocuments.any { it.documentType == "aadhaar" && it.fileUrl.isNotBlank() },
+        profile.kycDocuments.any { it.documentType == "pan" && it.fileUrl.isNotBlank() }
+    )
+    val completed = checkpoints.count { it }
+    return if (completed == checkpoints.size) 1f else (completed.toFloat() / checkpoints.size.toFloat()).coerceIn(0f, 1f)
 }

@@ -1928,6 +1928,7 @@ async function buildAgentProfile(advisorId, client = null) {
        a.languages,
        a.communities,
        a.fee_preferences,
+       a.status,
        a.kyc_status,
        a.onboarding_status,
        a.onboarding_rejection_reason,
@@ -1998,6 +1999,7 @@ async function buildAgentProfile(advisorId, client = null) {
     languages: parseJsonList(row.languages),
     communities: parseJsonList(row.communities),
     feePreferences: row.fee_preferences || {},
+    status: row.status || 'active',
     kycStatus: row.kyc_status || 'pending',
     onboardingStatus: row.onboarding_status || 'pending',
     onboardingRejectionReason: row.onboarding_rejection_reason || '',
@@ -2217,6 +2219,7 @@ exports.updateAgentProfileByUserId = async (userId, payload = {}) => {
            languages = COALESCE($13::jsonb, languages),
            communities = COALESCE($14::jsonb, communities),
            fee_preferences = COALESCE($15::jsonb, fee_preferences),
+           status = COALESCE($16, status),
            updated_at = NOW()
        WHERE advisor_id = $1`,
       [
@@ -2234,7 +2237,8 @@ exports.updateAgentProfileByUserId = async (userId, payload = {}) => {
         payload.yearsExperience !== undefined ? toIntegerOrDefault(payload.yearsExperience, 0) : null,
         payload.languages !== undefined ? JSON.stringify(toTextArray(payload.languages)) : null,
         payload.communities !== undefined ? JSON.stringify(toTextArray(payload.communities)) : null,
-        payload.feePreferences !== undefined ? JSON.stringify(payload.feePreferences || {}) : null
+        payload.feePreferences !== undefined ? JSON.stringify(payload.feePreferences || {}) : null,
+        cleanShortText(payload.status, 16)
       ]
     );
     if (Array.isArray(payload.serviceAreas)) {
@@ -2549,7 +2553,7 @@ exports.submitManagedProfileByAgentUserId = async (userId, profileId) => {
   if (!profile || profile.created_by_advisor_id !== advisor.advisor_id) return { status: 'not_found' };
   const completionScore = await exports.calcCompletion(profileId);
   const photoCount = await exports.getPhotoCount(profileId);
-  if (completionScore < 40) return { status: 'incomplete_profile', completionScore };
+  if (completionScore < 10) return { status: 'incomplete_profile', completionScore };
   if (photoCount < 1) return { status: 'photos_required' };
   const db = await getDB();
   await db.query(
