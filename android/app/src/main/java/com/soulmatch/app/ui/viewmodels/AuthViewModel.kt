@@ -147,13 +147,7 @@ class AuthViewModel @Inject constructor(
     }
 
     fun continueAsMember() {
-        viewModelScope.launch {
-            prefs.clearProfileProgress()
-            prefs.saveWizardStep(1)
-            prefs.saveUserType("member")
-            prefs.savePendingAuthRoute("profile_wizard/1")
-            _state.value = AuthUiState.Verified(isNewUser = true, route = "profile_wizard/1")
-        }
+        selectUserType("member")
     }
 
     fun selectUserType(userType: String) {
@@ -208,25 +202,23 @@ class AuthViewModel @Inject constructor(
     }
 
     private suspend fun persistSessionAndResolveRoute(data: AuthData, requestedUserType: String? = null): String {
-        if (data.isNewUser && requestedUserType.isNullOrBlank()) {
-            prefs.savePendingAuthRoute("auth_role_selection")
-        } else {
-            prefs.clearPendingAuthRoute()
+        val normalizedUserType = data.userType.ifBlank { "member" }
+        val explicitSelectionRoute = when (requestedUserType) {
+            "agent" -> "agent_onboarding"
+            "member" -> "profile_wizard/1"
+            else -> null
         }
-        prefs.saveAuthToken(data.accessToken)
-        prefs.saveRefreshToken(data.refreshToken)
-        prefs.saveUserId(data.userId)
-        prefs.saveUserType(data.userType.ifBlank { "member" })
+
         val route = if (data.isNewUser && requestedUserType.isNullOrBlank()) {
             "auth_role_selection"
-        } else if (data.userType == "agent") {
+        } else if (explicitSelectionRoute != null) {
+            explicitSelectionRoute
+        } else if (normalizedUserType == "agent") {
             val agentProfile = runCatching {
                 profileApi.getAgentProfile().body()?.takeIf { it.success }?.data
             }.getOrNull()
             resolveAgentRoute(agentProfile)
         } else if (data.isNewUser) {
-            prefs.clearProfileProgress()
-            prefs.saveWizardStep(1)
             "profile_wizard/1"
         } else {
             val profile = runCatching {
@@ -241,9 +233,19 @@ class AuthViewModel @Inject constructor(
             prefs.saveWizardStep(resolvedStep ?: 7)
             resolvePostLoginRoute(profile)
         }
-        if (!(data.isNewUser && requestedUserType.isNullOrBlank())) {
+        if (data.isNewUser && requestedUserType.isNullOrBlank()) {
+            prefs.savePendingAuthRoute("auth_role_selection")
+        } else {
             prefs.savePendingAuthRoute(route)
         }
+        if (route == "profile_wizard/1") {
+            prefs.clearProfileProgress()
+            prefs.saveWizardStep(1)
+        }
+        prefs.saveUserType(normalizedUserType)
+        prefs.saveAuthToken(data.accessToken)
+        prefs.saveRefreshToken(data.refreshToken)
+        prefs.saveUserId(data.userId)
         return route
     }
 

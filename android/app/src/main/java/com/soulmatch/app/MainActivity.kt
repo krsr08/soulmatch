@@ -23,6 +23,7 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.soulmatch.app.data.api.ControlPlaneApiService
 import com.soulmatch.app.data.api.NotificationApiService
 import com.soulmatch.app.data.api.ProfileApiService
+import com.soulmatch.app.data.auth.resolveAgentRoute
 import com.soulmatch.app.data.auth.resolvePostLoginRoute
 import com.soulmatch.app.data.auth.resolveWizardStep
 import com.soulmatch.app.data.local.UserPreferences
@@ -104,6 +105,26 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                 if (!pendingAuthRoute.isNullOrBlank()) {
                     userPreferences.clearPendingAuthRoute()
                     startDestination = pendingAuthRoute
+                    return@LaunchedEffect
+                }
+
+                val storedUserType = userPreferences.userType.first().orEmpty().lowercase()
+                if (storedUserType == "agent") {
+                    val agentResponse = runCatching { profileApi.getAgentProfile() }.getOrNull()
+                    val agentBody = agentResponse?.body()
+                    when {
+                        agentResponse?.isSuccessful == true && agentBody?.success == true -> {
+                            userPreferences.saveAdvisorId(agentBody.data?.advisorId.orEmpty())
+                            startDestination = resolveAgentRoute(agentBody.data)
+                        }
+                        agentResponse?.code() == 401 -> {
+                            userPreferences.clearAll()
+                            startDestination = "welcome"
+                        }
+                        else -> {
+                            startDestination = "agent_onboarding"
+                        }
+                    }
                     return@LaunchedEffect
                 }
 

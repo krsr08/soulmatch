@@ -38,6 +38,17 @@ async function ensureAgentUpgradeAllowed(userId) {
   }
 }
 
+async function ensureMemberSelectionAllowed(userId) {
+  const db = await getDB();
+  const [memberProfile, advisorProfile] = await Promise.all([
+    db.query('SELECT 1 FROM profiles WHERE user_id=$1 LIMIT 1', [userId]),
+    db.query('SELECT 1 FROM advisors WHERE user_id=$1 LIMIT 1', [userId])
+  ]);
+  if (memberProfile.rows.length || advisorProfile.rows.length) {
+    throw new AppError(409, ErrorCodes.VALIDATION_ERROR, 'This account has already started a profile flow. Please continue with the current account type.');
+  }
+}
+
 exports.sendOTP = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -326,17 +337,20 @@ exports.selectUserType = async (req, res, next) => {
       });
     }
 
-    if (currentUserType !== 'member' || requestedUserType !== 'agent') {
+    if (currentUserType === 'member' && requestedUserType === 'agent') {
+      await ensureAgentUpgradeAllowed(user.user_id);
+    } else if (currentUserType === 'agent' && requestedUserType === 'member') {
+      await ensureMemberSelectionAllowed(user.user_id);
+    } else {
       return next(new AppError(409, ErrorCodes.VALIDATION_ERROR, `This account is already registered as a ${currentUserType}. Please continue with that account type.`));
     }
 
-    await ensureAgentUpgradeAllowed(user.user_id);
-    const updated = await userRepo.updateUserType(user.user_id, 'agent');
+    const updated = await userRepo.updateUserType(user.user_id, requestedUserType);
     const { accessToken, refreshToken } = tokenService.generatePair({
       userId: updated.user_id,
       phone: updated.phone,
       email: updated.email,
-      userType: 'agent'
+      userType: requestedUserType
     });
     await tokenService.storeRefresh(updated.user_id, refreshToken);
 
@@ -345,7 +359,7 @@ exports.selectUserType = async (req, res, next) => {
       eventType: 'account_type_selected',
       serviceName: 'auth-service',
       userId: updated.user_id,
-      payload: { selectedUserType: 'agent' }
+      payload: { selectedUserType: requestedUserType }
     });
 
     res.json({
@@ -355,7 +369,7 @@ exports.selectUserType = async (req, res, next) => {
         refreshToken,
         userId: updated.user_id,
         isNewUser: true,
-        userType: 'agent'
+        userType: requestedUserType
       }
     });
   } catch (err) { next(err); }
