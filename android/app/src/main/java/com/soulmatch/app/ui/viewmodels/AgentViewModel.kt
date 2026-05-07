@@ -115,6 +115,8 @@ class AgentViewModel @Inject constructor(
 
     fun createManagedProfile(
         request: AgentManagedProfileCreateRequest,
+        photoParts: List<MultipartBody.Part> = emptyList(),
+        publishProfile: Boolean = true,
         onCompleted: () -> Unit
     ) {
         viewModelScope.launch {
@@ -122,8 +124,33 @@ class AgentViewModel @Inject constructor(
             try {
                 val response = profileApi.createAgentManagedProfile(request).body()
                 if (response?.success == true && response.data != null) {
-                    runCatching { profileApi.submitAgentManagedProfile(response.data.profileId) }
-                    _state.value = _state.value.copy(saving = false, saveMessage = "Profile added to pending verification.")
+                    val profileId = response.data.profileId
+                    if (photoParts.isNotEmpty()) {
+                        val uploadResponse = profileApi.uploadPhotos(profileId, photoParts).body()
+                        if (uploadResponse?.success != true) {
+                            _state.value = _state.value.copy(
+                                saving = false,
+                                error = uploadResponse?.error?.message ?: "Profile saved, but photo upload failed."
+                            )
+                            refresh()
+                            return@launch
+                        }
+                    }
+                    if (publishProfile) {
+                        val submitResponse = profileApi.submitAgentManagedProfile(profileId).body()
+                        if (submitResponse?.success != true) {
+                            _state.value = _state.value.copy(
+                                saving = false,
+                                error = submitResponse?.error?.message ?: "Profile saved, but submission failed."
+                            )
+                            refresh()
+                            return@launch
+                        }
+                    }
+                    _state.value = _state.value.copy(
+                        saving = false,
+                        saveMessage = if (publishProfile) "Profile added to pending verification." else "Profile saved as draft."
+                    )
                     refresh()
                     onCompleted()
                 } else {

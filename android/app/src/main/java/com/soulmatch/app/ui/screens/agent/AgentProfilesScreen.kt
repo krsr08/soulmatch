@@ -115,16 +115,18 @@ fun AgentProfilesScreen(
                         }
                     }
                 }
-                ExtendedFloatingActionButton(
-                    onClick = onOpenCreateProfile,
-                    containerColor = AgentColorsAccent,
-                    contentColor = Color.White,
-                    icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
-                    text = { Text("Add New Member") },
-                    modifier = Modifier
-                        .padding(20.dp)
-                        .fillMaxWidth()
-                )
+                if (selectedFilter != "pending") {
+                    ExtendedFloatingActionButton(
+                        onClick = onOpenCreateProfile,
+                        containerColor = AgentColorsAccent,
+                        contentColor = Color.White,
+                        icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                        text = { Text("Add New Member") },
+                        modifier = Modifier
+                            .padding(20.dp)
+                            .fillMaxWidth()
+                    )
+                }
             }
         }
     }

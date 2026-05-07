@@ -288,7 +288,7 @@ fun AppNavigation(
             AgentClientProfileScreen(
                 onBack = { nav.popBackStack() },
                 onSaved = {
-                    nav.navigate("agent_profiles") {
+                    nav.navigate("agent_profiles?filter=pending") {
                         popUpTo("agent_client_profile") { inclusive = true }
                         launchSingleTop = true
                     }
