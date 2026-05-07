@@ -141,6 +141,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                         AppNavigation(
                             startDestination = route,
                             isAuthenticated = !token.isNullOrEmpty(),
+                            navigationLocked = route == "auth_role_selection",
                             branding = runtimeConfig.branding,
                             content = runtimeConfig.content,
                             legal = runtimeConfig.legal,
