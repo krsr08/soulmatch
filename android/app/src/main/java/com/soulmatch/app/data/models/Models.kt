@@ -120,7 +120,8 @@ data class AgentProfileUpsertRequest(
     val languages: List<String> = emptyList(),
     val communities: List<String> = emptyList(),
     val bio: String = "",
-    val serviceLabel: String = "SoulMatch Advisor"
+    val serviceLabel: String = "SoulMatch Advisor",
+    val feePreferences: Map<String, String> = emptyMap()
 )
 
 data class AgentOnboardingRequest(
@@ -163,7 +164,38 @@ data class AgentManagedProfileSummaryData(
     val state: String = "",
     @SerializedName("viewCount") val viewCount: Int = 0,
     @SerializedName("matchCount") val matchCount: Int = 0,
-    @SerializedName("documentChecklistPercent") val documentChecklistPercent: Int = 0
+    @SerializedName("documentChecklistPercent") val documentChecklistPercent: Int = 0,
+    @SerializedName("createdAt") val createdAt: String? = null,
+    @SerializedName("updatedAt") val updatedAt: String? = null
+)
+
+data class AgentManagedProfileCreateRequest(
+    val firstName: String,
+    val lastName: String = "",
+    val dob: String,
+    val gender: String,
+    val religion: String,
+    val caste: String = "",
+    val motherTongue: String = "",
+    val maritalStatus: String = "never_married",
+    val heightCm: Int? = null,
+    val weightKg: Int? = null,
+    val complexion: String = "",
+    val educationLevel: String = "",
+    val occupation: String = "",
+    val annualIncome: String = "",
+    val city: String = "",
+    val state: String = "",
+    val pincode: String = "",
+    val mobile: String = "",
+    val email: String = "",
+    val fatherOccupation: String = "",
+    val motherOccupation: String = "",
+    val numBrothers: Int = 0,
+    val numSisters: Int = 0,
+    val familyType: String = "",
+    val diet: String = "",
+    val aboutMe: String = ""
 )
 
 data class AgentMembershipData(

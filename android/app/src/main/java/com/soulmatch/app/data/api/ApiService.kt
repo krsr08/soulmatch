@@ -30,6 +30,8 @@ interface ProfileApiService {
     @GET("profile/agent/membership") suspend fun getAgentMembership(): Response<GenericResponse<AgentMembershipData>>
     @GET("profile/agent/membership/plans") suspend fun getAgentMembershipPlans(): Response<GenericResponse<List<AgentMembershipData>>>
     @GET("profile/agent/managed-profiles") suspend fun getAgentManagedProfiles(): Response<GenericResponse<List<AgentManagedProfileSummaryData>>>
+    @POST("profile/agent/managed-profiles") suspend fun createAgentManagedProfile(@Body req: AgentManagedProfileCreateRequest): Response<GenericResponse<ProfileData>>
+    @POST("profile/agent/managed-profiles/{profileId}/submit") suspend fun submitAgentManagedProfile(@Path("profileId") profileId: String): Response<GenericResponse<ProfileData>>
     @GET("profile/assist/status") suspend fun getAssistStatus(): Response<GenericResponse<AssistStatusData>>
     @PUT("profile/assist/status") suspend fun updateAssistStatus(@Body req: AssistStatusRequest): Response<GenericResponse<AssistStatusData>>
     @GET("profile/family-decisions") suspend fun getFamilyDecisions(): Response<GenericResponse<List<FamilyDecisionData>>>

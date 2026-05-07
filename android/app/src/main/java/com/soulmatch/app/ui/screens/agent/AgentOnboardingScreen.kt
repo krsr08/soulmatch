@@ -104,34 +104,6 @@ fun AgentOnboardingScreen(
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            FeaturePreferenceBanner()
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color.White,
-                shape = AgentShapesCard,
-                border = BorderStroke(1.dp, Color(0xFFF0E0DB))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Verified Partnership", color = AgentColorsAccent, fontWeight = FontWeight.Bold)
-                        Icon(Icons.Outlined.Verified, contentDescription = null, tint = AgentColorsAccent)
-                    }
-                    Text(
-                        "Our agents undergo a rigorous selection process to ensure the highest standards of trust.",
-                        color = AgentColorsMuted,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = Color.White,
@@ -246,56 +218,6 @@ fun AgentOnboardingScreen(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun FeaturePreferenceBanner() {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Color(0xFFFFF0F2),
-        shape = AgentShapesCard
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                PreferenceMiniCard("18-50", "Age")
-                PreferenceMiniCard("Any", "Cities")
-            }
-            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                PreferenceMiniCard("Any", "Education")
-                PreferenceMiniCard("Any", "Manglik")
-            }
-            Button(
-                onClick = {},
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE54278), contentColor = Color.White)
-            ) {
-                Text("Save preferences", fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
-
-@Composable
-private fun PreferenceMiniCard(value: String, label: String) {
-    Surface(
-        modifier = Modifier.width(136.dp),
-        color = Color(0xFFFFF9F7),
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(value, color = AgentColorsAccent, fontWeight = FontWeight.Bold)
-            Text(label, color = AgentColorsMuted, style = MaterialTheme.typography.bodySmall)
         }
     }
 }

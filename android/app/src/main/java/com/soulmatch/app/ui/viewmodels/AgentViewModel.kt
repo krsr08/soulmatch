@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.soulmatch.app.data.api.ProfileApiService
 import com.soulmatch.app.data.models.AgentManagedProfileSummaryData
 import com.soulmatch.app.data.models.AgentMembershipData
+import com.soulmatch.app.data.models.AgentManagedProfileCreateRequest
 import com.soulmatch.app.data.models.AgentOnboardingRequest
 import com.soulmatch.app.data.models.AgentProfileData
+import com.soulmatch.app.data.models.AgentProfileUpsertRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -107,6 +109,71 @@ class AgentViewModel @Inject constructor(
                 }
             } catch (error: Exception) {
                 _state.value = _state.value.copy(saving = false, error = error.message ?: "Could not submit agent onboarding.")
+            }
+        }
+    }
+
+    fun createManagedProfile(
+        request: AgentManagedProfileCreateRequest,
+        onCompleted: () -> Unit
+    ) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(saving = true, error = null, saveMessage = null)
+            try {
+                val response = profileApi.createAgentManagedProfile(request).body()
+                if (response?.success == true && response.data != null) {
+                    runCatching { profileApi.submitAgentManagedProfile(response.data.profileId) }
+                    _state.value = _state.value.copy(saving = false, saveMessage = "Profile added to pending verification.")
+                    refresh()
+                    onCompleted()
+                } else {
+                    _state.value = _state.value.copy(saving = false, error = response?.error?.message ?: "Could not create member profile.")
+                }
+            } catch (error: Exception) {
+                _state.value = _state.value.copy(saving = false, error = error.message ?: "Could not create member profile.")
+            }
+        }
+    }
+
+    fun saveCommissionPreferences(
+        enabled: Boolean,
+        verifiedProfileRate: String,
+        successfulMatchRate: String,
+        monthlyTarget: String,
+        onCompleted: (() -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(saving = true, error = null, saveMessage = null)
+            try {
+                val current = _state.value.agentProfile
+                val request = AgentProfileUpsertRequest(
+                    fullName = current?.fullName.orEmpty(),
+                    email = current?.email.orEmpty(),
+                    phone = current?.phone.orEmpty(),
+                    city = current?.city.orEmpty(),
+                    state = current?.state.orEmpty(),
+                    pincode = current?.pincode.orEmpty(),
+                    bio = current?.bio.orEmpty(),
+                    serviceLabel = current?.serviceLabel ?: "SoulMatch Agent",
+                    languages = current?.languages.orEmpty(),
+                    communities = current?.communities.orEmpty(),
+                    feePreferences = mapOf(
+                        "enabled" to enabled.toString(),
+                        "verifiedProfileRateInr" to verifiedProfileRate.trim(),
+                        "successfulMatchRateInr" to successfulMatchRate.trim(),
+                        "monthlyTargetInr" to monthlyTarget.trim()
+                    )
+                )
+                val response = profileApi.upsertAgentProfile(request).body()
+                if (response?.success == true) {
+                    _state.value = _state.value.copy(saving = false, saveMessage = "Commission settings updated.")
+                    refresh()
+                    onCompleted?.invoke()
+                } else {
+                    _state.value = _state.value.copy(saving = false, error = response?.error?.message ?: "Could not save commission settings.")
+                }
+            } catch (error: Exception) {
+                _state.value = _state.value.copy(saving = false, error = error.message ?: "Could not save commission settings.")
             }
         }
     }
