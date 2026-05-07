@@ -38,6 +38,7 @@ fun AgentAccountScreen(
     onOpenProfiles: () -> Unit,
     onOpenPlans: () -> Unit,
     onOpenOnboarding: () -> Unit,
+    onLogout: () -> Unit,
     onDrawerDestination: (AgentDrawerDestination) -> Unit,
     vm: AgentViewModel = hiltViewModel()
 ) {
@@ -79,9 +80,13 @@ fun AgentAccountScreen(
                             .padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(profile?.fullName?.ifBlank { "Agent Registration" } ?: "Agent Registration", fontWeight = FontWeight.SemiBold)
+                        Text(profile?.fullName?.ifBlank { "Agent Profile" } ?: "Agent Profile", fontWeight = FontWeight.SemiBold)
                         Text(profile?.businessName?.ifBlank { "Business details pending" } ?: "Business details pending", color = AgentColorsMuted)
-                        Text("Status: ${profile?.onboardingStatus ?: "pending"}", color = AgentColorsAccent, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Status: ${profile?.onboardingStatus?.replace('_', ' ') ?: "pending"} • KYC: ${profile?.kycStatus?.replace('_', ' ') ?: "pending"}",
+                            color = AgentColorsAccent,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
             }
@@ -155,6 +160,18 @@ fun AgentAccountScreen(
                             Text("Save Rate Card")
                         }
                     }
+                }
+            }
+            item {
+                Button(
+                    onClick = { vm.logout(onLogout) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFF8E8EC),
+                        contentColor = AgentColorsAccent
+                    )
+                ) {
+                    Text("Logout", fontWeight = FontWeight.SemiBold)
                 }
             }
         }

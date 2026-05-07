@@ -568,7 +568,7 @@ exports.getAdvisors = async (req, res) => {
          COALESCE(active_counts.active_assignments, 0) AS active_assignments,
          COALESCE(
            json_agg(
-             json_build_object(
+             DISTINCT jsonb_build_object(
                'advisorServiceAreaId', asa.advisor_service_area_id,
                'city', asa.city,
                'state', asa.state,
@@ -578,12 +578,27 @@ exports.getAdvisors = async (req, res) => {
                'priority', asa.priority,
                'isPrimary', asa.is_primary
              )
-             ORDER BY asa.is_primary DESC, asa.priority DESC, asa.created_at ASC
            ) FILTER (WHERE asa.advisor_service_area_id IS NOT NULL),
            '[]'::json
-         ) AS service_areas
+         ) AS service_areas,
+         COALESCE(
+           json_agg(
+             DISTINCT jsonb_build_object(
+               'advisorKycDocumentId', akd.advisor_kyc_document_id,
+               'documentType', akd.document_type,
+               'documentSide', akd.document_side,
+               'fileUrl', akd.file_url,
+               'status', akd.status,
+               'reviewComment', akd.review_comment,
+               'uploadedAt', akd.uploaded_at,
+               'reviewedAt', akd.reviewed_at
+             )
+           ) FILTER (WHERE akd.advisor_kyc_document_id IS NOT NULL),
+           '[]'::json
+         ) AS kyc_documents
        FROM advisors a
        LEFT JOIN advisor_service_areas asa ON asa.advisor_id = a.advisor_id
+       LEFT JOIN advisor_kyc_documents akd ON akd.advisor_id = a.advisor_id
        LEFT JOIN (
          SELECT assigned_advisor_id, COUNT(*) AS active_assignments
          FROM assisted_match_profiles
@@ -759,12 +774,40 @@ exports.updateAdvisorStatus = async (req, res) => {
       `UPDATE advisors
        SET status = COALESCE($2, status),
            kyc_status = COALESCE($3, kyc_status),
+           onboarding_status = CASE
+             WHEN $3 = 'approved' THEN 'approved'
+             WHEN $3 = 'rejected' THEN 'rejected'
+             WHEN $3 = 'pending' THEN 'pending'
+             ELSE onboarding_status
+           END,
            updated_at = NOW()
        WHERE advisor_id = $1
        RETURNING *`,
       [advisorId, status, kycStatus]
     );
     if (!result.rows[0]) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Advisor not found.' } });
+    if (kycStatus) {
+      const documentStatus = kycStatus === 'approved'
+        ? 'verified'
+        : kycStatus === 'rejected'
+          ? 'rejected'
+          : 'under_review';
+      await db.query(
+        `UPDATE advisor_kyc_documents
+         SET status = $2,
+             review_comment = COALESCE($3, review_comment),
+             reviewed_at = NOW(),
+             reviewed_by = $4,
+             updated_at = NOW()
+         WHERE advisor_id = $1`,
+        [
+          advisorId,
+          documentStatus,
+          req.body?.note || null,
+          req.admin?.email || 'admin'
+        ]
+      );
+    }
     await auditLog(db, req, 'advisor.status', 'advisor', advisorId, { status, kycStatus });
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {

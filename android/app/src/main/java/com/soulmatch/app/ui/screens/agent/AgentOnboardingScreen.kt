@@ -7,19 +7,16 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -37,6 +34,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +51,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.AgentOnboardingRequest
+import com.soulmatch.app.data.models.AgentProfileUpsertRequest
+import com.soulmatch.app.data.models.AgentKycDocumentInput
 import com.soulmatch.app.ui.viewmodels.AgentViewModel
 import java.util.Locale
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -72,16 +72,28 @@ fun AgentOnboardingScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val agentProfile = state.agentProfile
 
-    var fullName by remember { mutableStateOf(state.agentProfile?.fullName.orEmpty()) }
-    var phone by remember { mutableStateOf(state.agentProfile?.phone.orEmpty()) }
-    var email by remember { mutableStateOf(state.agentProfile?.email.orEmpty()) }
-    var city by remember { mutableStateOf(state.agentProfile?.city.orEmpty()) }
-    var stateName by remember { mutableStateOf(state.agentProfile?.state.orEmpty()) }
-    var businessName by remember { mutableStateOf(state.agentProfile?.businessName.orEmpty()) }
-    var referralCode by remember { mutableStateOf(state.agentProfile?.referralCode.orEmpty()) }
+    var fullName by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var city by remember { mutableStateOf("") }
+    var stateName by remember { mutableStateOf("") }
+    var businessName by remember { mutableStateOf("") }
+    var referralCode by remember { mutableStateOf("") }
     var aadhaarUri by remember { mutableStateOf<Uri?>(null) }
     var panUri by remember { mutableStateOf<Uri?>(null) }
+
+    LaunchedEffect(agentProfile?.advisorId, agentProfile?.phone, agentProfile?.email) {
+        if (agentProfile == null) return@LaunchedEffect
+        fullName = agentProfile.fullName
+        phone = agentProfile.phone
+        email = agentProfile.email
+        city = agentProfile.city
+        stateName = agentProfile.state
+        businessName = agentProfile.businessName
+        referralCode = agentProfile.referralCode
+    }
 
     val aadhaarPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         aadhaarUri = uri
@@ -118,27 +130,24 @@ fun AgentOnboardingScreen(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("STEP 1 OF 2", color = AgentColorsAccent, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                        Text("Business Details", color = AgentColorsMuted)
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .background(Color(0xFFE9E0DC), RoundedCornerShape(999.dp))
-                    ) {
-                        Spacer(
-                            modifier = Modifier
-                                .fillMaxWidth(0.5f)
-                                .height(6.dp)
-                                .background(AgentColorsAccent, RoundedCornerShape(999.dp))
-                        )
-                    }
+                    Text(
+                        if (agentProfile == null) "Agent Registration" else "Update Agent Profile",
+                        color = Color(0xFF2A1D20),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 24.sp,
+                        fontFamily = FontFamily.Serif
+                    )
+                    Text(
+                        "Keep your business details and KYC documents current so your dashboard and approvals stay in sync.",
+                        color = AgentColorsMuted
+                    )
+
+                    AgentStatusSummary(
+                        onboardingStatus = agentProfile?.onboardingStatus,
+                        kycStatus = agentProfile?.kycStatus,
+                        rejectionReason = agentProfile?.onboardingRejectionReason
+                    )
+
                     AgentTextField("Full Name", fullName) { fullName = it }
                     AgentTextField("Business/Agency Name", businessName) { businessName = it }
                     AgentTextField("Professional Email", email) { email = it }
@@ -146,20 +155,22 @@ fun AgentOnboardingScreen(
                     AgentTextField("City", city) { city = it }
                     AgentTextField("State", stateName) { stateName = it }
                     AgentTextField("Referral Code (Optional)", referralCode) { referralCode = it }
+
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("KYC Verification", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 22.sp)
-                        Text("Please upload your primary identification documents for platform security.", color = AgentColorsMuted)
+                        Text("Upload or replace the latest business identity documents used for review.", color = AgentColorsMuted)
                     }
+
                     AgentDocumentCard(
                         title = "Aadhaar Card",
-                        subtitle = "Recommended for faster approval",
+                        subtitle = currentDocumentLabel(agentProfile?.kycDocuments?.firstOrNull { it.documentType == "aadhaar" }),
                         selectedName = aadhaarUri?.let { context.fileLabelFor(it) },
                         highlighted = true,
                         onPick = { aadhaarPicker.launch(arrayOf("image/*", "application/pdf")) }
                     )
                     AgentDocumentCard(
                         title = "PAN Card",
-                        subtitle = "Alternative verification",
+                        subtitle = currentDocumentLabel(agentProfile?.kycDocuments?.firstOrNull { it.documentType == "pan" }),
                         selectedName = panUri?.let { context.fileLabelFor(it) },
                         highlighted = false,
                         onPick = { panPicker.launch(arrayOf("image/*", "application/pdf")) }
@@ -170,55 +181,157 @@ fun AgentOnboardingScreen(
                         onPickAadhaar = { aadhaarPicker.launch(arrayOf("image/*", "application/pdf")) },
                         onPickPan = { panPicker.launch(arrayOf("image/*", "application/pdf")) }
                     )
+
+                    state.saveMessage?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, color = Color(0xFF0F8D57), fontWeight = FontWeight.Medium)
+                    }
                     state.error?.takeIf { it.isNotBlank() }?.let {
                         Text(it, color = AgentColorsAccent, fontWeight = FontWeight.SemiBold)
                     }
+
                     Button(
                         onClick = {
-                            val request = AgentOnboardingRequest(
-                                fullName = fullName,
-                                phone = phone,
-                                email = email,
-                                city = city,
-                                state = stateName,
-                                businessName = businessName,
-                                referralCode = referralCode
-                            )
                             val documents = listOfNotNull(
                                 aadhaarUri?.let { context.toAgentDocumentPart(it, "documents", 0) },
                                 panUri?.let { context.toAgentDocumentPart(it, "documents", 1) }
                             )
-                            val documentMeta = buildList {
-                                aadhaarUri?.let { add(mapOf("documentType" to "aadhaar", "documentSide" to "single")) }
-                                panUri?.let { add(mapOf("documentType" to "pan", "documentSide" to "single")) }
+                            if (
+                                documents.isEmpty() &&
+                                agentProfile != null &&
+                                agentProfile.kycDocuments.isNotEmpty() &&
+                                agentProfile.onboardingStatus in listOf("approved", "under_review")
+                            ) {
+                                vm.saveAgentProfile(
+                                    AgentProfileUpsertRequest(
+                                        fullName = fullName,
+                                        email = email,
+                                        phone = phone,
+                                        city = city,
+                                        state = stateName,
+                                        businessName = businessName,
+                                        referralCode = referralCode,
+                                        serviceLabel = agentProfile.serviceLabel.ifBlank { "SoulMatch Agent" }
+                                    ),
+                                    onCompleted = onCompleted
+                                )
+                            } else {
+                                val request = AgentOnboardingRequest(
+                                    fullName = fullName,
+                                    phone = phone,
+                                    email = email,
+                                    city = city,
+                                    state = stateName,
+                                    businessName = businessName,
+                                    referralCode = referralCode,
+                                    kycDocuments = agentProfile?.kycDocuments
+                                        ?.mapNotNull { document ->
+                                            document.fileUrl.takeIf { it.isNotBlank() }?.let {
+                                                AgentKycDocumentInput(
+                                                    documentType = document.documentType,
+                                                    documentSide = document.documentSide,
+                                                    fileUrl = it
+                                                )
+                                            }
+                                        }
+                                        .orEmpty()
+                                )
+                                val documentMeta = buildList {
+                                    aadhaarUri?.let { add(mapOf("documentType" to "aadhaar", "documentSide" to "single")) }
+                                    panUri?.let { add(mapOf("documentType" to "pan", "documentSide" to "single")) }
+                                }
+                                vm.submitOnboardingWithDocuments(
+                                    request = request,
+                                    documents = documents,
+                                    documentMeta = documentMeta,
+                                    onCompleted = onCompleted
+                                )
                             }
-                            vm.submitOnboardingWithDocuments(
-                                request = request,
-                                documents = documents,
-                                documentMeta = documentMeta,
-                                onCompleted = onCompleted
-                            )
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(56.dp),
+                            .height(56.dp)
+                            .padding(top = 4.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = AgentColorsAccent),
                         enabled = !state.saving
                     ) {
                         if (state.saving) {
                             CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
                         } else {
-                            Text("Register as Agent", fontWeight = FontWeight.Bold)
+                            Text(resolveAgentCtaLabel(agentProfile?.onboardingStatus), fontWeight = FontWeight.Bold)
                         }
                     }
+
                     Text(
-                        "By registering, you agree to our Terms of Service and Privacy Policy.",
+                        "By continuing, you confirm these details are accurate and agree to our Terms of Service and Privacy Policy.",
                         color = AgentColorsMuted,
                         style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AgentStatusSummary(
+    onboardingStatus: String?,
+    kycStatus: String?,
+    rejectionReason: String?
+) {
+    val onboardingLabel = when (onboardingStatus) {
+        "approved" -> "Approved"
+        "rejected" -> "Needs update"
+        "under_review" -> "Under review"
+        else -> "Pending review"
+    }
+    val onboardingColor = when (onboardingStatus) {
+        "approved" -> Color(0xFF0F8D57)
+        "rejected" -> AgentColorsAccent
+        "under_review" -> Color(0xFF9D5B00)
+        else -> Color(0xFF5D4A52)
+    }
+    val kycLabel = when (kycStatus) {
+        "approved" -> "KYC verified"
+        "rejected" -> "KYC declined"
+        "under_review" -> "KYC under review"
+        else -> "KYC in progress"
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = Color(0xFFFFFAF8),
+        border = BorderStroke(1.dp, Color(0xFFF0E2DE))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = RoundedCornerShape(999.dp), color = onboardingColor.copy(alpha = 0.12f)) {
+                    Text(
+                        onboardingLabel,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        color = onboardingColor,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Surface(shape = RoundedCornerShape(999.dp), color = Color(0xFFF7EEE8)) {
+                    Text(
+                        kycLabel,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        color = Color(0xFF6D4B53),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            }
+            if (!rejectionReason.isNullOrBlank()) {
+                Text(rejectionReason, color = AgentColorsMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -301,7 +414,7 @@ private fun UploadDropZone(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Icon(Icons.Outlined.CloudUpload, contentDescription = null, tint = AgentColorsAccent, modifier = Modifier.size(30.dp))
-            Text("Click to upload or drag and drop", fontWeight = FontWeight.Bold)
+            Text("Click to upload or replace documents", fontWeight = FontWeight.Bold)
             Text("SVG, PNG, JPG or PDF (max. 10MB)", color = AgentColorsMuted, style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 MiniUploadStatus("Aadhaar", aadhaarReady, onPickAadhaar)
@@ -330,6 +443,16 @@ private fun MiniUploadStatus(label: String, uploaded: Boolean, onClick: () -> Un
     }
 }
 
+private fun currentDocumentLabel(document: com.soulmatch.app.data.models.AgentKycDocumentData?): String {
+    if (document == null) return "No document uploaded yet"
+    return when (document.status.lowercase(Locale.US)) {
+        "verified" -> "Verified document on file"
+        "rejected" -> document.reviewComment.ifBlank { "Rejected - upload a clearer copy" }
+        "under_review" -> "Submitted and under review"
+        else -> "Uploaded and waiting for review"
+    }
+}
+
 private fun Context.fileLabelFor(uri: Uri): String {
     val name = contentResolver.getType(uri)?.substringAfter('/')?.uppercase(Locale.US)
     return name?.let { "$it selected" } ?: "Document selected"
@@ -343,4 +466,11 @@ private fun Context.toAgentDocumentPart(uri: Uri, formKey: String, index: Int): 
     val fileName = "agent-document-${System.currentTimeMillis()}-$index.$extension"
     val body = bytes.toRequestBody(contentType.toMediaTypeOrNull())
     return MultipartBody.Part.createFormData(formKey, fileName, body)
+}
+
+private fun resolveAgentCtaLabel(onboardingStatus: String?): String = when (onboardingStatus) {
+    "approved" -> "Save Changes"
+    "rejected" -> "Resubmit for Review"
+    "under_review" -> "Update Details"
+    else -> "Register as Agent"
 }

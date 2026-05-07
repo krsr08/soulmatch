@@ -281,6 +281,7 @@ fun AppNavigation(
                 onOpenProfiles = { nav.navigate("agent_profiles") },
                 onOpenPlans = { nav.navigate("agent_plans") },
                 onOpenOnboarding = { nav.navigate("agent_onboarding") },
+                onLogout = { nav.navigate("welcome") { popUpTo(0) { inclusive = true } } },
                 onDrawerDestination = ::openAgentDrawer
             )
         }
