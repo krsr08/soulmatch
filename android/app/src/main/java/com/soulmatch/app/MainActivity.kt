@@ -140,6 +140,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                     } else {
                         AppNavigation(
                             startDestination = route,
+                            isAuthenticated = !token.isNullOrEmpty(),
                             branding = runtimeConfig.branding,
                             content = runtimeConfig.content,
                             legal = runtimeConfig.legal,
