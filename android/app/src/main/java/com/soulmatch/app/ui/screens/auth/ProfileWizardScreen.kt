@@ -26,6 +26,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -353,7 +355,7 @@ private fun isProfileSectionComplete(profile: ProfileData?, section: Int): Boole
 private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
     var firstName by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.firstName.orEmpty()) }
     var lastName by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.lastName.orEmpty()) }
-    var dob by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.dob.orEmpty()) }
+    var dob by rememberSaveable(existing?.profileId) { mutableStateOf(sanitizeDobForDisplay(existing?.dob).orEmpty()) }
     var religion by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.religion.orEmpty()) }
     var caste by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.caste.orEmpty()) }
     var motherTongue by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.motherTongue.orEmpty()) }
@@ -530,16 +532,31 @@ private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValid
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionLead("Professional snapshot", "These are among the highest-intent search filters in a matrimony app.")
             ChipRow("Education level", listOf("Graduate", "Post Graduate", "Doctorate", "MBA", "Professional"), educationLevel) { educationLevel = it }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = SurfaceSoft,
+                border = BorderStroke(1.dp, Divider)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Currently employed", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    Text("Turn this on to capture work details for search and shortlist quality.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text("Currently employed", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Turn this on to capture work details for search and shortlist quality.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                    Switch(checked = isEmployed, onCheckedChange = { isEmployed = it })
                 }
-                Switch(checked = isEmployed, onCheckedChange = { isEmployed = it })
             }
             if (isEmployed) {
                 RequiredTextField(occupation, { occupation = it }, "Occupation")
@@ -785,6 +802,7 @@ private fun NumberField(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SelectionField(
     label: String,
@@ -794,21 +812,26 @@ private fun SelectionField(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Box(modifier = modifier.fillMaxWidth()) {
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = modifier.fillMaxWidth()
+    ) {
         OutlinedTextField(
             value = value,
             onValueChange = {},
             label = { Text("$label *") },
-            modifier = Modifier.fillMaxWidth(),
-            readOnly = true
-        )
-        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 8.dp)
-                .clickable { expanded = true }
+                .fillMaxWidth()
+                .menuAnchor(),
+            readOnly = true,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            singleLine = true
         )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
             options.forEach { option ->
                 DropdownMenuItem(
                     text = { Text(option) },
@@ -838,6 +861,20 @@ private fun normalizeDateOfBirth(value: String): String? {
     val youngestAllowed = today.minusYears(18)
     if (dob.isBefore(oldestAllowed) || dob.isAfter(youngestAllowed)) return null
     return dob.format(DateTimeFormatter.ofPattern("dd-MM-uuuu"))
+}
+
+private fun sanitizeDobForDisplay(value: String?): String? {
+    val trimmed = value?.trim().orEmpty()
+    if (trimmed.isBlank()) return null
+    normalizeDateOfBirth(trimmed)?.let { return it }
+    val rawDate = trimmed.substringBefore('T')
+    normalizeDateOfBirth(rawDate)?.let { return it }
+    return if (rawDate.matches(Regex("""\d{4}-\d{2}-\d{2}"""))) {
+        val parts = rawDate.split('-')
+        "${parts[2]}-${parts[1]}-${parts[0]}"
+    } else {
+        trimmed
+    }
 }
 
 private fun formatDateInput(value: String): String {
