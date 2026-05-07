@@ -6,20 +6,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.WorkOutline
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,12 +24,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -44,15 +38,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.ui.viewmodels.AuthUiState
 import com.soulmatch.app.ui.viewmodels.AuthViewModel
 
-private enum class RoleChoice { User, Agent }
-
 @Composable
 fun RoleSelectionScreen(
     onResolved: (String) -> Unit,
     vm: AuthViewModel = hiltViewModel()
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
-    var selectedRole by remember { mutableStateOf(RoleChoice.User) }
 
     LaunchedEffect(state) {
         if (state is AuthUiState.Verified) {
@@ -63,68 +54,81 @@ fun RoleSelectionScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5EEEB))
-            .padding(horizontal = 18.dp, vertical = 28.dp),
+            .background(Color(0xFFFFF7F8))
+            .statusBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 24.dp),
         contentAlignment = Alignment.Center
     ) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = Color.White,
-            shape = RoundedCornerShape(34.dp),
-            tonalElevation = 8.dp,
-            shadowElevation = 16.dp
+            color = Color(0xFFFFF5F7),
+            shape = RoundedCornerShape(30.dp),
+            tonalElevation = 6.dp,
+            shadowElevation = 12.dp
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 22.dp, vertical = 18.dp),
+                    .padding(horizontal = 24.dp, vertical = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(18.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(width = 58.dp, height = 8.dp)
-                        .background(Color(0xFFE5E0DD), RoundedCornerShape(999.dp))
+                        .size(width = 64.dp, height = 7.dp)
+                        .background(Color(0xFFE5DEDF), RoundedCornerShape(999.dp))
                 )
                 Box(
                     modifier = Modifier
-                        .size(52.dp)
-                        .background(Color(0xFFFFF8E7), CircleShape),
+                        .size(56.dp)
+                        .background(Color(0xFFFFF5D9), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("✩", color = Color(0xFF907000), fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "\u2606",
+                        color = Color(0xFF9B7A11),
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
                 Text(
                     text = "How will you use\nSoulMatch?",
-                    color = Color(0xFF1C1A1A),
+                    color = Color(0xFF23181B),
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 28.sp,
-                    lineHeight = 38.sp,
+                    fontSize = 24.sp,
+                    lineHeight = 32.sp,
                     textAlign = TextAlign.Center
                 )
                 Text(
-                    text = "Select your role to tailor your experience on our premium matrimony platform.",
-                    color = Color(0xFF6C4F52),
+                    text = "Select your role to tailor your experience on our matrimony platform.",
+                    color = Color(0xFF73535A),
                     style = MaterialTheme.typography.bodyLarge,
-                    lineHeight = 34.sp,
+                    lineHeight = 28.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 12.dp)
                 )
                 RoleCard(
-                    selected = selectedRole == RoleChoice.User,
                     title = "User",
                     subtitle = "Looking for a life partner",
                     icon = Icons.Outlined.FavoriteBorder,
-                    onClick = { selectedRole = RoleChoice.User }
+                    enabled = state !is AuthUiState.Loading,
+                    onClick = { vm.continueAsMember() }
                 )
                 RoleCard(
-                    selected = selectedRole == RoleChoice.Agent,
                     title = "Agent",
                     subtitle = "Managing profiles for others",
                     icon = Icons.Outlined.WorkOutline,
-                    onClick = { selectedRole = RoleChoice.Agent }
+                    enabled = state !is AuthUiState.Loading,
+                    onClick = { vm.selectUserType("agent") }
                 )
+                if (state is AuthUiState.Loading) {
+                    CircularProgressIndicator(
+                        color = Color(0xFF8E1235),
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
                 if (state is AuthUiState.Error) {
                     Text(
                         text = (state as AuthUiState.Error).message,
@@ -133,29 +137,6 @@ fun RoleSelectionScreen(
                         textAlign = TextAlign.Center
                     )
                 }
-                Button(
-                    onClick = {
-                        when (selectedRole) {
-                            RoleChoice.User -> vm.continueAsMember()
-                            RoleChoice.Agent -> vm.selectUserType("agent")
-                        }
-                    },
-                    enabled = state !is AuthUiState.Loading,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(58.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF7B001C),
-                        contentColor = Color.White
-                    )
-                ) {
-                    if (state is AuthUiState.Loading) {
-                        CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
-                    } else {
-                        Text("Continue", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    }
-                }
             }
         }
     }
@@ -163,47 +144,51 @@ fun RoleSelectionScreen(
 
 @Composable
 private fun RoleCard(
-    selected: Boolean,
     title: String,
     subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
+    enabled: Boolean,
     onClick: () -> Unit
 ) {
-    val borderColor = if (selected) Color(0xFF6B001C) else Color(0xFFE2DEDB)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .border(2.dp, borderColor, RoundedCornerShape(30.dp))
-            .clickable(onClick = onClick),
-        color = if (selected) Color(0xFFFFF8F7) else Color.White,
-        shape = RoundedCornerShape(30.dp)
+            .border(1.5.dp, Color(0xFFE6C8D0), RoundedCornerShape(24.dp))
+            .clickable(enabled = enabled, onClick = onClick),
+        color = Color.White,
+        shape = RoundedCornerShape(24.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 30.dp, horizontal = 18.dp),
+                .padding(vertical = 22.dp, horizontal = 18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(90.dp)
-                    .background(Color(0xFFF7F4F2), CircleShape),
+                    .size(72.dp)
+                    .background(Color(0xFFFFF7F8), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = Color(0xFF6C4F52), modifier = Modifier.size(34.dp))
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color(0xFF7A5B61),
+                    modifier = Modifier.size(30.dp)
+                )
             }
             Text(
                 text = title,
                 fontFamily = FontFamily.Serif,
-                fontSize = 24.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF1E1A19)
             )
             Text(
                 text = subtitle,
                 color = Color(0xFF5C4444),
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center
             )
         }
