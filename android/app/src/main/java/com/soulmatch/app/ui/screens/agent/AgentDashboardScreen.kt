@@ -61,6 +61,7 @@ fun AgentDashboardScreen(
     onOpenAccount: () -> Unit,
     onOpenCreateProfile: () -> Unit,
     onOpenActivities: () -> Unit,
+    onDrawerDestination: (AgentDrawerDestination) -> Unit,
     vm: AgentViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -91,7 +92,8 @@ fun AgentDashboardScreen(
         onOpenDashboard = {},
         onOpenProfiles = { onOpenProfiles("all") },
         onOpenPlans = onOpenPlans,
-        onOpenAccount = onOpenAccount
+        onOpenAccount = onOpenAccount,
+        onDrawerDestination = onDrawerDestination
     ) { modifier ->
         Box(modifier = modifier.fillMaxSize()) {
             if (state.loading) {
@@ -127,7 +129,7 @@ fun AgentDashboardScreen(
                             shape = RoundedCornerShape(999.dp)
                         ) {
                             androidx.compose.material3.Icon(Icons.Outlined.Add, contentDescription = null)
-                            Text("  Add New Profile", fontWeight = FontWeight.Bold)
+                            Text("  Add New Member", fontWeight = FontWeight.Bold)
                         }
                     }
                 }

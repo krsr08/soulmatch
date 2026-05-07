@@ -48,6 +48,7 @@ import com.soulmatch.app.ui.screens.auth.WelcomeScreen
 import com.soulmatch.app.ui.screens.agent.AgentAccountScreen
 import com.soulmatch.app.ui.screens.agent.AgentClientProfileScreen
 import com.soulmatch.app.ui.screens.agent.AgentDashboardScreen
+import com.soulmatch.app.ui.screens.agent.AgentDrawerDestination
 import com.soulmatch.app.ui.screens.agent.AgentOnboardingScreen
 import com.soulmatch.app.ui.screens.agent.AgentActivitiesScreen
 import com.soulmatch.app.ui.screens.agent.AgentPlansScreen
@@ -91,6 +92,18 @@ fun AppNavigation(
     val analytics: AnalyticsViewModel = hiltViewModel()
     val backStackEntry by nav.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route.orEmpty()
+    fun openAgentDrawer(destination: AgentDrawerDestination) {
+        when (destination) {
+            AgentDrawerDestination.Dashboard -> nav.navigate("agent_dashboard")
+            AgentDrawerDestination.PendingProfiles -> nav.navigate("agent_profiles?filter=pending")
+            AgentDrawerDestination.ManagedProfiles -> nav.navigate("agent_profiles?filter=managed")
+            AgentDrawerDestination.AddMember -> nav.navigate("agent_client_profile")
+            AgentDrawerDestination.Activities -> nav.navigate("agent_activities")
+            AgentDrawerDestination.Plans -> nav.navigate("agent_plans")
+            AgentDrawerDestination.Account -> nav.navigate("agent_account")
+            AgentDrawerDestination.Onboarding -> nav.navigate("agent_onboarding")
+        }
+    }
     LaunchedEffect(currentRoute) {
         analytics.trackPage(currentRoute)
     }
@@ -211,7 +224,8 @@ fun AppNavigation(
                 onOpenDashboard = { nav.navigate("agent_dashboard") },
                 onOpenProfiles = { nav.navigate("agent_profiles") },
                 onOpenPlans = { nav.navigate("agent_plans") },
-                onOpenAccount = { nav.navigate("agent_account") }
+                onOpenAccount = { nav.navigate("agent_account") },
+                onDrawerDestination = ::openAgentDrawer
             )
         }
         composable("agent_dashboard") {
@@ -221,7 +235,8 @@ fun AppNavigation(
                 onOpenPlans = { nav.navigate("agent_plans") },
                 onOpenAccount = { nav.navigate("agent_account") },
                 onOpenCreateProfile = { nav.navigate("agent_client_profile") },
-                onOpenActivities = { nav.navigate("agent_activities") }
+                onOpenActivities = { nav.navigate("agent_activities") },
+                onDrawerDestination = ::openAgentDrawer
             )
         }
         composable(
@@ -238,7 +253,8 @@ fun AppNavigation(
                 onOpenDashboard = { nav.navigate("agent_dashboard") },
                 onOpenPlans = { nav.navigate("agent_plans") },
                 onOpenAccount = { nav.navigate("agent_account") },
-                onOpenCreateProfile = { nav.navigate("agent_client_profile") }
+                onOpenCreateProfile = { nav.navigate("agent_client_profile") },
+                onDrawerDestination = ::openAgentDrawer
             )
         }
         composable("agent_activities") {
@@ -247,14 +263,16 @@ fun AppNavigation(
                 onOpenDashboard = { nav.navigate("agent_dashboard") },
                 onOpenProfiles = { nav.navigate("agent_profiles?filter=all") },
                 onOpenPlans = { nav.navigate("agent_plans") },
-                onOpenAccount = { nav.navigate("agent_account") }
+                onOpenAccount = { nav.navigate("agent_account") },
+                onDrawerDestination = ::openAgentDrawer
             )
         }
         composable("agent_plans") {
             AgentPlansScreen(
                 onOpenDashboard = { nav.navigate("agent_dashboard") },
                 onOpenProfiles = { nav.navigate("agent_profiles") },
-                onOpenAccount = { nav.navigate("agent_account") }
+                onOpenAccount = { nav.navigate("agent_account") },
+                onDrawerDestination = ::openAgentDrawer
             )
         }
         composable("agent_account") {
@@ -262,7 +280,8 @@ fun AppNavigation(
                 onOpenDashboard = { nav.navigate("agent_dashboard") },
                 onOpenProfiles = { nav.navigate("agent_profiles") },
                 onOpenPlans = { nav.navigate("agent_plans") },
-                onOpenOnboarding = { nav.navigate("agent_onboarding") }
+                onOpenOnboarding = { nav.navigate("agent_onboarding") },
+                onDrawerDestination = ::openAgentDrawer
             )
         }
         composable("agent_client_profile") {
@@ -277,7 +296,8 @@ fun AppNavigation(
                 onOpenDashboard = { nav.navigate("agent_dashboard") },
                 onOpenProfiles = { nav.navigate("agent_profiles") },
                 onOpenPlans = { nav.navigate("agent_plans") },
-                onOpenAccount = { nav.navigate("agent_account") }
+                onOpenAccount = { nav.navigate("agent_account") },
+                onDrawerDestination = ::openAgentDrawer
             )
         }
         composable(

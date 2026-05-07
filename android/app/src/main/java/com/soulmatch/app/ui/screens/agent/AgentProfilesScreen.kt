@@ -48,6 +48,7 @@ fun AgentProfilesScreen(
     onOpenPlans: () -> Unit,
     onOpenAccount: () -> Unit,
     onOpenCreateProfile: () -> Unit,
+    onDrawerDestination: (AgentDrawerDestination) -> Unit,
     vm: AgentViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -69,7 +70,8 @@ fun AgentProfilesScreen(
         onOpenDashboard = onOpenDashboard,
         onOpenProfiles = {},
         onOpenPlans = onOpenPlans,
-        onOpenAccount = onOpenAccount
+        onOpenAccount = onOpenAccount,
+        onDrawerDestination = onDrawerDestination
     ) { modifier ->
         Column(modifier = modifier.fillMaxSize()) {
             if (state.loading) {
@@ -118,7 +120,7 @@ fun AgentProfilesScreen(
                     containerColor = AgentColorsAccent,
                     contentColor = Color.White,
                     icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
-                    text = { Text("Add New Profile") },
+                    text = { Text("Add New Member") },
                     modifier = Modifier
                         .padding(20.dp)
                         .fillMaxWidth()
