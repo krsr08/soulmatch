@@ -341,11 +341,14 @@ exports.getAssistStatus = async (req, res, next) => {
     const status = await repo.getAssistStatusByUserId(req.user.userId);
     if (!status) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
     const recommendations = await repo.listAdvisorRecommendations(status.profileId, 3);
+    const directory = await repo.getActiveAdvisorDirectory(24);
     res.json({
       success: true,
       data: {
         ...status,
-        recommendations
+        recommendations,
+        agentStats: directory.stats,
+        agents: directory.agents
       }
     });
   } catch (err) { next(err); }
@@ -361,6 +364,7 @@ exports.updateAssistStatus = async (req, res, next) => {
     if (!updated) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
     const status = await repo.getAssistStatusByUserId(req.user.userId);
     const recommendations = status?.profileId ? await repo.listAdvisorRecommendations(status.profileId, 3) : [];
+    const directory = await repo.getActiveAdvisorDirectory(24);
     await auditUserChange(req, {
       profileId: status?.profileId,
       entityType: 'assist_settings',
@@ -373,7 +377,9 @@ exports.updateAssistStatus = async (req, res, next) => {
       success: true,
       data: {
         ...status,
-        recommendations
+        recommendations,
+        agentStats: directory.stats,
+        agents: directory.agents
       },
       message: payload.isOptedIn && payload.supportLevel === 'advisor_assisted'
         ? 'SoulMatch Assist has been updated. We assigned the best-fit advisor available for your area.'

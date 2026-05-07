@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -537,44 +538,72 @@ private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValid
                 color = SurfaceSoft,
                 border = BorderStroke(1.dp, Divider)
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    Text("Currently employed", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Currently employed", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         Text(
                             "Turn this on to capture work details for search and shortlist quality.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
+                            color = TextSecondary,
+                            modifier = Modifier.weight(1f)
                         )
+                        Spacer(Modifier.width(12.dp))
+                        Switch(checked = isEmployed, onCheckedChange = { isEmployed = it })
                     }
-                    Switch(checked = isEmployed, onCheckedChange = { isEmployed = it })
                 }
             }
             if (isEmployed) {
-                RequiredTextField(occupation, { occupation = it }, "Occupation")
-                ChipRow("Annual income", listOf("< 3 LPA", "3-5 LPA", "5-10 LPA", "10-20 LPA", "20+ LPA"), annualIncome) { annualIncome = it }
-                RequiredTextField(workingCity, { workingCity = it }, "Working city")
-                SelectionField(
-                    label = "Working state",
-                    value = workingState,
-                    options = indianStates,
-                    onSelect = { workingState = it }
-                )
-                NumberField(
-                    workingPincode,
-                    { workingPincode = it.filter(Char::isDigit).take(6) },
-                    "Pincode",
-                    isError = workingPincodeError,
-                    supportingText = if (workingPincodeError) "Enter a valid 6-digit pincode." else null
-                )
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, Divider)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        RequiredTextField(occupation, { occupation = it }, "Occupation")
+                        ChipRow("Annual income", listOf("< 3 LPA", "3-5 LPA", "5-10 LPA", "10-20 LPA", "20+ LPA"), annualIncome) { annualIncome = it }
+                        RequiredTextField(workingCity, { workingCity = it }, "Working city")
+                        SelectionField(
+                            label = "Working state",
+                            value = workingState,
+                            options = indianStates,
+                            onSelect = { workingState = it }
+                        )
+                        NumberField(
+                            workingPincode,
+                            { workingPincode = it.filter(Char::isDigit).take(6) },
+                            "Pincode",
+                            isError = workingPincodeError,
+                            supportingText = if (workingPincodeError) "Enter a valid 6-digit pincode." else null
+                        )
+                    }
+                }
+            } else {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = SurfaceSoft,
+                    border = BorderStroke(1.dp, Divider)
+                ) {
+                    Text(
+                        "Work details stay hidden until you switch on employment. Education alone is enough to complete this section for non-working members.",
+                        modifier = Modifier.padding(14.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
             }
             PremiumCard(containerColor = SurfaceWarm, contentPadding = PaddingValues(14.dp)) {
                 Text("This section syncs with Smart Search and ranking, so it should be specific instead of generic.", style = MaterialTheme.typography.bodySmall, color = PrimaryDark)

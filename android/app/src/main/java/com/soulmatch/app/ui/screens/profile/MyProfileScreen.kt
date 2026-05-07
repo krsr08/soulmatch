@@ -159,6 +159,7 @@ fun MyProfileScreen(
     val openPartnerPreferences: () -> Unit = onOpenPartnerPreferences ?: {}
     val openTrustDetails: () -> Unit = onOpenTrustDetails ?: {}
     val openFamilyBoard: () -> Unit = onOpenFamilyBoard ?: {}
+    val openAssist: () -> Unit = onOpenAssist ?: {}
     val openSubscription: () -> Unit = onSubscribe ?: {}
     val toggleAssist: (Boolean) -> Unit = { enabled ->
         vm.updateAssistStatus(
@@ -291,7 +292,8 @@ fun MyProfileScreen(
                         item {
                             SoulMatchAssistProfileCard(
                                 assistStatus = assistStatus,
-                                onToggleAssist = toggleAssist
+                                onToggleAssist = toggleAssist,
+                                onOpenAssist = openAssist
                             )
                         }
                         if (!data.verificationStatus.equals("verified", ignoreCase = true)) {
@@ -636,7 +638,11 @@ private fun ProfileStrengthOverviewCard(
     checklist: List<ProfileChecklistItem>,
     onComplete: () -> Unit
 ) {
-    val score = profile.completionScore.coerceIn(0, 100)
+    val score = if (checklist.isEmpty()) {
+        profile.completionScore.coerceIn(0, 100)
+    } else {
+        ((checklist.count { it.isComplete }.toFloat() / checklist.size.toFloat()) * 100f).toInt().coerceIn(0, 100)
+    }
     val next = checklist.firstOrNull { !it.isComplete && !it.statusLabel.equals("Optional", ignoreCase = true) }
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -1695,10 +1701,17 @@ private fun PartnerPreferencesSummaryCard(
 ) {
     val education = preferences.educationLevels.joinToString(", ").ifBlank { "Any education" }
     val location = preferences.locations.joinToString(", ").ifBlank { "Any city" }
+    val career = preferences.occupations.joinToString(", ").ifBlank {
+        when {
+            preferences.annualIncomeMin != null || preferences.annualIncomeMax != null -> "Income-led matching"
+            else -> "Any profession"
+        }
+    }
     val height = listOfNotNull(
         preferences.heightMinCm?.let { "${it}cm+" },
         preferences.heightMaxCm?.let { "up to ${it}cm" }
     ).joinToString(" ").ifBlank { "Open" }
+    val religion = preferences.religion?.takeIf { it.isNotBlank() } ?: "Any religion"
 
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -1721,8 +1734,9 @@ private fun PartnerPreferencesSummaryCard(
                 }
             }
             ProfileInfoLine(Icons.Filled.Favorite, "Age", "${preferences.ageMin}-${preferences.ageMax}")
+            ProfileInfoLine(Icons.Filled.Verified, "Religion", religion)
             ProfileInfoLine(Icons.Filled.School, "Education", education)
-            ProfileInfoLine(Icons.Filled.Work, "Career", preferences.occupations.joinToString(", ").ifBlank { "Any profession" })
+            ProfileInfoLine(Icons.Filled.Work, "Career", career)
             ProfileInfoLine(Icons.Filled.Person, "Location", location)
             ProfileInfoLine(Icons.Filled.AutoAwesome, "Height", height)
             if (preferences.dealBreakers.isNotEmpty()) {
@@ -1735,30 +1749,43 @@ private fun PartnerPreferencesSummaryCard(
 @Composable
 private fun SoulMatchAssistProfileCard(
     assistStatus: AssistStatusData,
-    onToggleAssist: (Boolean) -> Unit
+    onToggleAssist: (Boolean) -> Unit,
+    onOpenAssist: () -> Unit
 ) {
     val enabled = assistStatus.isOptedIn
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         containerColor = SurfaceWarm
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("SoulMatch Assistance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("SoulMatch Assistance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                    Text(
+                        if (enabled) "You can now browse registered agents and contact them directly offline." else "Turn this on to explore registered agents and request offline assistance support.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = onToggleAssist
+                )
+            }
+            if (enabled) {
                 Text(
-                    "Turn this on to request guided SoulMatch assistance from the admin team.",
+                    "SoulMatch only surfaces the directory. Any call, meeting, or follow-up happens directly between you and the selected agent.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
+                OutlinedButton(onClick = onOpenAssist, modifier = Modifier.fillMaxWidth()) {
+                    Text("Open SoulMatch Assist", fontWeight = FontWeight.ExtraBold)
+                }
             }
-            Switch(
-                checked = enabled,
-                onCheckedChange = onToggleAssist
-            )
         }
     }
 }

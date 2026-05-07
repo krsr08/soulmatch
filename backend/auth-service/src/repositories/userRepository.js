@@ -56,7 +56,22 @@ exports.findByPhone = async (phone) => {
   return r.rows[0] || null;
 };
 exports.findByGoogleId = async (googleId) => { const db = await getDB(); const r = await db.query('SELECT * FROM users WHERE google_id=$1 AND is_active=true LIMIT 1', [googleId]); return r.rows[0] || null; };
+exports.findByEmail = async (email) => {
+  const db = await getDB();
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return null;
+  const r = await db.query('SELECT * FROM users WHERE LOWER(email)=$1 AND is_active=true LIMIT 1', [normalized]);
+  return r.rows[0] || null;
+};
 exports.findById = async (userId) => { const db = await getDB(); const r = await db.query('SELECT * FROM users WHERE user_id=$1 LIMIT 1', [userId]); return r.rows[0] || null; };
+exports.attachGoogleId = async (userId, googleId) => {
+  const db = await getDB();
+  const r = await db.query(
+    'UPDATE users SET google_id = COALESCE(google_id, $2), updated_at = NOW() WHERE user_id=$1 RETURNING *',
+    [userId, googleId]
+  );
+  return r.rows[0] || null;
+};
 exports.updateUserType = async (userId, userType) => {
   const db = await getDB();
   const normalized = normalizeUserType(userType);

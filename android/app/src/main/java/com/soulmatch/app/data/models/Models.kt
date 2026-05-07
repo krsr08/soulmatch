@@ -381,6 +381,12 @@ data class AssistReadinessData(
     @SerializedName("canAutoAssign") val canAutoAssign: Boolean = false
 )
 
+data class AssistAgentStatsData(
+    @SerializedName("activeCount") val activeCount: Int = 0,
+    @SerializedName("verifiedCount") val verifiedCount: Int = 0,
+    @SerializedName("unverifiedCount") val unverifiedCount: Int = 0
+)
+
 data class AssistStatusData(
     @SerializedName("profileId") val profileId: String = "",
     @SerializedName("isOptedIn") val isOptedIn: Boolean = false,
@@ -394,8 +400,10 @@ data class AssistStatusData(
     @SerializedName("nextReviewAt") val nextReviewAt: String? = null,
     val location: AssistLocationData = AssistLocationData(),
     val readiness: AssistReadinessData = AssistReadinessData(),
+    @SerializedName("agentStats") val agentStats: AssistAgentStatsData = AssistAgentStatsData(),
     val advisor: AdvisorSummaryData? = null,
-    val recommendations: List<AdvisorSummaryData> = emptyList()
+    val recommendations: List<AdvisorSummaryData> = emptyList(),
+    val agents: List<AdvisorSummaryData> = emptyList()
 )
 
 data class ProfilePhoto(

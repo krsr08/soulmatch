@@ -344,6 +344,7 @@ fun AppNavigation(
                 onOpenBestMatches = { nav.navigate("best_matches") },
                 onOpenNotifications = { nav.navigate("notifications") },
                 onOpenProfile = { nav.navigate("my_profile") },
+                onOpenPartnerPreferences = { nav.navigate("partner_preferences") },
                 onProfileMenuDestination = { destination ->
                     when (destination) {
                         ProfileDrawerRoutes.EditProfile -> nav.navigate("my_profile")

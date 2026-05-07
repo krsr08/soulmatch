@@ -45,11 +45,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.soulmatch.app.data.models.AdvisorSummaryData
+import com.soulmatch.app.data.models.AssistAgentStatsData
 import com.soulmatch.app.ui.components.ChipTone
 import com.soulmatch.app.ui.components.FilterChoiceChip
+import com.soulmatch.app.ui.components.MemberPhoto
 import com.soulmatch.app.ui.components.MetricPill
 import com.soulmatch.app.ui.components.PremiumCard
 import com.soulmatch.app.ui.components.PremiumHeader
@@ -121,28 +125,23 @@ fun SoulMatchAssistScreen(
             ) {
                 item {
                     PremiumHeader(
-                        eyebrow = "Guided matchmaking",
-                        title = "Get family-aware help from a local SoulMatch advisor",
-                        subtitle = "SoulMatch Assist routes serious members to a verified advisor using locality, language, trust, and current advisor capacity."
+                        eyebrow = "SoulMatch Assist",
+                        title = "Connect with active local agents",
+                        subtitle = "You can contact these registered agents directly for offline support. SoulMatch only lists the directory and does not participate in the discussion."
                     )
                 }
                 item {
-                    TwoMetricRow(
-                        leftLabel = "Support mode",
-                        leftValue = if (assistEnabled) titleCase(supportLevel.replace('_', ' ')) else "Self service",
-                        rightLabel = "Assignment",
-                        rightValue = titleCase(assist.requestStatus.replace('_', ' '))
-                    )
+                    AssistStatsRow(stats = assist.agentStats, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
                 }
                 item {
                     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            SectionTitle("Choose your support mode", "Stay independent, collaborate with your family, or let SoulMatch assign an advisor.")
+                            SectionTitle("Control your assistance preference", "Enable SoulMatch Assistance if you want agent discovery and offline support options saved to your profile.")
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf(
                                     "self_service" to "Self",
                                     "family_assisted" to "Family",
-                                    "advisor_assisted" to "Advisor"
+                                    "advisor_assisted" to "Agent"
                                 ).forEach { (value, label) ->
                                     FilterChoiceChip(
                                         label = label,
@@ -154,13 +153,18 @@ fun SoulMatchAssistScreen(
                                     )
                                 }
                             }
-                            if (locationSummary.isNotBlank()) {
-                                Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, Divider)) {
-                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Text("Current family location", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                                        Text(locationSummary, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                                    }
+                            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, Divider)) {
+                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("How this works", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "Agents may help with introductions and profile handling offline. SoulMatch will not join calls, negotiate, or manage any engagement between you and the agent.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextSecondary
+                                    )
                                 }
+                            }
+                            if (locationSummary.isNotBlank()) {
+                                MetricPill("Family location", locationSummary, background = MaterialTheme.colorScheme.surface)
                             }
                             OutlinedTextField(
                                 value = familyContactName,
@@ -205,7 +209,7 @@ fun SoulMatchAssistScreen(
                                 enabled = !isLoading
                             ) {
                                 Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Text("Save SoulMatch Assist")
+                                Text("Save SoulMatch Assistance")
                             }
                         }
                     }
@@ -226,53 +230,157 @@ fun SoulMatchAssistScreen(
                     item {
                         PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                SectionTitle("Assigned advisor", "This is your current best-fit SoulMatch Assist partner.")
-                                DetailRow("Advisor", advisor.fullName, highlighted = true)
-                                DetailRow("Coverage", listOf(advisor.city, advisor.state, advisor.pincode).filter { it.isNotBlank() }.joinToString(", "), highlighted = true)
-                                DetailRow("Success rate", "${advisor.successRate.toInt()}%", highlighted = true)
-                                DetailRow("Rating", String.format("%.1f/5", advisor.averageRating), highlighted = true)
-                                if (advisor.languages.isNotEmpty()) {
-                                    SignalChips(advisor.languages.take(3), tone = ChipTone.Info)
-                                }
+                                SectionTitle("Best-fit agent for your profile", "This recommendation is based on your current location, language, and member profile signals.")
+                                AdvisorDirectoryCard(advisor = advisor, isHighlighted = true)
                             }
                         }
                     }
                 }
-                if (assist.advisor == null && assist.recommendations.isNotEmpty()) {
+                if (assist.recommendations.isNotEmpty()) {
                     item {
-                        FeatureListCard(
-                            title = "Best-fit advisors currently available",
-                            subtitle = "These are the strongest matches for your current location and profile signals.",
-                            features = assist.recommendations.take(3).map { advisor ->
-                                FeaturePoint(
-                                    advisor.fullName,
-                                    listOf(advisor.city, advisor.state, advisor.reasons.joinToString(", ")).filter { it.isNotBlank() }.joinToString(" | ")
-                                )
-                            }
+                        SectionTitle(
+                            title = "Recommended agents",
+                            subtitle = "These are the strongest matches for your current profile and family context.",
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
+                    }
+                    items(assist.recommendations.take(3), key = { "rec-${it.advisorId}" }) { advisor ->
+                        AdvisorDirectoryCard(advisor = advisor, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
                     }
                 }
                 item {
-                    FeatureListCard(
-                        title = "Why SoulMatch Assist stands out",
-                        subtitle = "This is not open lead selling. Families opt in first, profiles stay protected, and assignments follow trust rules.",
-                        features = listOf(
-                            FeaturePoint("Verified routing", "Only approved advisors with active capacity are eligible for assignments."),
-                            FeaturePoint("Hyperlocal scoring", "Pincode, locality, language, and community fit all influence the assignment score."),
-                            FeaturePoint("Serious follow-up", "Use this for curated shortlists, family coordination, and relationship progress.")
-                        )
+                    SectionTitle(
+                        title = "All active agents",
+                        subtitle = "Verified agents have completed platform review. Unverified agents are still pending review and should be handled with extra caution.",
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
-                item {
-                    OutlinedButton(
-                        onClick = onOpenSubscription,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Icon(Icons.Filled.Star, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text("View assisted membership plans")
+                if (assist.agents.isEmpty()) {
+                    item {
+                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceSoft) {
+                            Text("No active agents are available right now. Please check again shortly.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                        }
                     }
+                } else {
+                    items(assist.agents, key = { "agent-${it.advisorId}" }) { advisor ->
+                        AdvisorDirectoryCard(advisor = advisor, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssistStatsRow(
+    stats: AssistAgentStatsData,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        MetricPill("Active", stats.activeCount.toString(), modifier = Modifier.weight(1f), background = SurfaceSoft)
+        MetricPill("Verified", stats.verifiedCount.toString(), modifier = Modifier.weight(1f), background = SuccessSoft)
+        MetricPill("Unverified", stats.unverifiedCount.toString(), modifier = Modifier.weight(1f), background = SurfaceWarm)
+    }
+}
+
+@Composable
+private fun AdvisorDirectoryCard(
+    advisor: AdvisorSummaryData,
+    modifier: Modifier = Modifier,
+    isHighlighted: Boolean = false
+) {
+    val context = LocalContext.current
+    val isVerified = advisor.reasons.any { it.contains("verified", ignoreCase = true) }
+    PremiumCard(
+        modifier = modifier,
+        containerColor = if (isHighlighted) SurfaceWarm else MaterialTheme.colorScheme.surface
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MemberPhoto(
+                    photoUrl = null,
+                    contentDescription = advisor.fullName,
+                    modifier = Modifier.size(62.dp),
+                    shape = RoundedCornerShape(18.dp)
+                )
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            advisor.fullName.ifBlank { "SoulMatch Agent" },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (isVerified) {
+                            Icon(Icons.Filled.Verified, contentDescription = "Verified agent", tint = Success, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                    Text(
+                        advisor.serviceLabel.ifBlank { "Registered agent" },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        listOf(advisor.locality, advisor.city, advisor.state).filter { it.isNotBlank() }.joinToString(", ").ifBlank { "Location shared after contact" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
+            }
+            if (advisor.bio.isNotBlank()) {
+                Text(advisor.bio, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            }
+            if (advisor.languages.isNotEmpty() || advisor.communities.isNotEmpty()) {
+                SignalChips(
+                    labels = (advisor.languages.take(2) + advisor.communities.take(2)).distinct().take(4),
+                    tone = ChipTone.Info
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                MetricPill("Success", "${advisor.successRate.toInt()}%", modifier = Modifier.weight(1f), background = SurfaceSoft)
+                MetricPill("Rating", String.format("%.1f/5", advisor.averageRating), modifier = Modifier.weight(1f), background = SurfaceSoft)
+                MetricPill("Cases", advisor.activeAssignments.toString(), modifier = Modifier.weight(1f), background = SurfaceSoft)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        if (advisor.phone.isNotBlank()) {
+                            context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${advisor.phone}")))
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = advisor.phone.isNotBlank()
+                ) {
+                    Icon(Icons.Filled.Call, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("Call")
+                }
+                Button(
+                    onClick = {
+                        if (advisor.email.isNotBlank()) {
+                            context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${advisor.email}")))
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = advisor.email.isNotBlank()
+                ) {
+                    Icon(Icons.Filled.Email, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("Email")
                 }
             }
         }

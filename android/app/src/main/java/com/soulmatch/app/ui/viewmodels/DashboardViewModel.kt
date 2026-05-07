@@ -41,6 +41,7 @@ class DashboardViewModel @Inject constructor(
     private val _matches = MutableStateFlow<List<ProfileSummary>>(emptyList())
     private val _pendingInvitations = MutableStateFlow<List<InterestListItem>>(emptyList())
     private val _myProfile = MutableStateFlow(ProfileData())
+    private val _assistEnabled = MutableStateFlow(false)
     private val _isLoading = MutableStateFlow(false)
     private val _headline = MutableStateFlow("New matches are ready")
     private val _verifiedOnlyMode = MutableStateFlow(false)
@@ -49,6 +50,7 @@ class DashboardViewModel @Inject constructor(
     val matches: StateFlow<List<ProfileSummary>> = _matches.asStateFlow()
     val pendingInvitations: StateFlow<List<InterestListItem>> = _pendingInvitations.asStateFlow()
     val myProfile: StateFlow<ProfileData> = _myProfile.asStateFlow()
+    val assistEnabled: StateFlow<Boolean> = _assistEnabled.asStateFlow()
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     val headline: StateFlow<String> = _headline.asStateFlow()
     val verifiedOnlyMode: StateFlow<Boolean> = _verifiedOnlyMode.asStateFlow()
@@ -81,6 +83,13 @@ class DashboardViewModel @Inject constructor(
                 ?.takeIf { response.isSuccessful && it.success }
                 ?.data
             _myProfile.value = profile ?: if (canUseFallback) MarketFixtures.myProfile else ProfileData()
+            val assistResponse = runCatching { profileApi.getAssistStatus() }.getOrNull()
+            _assistEnabled.value = assistResponse
+                ?.body()
+                ?.takeIf { assistResponse.isSuccessful && it.success }
+                ?.data
+                ?.isOptedIn
+                ?: false
         }
     }
 

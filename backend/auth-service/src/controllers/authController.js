@@ -49,6 +49,18 @@ async function ensureMemberSelectionAllowed(userId) {
   }
 }
 
+async function getStartedFlowState(userId) {
+  const db = await getDB();
+  const [memberProfile, advisorProfile] = await Promise.all([
+    db.query('SELECT 1 FROM profiles WHERE user_id=$1 LIMIT 1', [userId]),
+    db.query('SELECT 1 FROM advisors WHERE user_id=$1 LIMIT 1', [userId])
+  ]);
+  return {
+    hasMemberProfile: memberProfile.rows.length > 0,
+    hasAdvisorProfile: advisorProfile.rows.length > 0
+  };
+}
+
 exports.sendOTP = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -157,6 +169,12 @@ exports.googleLogin = async (req, res, next) => {
     const payload = await tokenService.verifyGoogleToken(googleToken);
     const { sub: googleId, email } = payload;
     let user = await userRepo.findByGoogleId(googleId);
+    if (!user && email) {
+      user = await userRepo.findByEmail(email);
+      if (user && !user.google_id) {
+        user = await userRepo.attachGoogleId(user.user_id, googleId);
+      }
+    }
     const isNewUser = !user;
     let referral = null;
     if (inviteCode) {
@@ -318,6 +336,7 @@ exports.selectUserType = async (req, res, next) => {
 
     const currentUserType = userRepo.normalizeUserType(user.user_type);
     if (currentUserType === requestedUserType) {
+      const flowState = await getStartedFlowState(user.user_id);
       const { accessToken, refreshToken } = tokenService.generatePair({
         userId: user.user_id,
         phone: user.phone,
@@ -331,7 +350,9 @@ exports.selectUserType = async (req, res, next) => {
           accessToken,
           refreshToken,
           userId: user.user_id,
-          isNewUser: currentUserType === 'member',
+          isNewUser: requestedUserType === 'member'
+            ? !flowState.hasMemberProfile
+            : !flowState.hasAdvisorProfile,
           userType: currentUserType
         }
       });
@@ -346,6 +367,7 @@ exports.selectUserType = async (req, res, next) => {
     }
 
     const updated = await userRepo.updateUserType(user.user_id, requestedUserType);
+    const flowState = await getStartedFlowState(updated.user_id);
     const { accessToken, refreshToken } = tokenService.generatePair({
       userId: updated.user_id,
       phone: updated.phone,
@@ -368,7 +390,9 @@ exports.selectUserType = async (req, res, next) => {
         accessToken,
         refreshToken,
         userId: updated.user_id,
-        isNewUser: true,
+        isNewUser: requestedUserType === 'member'
+          ? !flowState.hasMemberProfile
+          : !flowState.hasAdvisorProfile,
         userType: requestedUserType
       }
     });

@@ -84,9 +84,13 @@ fun ProfileSideDrawer(
     profileId: String = "",
     isVerified: Boolean,
     membershipLabel: String = "Free member",
+    showSoulMatchAssist: Boolean = false,
     onDestinationSelected: (String) -> Unit,
     content: @Composable () -> Unit
 ) {
+    val visibleActions = primaryActions.filterNot {
+        it.route == ProfileDrawerRoutes.SoulMatchAssist && !showSoulMatchAssist
+    }
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -109,7 +113,7 @@ fun ProfileSideDrawer(
                         isVerified = isVerified,
                         membershipLabel = membershipLabel
                     )
-                    primaryActions.forEach { action ->
+                    visibleActions.forEach { action ->
                         DrawerItem(action = action, onClick = { onDestinationSelected(action.route) })
                     }
                 }

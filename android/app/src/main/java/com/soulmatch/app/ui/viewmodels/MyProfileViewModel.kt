@@ -318,6 +318,7 @@ class MyProfileViewModel @Inject constructor(
                 val response = profileApi.updatePreferences(profileId, request)
                 if (response.isSuccessful && response.body()?.success == true) {
                     _preferences.value = request
+                    _profile.value = _profile.value?.copy(isPartnerPrefSet = true)
                     _status.value = "Partner preferences updated."
                 } else {
                     _status.value = response.body()?.error?.message ?: "Couldn't update partner preferences right now."
@@ -499,9 +500,13 @@ class MyProfileViewModel @Inject constructor(
                 title = "Work and education",
                 description = "Education level, occupation, annual income, and working city",
                 isComplete = resolved.educationLevel.isNotBlank() &&
-                    resolved.occupation.isNotBlank() &&
-                    resolved.annualIncome.isNotBlank() &&
-                    resolved.workingCity.isNotBlank(),
+                    (!resolved.isEmployed || (
+                        resolved.occupation.isNotBlank() &&
+                            resolved.annualIncome.isNotBlank() &&
+                            resolved.workingCity.isNotBlank() &&
+                            resolved.workingState.isNotBlank() &&
+                            resolved.workingPincode.length == 6
+                        )),
                 editStep = 3
             ),
             ProfileChecklistItem(
