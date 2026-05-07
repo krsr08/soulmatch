@@ -205,7 +205,6 @@ class AuthViewModel @Inject constructor(
         val normalizedUserType = data.userType.ifBlank { "member" }
         val explicitSelectionRoute = when (requestedUserType) {
             "agent" -> "agent_onboarding"
-            "member" -> "profile_wizard/1"
             else -> null
         }
 
@@ -218,8 +217,6 @@ class AuthViewModel @Inject constructor(
                 profileApi.getAgentProfile().body()?.takeIf { it.success }?.data
             }.getOrNull()
             resolveAgentRoute(agentProfile)
-        } else if (data.isNewUser) {
-            "profile_wizard/1"
         } else {
             val profile = runCatching {
                 profileApi.getMyProfile().body()?.takeIf { it.success }?.data
@@ -231,7 +228,11 @@ class AuthViewModel @Inject constructor(
                 prefs.saveProfileId(profile?.profileId.orEmpty())
             }
             prefs.saveWizardStep(resolvedStep ?: 7)
-            resolvePostLoginRoute(profile)
+            if (requestedUserType == "member" && data.isNewUser && profile?.profileId.isNullOrBlank()) {
+                "profile_wizard/1"
+            } else {
+                resolvePostLoginRoute(profile)
+            }
         }
         if (data.isNewUser && requestedUserType.isNullOrBlank()) {
             prefs.savePendingAuthRoute("auth_role_selection")
