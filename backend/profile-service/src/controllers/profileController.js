@@ -63,28 +63,48 @@ async function requireEditableProfileForUser(req, profileId) {
 function validateStepData(step, data) {
   switch (step) {
     case 1:
-      if (isBlank(data.firstName) || isBlank(data.lastName) || isBlank(data.dob) || isBlank(data.religion) || isBlank(data.motherTongue)) {
-        return 'Basic details need first name, last name, date of birth, religion, and mother tongue.';
-      }
+      if (isBlank(data.firstName)) return 'First name is required.';
+      if (isBlank(data.lastName)) return 'Last name is required.';
+      if (isBlank(data.dob)) return 'Date of birth is required in DD-MM-YYYY format.';
+      if (isBlank(data.gender)) return 'Gender is required.';
+      if (isBlank(data.religion)) return 'Religion is required.';
+      if (isBlank(data.caste)) return 'Community / caste is required.';
+      if (isBlank(data.motherTongue)) return 'Mother tongue is required.';
+      if (isBlank(data.maritalStatus)) return 'Marital status is required.';
       return null;
     case 2:
-      if (!hasPositiveNumber(data.heightCm) || isBlank(data.complexion)) {
-        return 'Physical details need height and complexion before you can save this step.';
-      }
+      if (!hasPositiveNumber(data.heightCm)) return 'Height must be a valid number.';
+      if (!hasPositiveNumber(data.weightKg)) return 'Weight must be a valid number.';
+      if (isBlank(data.complexion)) return 'Complexion is required.';
+      if (isBlank(data.bodyType)) return 'Body type is required.';
+      if (isBlank(data.bloodGroup)) return 'Blood group is required.';
       return null;
-    case 3:
-      if (isBlank(data.educationLevel) || isBlank(data.occupation) || isBlank(data.workingCity)) {
-        return 'Education details need education level, occupation, and working city.';
+    case 3: {
+      const isEmployed = data.isEmployed === true || String(data.isEmployed).toLowerCase() === 'true';
+      if (isBlank(data.educationLevel)) return 'Highest qualification is required.';
+      if (!isEmployed) {
+        return null;
       }
+      if (isBlank(data.occupation)) return 'Occupation is required when employed.';
+      if (isBlank(data.annualIncome)) return 'Annual income is required when employed.';
+      if (isBlank(data.workingCity)) return 'Working city is required when employed.';
+      if (isBlank(data.workingState)) return 'Working state is required when employed.';
+      if (!/^\d{6}$/.test(String(data.workingPincode || '').trim())) return 'Working pincode must be a valid 6-digit code.';
       return null;
+    }
     case 4:
-      if (isBlank(data.familyType) || isBlank(data.familyCity)) {
-        return 'Family details need family type and family city.';
-      }
+      if (isBlank(data.fatherOccupation)) return 'Father occupation is required.';
+      if (isBlank(data.motherOccupation)) return 'Mother occupation is required.';
+      if (data.numBrothers == null || Number.isNaN(Number(data.numBrothers))) return 'Number of brothers is required.';
+      if (data.numSisters == null || Number.isNaN(Number(data.numSisters))) return 'Number of sisters is required.';
+      if (isBlank(data.familyType)) return 'Family type is required.';
+      if (isBlank(data.familyCity)) return 'Family city is required.';
+      if (!isBlank(data.familyPincode) && !/^\d{6}$/.test(String(data.familyPincode).trim())) return 'Family pincode must be a valid 6-digit code.';
       return null;
     case 5:
-      if (isBlank(data.diet) || isBlank(data.aboutMe) || data.aboutMe.trim().length < 30) {
-        return 'Lifestyle details need diet and an "About me" section with at least 30 characters.';
+      if (isBlank(data.diet)) return 'Diet is required.';
+      if (isBlank(data.aboutMe) || data.aboutMe.trim().length < 30) {
+        return 'About me should be at least 30 characters.';
       }
       return null;
     case 6:
@@ -123,17 +143,40 @@ function normalizeDateOfBirth(value) {
   return date.toISOString().slice(0, 10);
 }
 
+function formatDateOfBirthForDisplay(value) {
+  const parts = parseDateParts(value);
+  if (!parts) return value || null;
+  const day = String(parts.day).padStart(2, '0');
+  const month = String(parts.month).padStart(2, '0');
+  return `${day}-${month}-${parts.year}`;
+}
+
+function formatProfileForResponse(profile) {
+  if (!profile) return profile;
+  return {
+    ...profile,
+    dob: formatDateOfBirthForDisplay(profile.dob)
+  };
+}
+
 function normalizeStepData(step, data) {
   const normalized = { ...data };
-  if (step === 1) {
-    const dob = normalizeDateOfBirth(data.dob);
-    if (!dob) {
-      return {
-        error: 'Enter date of birth as YYYY-MM-DD or DD-MM-YYYY. Age must be between 18 and 80 years.'
-      };
+    if (step === 1) {
+      const dob = normalizeDateOfBirth(data.dob);
+      if (!dob) {
+        return {
+          error: 'Enter date of birth as DD-MM-YYYY. Age must be between 18 and 80 years.'
+        };
+      }
+      normalized.dob = dob;
     }
-    normalized.dob = dob;
-  }
+    if (step === 3) {
+      normalized.isEmployed = data.isEmployed === true || String(data.isEmployed).toLowerCase() === 'true';
+      normalized.workingPincode = String(data.workingPincode || '').trim();
+    }
+    if (step === 4) {
+      normalized.familyPincode = String(data.familyPincode || '').trim();
+    }
   return { data: normalized };
 }
 
@@ -290,7 +333,7 @@ exports.getMyProfile = async (req, res, next) => {
     const p = await repo.findFullByUserId(req.user.userId);
     if (p?.profile_id) p.completion_score = await repo.calcCompletion(p.profile_id);
     await attachTrustSummary(p);
-    res.json({ success: true, data: p, isNewProfile: !p });
+    res.json({ success: true, data: formatProfileForResponse(p), isNewProfile: !p });
   } catch (err) { next(err); }
 };
 exports.getAssistStatus = async (req, res, next) => {
@@ -363,7 +406,7 @@ exports.getProfile = async (req, res, next) => {
     p.completion_score = await repo.calcCompletion(p.profile_id);
     await attachTrustSummary(p);
     repo.recordView(req.params.profileId, req.user.userId).catch(() => {});
-    res.json({ success: true, data: p });
+    res.json({ success: true, data: formatProfileForResponse(p) });
   } catch (err) { next(err); }
 };
 exports.updateProfile = async (req, res, next) => {

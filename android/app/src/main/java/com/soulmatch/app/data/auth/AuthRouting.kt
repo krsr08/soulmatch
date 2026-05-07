@@ -8,6 +8,7 @@ private fun safeText(value: String?): String = value.orEmpty()
 fun resolveWizardStep(profile: ProfileData?): Int? {
     val data = profile ?: return 1
     return when {
+        data.profileId.isBlank() -> 1
         safeText(data.firstName).isBlank() ||
             safeText(data.lastName).isBlank() ||
             data.dob.isNullOrBlank() ||
@@ -24,9 +25,13 @@ fun resolveWizardStep(profile: ProfileData?): Int? {
             safeText(data.bloodGroup).isBlank() -> 2
 
         safeText(data.educationLevel).isBlank() ||
-            safeText(data.occupation).isBlank() ||
-            safeText(data.annualIncome).isBlank() ||
-            safeText(data.workingCity).isBlank() -> 3
+            (data.isEmployed && (
+                safeText(data.occupation).isBlank() ||
+                    safeText(data.annualIncome).isBlank() ||
+                    safeText(data.workingCity).isBlank() ||
+                    safeText(data.workingState).isBlank() ||
+                    safeText(data.workingPincode).length != 6
+                )) -> 3
 
         safeText(data.fatherOccupation).isBlank() ||
             safeText(data.motherOccupation).isBlank() ||
@@ -42,7 +47,7 @@ fun resolveWizardStep(profile: ProfileData?): Int? {
 
 fun resolvePostLoginRoute(profile: ProfileData?): String {
     val nextWizardStep = resolveWizardStep(profile)
-    return if (nextWizardStep != null) {
+    return if (profile?.profileId.isNullOrBlank() && nextWizardStep != null) {
         "profile_wizard/$nextWizardStep"
     } else {
         "dashboard"

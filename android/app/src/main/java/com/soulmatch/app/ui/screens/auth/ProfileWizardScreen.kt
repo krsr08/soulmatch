@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +24,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,6 +35,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -53,7 +57,6 @@ import com.soulmatch.app.ui.components.ChipTone
 import com.soulmatch.app.ui.components.FilterChoiceChip
 import com.soulmatch.app.ui.components.LabeledProgress
 import com.soulmatch.app.ui.components.PremiumCard
-import com.soulmatch.app.ui.components.PremiumHeader
 import com.soulmatch.app.ui.components.PremiumScreen
 import com.soulmatch.app.ui.components.SignalChip
 import com.soulmatch.app.ui.components.SignalChips
@@ -115,6 +118,16 @@ private val wizardCopy = mapOf(
     )
 )
 
+private val indianStates = listOf(
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat",
+    "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh",
+    "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
+    "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh",
+    "Uttarakhand", "West Bengal", "Andaman and Nicobar Islands", "Chandigarh",
+    "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir", "Ladakh",
+    "Lakshadweep", "Puducherry"
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileWizardScreen(
@@ -161,11 +174,6 @@ fun ProfileWizardScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    PremiumHeader(
-                        eyebrow = copy.eyebrow,
-                        title = copy.title,
-                        subtitle = copy.subtitle
-                    )
                     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp), containerColor = SurfaceWarm) {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             LabeledProgress(
@@ -178,6 +186,7 @@ fun ProfileWizardScreen(
                                 }
                             )
                             StepRail(currentStep = currentStep, profile = profile)
+                            Text(copy.subtitle, style = MaterialTheme.typography.bodyMedium, color = PrimaryDark)
                             Text(copy.helper, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         }
                     }
@@ -253,20 +262,33 @@ private fun StepRail(currentStep: Int, profile: ProfileData?) {
                 modifier = Modifier.weight(1f).height(38.dp),
                 shape = RoundedCornerShape(16.dp),
                 color = when {
-                    active -> MaterialTheme.colorScheme.primary
+                    active && complete -> Success.copy(alpha = 0.16f)
+                    active -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                     complete -> SurfaceSoft
                     else -> MaterialTheme.colorScheme.surface
                 },
-                border = BorderStroke(1.dp, if (active) MaterialTheme.colorScheme.primary else Divider)
+                border = BorderStroke(
+                    1.dp,
+                    when {
+                        active && complete -> Success
+                        active -> MaterialTheme.colorScheme.primary
+                        else -> Divider
+                    }
+                )
             ) {
                 Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                     if (complete) {
-                        Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(15.dp), tint = Success)
+                        Icon(
+                            Icons.Filled.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp),
+                            tint = if (active) Success else Success
+                        )
                     } else {
                         Text(
                             index.toString(),
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (active) MaterialTheme.colorScheme.onPrimary else TextSecondary,
+                            color = if (active) MaterialTheme.colorScheme.primary else TextSecondary,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -301,9 +323,13 @@ private fun isProfileSectionComplete(profile: ProfileData?, section: Int): Boole
             resolved.bodyType.isNotBlank() &&
             resolved.bloodGroup.isNotBlank()
         3 -> resolved.educationLevel.isNotBlank() &&
-            resolved.occupation.isNotBlank() &&
-            resolved.annualIncome.isNotBlank() &&
-            resolved.workingCity.isNotBlank()
+            (!resolved.isEmployed || (
+                resolved.occupation.isNotBlank() &&
+                    resolved.annualIncome.isNotBlank() &&
+                    resolved.workingCity.isNotBlank() &&
+                    resolved.workingState.isNotBlank() &&
+                    resolved.workingPincode.length == 6
+                ))
         4 -> resolved.fatherOccupation.isNotBlank() &&
             resolved.motherOccupation.isNotBlank() &&
             resolved.numBrothers != null &&
@@ -336,8 +362,12 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
     var profileCreatedBy by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.profileCreatedBy?.ifBlank { "self" } ?: "self") }
     val normalizedDob = normalizeDateOfBirth(dob)
     val dobHasError = dob.isNotBlank() && normalizedDob == null
+    val firstNameError = firstName.isNotBlank() && firstName.trim().length < 2
+    val lastNameError = lastName.isNotBlank() && lastName.trim().length < 2
 
-    val isValid = listOf(firstName, lastName, gender, religion, caste, motherTongue, maritalStatus).all { it.isNotBlank() } &&
+    val isValid = !firstNameError &&
+        !lastNameError &&
+        listOf(firstName, lastName, gender, religion, caste, motherTongue, maritalStatus).all { it.isNotBlank() } &&
         normalizedDob != null
     LaunchedEffect(firstName, lastName, normalizedDob, dobHasError, gender, religion, caste, motherTongue, maritalStatus, profileCreatedBy) {
         vm.updateStep1Data(
@@ -358,18 +388,32 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
 
     PremiumCard {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionLead("Identity fields", "These details make the profile searchable and understandable to families.")
+            SectionLead("Complete the essentials", "These details make the profile searchable and understandable to families.")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                RequiredTextField(firstName, { firstName = it }, "First name", Modifier.weight(1f))
-                RequiredTextField(lastName, { lastName = it }, "Last name", Modifier.weight(1f))
+                RequiredTextField(
+                    firstName,
+                    { firstName = it },
+                    "First name",
+                    Modifier.weight(1f),
+                    isError = firstNameError,
+                    supportingText = if (firstNameError) "Enter at least 2 characters." else null
+                )
+                RequiredTextField(
+                    lastName,
+                    { lastName = it },
+                    "Last name",
+                    Modifier.weight(1f),
+                    isError = lastNameError,
+                    supportingText = if (lastNameError) "Enter at least 2 characters." else null
+                )
             }
             RequiredTextField(
                 dob,
-                { value -> dob = value.filter { it.isDigit() || it == '-' || it == '/' }.take(10) },
+                { value -> dob = formatDateInput(value) },
                 "Date of birth",
                 keyboardType = KeyboardType.Number,
                 isError = dobHasError,
-                supportingText = if (dobHasError) "Use YYYY-MM-DD or DD-MM-YYYY. Example: 1998-05-24." else "Format: YYYY-MM-DD or DD-MM-YYYY"
+                supportingText = if (dobHasError) "Use DD-MM-YYYY. Example: 24-05-1998." else "Format: DD-MM-YYYY"
             )
             ChipRow("Gender", listOf("male", "female"), gender) { gender = it }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -391,7 +435,17 @@ private fun Step2Physical(existing: ProfileData?, vm: ProfileViewModel, onValidi
     var bodyType by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.bodyType.orEmpty()) }
     var bloodGroup by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.bloodGroup.orEmpty()) }
 
-    val isValid = heightCm.isNotBlank() && weightKg.isNotBlank() && complexion.isNotBlank() && bodyType.isNotBlank() && bloodGroup.isNotBlank()
+    val heightValue = heightCm.toIntOrNull()
+    val weightValue = weightKg.toIntOrNull()
+    val heightError = heightCm.isNotBlank() && (heightValue == null || heightValue !in 100..250)
+    val weightError = weightKg.isNotBlank() && (weightValue == null || weightValue !in 30..200)
+    val isValid = !heightError &&
+        !weightError &&
+        heightCm.isNotBlank() &&
+        weightKg.isNotBlank() &&
+        complexion.isNotBlank() &&
+        bodyType.isNotBlank() &&
+        bloodGroup.isNotBlank()
     LaunchedEffect(heightCm, weightKg, complexion, bodyType, bloodGroup) {
         vm.updateStep2Data(
             mapOf(
@@ -407,10 +461,24 @@ private fun Step2Physical(existing: ProfileData?, vm: ProfileViewModel, onValidi
 
     PremiumCard {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionLead("Physical details", "Keep these easy to filter without making the user hunt through the profile.")
+            SectionLead("Visible traits", "Keep these easy to filter without making the user hunt through the profile.")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                NumberField(heightCm, { heightCm = it.filter(Char::isDigit) }, "Height in cm", Modifier.weight(1f))
-                NumberField(weightKg, { weightKg = it.filter(Char::isDigit) }, "Weight in kg", Modifier.weight(1f))
+                NumberField(
+                    heightCm,
+                    { heightCm = it.filter(Char::isDigit).take(3) },
+                    "Height in cm",
+                    Modifier.weight(1f),
+                    isError = heightError,
+                    supportingText = if (heightError) "Enter a value between 100 and 250." else null
+                )
+                NumberField(
+                    weightKg,
+                    { weightKg = it.filter(Char::isDigit).take(3) },
+                    "Weight in kg",
+                    Modifier.weight(1f),
+                    isError = weightError,
+                    supportingText = if (weightError) "Enter a value between 30 and 200." else null
+                )
             }
             ChipRow("Complexion", listOf("Fair", "Wheatish", "Dusky"), complexion) { complexion = it }
             ChipRow("Body type", listOf("Slim", "Average", "Athletic"), bodyType) { bodyType = it }
@@ -423,18 +491,36 @@ private fun Step2Physical(existing: ProfileData?, vm: ProfileViewModel, onValidi
 @Composable
 private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
     var educationLevel by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.educationLevel.orEmpty()) }
+    var isEmployed by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.isEmployed ?: false) }
     var occupation by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.occupation.orEmpty()) }
     var annualIncome by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.annualIncome.orEmpty()) }
     var workingCity by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.workingCity.orEmpty()) }
+    var workingState by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.workingState.orEmpty()) }
+    var workingPincode by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.workingPincode.orEmpty()) }
 
-    val isValid = educationLevel.isNotBlank() && occupation.isNotBlank() && annualIncome.isNotBlank() && workingCity.isNotBlank()
-    LaunchedEffect(educationLevel, occupation, annualIncome, workingCity) {
+    val workingPincodeError = workingPincode.isNotBlank() && workingPincode.length != 6
+    val isValid = educationLevel.isNotBlank() &&
+        (
+            !isEmployed ||
+                (
+                    occupation.isNotBlank() &&
+                        annualIncome.isNotBlank() &&
+                        workingCity.isNotBlank() &&
+                        workingState.isNotBlank() &&
+                        workingPincode.length == 6
+                    )
+            )
+    
+    LaunchedEffect(educationLevel, isEmployed, occupation, annualIncome, workingCity, workingState, workingPincode) {
         vm.updateStep3Data(
             mapOf(
                 "educationLevel" to educationLevel,
-                "occupation" to occupation,
-                "annualIncome" to annualIncome,
-                "workingCity" to workingCity
+                "isEmployed" to isEmployed,
+                "occupation" to (if (isEmployed) occupation else ""),
+                "annualIncome" to (if (isEmployed) annualIncome else ""),
+                "workingCity" to (if (isEmployed) workingCity else ""),
+                "workingState" to (if (isEmployed) workingState else ""),
+                "workingPincode" to (if (isEmployed) workingPincode else "")
             )
         )
         onValidityChange(isValid)
@@ -442,11 +528,37 @@ private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValid
 
     PremiumCard {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionLead("Education and work", "These are among the highest-intent search filters in a matrimony app.")
+            SectionLead("Professional snapshot", "These are among the highest-intent search filters in a matrimony app.")
             ChipRow("Education level", listOf("Graduate", "Post Graduate", "Doctorate", "MBA", "Professional"), educationLevel) { educationLevel = it }
-            RequiredTextField(occupation, { occupation = it }, "Occupation")
-            ChipRow("Annual income", listOf("< 3 LPA", "3-5 LPA", "5-10 LPA", "10-20 LPA", "20+ LPA"), annualIncome) { annualIncome = it }
-            RequiredTextField(workingCity, { workingCity = it }, "Working city")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Currently employed", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text("Turn this on to capture work details for search and shortlist quality.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                }
+                Switch(checked = isEmployed, onCheckedChange = { isEmployed = it })
+            }
+            if (isEmployed) {
+                RequiredTextField(occupation, { occupation = it }, "Occupation")
+                ChipRow("Annual income", listOf("< 3 LPA", "3-5 LPA", "5-10 LPA", "10-20 LPA", "20+ LPA"), annualIncome) { annualIncome = it }
+                RequiredTextField(workingCity, { workingCity = it }, "Working city")
+                SelectionField(
+                    label = "Working state",
+                    value = workingState,
+                    options = indianStates,
+                    onSelect = { workingState = it }
+                )
+                NumberField(
+                    workingPincode,
+                    { workingPincode = it.filter(Char::isDigit).take(6) },
+                    "Pincode",
+                    isError = workingPincodeError,
+                    supportingText = if (workingPincodeError) "Enter a valid 6-digit pincode." else null
+                )
+            }
             PremiumCard(containerColor = SurfaceWarm, contentPadding = PaddingValues(14.dp)) {
                 Text("This section syncs with Smart Search and ranking, so it should be specific instead of generic.", style = MaterialTheme.typography.bodySmall, color = PrimaryDark)
             }
@@ -465,6 +577,7 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
     var familyState by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.familyState.orEmpty()) }
     var familyLocality by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.familyLocality.orEmpty()) }
     var familyPincode by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.familyPincode.orEmpty()) }
+    val familyPincodeError = familyPincode.isNotBlank() && familyPincode.length != 6
 
     val isValid = listOf(fatherOccupation, motherOccupation, numBrothers, numSisters, familyType, familyCity).all { it.isNotBlank() }
     LaunchedEffect(fatherOccupation, motherOccupation, numBrothers, numSisters, familyType, familyCity, familyState, familyLocality, familyPincode) {
@@ -486,7 +599,7 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
 
     PremiumCard {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionLead("Family background", "This is where SoulMatch should feel like a serious matrimonial product.")
+            SectionLead("Family context", "This is where SoulMatch should feel like a serious matrimonial product.")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RequiredTextField(fatherOccupation, { fatherOccupation = it }, "Father occupation", Modifier.weight(1f))
                 RequiredTextField(motherOccupation, { motherOccupation = it }, "Mother occupation", Modifier.weight(1f))
@@ -498,8 +611,21 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
             ChipRow("Family type", listOf("Nuclear", "Joint"), familyType) { familyType = it }
             RequiredTextField(familyCity, { familyCity = it }, "Family city")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                RequiredTextField(familyState, { familyState = it }, "State", Modifier.weight(1f))
-                NumberField(familyPincode, { familyPincode = it.filter(Char::isDigit).take(6) }, "Pincode", Modifier.weight(1f))
+                SelectionField(
+                    label = "State",
+                    value = familyState,
+                    options = indianStates,
+                    onSelect = { familyState = it },
+                    modifier = Modifier.weight(1f)
+                )
+                NumberField(
+                    familyPincode,
+                    { familyPincode = it.filter(Char::isDigit).take(6) },
+                    "Pincode",
+                    Modifier.weight(1f),
+                    isError = familyPincodeError,
+                    supportingText = if (familyPincodeError) "Enter a valid 6-digit pincode." else null
+                )
             }
             RequiredTextField(familyLocality, { familyLocality = it }, "Locality / area")
             SignalChip("Families can scan this section quickly", tone = ChipTone.Gold)
@@ -529,7 +655,7 @@ private fun Step5Lifestyle(existing: ProfileData?, vm: ProfileViewModel, onValid
 
     PremiumCard {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionLead("Lifestyle and introduction", "A warm, specific profile usually gets better response quality.")
+            SectionLead("Lifestyle snapshot", "A warm, specific profile usually gets better response quality.")
             ChipRow("Diet", listOf("vegetarian", "jain", "eggetarian", "non_vegetarian"), diet) { diet = it }
             ChipRow("Smoking", listOf("never", "occasionally"), smoking) { smoking = it }
             ChipRow("Drinking", listOf("never", "socially", "occasionally"), drinking) { drinking = it }
@@ -635,14 +761,65 @@ private fun RequiredTextField(
 
 @Composable
 private fun NumberField(value: String, onValueChange: (String) -> Unit, label: String, modifier: Modifier = Modifier) {
+    NumberField(value, onValueChange, label, modifier, false, null)
+}
+
+@Composable
+private fun NumberField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    supportingText: String? = null
+) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text("$label *") },
+        isError = isError,
+        supportingText = supportingText?.let { message -> { Text(message) } },
         modifier = modifier.fillMaxWidth(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         singleLine = true
     )
+}
+
+@Composable
+private fun SelectionField(
+    label: String,
+    value: String,
+    options: List<String>,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            label = { Text("$label *") },
+            modifier = Modifier.fillMaxWidth(),
+            readOnly = true
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 8.dp)
+                .clickable { expanded = true }
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option) },
+                    onClick = {
+                        onSelect(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
 }
 
 private fun Int?.orZero(): Int = this ?: 0
@@ -651,20 +828,24 @@ private fun normalizeDateOfBirth(value: String): String? {
     val trimmed = value.trim()
     if (trimmed.isBlank()) return null
     val normalizedSeparator = trimmed.replace('/', '-')
-    val candidates = listOf(
-        DateTimeFormatter.ISO_LOCAL_DATE,
-        DateTimeFormatter.ofPattern("dd-MM-uuuu")
-    )
-    val dob = candidates.firstNotNullOfOrNull { formatter ->
-        try {
-            LocalDate.parse(normalizedSeparator, formatter)
-        } catch (_: DateTimeParseException) {
-            null
-        }
-    } ?: return null
+    val dob = try {
+        LocalDate.parse(normalizedSeparator, DateTimeFormatter.ofPattern("dd-MM-uuuu"))
+    } catch (_: DateTimeParseException) {
+        return null
+    }
     val today = LocalDate.now()
     val oldestAllowed = today.minusYears(80)
     val youngestAllowed = today.minusYears(18)
     if (dob.isBefore(oldestAllowed) || dob.isAfter(youngestAllowed)) return null
-    return dob.format(DateTimeFormatter.ISO_LOCAL_DATE)
+    return dob.format(DateTimeFormatter.ofPattern("dd-MM-uuuu"))
+}
+
+private fun formatDateInput(value: String): String {
+    val digits = value.filter(Char::isDigit).take(8)
+    return buildString {
+        digits.forEachIndexed { index, c ->
+            append(c)
+            if ((index == 1 || index == 3) && index != digits.lastIndex) append('-')
+        }
+    }
 }
