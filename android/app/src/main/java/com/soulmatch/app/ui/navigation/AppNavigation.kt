@@ -80,6 +80,7 @@ import com.soulmatch.app.ui.components.ProfileDrawerRoutes
 fun AppNavigation(
     startDestination: String = "welcome",
     isAuthenticated: Boolean = false,
+    navigationLocked: Boolean = false,
     branding: BrandingConfig = BrandingConfig(),
     content: AppContentData = AppContentData(),
     legal: LegalContentData = LegalContentData(),
@@ -94,11 +95,12 @@ fun AppNavigation(
     }
     Scaffold(
         bottomBar = {
-            if (isAuthenticated && currentRoute.shouldShowBottomNavigation()) {
+            if (isAuthenticated && !navigationLocked && currentRoute.shouldShowBottomNavigation()) {
                 AppBottomNavigation(
                     currentRoute = currentRoute,
                     labels = content.navigation,
                     onNavigate = { destination ->
+                        if (navigationLocked) return@AppBottomNavigation
                         analytics.trackClick("bottom_nav_$destination", currentRoute)
                         if (destination == "dashboard") {
                             nav.navigate("dashboard") {

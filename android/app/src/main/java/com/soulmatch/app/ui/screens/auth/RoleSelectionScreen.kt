@@ -6,14 +6,18 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.WorkOutline
 import androidx.compose.material3.CircularProgressIndicator
@@ -61,63 +65,52 @@ fun RoleSelectionScreen(
     ) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = Color(0xFFFFF5F7),
-            shape = RoundedCornerShape(30.dp),
+            color = Color.White,
+            shape = RoundedCornerShape(28.dp),
             tonalElevation = 6.dp,
             shadowElevation = 12.dp
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 20.dp),
+                    .padding(horizontal = 22.dp, vertical = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(width = 64.dp, height = 7.dp)
+                        .size(width = 56.dp, height = 6.dp)
                         .background(Color(0xFFE5DEDF), RoundedCornerShape(999.dp))
                 )
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .background(Color(0xFFFFF5D9), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "\u2606",
-                        color = Color(0xFF9B7A11),
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
                 Text(
-                    text = "How will you use\nSoulMatch?",
+                    text = "Choose How You Want To Use SoulMatch",
                     color = Color(0xFF23181B),
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp,
-                    lineHeight = 32.sp,
+                    fontSize = 22.sp,
+                    lineHeight = 30.sp,
                     textAlign = TextAlign.Center
                 )
                 Text(
-                    text = "Select your role to tailor your experience on our matrimony platform.",
+                    text = "Select a path to continue. You can look for a partner yourself or manage profiles for others.",
                     color = Color(0xFF73535A),
-                    style = MaterialTheme.typography.bodyLarge,
-                    lineHeight = 28.sp,
+                    style = MaterialTheme.typography.bodyMedium,
+                    lineHeight = 24.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(horizontal = 12.dp)
                 )
                 RoleCard(
                     title = "User",
                     subtitle = "Looking for a life partner",
+                    cta = "Continue as User",
                     icon = Icons.Outlined.FavoriteBorder,
                     enabled = state !is AuthUiState.Loading,
                     onClick = { vm.continueAsMember() }
                 )
                 RoleCard(
                     title = "Agent",
-                    subtitle = "Managing profiles for others",
+                    subtitle = "Create and manage profiles for others",
+                    cta = "Continue as Agent",
                     icon = Icons.Outlined.WorkOutline,
                     enabled = state !is AuthUiState.Loading,
                     onClick = { vm.selectUserType("agent") }
@@ -146,6 +139,7 @@ fun RoleSelectionScreen(
 private fun RoleCard(
     title: String,
     subtitle: String,
+    cta: String,
     icon: ImageVector,
     enabled: Boolean,
     onClick: () -> Unit
@@ -153,44 +147,68 @@ private fun RoleCard(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.5.dp, Color(0xFFE6C8D0), RoundedCornerShape(24.dp))
+            .height(146.dp)
+            .border(1.dp, Color(0xFFE8D7DB), RoundedCornerShape(22.dp))
             .clickable(enabled = enabled, onClick = onClick),
-        color = Color.White,
-        shape = RoundedCornerShape(24.dp)
+        color = Color(0xFFFFFBFC),
+        shape = RoundedCornerShape(22.dp)
     ) {
-        Column(
+        Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 22.dp, horizontal = 18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .fillMaxSize()
+                .padding(horizontal = 18.dp, vertical = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .size(72.dp)
-                    .background(Color(0xFFFFF7F8), CircleShape),
+                    .size(64.dp)
+                    .background(Color(0xFFFCEDEF), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = Color(0xFF7A5B61),
-                    modifier = Modifier.size(30.dp)
+                    tint = Color(0xFF8A2442),
+                    modifier = Modifier.size(28.dp)
                 )
             }
-            Text(
-                text = title,
-                fontFamily = FontFamily.Serif,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF1E1A19)
-            )
-            Text(
-                text = subtitle,
-                color = Color(0xFF5C4444),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center
-            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = title,
+                    fontFamily = FontFamily.Serif,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF23181B)
+                )
+                Text(
+                    text = subtitle,
+                    color = Color(0xFF6E5960),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = cta,
+                    color = Color(0xFF8E1235),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .background(Color(0xFF8E1235), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.ArrowForward,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }
