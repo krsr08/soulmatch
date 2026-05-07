@@ -91,6 +91,7 @@ data class AgentProfileData(
     @SerializedName("kycStatus") val kycStatus: String = "pending",
     @SerializedName("onboardingStatus") val onboardingStatus: String = "pending",
     @SerializedName("onboardingRejectionReason") val onboardingRejectionReason: String = "",
+    val status: String = "active",
     @SerializedName("feePreferences") val feePreferences: Map<String, String> = emptyMap(),
     @SerializedName("successRate") val successRate: Double = 0.0,
     @SerializedName("averageRating") val averageRating: Double = 0.0,
@@ -123,6 +124,7 @@ data class AgentProfileUpsertRequest(
     val communities: List<String> = emptyList(),
     val bio: String = "",
     val serviceLabel: String = "SoulMatch Advisor",
+    val status: String = "active",
     val feePreferences: Map<String, String> = emptyMap()
 )
 

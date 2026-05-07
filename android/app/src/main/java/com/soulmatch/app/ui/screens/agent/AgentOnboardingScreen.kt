@@ -73,6 +73,10 @@ fun AgentOnboardingScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val agentProfile = state.agentProfile
+    val isRegisteredAgent = agentProfile?.advisorId != null
+    val docsEditable = !isRegisteredAgent ||
+        agentProfile?.kycStatus.equals("rejected", ignoreCase = true) ||
+        agentProfile?.onboardingStatus.equals("rejected", ignoreCase = true)
 
     var fullName by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -158,7 +162,14 @@ fun AgentOnboardingScreen(
 
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("KYC Verification", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 22.sp)
-                        Text("Upload or replace the latest business identity documents used for review.", color = AgentColorsMuted)
+                        Text(
+                            if (docsEditable) {
+                                "Upload the latest business identity documents used for review."
+                            } else {
+                                "Documents are locked while verification is in progress or approved. You can upload again if the review is rejected."
+                            },
+                            color = AgentColorsMuted
+                        )
                     }
 
                     AgentDocumentCard(
@@ -166,6 +177,7 @@ fun AgentOnboardingScreen(
                         subtitle = currentDocumentLabel(agentProfile?.kycDocuments?.firstOrNull { it.documentType == "aadhaar" }),
                         selectedName = aadhaarUri?.let { context.fileLabelFor(it) },
                         highlighted = true,
+                        enabled = docsEditable,
                         onPick = { aadhaarPicker.launch(arrayOf("image/*", "application/pdf")) }
                     )
                     AgentDocumentCard(
@@ -173,11 +185,13 @@ fun AgentOnboardingScreen(
                         subtitle = currentDocumentLabel(agentProfile?.kycDocuments?.firstOrNull { it.documentType == "pan" }),
                         selectedName = panUri?.let { context.fileLabelFor(it) },
                         highlighted = false,
+                        enabled = docsEditable,
                         onPick = { panPicker.launch(arrayOf("image/*", "application/pdf")) }
                     )
                     UploadDropZone(
                         aadhaarReady = aadhaarUri != null,
                         panReady = panUri != null,
+                        enabled = docsEditable,
                         onPickAadhaar = { aadhaarPicker.launch(arrayOf("image/*", "application/pdf")) },
                         onPickPan = { panPicker.launch(arrayOf("image/*", "application/pdf")) }
                     )
@@ -196,10 +210,13 @@ fun AgentOnboardingScreen(
                                 panUri?.let { context.toAgentDocumentPart(it, "documents", 1) }
                             )
                             if (
-                                documents.isEmpty() &&
-                                agentProfile != null &&
-                                agentProfile.kycDocuments.isNotEmpty() &&
-                                agentProfile.onboardingStatus in listOf("approved", "under_review")
+                                !docsEditable ||
+                                (
+                                    documents.isEmpty() &&
+                                        agentProfile != null &&
+                                        agentProfile.kycDocuments.isNotEmpty() &&
+                                        agentProfile.onboardingStatus in listOf("approved", "under_review")
+                                )
                             ) {
                                 vm.saveAgentProfile(
                                     AgentProfileUpsertRequest(
@@ -210,7 +227,7 @@ fun AgentOnboardingScreen(
                                         state = stateName,
                                         businessName = businessName,
                                         referralCode = referralCode,
-                                        serviceLabel = agentProfile.serviceLabel.ifBlank { "SoulMatch Agent" }
+                                        serviceLabel = agentProfile?.serviceLabel?.ifBlank { "SoulMatch Agent" } ?: "SoulMatch Agent"
                                     ),
                                     onCompleted = onCompleted
                                 )
@@ -257,17 +274,19 @@ fun AgentOnboardingScreen(
                         if (state.saving) {
                             CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
                         } else {
-                            Text(resolveAgentCtaLabel(agentProfile?.onboardingStatus), fontWeight = FontWeight.Bold)
+                            Text(resolveAgentCtaLabel(isRegisteredAgent, agentProfile?.onboardingStatus), fontWeight = FontWeight.Bold)
                         }
                     }
 
-                    Text(
-                        "By continuing, you confirm these details are accurate and agree to our Terms of Service and Privacy Policy.",
-                        color = AgentColorsMuted,
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    if (!isRegisteredAgent) {
+                        Text(
+                            "By continuing, you confirm these details are accurate and agree to our Terms of Service and Privacy Policy.",
+                            color = AgentColorsMuted,
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
         }
@@ -355,15 +374,20 @@ private fun AgentDocumentCard(
     subtitle: String,
     selectedName: String?,
     highlighted: Boolean,
+    enabled: Boolean,
     onPick: () -> Unit
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onPick),
-        color = if (highlighted) Color(0xFFFFF8F9) else Color(0xFFFFFBF9),
+            .clickable(enabled = enabled, onClick = onPick),
+        color = if (enabled) {
+            if (highlighted) Color(0xFFFFF8F9) else Color(0xFFFFFBF9)
+        } else {
+            Color(0xFFF8F5F3)
+        },
         shape = RoundedCornerShape(22.dp),
-        border = BorderStroke(1.dp, if (highlighted) AgentColorsAccent else Color(0xFFE9D9D4))
+        border = BorderStroke(1.dp, if (highlighted && enabled) AgentColorsAccent else Color(0xFFE9D9D4))
     ) {
         Row(
             modifier = Modifier
@@ -388,6 +412,8 @@ private fun AgentDocumentCard(
             }
             if (selectedName != null) {
                 Icon(Icons.Outlined.Verified, contentDescription = null, tint = AgentColorsAccent)
+            } else if (!enabled) {
+                Text("Locked", color = AgentColorsMuted, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -397,14 +423,15 @@ private fun AgentDocumentCard(
 private fun UploadDropZone(
     aadhaarReady: Boolean,
     panReady: Boolean,
+    enabled: Boolean,
     onPickAadhaar: () -> Unit,
     onPickPan: () -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        color = Color(0xFFFFF8F7),
-        border = BorderStroke(1.dp, Color(0xFFF0B8C5))
+        color = if (enabled) Color(0xFFFFF8F7) else Color(0xFFF8F5F3),
+        border = BorderStroke(1.dp, if (enabled) Color(0xFFF0B8C5) else Color(0xFFE3D7D3))
     ) {
         Column(
             modifier = Modifier
@@ -414,20 +441,24 @@ private fun UploadDropZone(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Icon(Icons.Outlined.CloudUpload, contentDescription = null, tint = AgentColorsAccent, modifier = Modifier.size(30.dp))
-            Text("Click to upload or replace documents", fontWeight = FontWeight.Bold)
-            Text("SVG, PNG, JPG or PDF (max. 10MB)", color = AgentColorsMuted, style = MaterialTheme.typography.bodySmall)
+            Text(if (enabled) "Click to upload or replace documents" else "Document uploads are locked", fontWeight = FontWeight.Bold)
+            Text(
+                if (enabled) "SVG, PNG, JPG or PDF (max. 10MB)" else "Re-opened automatically if KYC is rejected.",
+                color = AgentColorsMuted,
+                style = MaterialTheme.typography.bodySmall
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MiniUploadStatus("Aadhaar", aadhaarReady, onPickAadhaar)
-                MiniUploadStatus("PAN", panReady, onPickPan)
+                MiniUploadStatus("Aadhaar", aadhaarReady, enabled, onPickAadhaar)
+                MiniUploadStatus("PAN", panReady, enabled, onPickPan)
             }
         }
     }
 }
 
 @Composable
-private fun MiniUploadStatus(label: String, uploaded: Boolean, onClick: () -> Unit) {
+private fun MiniUploadStatus(label: String, uploaded: Boolean, enabled: Boolean, onClick: () -> Unit) {
     Surface(
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = Modifier.clickable(enabled = enabled, onClick = onClick),
         color = if (uploaded) Color(0xFFFFEEF3) else Color.White,
         border = BorderStroke(1.dp, if (uploaded) AgentColorsAccent else Color(0xFFE3D7D3)),
         shape = RoundedCornerShape(16.dp)
@@ -438,7 +469,15 @@ private fun MiniUploadStatus(label: String, uploaded: Boolean, onClick: () -> Un
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Outlined.Description, contentDescription = null, tint = AgentColorsAccent, modifier = Modifier.size(16.dp))
-            Text(if (uploaded) "$label added" else "Upload $label", color = AgentColorsAccent, style = MaterialTheme.typography.bodySmall)
+            Text(
+                when {
+                    uploaded -> "$label added"
+                    enabled -> "Upload $label"
+                    else -> "$label locked"
+                },
+                color = AgentColorsAccent,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
 }
@@ -468,9 +507,9 @@ private fun Context.toAgentDocumentPart(uri: Uri, formKey: String, index: Int): 
     return MultipartBody.Part.createFormData(formKey, fileName, body)
 }
 
-private fun resolveAgentCtaLabel(onboardingStatus: String?): String = when (onboardingStatus) {
-    "approved" -> "Save Changes"
-    "rejected" -> "Resubmit for Review"
-    "under_review" -> "Update Details"
-    else -> "Register as Agent"
+private fun resolveAgentCtaLabel(isRegisteredAgent: Boolean, onboardingStatus: String?): String = when {
+    !isRegisteredAgent -> "Register as Agent"
+    onboardingStatus == "rejected" -> "Resubmit for Review"
+    onboardingStatus == "approved" -> "Save Changes"
+    else -> "Update Profile"
 }

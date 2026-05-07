@@ -194,6 +194,7 @@ class AgentViewModel @Inject constructor(
 
     fun saveCommissionPreferences(
         enabled: Boolean,
+        status: String,
         verifiedProfileRate: String,
         successfulMatchRate: String,
         monthlyTarget: String,
@@ -209,13 +210,18 @@ class AgentViewModel @Inject constructor(
                     phone = current?.phone.orEmpty(),
                     city = current?.city.orEmpty(),
                     state = current?.state.orEmpty(),
+                    businessName = current?.businessName.orEmpty(),
+                    referralCode = current?.referralCode.orEmpty(),
                     pincode = current?.pincode.orEmpty(),
                     bio = current?.bio.orEmpty(),
                     serviceLabel = current?.serviceLabel ?: "SoulMatch Agent",
+                    status = status,
                     languages = current?.languages.orEmpty(),
                     communities = current?.communities.orEmpty(),
                     feePreferences = mapOf(
                         "enabled" to enabled.toString(),
+                        "matchSearchingRateInr" to verifiedProfileRate.trim(),
+                        "marriageSettingRateInr" to successfulMatchRate.trim(),
                         "verifiedProfileRateInr" to verifiedProfileRate.trim(),
                         "successfulMatchRateInr" to successfulMatchRate.trim(),
                         "monthlyTargetInr" to monthlyTarget.trim()
