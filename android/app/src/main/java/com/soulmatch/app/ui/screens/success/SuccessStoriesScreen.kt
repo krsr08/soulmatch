@@ -3,6 +3,7 @@ package com.soulmatch.app.ui.screens.success
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -60,7 +61,8 @@ private data class SuccessStory(
 @Composable
 fun SuccessStoriesScreen(
     year: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenYear: (String) -> Unit = {}
 ) {
     val stories = successStoriesFor(year)
     val context = LocalContext.current
@@ -68,7 +70,7 @@ fun SuccessStoriesScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Success Stories $year", fontWeight = FontWeight.Bold) },
+                title = { Text(if (year == "overview") "Success Stories" else "Success Stories $year", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
@@ -89,8 +91,12 @@ fun SuccessStoriesScreen(
                 item {
                     PremiumHeader(
                         eyebrow = "SoulMatch",
-                        title = "$year success stories",
-                        subtitle = "Real journeys from members who moved from first interest to family approval, trust, and marriage planning."
+                        title = if (year == "overview") "Success Stories" else "$year success stories",
+                        subtitle = if (year == "overview") {
+                            "Browse the story archive year by year and open the journeys you want to explore."
+                        } else {
+                            "Real journeys from members who moved from first interest to family approval, trust, and marriage planning."
+                        }
                     )
                 }
                 if (!status.isNullOrBlank()) {
@@ -136,10 +142,39 @@ fun SuccessStoriesScreen(
                         }
                     }
                 }
-                items(stories) { story ->
-                    SuccessStoryCard(story = story)
+                if (year == "overview") {
+                    items(listOf("2026", "2025", "2024")) { archiveYear ->
+                        YearArchiveCard(year = archiveYear, onClick = { onOpenYear(archiveYear) })
+                    }
+                } else {
+                    items(stories) { story ->
+                        SuccessStoryCard(story = story)
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun YearArchiveCard(year: String, onClick: () -> Unit) {
+    PremiumCard(
+        modifier = Modifier
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        containerColor = SurfaceWarm
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(year, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    "Open curated couple journeys, trust milestones, and family-approved matches from $year.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+            }
+            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         }
     }
 }

@@ -355,9 +355,7 @@ fun AppNavigation(
                         ProfileDrawerRoutes.SafetyCenter -> nav.navigate("safety_center")
                         ProfileDrawerRoutes.SubscriptionHistory -> nav.navigate("subscription_history")
                         ProfileDrawerRoutes.HelpSupport -> nav.navigate("help_support")
-                        ProfileDrawerRoutes.SuccessStories2026 -> nav.navigate("success_stories/2026")
-                        ProfileDrawerRoutes.SuccessStories2025 -> nav.navigate("success_stories/2025")
-                        ProfileDrawerRoutes.SuccessStories2024 -> nav.navigate("success_stories/2024")
+                        ProfileDrawerRoutes.SuccessStories -> nav.navigate("success_stories/overview")
                     }
                 },
                 onOpenSubscription = { nav.navigate("subscription") }
@@ -539,8 +537,9 @@ fun AppNavigation(
             arguments = listOf(navArgument("year") { type = NavType.StringType })
         ) { backStack ->
             SuccessStoriesScreen(
-                year = backStack.arguments?.getString("year") ?: "2026",
-                onBack = { nav.popBackStack() }
+                year = backStack.arguments?.getString("year") ?: "overview",
+                onBack = { nav.popBackStack() },
+                onOpenYear = { selectedYear -> nav.navigate("success_stories/$selectedYear") }
             )
         }
     }

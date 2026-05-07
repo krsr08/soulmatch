@@ -156,11 +156,20 @@ fun MyProfileScreen(
     val loadMessage by vm.loadMessage.collectAsStateWithLifecycle()
     val editSection: (Int) -> Unit = onEditSection ?: { _ -> }
     val openSettings: () -> Unit = onOpenSettings ?: {}
-    val openAssist: () -> Unit = onOpenAssist ?: {}
     val openPartnerPreferences: () -> Unit = onOpenPartnerPreferences ?: {}
     val openTrustDetails: () -> Unit = onOpenTrustDetails ?: {}
     val openFamilyBoard: () -> Unit = onOpenFamilyBoard ?: {}
     val openSubscription: () -> Unit = onSubscribe ?: {}
+    val toggleAssist: (Boolean) -> Unit = { enabled ->
+        vm.updateAssistStatus(
+            isOptedIn = enabled,
+            supportLevel = if (enabled) "advisor_assisted" else "self_service",
+            preferredContactWindow = assistStatus.preferredContactWindow,
+            familyContactName = assistStatus.familyContactName,
+            familyContactPhone = assistStatus.familyContactPhone,
+            notes = assistStatus.notes
+        )
+    }
     val viewProfile: (String) -> Unit = onViewProfile ?: { _ -> }
     val context = LocalContext.current
     var localPhotoUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
@@ -282,7 +291,7 @@ fun MyProfileScreen(
                         item {
                             SoulMatchAssistProfileCard(
                                 assistStatus = assistStatus,
-                                onOpenAssist = openAssist
+                                onToggleAssist = toggleAssist
                             )
                         }
                         if (!data.verificationStatus.equals("verified", ignoreCase = true)) {
@@ -1191,7 +1200,7 @@ private fun PrivacySettingsCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         containerColor = MaterialTheme.colorScheme.surface
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.Lock, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(22.dp))
                 Text(
@@ -1203,6 +1212,7 @@ private fun PrivacySettingsCard(
             }
             PrivacySwitchRow(
                 label = "Show photo to everyone",
+                subtitle = "Turn this off to allow photo access only after member requests.",
                 checked = showPhotoToEveryone,
                 onCheckedChange = { enabled ->
                     onUpdatePhotoPrivacy(
@@ -1214,6 +1224,7 @@ private fun PrivacySettingsCard(
             )
             PrivacySwitchRow(
                 label = "Hide last seen",
+                subtitle = "Use this when you want more privacy while browsing and reviewing matches.",
                 checked = hideLastSeen,
                 onCheckedChange = {
                     hideLastSeen = it
@@ -1227,6 +1238,7 @@ private fun PrivacySettingsCard(
 @Composable
 private fun PrivacySwitchRow(
     label: String,
+    subtitle: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
@@ -1235,7 +1247,13 @@ private fun PrivacySwitchRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF1E1B18))
+        Column(
+            modifier = Modifier.weight(1f).padding(end = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(label, style = MaterialTheme.typography.titleSmall, color = Color(0xFF1E1B18), fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+        }
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
@@ -1717,7 +1735,7 @@ private fun PartnerPreferencesSummaryCard(
 @Composable
 private fun SoulMatchAssistProfileCard(
     assistStatus: AssistStatusData,
-    onOpenAssist: () -> Unit
+    onToggleAssist: (Boolean) -> Unit
 ) {
     val enabled = assistStatus.isOptedIn
     PremiumCard(
@@ -1732,14 +1750,14 @@ private fun SoulMatchAssistProfileCard(
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("SoulMatch Assistance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
                 Text(
-                    "Enable AI-guided advisor support and curated shortlists",
+                    "Turn this on to request guided SoulMatch assistance from the admin team.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
             }
             Switch(
                 checked = enabled,
-                onCheckedChange = { onOpenAssist() }
+                onCheckedChange = onToggleAssist
             )
         }
     }

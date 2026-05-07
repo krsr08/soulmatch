@@ -840,7 +840,43 @@ exports.upsertBasicInfo = async (userId, data) => {
   return r.rows[0];
 };
 exports.upsertPhysical = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO physical_details (profile_id,height_cm,weight_kg,complexion,body_type,blood_group) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (profile_id) DO UPDATE SET height_cm=$2,weight_kg=$3,complexion=$4,body_type=$5,blood_group=$6', [p.profile_id,data.heightCm,data.weightKg,data.complexion,data.bodyType,data.bloodGroup]); return p; };
-exports.upsertEducation = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO education_career (profile_id,education_level,occupation,annual_income,working_city) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (profile_id) DO UPDATE SET education_level=$2,occupation=$3,annual_income=$4,working_city=$5', [p.profile_id,data.educationLevel,data.occupation,data.annualIncome,data.workingCity]); return p; };
+exports.upsertEducation = async (userId, data) => {
+  const db = await getDB();
+  const p = await exports.findByUserId(userId);
+  const isEmployed = data.isEmployed === true || String(data.isEmployed).toLowerCase() === 'true';
+  await db.query(
+    `INSERT INTO education_career (
+       profile_id,
+       education_level,
+       is_employed,
+       occupation,
+       annual_income,
+       working_city,
+       working_state,
+       working_pincode
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+     ON CONFLICT (profile_id) DO UPDATE SET
+       education_level=$2,
+       is_employed=$3,
+       occupation=$4,
+       annual_income=$5,
+       working_city=$6,
+       working_state=$7,
+       working_pincode=$8`,
+    [
+      p.profile_id,
+      data.educationLevel,
+      isEmployed,
+      isEmployed ? data.occupation : null,
+      isEmployed ? data.annualIncome : null,
+      isEmployed ? data.workingCity : null,
+      isEmployed ? data.workingState : null,
+      isEmployed ? data.workingPincode : null
+    ]
+  );
+  return p;
+};
 exports.upsertFamily = async (userId, data) => {
   const db = await getDB();
   const p = await exports.findByUserId(userId);
@@ -1548,10 +1584,13 @@ exports.findFullByUserId = async (userId) => {
        pd.complexion,
        pd.body_type,
        pd.blood_group,
-       ec.education_level,
-       ec.occupation,
-       ec.annual_income,
-       ec.working_city,
+        ec.education_level,
+        ec.is_employed,
+        ec.occupation,
+        ec.annual_income,
+        ec.working_city,
+        ec.working_state,
+        ec.working_pincode,
        fd.father_occupation,
        fd.mother_occupation,
        fd.num_brothers,
@@ -1595,10 +1634,13 @@ exports.findFullById = async (profileId) => {
        pd.complexion,
        pd.body_type,
        pd.blood_group,
-       ec.education_level,
-       ec.occupation,
-       ec.annual_income,
-       ec.working_city,
+        ec.education_level,
+        ec.is_employed,
+        ec.occupation,
+        ec.annual_income,
+        ec.working_city,
+        ec.working_state,
+        ec.working_pincode,
        fd.father_occupation,
        fd.mother_occupation,
        fd.num_brothers,
@@ -1747,8 +1789,16 @@ exports.calcCompletion = async (profileId) => {
           FROM education_career
           WHERE profile_id = $1
             AND NULLIF(BTRIM(education_level), '') IS NOT NULL
-            AND NULLIF(BTRIM(occupation), '') IS NOT NULL
-            AND NULLIF(BTRIM(working_city), '') IS NOT NULL
+            AND (
+              COALESCE(is_employed, FALSE) = FALSE
+              OR (
+                NULLIF(BTRIM(occupation), '') IS NOT NULL
+                AND NULLIF(BTRIM(annual_income), '') IS NOT NULL
+                AND NULLIF(BTRIM(working_city), '') IS NOT NULL
+                AND NULLIF(BTRIM(working_state), '') IS NOT NULL
+                AND NULLIF(BTRIM(working_pincode), '') IS NOT NULL
+              )
+            )
         ) THEN 1 ELSE 0
       END AS education,
       CASE
