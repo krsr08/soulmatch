@@ -2105,6 +2105,92 @@ exports.upsertAgentOnboarding = async (userId, payload = {}) => {
   }
 };
 
+exports.getActiveAdvisorDirectory = async (limit = 24) => {
+  const db = await getDB();
+  const result = await db.query(
+    `WITH advisor_rows AS (
+       SELECT
+         a.advisor_id,
+         a.full_name,
+         a.phone,
+         a.email,
+         a.service_label,
+         a.bio,
+         COALESCE(sa.city, a.city, '') AS city,
+         COALESCE(sa.state, a.state, '') AS state,
+         COALESCE(sa.pincode, a.pincode, '') AS pincode,
+         COALESCE(sa.locality, '') AS locality,
+         a.languages,
+         a.communities,
+         a.average_rating,
+         a.success_rate,
+         a.membership_plan,
+         a.business_name,
+         a.profile_photo_url,
+         a.kyc_status,
+         a.onboarding_status,
+         COALESCE(assignments.active_assignments, 0) AS active_assignments
+       FROM advisors a
+       LEFT JOIN LATERAL (
+         SELECT asa.city, asa.state, asa.pincode, asa.locality
+         FROM advisor_service_areas asa
+         WHERE asa.advisor_id = a.advisor_id
+         ORDER BY asa.is_primary DESC, asa.priority DESC, asa.created_at ASC
+         LIMIT 1
+       ) sa ON TRUE
+       LEFT JOIN (
+         SELECT assigned_advisor_id, COUNT(*)::int AS active_assignments
+         FROM assisted_match_profiles
+         WHERE assigned_advisor_id IS NOT NULL
+           AND is_opted_in = TRUE
+           AND request_status IN ('assigned', 'waiting_assignment')
+         GROUP BY assigned_advisor_id
+       ) assignments ON assignments.assigned_advisor_id = a.advisor_id
+       WHERE a.status = 'active'
+     )
+     SELECT * FROM advisor_rows
+     ORDER BY
+       CASE WHEN onboarding_status = 'approved' OR kyc_status = 'approved' THEN 0 ELSE 1 END,
+       average_rating DESC,
+       success_rate DESC,
+       full_name ASC
+     LIMIT $1`,
+    [limit]
+  );
+  const agents = result.rows.map((row) => ({
+    advisorId: row.advisor_id,
+    fullName: row.full_name || '',
+    phone: row.phone || '',
+    email: row.email || '',
+    serviceLabel: row.business_name || row.service_label || 'SoulMatch Agent',
+    bio: row.bio || '',
+    city: row.city || '',
+    state: row.state || '',
+    pincode: row.pincode || '',
+    locality: row.locality || '',
+    languages: parseJsonList(row.languages),
+    communities: parseJsonList(row.communities),
+    averageRating: Number(row.average_rating || 0),
+    successRate: Number(row.success_rate || 0),
+    activeAssignments: Number(row.active_assignments || 0),
+    score: row.onboarding_status === 'approved' || row.kyc_status === 'approved' ? 1 : 0,
+    reasons: [
+      row.membership_plan ? `${String(row.membership_plan).toUpperCase()} plan` : '',
+      row.city ? `${row.city}${row.state ? `, ${row.state}` : ''}` : '',
+      row.onboarding_status === 'approved' || row.kyc_status === 'approved' ? 'Verified agent' : 'Verification in progress'
+    ].filter(Boolean)
+  }));
+  const verifiedCount = agents.filter((agent) => agent.score > 0).length;
+  return {
+    stats: {
+      activeCount: agents.length,
+      verifiedCount,
+      unverifiedCount: Math.max(0, agents.length - verifiedCount)
+    },
+    agents
+  };
+};
+
 exports.updateAgentProfileByUserId = async (userId, payload = {}) => {
   const db = await getDB();
   const client = await db.connect();

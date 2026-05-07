@@ -126,6 +126,7 @@ fun DashboardScreen(
     onOpenBestMatches: () -> Unit = onOpenSearch,
     onOpenNotifications: () -> Unit = onOpenMessages,
     onOpenProfile: () -> Unit,
+    onOpenPartnerPreferences: () -> Unit = onOpenProfile,
     onProfileMenuDestination: (String) -> Unit = {},
     onOpenSubscription: () -> Unit = {},
     vm: DashboardViewModel = hiltViewModel(),
@@ -135,6 +136,7 @@ fun DashboardScreen(
     val matches by vm.matches.collectAsStateWithLifecycle()
     val pendingInvitations by vm.pendingInvitations.collectAsStateWithLifecycle()
     val myProfile by vm.myProfile.collectAsStateWithLifecycle()
+    val assistEnabled by vm.assistEnabled.collectAsStateWithLifecycle()
     val loading by vm.isLoading.collectAsStateWithLifecycle()
     val notifications by notificationsVm.notifications.collectAsStateWithLifecycle()
     val packageGroups by subscriptionVm.packageGroups.collectAsStateWithLifecycle()
@@ -173,6 +175,7 @@ fun DashboardScreen(
         profileId = myProfile.profileId,
         isVerified = myProfile.verificationStatus.equals("verified", ignoreCase = true),
         membershipLabel = drawerMembershipLabel(subscription),
+        showSoulMatchAssist = assistEnabled,
         onDestinationSelected = { destination ->
             scope.launch { drawerState.close() }
             onProfileMenuDestination(destination)
@@ -217,7 +220,7 @@ fun DashboardScreen(
                         }
                         if (shouldPromptPartnerPreference && partnerPromptSkipped) {
                             item {
-                                PartnerPreferenceReminderBanner(onOpen = onOpenProfile)
+                                PartnerPreferenceReminderBanner(onOpen = onOpenPartnerPreferences)
                             }
                         }
                         item {
@@ -302,7 +305,7 @@ fun DashboardScreen(
             onSkip = { partnerPromptSkipped = true },
             onOpenPreferences = {
                 partnerPromptSkipped = true
-                onOpenProfile()
+                onOpenPartnerPreferences()
             }
         )
     }
