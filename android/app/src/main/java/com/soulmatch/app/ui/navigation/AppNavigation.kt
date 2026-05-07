@@ -49,6 +49,7 @@ import com.soulmatch.app.ui.screens.agent.AgentAccountScreen
 import com.soulmatch.app.ui.screens.agent.AgentClientProfileScreen
 import com.soulmatch.app.ui.screens.agent.AgentDashboardScreen
 import com.soulmatch.app.ui.screens.agent.AgentOnboardingScreen
+import com.soulmatch.app.ui.screens.agent.AgentActivitiesScreen
 import com.soulmatch.app.ui.screens.agent.AgentPlansScreen
 import com.soulmatch.app.ui.screens.agent.AgentProfilesScreen
 import com.soulmatch.app.ui.screens.chat.ChatListScreen
@@ -216,18 +217,37 @@ fun AppNavigation(
         composable("agent_dashboard") {
             AgentDashboardScreen(
                 onOpenOnboarding = { nav.navigate("agent_onboarding") },
-                onOpenProfiles = { nav.navigate("agent_profiles") },
+                onOpenProfiles = { filter -> nav.navigate("agent_profiles?filter=${Uri.encode(filter)}") },
+                onOpenPlans = { nav.navigate("agent_plans") },
+                onOpenAccount = { nav.navigate("agent_account") },
+                onOpenCreateProfile = { nav.navigate("agent_client_profile") },
+                onOpenActivities = { nav.navigate("agent_activities") }
+            )
+        }
+        composable(
+            "agent_profiles?filter={filter}",
+            arguments = listOf(
+                navArgument("filter") {
+                    type = NavType.StringType
+                    defaultValue = "all"
+                }
+            )
+        ) { backStack ->
+            AgentProfilesScreen(
+                filter = backStack.arguments?.getString("filter") ?: "all",
+                onOpenDashboard = { nav.navigate("agent_dashboard") },
                 onOpenPlans = { nav.navigate("agent_plans") },
                 onOpenAccount = { nav.navigate("agent_account") },
                 onOpenCreateProfile = { nav.navigate("agent_client_profile") }
             )
         }
-        composable("agent_profiles") {
-            AgentProfilesScreen(
+        composable("agent_activities") {
+            AgentActivitiesScreen(
+                onBack = { nav.popBackStack() },
                 onOpenDashboard = { nav.navigate("agent_dashboard") },
+                onOpenProfiles = { nav.navigate("agent_profiles?filter=all") },
                 onOpenPlans = { nav.navigate("agent_plans") },
-                onOpenAccount = { nav.navigate("agent_account") },
-                onOpenCreateProfile = { nav.navigate("agent_client_profile") }
+                onOpenAccount = { nav.navigate("agent_account") }
             )
         }
         composable("agent_plans") {
