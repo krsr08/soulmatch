@@ -132,12 +132,13 @@ fun NotificationsScreen(
                 )
             )
         }
-        if (myProfile.profileId.isNotBlank() && myProfile.completionScore < 100) {
+        val profileStrengthScore = ProfileStrengthAdvisor.score(myProfile)
+        if (myProfile.profileId.isNotBlank() && profileStrengthScore < 100) {
             add(
                 NotificationUiItem(
                     key = "profile-strength",
                     section = NotificationSection.Yesterday,
-                    title = "Profile strength ${myProfile.completionScore.coerceIn(0, 100)}%",
+                    title = "Profile strength ${profileStrengthScore.coerceIn(0, 100)}%",
                     body = "Next: ${ProfileStrengthAdvisor.summary(myProfile)}",
                     action = "UPDATE",
                     icon = Icons.Filled.Person,
