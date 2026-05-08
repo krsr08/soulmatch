@@ -54,6 +54,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -68,6 +69,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -78,6 +80,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.HomeContentData
 import com.soulmatch.app.data.models.HomeBestMatchAdData
@@ -141,11 +145,23 @@ fun DashboardScreen(
     val notifications by notificationsVm.notifications.collectAsStateWithLifecycle()
     val packageGroups by subscriptionVm.packageGroups.collectAsStateWithLifecycle()
     val subscription by subscriptionVm.subscription.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var partnerPromptSkipped by rememberSaveable(myProfile.profileId) { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         subscriptionVm.load()
+    }
+    DisposableEffect(lifecycleOwner, vm) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                vm.loadProfile()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
     val unreadNotificationCount = notifications.count {
         it.readAt.isNullOrBlank() && !it.status.equals("read", ignoreCase = true)
@@ -214,7 +230,7 @@ fun DashboardScreen(
                                 ProfileStrengthCard(
                                     score = profileStrengthScore,
                                     detail = ProfileStrengthAdvisor.summary(myProfile),
-                                    onClick = onOpenProfile
+                                    onClick = onOpenPartnerPreferences
                                 )
                             }
                         }
