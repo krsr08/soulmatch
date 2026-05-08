@@ -397,7 +397,6 @@ class MyProfileViewModel @Inject constructor(
                 if (response.isSuccessful && body?.success == true && body.data != null) {
                     _assistStatus.value = body.data
                     _status.value = body.message ?: "SoulMatch Assist updated."
-                    load()
                 } else {
                     _status.value = body?.error?.message ?: "Couldn't update SoulMatch Assist right now."
                 }
