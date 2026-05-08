@@ -168,14 +168,14 @@ fun DashboardScreen(
     }
     val notificationBadgeCount = (unreadNotificationCount + pendingInvitations.size).takeIf { it > 0 }
         ?: notifications.size
+    val profileStrengthScore = ProfileStrengthAdvisor.score(myProfile)
     val shouldPromptPartnerPreference = myProfile.profileId.isNotBlank() &&
-        myProfile.completionScore >= 60 &&
+        profileStrengthScore >= 60 &&
         !myProfile.isPartnerPrefSet
     val rankedMatches = matches.sortedWith(
         compareByDescending<ProfileSummary> { it.compatibilityScore }
             .thenBy { it.name }
     )
-    val profileStrengthScore = myProfile.completionScore.coerceIn(0, 100)
     val bestMatchProfileTarget = content.bestMatchMinimumProfiles.coerceAtLeast(5)
     val bestMatches = rankedMatches.take(bestMatchProfileTarget)
     val newProfiles = rankedMatches.drop(bestMatchProfileTarget).take(8).ifEmpty { rankedMatches.take(6) }

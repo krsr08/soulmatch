@@ -655,11 +655,7 @@ private fun ProfileStrengthOverviewCard(
     checklist: List<ProfileChecklistItem>,
     onComplete: () -> Unit
 ) {
-    val score = if (checklist.isEmpty()) {
-        profile.completionScore.coerceIn(0, 100)
-    } else {
-        ((checklist.count { it.isComplete }.toFloat() / checklist.size.toFloat()) * 100f).toInt().coerceIn(0, 100)
-    }
+    val score = ProfileStrengthAdvisor.score(profile)
     val next = checklist.firstOrNull { !it.isComplete && !it.statusLabel.equals("Optional", ignoreCase = true) }
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),

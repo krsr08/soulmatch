@@ -58,6 +58,7 @@ import com.soulmatch.app.ui.components.MetricPill
 import com.soulmatch.app.ui.components.PremiumCard
 import com.soulmatch.app.ui.components.PremiumHeader
 import com.soulmatch.app.ui.components.PremiumScreen
+import com.soulmatch.app.ui.components.ProfileStrengthAdvisor
 import com.soulmatch.app.ui.components.SectionTitle
 import com.soulmatch.app.ui.components.SignalChips
 import com.soulmatch.app.ui.theme.Divider
@@ -455,10 +456,10 @@ fun SpotlightScreen(
                                 }
                             }
                             Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, Divider)) {
-                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text("Expected reach", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                                    Text(projectedLift, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                                }
+                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Expected reach", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                Text(projectedLift, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            }
                             }
                             Button(onClick = onUpgrade, modifier = Modifier.fillMaxWidth()) {
                                 Icon(Icons.Filled.Star, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -472,7 +473,7 @@ fun SpotlightScreen(
                         leftLabel = "Profile status",
                         leftValue = if (isActive) "Active" else "Inactive",
                         rightLabel = "Readiness",
-                        rightValue = "${profile?.completionScore ?: 0}%"
+                        rightValue = "${profile?.let(ProfileStrengthAdvisor::score) ?: 0}%"
                     )
                 }
                 item {
