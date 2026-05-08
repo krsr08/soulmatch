@@ -6,9 +6,9 @@ import android.webkit.MimeTypeMap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -309,6 +309,7 @@ fun MyProfileScreen(
                         item {
                             SoulMatchAssistProfileCard(
                                 assistStatus = assistStatus,
+                                isSaving = loading,
                                 onToggleAssist = toggleAssist,
                                 onOpenAssist = openAssist
                             )
@@ -1762,6 +1763,7 @@ private fun PartnerPreferencesSummaryCard(
 @Composable
 private fun SoulMatchAssistProfileCard(
     assistStatus: AssistStatusData,
+    isSaving: Boolean,
     onToggleAssist: (Boolean) -> Unit,
     onOpenAssist: () -> Unit
 ) {
@@ -1784,10 +1786,20 @@ private fun SoulMatchAssistProfileCard(
                         color = TextSecondary
                     )
                 }
-                Switch(
-                    checked = enabled,
-                    onCheckedChange = onToggleAssist
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    if (isSaving) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(38.dp),
+                            strokeWidth = 2.5.dp,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                        )
+                    }
+                    Switch(
+                        checked = enabled,
+                        onCheckedChange = onToggleAssist,
+                        enabled = !isSaving
+                    )
+                }
             }
             if (enabled) {
                 Text(
