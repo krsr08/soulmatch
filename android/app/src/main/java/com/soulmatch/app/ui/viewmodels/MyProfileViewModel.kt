@@ -320,6 +320,7 @@ class MyProfileViewModel @Inject constructor(
                     _preferences.value = request
                     _profile.value = _profile.value?.copy(isPartnerPrefSet = true)
                     _status.value = "Partner preferences updated."
+                    load()
                 } else {
                     _status.value = response.body()?.error?.message ?: "Couldn't update partner preferences right now."
                 }
@@ -396,6 +397,7 @@ class MyProfileViewModel @Inject constructor(
                 if (response.isSuccessful && body?.success == true && body.data != null) {
                     _assistStatus.value = body.data
                     _status.value = body.message ?: "SoulMatch Assist updated."
+                    load()
                 } else {
                     _status.value = body?.error?.message ?: "Couldn't update SoulMatch Assist right now."
                 }
