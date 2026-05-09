@@ -283,14 +283,42 @@ function normalizeAssistPayload(body = {}) {
   const isOptedIn = rawOptIn === true ||
     rawOptIn === 1 ||
     String(rawOptIn).trim().toLowerCase() === 'true';
+  const shareMode = String(body.shareMode || body.share_mode || 'single').trim().toLowerCase() === 'multiple'
+    ? 'multiple'
+    : 'single';
+  const selectedAdvisorIds = Array.isArray(body.selectedAdvisorIds)
+    ? body.selectedAdvisorIds
+    : Array.isArray(body.selected_advisor_ids)
+      ? body.selected_advisor_ids
+      : typeof body.selectedAdvisorIds === 'string'
+        ? body.selectedAdvisorIds.split(',').map((item) => item.trim())
+        : typeof body.selected_advisor_ids === 'string'
+          ? body.selected_advisor_ids.split(',').map((item) => item.trim())
+          : [];
   if (!supportLevel) return null;
   return {
     isOptedIn,
     supportLevel,
+    shareMode,
+    selectedAdvisorIds: [...new Set(selectedAdvisorIds.map((item) => String(item || '').trim()).filter(Boolean))],
     preferredContactWindow: String(body.preferredContactWindow || body.preferred_contact_window || '').trim(),
     familyContactName: String(body.familyContactName || body.family_contact_name || '').trim(),
     familyContactPhone: String(body.familyContactPhone || body.family_contact_phone || '').trim(),
     notes: String(body.notes || '').trim()
+  };
+}
+
+function decorateAssistDirectory(status, directory = { stats: {}, agents: [] }, recommendations = []) {
+  const selectedAdvisorIds = new Set(status?.selectedAdvisorIds || []);
+  const decorate = (advisor) => ({
+    ...advisor,
+    isSelected: selectedAdvisorIds.has(advisor.advisorId)
+  });
+  return {
+    ...status,
+    recommendations: recommendations.map(decorate),
+    agentStats: directory.stats,
+    agents: (directory.agents || []).map(decorate)
   };
 }
 
@@ -347,12 +375,7 @@ exports.getAssistStatus = async (req, res, next) => {
     const directory = await repo.getActiveAdvisorDirectory(24);
     res.json({
       success: true,
-      data: {
-        ...status,
-        recommendations,
-        agentStats: directory.stats,
-        agents: directory.agents
-      }
+      data: decorateAssistDirectory(status, directory, recommendations)
     });
   } catch (err) { next(err); }
 };
@@ -378,14 +401,11 @@ exports.updateAssistStatus = async (req, res, next) => {
     });
     res.json({
       success: true,
-      data: {
-        ...status,
-        recommendations,
-        agentStats: directory.stats,
-        agents: directory.agents
-      },
+      data: decorateAssistDirectory(status, directory, recommendations),
       message: payload.isOptedIn && payload.supportLevel === 'advisor_assisted'
-        ? 'SoulMatch Assist has been updated. We assigned the best-fit advisor available for your area.'
+        ? payload.selectedAdvisorIds?.length
+          ? `SoulMatch Assist updated. Your profile is now shared with ${payload.selectedAdvisorIds.length === 1 ? 'the selected agent' : `${payload.selectedAdvisorIds.length} selected agents`}.`
+          : 'SoulMatch Assist has been updated. Choose one or more agents to share your profile.'
         : 'SoulMatch Assist preferences saved.'
     });
   } catch (err) { next(err); }

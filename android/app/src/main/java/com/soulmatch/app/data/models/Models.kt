@@ -169,6 +169,7 @@ data class AgentManagedProfileSummaryData(
     @SerializedName("viewCount") val viewCount: Int = 0,
     @SerializedName("matchCount") val matchCount: Int = 0,
     @SerializedName("documentChecklistPercent") val documentChecklistPercent: Int = 0,
+    @SerializedName("profileSource") val profileSource: String = "managed",
     @SerializedName("createdAt") val createdAt: String? = null,
     @SerializedName("updatedAt") val updatedAt: String? = null
 )
@@ -344,6 +345,8 @@ data class PhotoAccessRequestData(
 data class AssistStatusRequest(
     @SerializedName("isOptedIn") val isOptedIn: Boolean,
     @SerializedName("supportLevel") val supportLevel: String,
+    @SerializedName("shareMode") val shareMode: String = "single",
+    @SerializedName("selectedAdvisorIds") val selectedAdvisorIds: List<String> = emptyList(),
     @SerializedName("preferredContactWindow") val preferredContactWindow: String = "",
     @SerializedName("familyContactName") val familyContactName: String = "",
     @SerializedName("familyContactPhone") val familyContactPhone: String = "",
@@ -374,7 +377,8 @@ data class AdvisorSummaryData(
     @SerializedName("successRate") val successRate: Double = 0.0,
     @SerializedName("activeAssignments") val activeAssignments: Int = 0,
     val score: Double = 0.0,
-    val reasons: List<String> = emptyList()
+    val reasons: List<String> = emptyList(),
+    @SerializedName("isSelected") val isSelected: Boolean = false
 )
 
 data class AssistReadinessData(
@@ -393,6 +397,8 @@ data class AssistStatusData(
     @SerializedName("profileId") val profileId: String = "",
     @SerializedName("isOptedIn") val isOptedIn: Boolean = false,
     @SerializedName("supportLevel") val supportLevel: String = "self_service",
+    @SerializedName("shareMode") val shareMode: String = "single",
+    @SerializedName("selectedAdvisorIds") val selectedAdvisorIds: List<String> = emptyList(),
     @SerializedName("requestStatus") val requestStatus: String = "not_requested",
     @SerializedName("preferredContactWindow") val preferredContactWindow: String = "",
     @SerializedName("familyContactName") val familyContactName: String = "",

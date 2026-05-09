@@ -98,18 +98,44 @@ fun SoulMatchAssistScreen(
 ) {
     val assist by vm.assistStatus.collectAsStateWithLifecycle()
     val isLoading by vm.isLoading.collectAsStateWithLifecycle()
+    val isSaving by vm.isSavingAssist.collectAsStateWithLifecycle()
     var assistEnabled by remember(assist.profileId, assist.isOptedIn) { mutableStateOf(assist.isOptedIn) }
     var supportLevel by remember(assist.profileId, assist.supportLevel) { mutableStateOf(assist.supportLevel) }
+    var shareMode by remember(assist.profileId, assist.shareMode) { mutableStateOf(assist.shareMode) }
+    var selectedAdvisorIds by remember(assist.profileId, assist.selectedAdvisorIds) { mutableStateOf(assist.selectedAdvisorIds) }
     var preferredWindow by remember(assist.profileId, assist.preferredContactWindow) { mutableStateOf(assist.preferredContactWindow) }
     var familyContactName by remember(assist.profileId, assist.familyContactName) { mutableStateOf(assist.familyContactName) }
     var familyContactPhone by remember(assist.profileId, assist.familyContactPhone) { mutableStateOf(assist.familyContactPhone) }
     var notes by remember(assist.profileId, assist.notes) { mutableStateOf(assist.notes) }
+    var editFamilyDetails by remember(assist.profileId, assist.familyContactName, assist.familyContactPhone, assist.preferredContactWindow, assist.notes) {
+        mutableStateOf(
+            assist.familyContactName.isBlank() &&
+                assist.familyContactPhone.isBlank() &&
+                assist.preferredContactWindow.isBlank() &&
+                assist.notes.isBlank()
+        )
+    }
     val locationSummary = listOf(
         assist.location.locality,
         assist.location.city,
         assist.location.state,
         assist.location.pincode
     ).filter { it.isNotBlank() }.joinToString(", ")
+    val hasSavedFamilyDetails = familyContactName.isNotBlank() || familyContactPhone.isNotBlank() || preferredWindow.isNotBlank() || notes.isNotBlank()
+    val showAgentSelection = assistEnabled && supportLevel == "advisor_assisted"
+    val canSaveSelection = !showAgentSelection || selectedAdvisorIds.isNotEmpty()
+    val saveAssistChanges = {
+        vm.updateAssistStatus(
+            isOptedIn = assistEnabled,
+            supportLevel = supportLevel,
+            shareMode = shareMode,
+            selectedAdvisorIds = if (showAgentSelection) selectedAdvisorIds else emptyList(),
+            preferredContactWindow = preferredWindow,
+            familyContactName = familyContactName,
+            familyContactPhone = familyContactPhone,
+            notes = notes
+        )
+    }
 
     DrawerDestinationScaffold(
         title = "SoulMatch Assist",
@@ -150,6 +176,10 @@ fun SoulMatchAssistScreen(
                                         onClick = {
                                             supportLevel = value
                                             assistEnabled = value != "self_service"
+                                            if (value != "advisor_assisted") {
+                                                shareMode = "single"
+                                                selectedAdvisorIds = emptyList()
+                                            }
                                         }
                                     )
                                 }
@@ -167,47 +197,82 @@ fun SoulMatchAssistScreen(
                             if (locationSummary.isNotBlank()) {
                                 MetricPill("Family location", locationSummary, background = MaterialTheme.colorScheme.surface)
                             }
-                            OutlinedTextField(
-                                value = familyContactName,
-                                onValueChange = { familyContactName = it },
-                                label = { Text("Family contact name") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true
-                            )
-                            OutlinedTextField(
-                                value = familyContactPhone,
-                                onValueChange = { familyContactPhone = it.filter(Char::isDigit).take(10) },
-                                label = { Text("Family contact number") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true
-                            )
-                            OutlinedTextField(
-                                value = preferredWindow,
-                                onValueChange = { preferredWindow = it },
-                                label = { Text("Preferred contact window") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true
-                            )
-                            OutlinedTextField(
-                                value = notes,
-                                onValueChange = { notes = it },
-                                label = { Text("What should the advisor know?") },
-                                modifier = Modifier.fillMaxWidth(),
-                                minLines = 3
-                            )
-                            Button(
-                                onClick = {
-                                    vm.updateAssistStatus(
-                                        isOptedIn = assistEnabled,
-                                        supportLevel = supportLevel,
-                                        preferredContactWindow = preferredWindow,
-                                        familyContactName = familyContactName,
-                                        familyContactPhone = familyContactPhone,
-                                        notes = notes
+                            if (hasSavedFamilyDetails && !editFamilyDetails) {
+                                FamilyAssistSummaryCard(
+                                    familyContactName = familyContactName,
+                                    familyContactPhone = familyContactPhone,
+                                    preferredWindow = preferredWindow,
+                                    notes = notes,
+                                    onEdit = { editFamilyDetails = true },
+                                    onReset = {
+                                        familyContactName = ""
+                                        familyContactPhone = ""
+                                        preferredWindow = ""
+                                        notes = ""
+                                        editFamilyDetails = true
+                                    }
+                                )
+                            } else {
+                                OutlinedTextField(
+                                    value = familyContactName,
+                                    onValueChange = { familyContactName = it },
+                                    label = { Text("Family contact name") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = familyContactPhone,
+                                    onValueChange = { familyContactPhone = it.filter(Char::isDigit).take(10) },
+                                    label = { Text("Family contact number") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = preferredWindow,
+                                    onValueChange = { preferredWindow = it },
+                                    label = { Text("Preferred contact window") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+                                OutlinedTextField(
+                                    value = notes,
+                                    onValueChange = { notes = it },
+                                    label = { Text("What should the advisor know?") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    minLines = 3
+                                )
+                            }
+                            if (showAgentSelection) {
+                                SectionTitle(
+                                    "Share your profile with agents",
+                                    "Choose whether to share with one trusted agent or multiple agents, then select who should receive your profile."
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    FilterChoiceChip(
+                                        label = "Single agent",
+                                        selected = shareMode == "single",
+                                        onClick = {
+                                            shareMode = "single"
+                                            selectedAdvisorIds = selectedAdvisorIds.take(1)
+                                        }
                                     )
-                                },
+                                    FilterChoiceChip(
+                                        label = "Multiple agents",
+                                        selected = shareMode == "multiple",
+                                        onClick = { shareMode = "multiple" }
+                                    )
+                                }
+                                Text(
+                                    if (selectedAdvisorIds.isEmpty()) "Select at least one agent to share your profile."
+                                    else "${selectedAdvisorIds.size} agent${if (selectedAdvisorIds.size == 1) "" else "s"} selected for your profile.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary
+                                )
+                            }
+                            Button(
+                                onClick = saveAssistChanges,
                                 modifier = Modifier.fillMaxWidth(),
-                                enabled = !isLoading
+                                enabled = !isLoading && !isSaving && canSaveSelection
                             ) {
                                 Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Text("Save SoulMatch Assistance")
@@ -246,7 +311,19 @@ fun SoulMatchAssistScreen(
                         )
                     }
                     items(assist.recommendations.take(3), key = { "rec-${it.advisorId}" }) { advisor ->
-                        AdvisorDirectoryCard(advisor = advisor, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                        AdvisorDirectoryCard(
+                            advisor = advisor,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                            selected = selectedAdvisorIds.contains(advisor.advisorId),
+                            selectionEnabled = showAgentSelection,
+                            onToggleSelection = {
+                                selectedAdvisorIds = if (shareMode == "single") {
+                                    if (selectedAdvisorIds.contains(advisor.advisorId)) emptyList() else listOf(advisor.advisorId)
+                                } else {
+                                    if (selectedAdvisorIds.contains(advisor.advisorId)) selectedAdvisorIds - advisor.advisorId else selectedAdvisorIds + advisor.advisorId
+                                }
+                            }
+                        )
                     }
                 }
                 item {
@@ -264,8 +341,65 @@ fun SoulMatchAssistScreen(
                     }
                 } else {
                     items(assist.agents, key = { "agent-${it.advisorId}" }) { advisor ->
-                        AdvisorDirectoryCard(advisor = advisor, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                        AdvisorDirectoryCard(
+                            advisor = advisor,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                            selected = selectedAdvisorIds.contains(advisor.advisorId),
+                            selectionEnabled = showAgentSelection,
+                            onToggleSelection = {
+                                selectedAdvisorIds = if (shareMode == "single") {
+                                    if (selectedAdvisorIds.contains(advisor.advisorId)) emptyList() else listOf(advisor.advisorId)
+                                } else {
+                                    if (selectedAdvisorIds.contains(advisor.advisorId)) selectedAdvisorIds - advisor.advisorId else selectedAdvisorIds + advisor.advisorId
+                                }
+                            }
+                        )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FamilyAssistSummaryCard(
+    familyContactName: String,
+    familyContactPhone: String,
+    preferredWindow: String,
+    notes: String,
+    onEdit: () -> Unit,
+    onReset: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, Divider)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            SectionTitle("Saved family details", "These details will be shared with the agents you select.")
+            if (familyContactName.isNotBlank()) {
+                MetricPill("Contact", familyContactName, background = SurfaceSoft)
+            }
+            if (familyContactPhone.isNotBlank()) {
+                MetricPill("Phone", familyContactPhone, background = SurfaceSoft)
+            }
+            if (preferredWindow.isNotBlank()) {
+                MetricPill("Preferred time", preferredWindow, background = SurfaceSoft)
+            }
+            if (notes.isNotBlank()) {
+                Text(notes, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
+                    Text("Edit")
+                }
+                OutlinedButton(onClick = onReset, modifier = Modifier.weight(1f)) {
+                    Text("Reset")
                 }
             }
         }
@@ -291,7 +425,10 @@ private fun AssistStatsRow(
 private fun AdvisorDirectoryCard(
     advisor: AdvisorSummaryData,
     modifier: Modifier = Modifier,
-    isHighlighted: Boolean = false
+    isHighlighted: Boolean = false,
+    selected: Boolean = advisor.isSelected,
+    selectionEnabled: Boolean = false,
+    onToggleSelection: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val isVerified = advisor.reasons.any { it.contains("verified", ignoreCase = true) }
@@ -359,6 +496,14 @@ private fun AdvisorDirectoryCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                if (selectionEnabled && onToggleSelection != null) {
+                    Button(
+                        onClick = onToggleSelection,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(if (selected) "Selected" else "Select Agent")
+                    }
+                }
                 OutlinedButton(
                     onClick = {
                         if (advisor.phone.isNotBlank()) {
