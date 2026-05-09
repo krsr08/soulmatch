@@ -244,8 +244,8 @@ fun DashboardScreen(
                                 title = content.bestMatchesTitle.ifBlank { "Best Matches" }.let {
                                     if (it.equals("Best matches", ignoreCase = true)) "Best Matches" else it
                                 },
-                                modifier = Modifier.padding(top = 26.dp),
-                                actionText = "View All",
+                                modifier = Modifier.padding(top = 18.dp),
+                                actionText = "View All (${bestMatches.size})",
                                 onAction = onOpenBestMatches
                             )
                         }
@@ -279,7 +279,7 @@ fun DashboardScreen(
                             HomeSectionHeader(
                                 title = "New Profiles",
                                 modifier = Modifier.padding(top = 24.dp),
-                                actionText = "See all",
+                                actionText = "View All (${newProfiles.size})",
                                 onAction = onOpenSearch
                             )
                         }
@@ -293,7 +293,7 @@ fun DashboardScreen(
                             HomeSectionHeader(
                                 title = "Pending Invitations",
                                 modifier = Modifier.padding(top = 24.dp),
-                                actionText = if (pendingInvitations.isEmpty()) null else "View all (${pendingInvitations.size})",
+                                actionText = if (pendingInvitations.isEmpty()) null else "View All (${pendingInvitations.size})",
                                 onAction = if (pendingInvitations.isEmpty()) null else onOpenInterests
                             )
                         }

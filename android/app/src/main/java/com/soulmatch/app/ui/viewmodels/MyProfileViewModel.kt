@@ -57,6 +57,7 @@ class MyProfileViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     private val _isUploadingPhotos = MutableStateFlow(false)
     private val _isSubmittingVerification = MutableStateFlow(false)
+    private val _isSavingAssist = MutableStateFlow(false)
     private val _status = MutableStateFlow<String?>(null)
     private val _loadMessage = MutableStateFlow<String?>(null)
 
@@ -73,6 +74,7 @@ class MyProfileViewModel @Inject constructor(
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     val isUploadingPhotos: StateFlow<Boolean> = _isUploadingPhotos.asStateFlow()
     val isSubmittingVerification: StateFlow<Boolean> = _isSubmittingVerification.asStateFlow()
+    val isSavingAssist: StateFlow<Boolean> = _isSavingAssist.asStateFlow()
     val status: StateFlow<String?> = _status.asStateFlow()
     val loadMessage: StateFlow<String?> = _loadMessage.asStateFlow()
 
@@ -380,8 +382,17 @@ class MyProfileViewModel @Inject constructor(
         notes: String
     ) {
         viewModelScope.launch {
-            _isLoading.value = true
+            val previous = _assistStatus.value
+            _isSavingAssist.value = true
             _status.value = null
+            _assistStatus.value = previous.copy(
+                isOptedIn = isOptedIn,
+                supportLevel = supportLevel,
+                preferredContactWindow = preferredContactWindow,
+                familyContactName = familyContactName,
+                familyContactPhone = familyContactPhone,
+                notes = notes
+            )
             try {
                 val response = profileApi.updateAssistStatus(
                     AssistStatusRequest(
@@ -398,15 +409,17 @@ class MyProfileViewModel @Inject constructor(
                     _assistStatus.value = body.data
                     _status.value = body.message ?: "SoulMatch Assist updated."
                 } else {
+                    _assistStatus.value = previous
                     _status.value = body?.error?.message ?: "Couldn't update SoulMatch Assist right now."
                 }
             } catch (error: Exception) {
+                _assistStatus.value = previous
                 _status.value = when (error) {
                     is IOException -> "Couldn't reach the server. Check your connection and try again."
                     else -> "Couldn't update SoulMatch Assist right now. Please try again."
                 }
             } finally {
-                _isLoading.value = false
+                _isSavingAssist.value = false
             }
         }
     }

@@ -79,7 +79,7 @@ fun ProfileCard(
             ) {
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                    verticalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -94,55 +94,45 @@ fun ProfileCard(
                             modifier = Modifier.weight(1f)
                         )
                         Spacer(Modifier.width(6.dp))
-                        VerificationBadge(isVerified = profile.isVerified)
+                        if (profile.isVerified) {
+                            Icon(
+                                imageVector = Icons.Filled.Verified,
+                                contentDescription = "Verified",
+                                tint = Success,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                     Text(
-                        text = profile.occupation.ifBlank { "Profession not added" },
+                        text = listOfNotNull(
+                            profile.heightCm?.let { formatHeight(it) },
+                            profile.age.takeIf { it > 0 }?.let { "$it yrs" }
+                        ).joinToString(" | ").ifBlank { "Profile basics being updated" },
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        ProfileOwnerTag(profile.profileCreatedBy, modifier = Modifier.weight(1f, fill = false))
-                        TrustBadge(score = profile.trustScore, level = profile.trustLevel)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        LabeledInlineValue(label = "Age", value = "${profile.age.coerceAtLeast(0)} yrs")
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 10.dp)
-                                .width(1.dp)
-                                .height(28.dp)
-                                .background(Divider.copy(alpha = 0.58f))
-                        )
-                        LabeledInlineValue(label = "Height", value = profile.heightCm?.let { formatHeight(it) } ?: "Not added")
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Outlined.LocationOn,
-                            contentDescription = null,
-                            tint = TextSecondary,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = profile.location.ifBlank { "Location not added" },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    Text(
+                        text = listOfNotNull(
+                            profile.occupation.takeIf { it.isNotBlank() },
+                            profile.location.takeIf { it.isNotBlank() },
+                            profile.education.takeIf { it.isNotBlank() }
+                        ).joinToString(" | ").ifBlank { "Occupation, location, and education will appear here" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     ProfileMatchSignal(score = profile.compatibilityScore)
-                    profile.matchReasons.take(2).forEach { reason ->
-                        Text(
-                            text = "- $reason",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                    Text(
+                        text = resolveRecentActivity(profile.lastActiveLabel),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = PrimaryDark,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        ProfileOwnerTag(profile.profileCreatedBy)
                     }
                 }
 
@@ -215,7 +205,11 @@ fun ProfileCard(
 
 @Composable
 private fun ProfileOwnerTag(profileCreatedBy: String, modifier: Modifier = Modifier) {
-    val owner = if (profileCreatedBy.equals("mediator", ignoreCase = true)) "Mediator" else "Self"
+    val owner = when {
+        profileCreatedBy.equals("self", ignoreCase = true) -> "Self"
+        profileCreatedBy.equals("member", ignoreCase = true) -> "Self"
+        else -> "Agent"
+    }
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(999.dp),
@@ -223,7 +217,7 @@ private fun ProfileOwnerTag(profileCreatedBy: String, modifier: Modifier = Modif
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
     ) {
         Text(
-            text = "Profile created by: $owner",
+            text = "Created by $owner",
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelSmall,
             color = PrimaryDark,
@@ -234,29 +228,12 @@ private fun ProfileOwnerTag(profileCreatedBy: String, modifier: Modifier = Modif
     }
 }
 
-@Composable
-private fun TrustBadge(score: Int, level: String) {
-    val resolvedScore = score.coerceIn(0, 100)
-    val content = when {
-        resolvedScore >= 80 || level.equals("high", ignoreCase = true) -> Success
-        resolvedScore >= 55 || level.equals("medium", ignoreCase = true) -> Warning
-        else -> Error
+private fun resolveRecentActivity(lastActiveLabel: String): String =
+    if (lastActiveLabel.isBlank()) {
+        "Active recently"
+    } else {
+        "Active $lastActiveLabel"
     }
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = content.copy(alpha = 0.12f),
-        border = BorderStroke(1.dp, content.copy(alpha = 0.25f))
-    ) {
-        Text(
-            text = if (resolvedScore > 0) "Trust $resolvedScore%" else "Trust new",
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = content,
-            fontWeight = FontWeight.ExtraBold,
-            maxLines = 1
-        )
-    }
-}
 
 @Composable
 private fun LabeledInlineValue(label: String, value: String) {

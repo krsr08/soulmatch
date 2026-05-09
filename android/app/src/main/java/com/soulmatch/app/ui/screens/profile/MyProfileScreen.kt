@@ -156,6 +156,7 @@ fun MyProfileScreen(
     val loading by vm.isLoading.collectAsStateWithLifecycle()
     val uploadingPhotos by vm.isUploadingPhotos.collectAsStateWithLifecycle()
     val submittingVerification by vm.isSubmittingVerification.collectAsStateWithLifecycle()
+    val savingAssist by vm.isSavingAssist.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     val loadMessage by vm.loadMessage.collectAsStateWithLifecycle()
     val editSection: (Int) -> Unit = onEditSection ?: { _ -> }
@@ -309,7 +310,7 @@ fun MyProfileScreen(
                         item {
                             SoulMatchAssistProfileCard(
                                 assistStatus = assistStatus,
-                                isSaving = loading,
+                                isSaving = savingAssist,
                                 onToggleAssist = toggleAssist,
                                 onOpenAssist = openAssist
                             )
@@ -1772,26 +1773,39 @@ private fun SoulMatchAssistProfileCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         containerColor = SurfaceWarm
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.Top
             ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("SoulMatch Assistance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     Text(
-                        if (enabled) "You can now browse registered agents and contact them directly offline." else "Turn this on to explore registered agents and request offline assistance support.",
+                        "SoulMatch Assistance",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Text(
+                        if (enabled) {
+                            "Enabled. Browse registered agents and connect with them directly offline when you want extra help."
+                        } else {
+                            "Turn this on to unlock the agent directory and explore offline support options."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
                 }
-                Box(contentAlignment = Alignment.Center) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     if (isSaving) {
                         androidx.compose.material3.CircularProgressIndicator(
-                            modifier = Modifier.size(38.dp),
-                            strokeWidth = 2.5.dp,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
                         )
                     }
                     Switch(
@@ -1801,13 +1815,40 @@ private fun SoulMatchAssistProfileCard(
                     )
                 }
             }
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color.White.copy(alpha = 0.72f),
+                border = BorderStroke(1.dp, Divider)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        if (enabled) "Offline support directory enabled" else "Private self-service mode",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = PrimaryDark,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        if (enabled) {
+                            "SoulMatch only shows the directory. Any call, meeting, negotiation, or follow-up happens directly between you and the selected agent."
+                        } else {
+                            "You are managing your profile independently. Enable this anytime if you want to discover registered agents."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
+            }
             if (enabled) {
-                Text(
-                    "SoulMatch only surfaces the directory. Any call, meeting, or follow-up happens directly between you and the selected agent.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary
-                )
-                OutlinedButton(onClick = onOpenAssist, modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = onOpenAssist,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving
+                ) {
                     Text("Open SoulMatch Assist", fontWeight = FontWeight.ExtraBold)
                 }
             }
