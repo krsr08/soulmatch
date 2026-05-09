@@ -1273,12 +1273,12 @@ exports.upsertAssistStatus = async (userId, payload) => {
          fd.family_state,
          fd.family_locality,
          fd.family_pincode
-       FROM profiles p
-       LEFT JOIN family_details fd ON fd.profile_id = p.profile_id
-       WHERE p.user_id = $1
-       FOR UPDATE`,
-      [userId]
-    );
+        FROM profiles p
+        LEFT JOIN family_details fd ON fd.profile_id = p.profile_id
+        WHERE p.user_id = $1
+        FOR UPDATE OF p`,
+       [userId]
+     );
     const profile = profileResult.rows[0];
     if (!profile) {
       await client.query('ROLLBACK');
