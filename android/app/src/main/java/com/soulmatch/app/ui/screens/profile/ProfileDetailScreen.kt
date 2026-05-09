@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.Button
@@ -64,7 +65,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.CompatibilityData
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.SubscriptionData
-import com.soulmatch.app.data.models.TrustFactorData
 import com.soulmatch.app.data.models.fullName
 import com.soulmatch.app.ui.formatDate
 import com.soulmatch.app.ui.components.ChipTone
@@ -76,7 +76,6 @@ import com.soulmatch.app.ui.components.PremiumScreen
 import com.soulmatch.app.ui.components.ReportConcernDialog
 import com.soulmatch.app.ui.components.SectionTitle
 import com.soulmatch.app.ui.components.SignalChip
-import com.soulmatch.app.ui.components.SignalChips
 import com.soulmatch.app.ui.components.UpgradePlanGate
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.Error
@@ -255,9 +254,6 @@ fun ProfileDetailScreen(
                             }
                         }
                         item {
-                            TrustProfileSection(profile = data)
-                        }
-                        item {
                             ProfileOverview(profile = data, compatibility = compatibility)
                         }
                         item {
@@ -316,29 +312,7 @@ fun ProfileDetailScreen(
                             )
                         }
                         item {
-                            PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    SectionTitle("About me", "Specific introductions help families and members decide with care")
-                                    Text(
-                                        data.aboutMe.ifBlank { "This member has not added an introduction yet." },
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = TextSecondary
-                                    )
-                                }
-                            }
-                        }
-                        item {
-                            FutureActionsCard(
-                                onHide = {
-                                    vm.hideProfile()
-                                    actionNotice = "This profile has been hidden locally for this session."
-                                },
-                                onBlock = {
-                                    vm.blockProfile()
-                                    actionNotice = "This member is blocked and removed from discovery."
-                                },
-                                onReport = { reportDialogOpen = true }
-                            )
+                            TrustProfileSection(profile = data)
                         }
                     }
                 }
@@ -421,35 +395,45 @@ private fun ProfileHero(profile: ProfileData, compatibilityScore: Int, onRequest
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                SignalChips(
-                    labels = listOf(
-                        "$compatibilityScore% compatibility",
-                        "Created by ${titleCase(profile.profileCreatedBy)}",
-                        if (profile.profileStatus.equals("inactive", ignoreCase = true)) "Inactive" else "Active",
-                        when {
-                            profile.verificationStatus.equals("verified", ignoreCase = true) -> "Verified profile"
-                            profile.completionScore >= 80 -> "Complete profile"
-                            else -> "Profile in progress"
-                        },
-                        if (profile.trustScore > 0) "Trust ${profile.trustScore}%" else "Trust building",
-                        when {
-                            isPhotoBlocked -> "Photo approval required"
-                            profile.photoPrivacy == "matches_only" -> "Selective photo privacy"
-                            else -> "Photo visible"
-                        }
-                    ),
-                    tone = ChipTone.Success
-                )
-                Text(profile.fullName(), style = MaterialTheme.typography.displayMedium, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        profile.fullName(),
+                        style = MaterialTheme.typography.displayMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    if (profile.verificationStatus.equals("verified", ignoreCase = true)) {
+                        Icon(
+                            imageVector = Icons.Filled.Verified,
+                            contentDescription = "Verified",
+                            tint = Success,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
                 Text(
                     listOfNotNull(
-                        profile.age.takeIf { it > 0 }?.let { "$it yrs" },
-                        profile.workingCity.ifBlank { profile.familyCity.ifBlank { null } },
-                        profile.occupation.ifBlank { null },
-                        profile.motherTongue.ifBlank { null }
+                        profile.heightCm?.let { "$it cm" },
+                        profile.age.takeIf { it > 0 }?.let { "$it yrs" }
                     ).joinToString(" | "),
                     style = MaterialTheme.typography.bodyLarge,
                     color = Color.White.copy(alpha = 0.92f)
+                )
+                Text(
+                    listOfNotNull(
+                        profile.educationLevel.takeIf { it.isNotBlank() },
+                        profile.occupation.takeIf { it.isNotBlank() },
+                        profile.workingCity.ifBlank { profile.familyCity }.takeIf { it.isNotBlank() }
+                    ).joinToString(" | ").ifBlank { "Education, occupation, and location will appear here" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.86f)
+                )
+                SignalChip(
+                    label = "$compatibilityScore% match compatibility",
+                    tone = ChipTone.Success
                 )
             }
         }
@@ -550,24 +534,15 @@ private fun ProfileOverview(profile: ProfileData, compatibility: CompatibilityDa
                     "Readiness" to "${profile.completionScore}%"
                 )
             )
-            SignalChips(
-                labels = listOf("Verified path ready", "Family-share ready", "Privacy visible"),
-                tone = ChipTone.Info
-            )
         }
     }
 }
 
 @Composable
 private fun TrustProfileSection(profile: ProfileData) {
-    val trustColor = when {
-        profile.trustScore >= 80 -> Success
-        profile.trustScore >= 55 -> Info
-        else -> Error
-    }
     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionTitle("Trust profile", "Proof signals used before families invest time")
+            SectionTitle("Trust profile", "A concise view of trust, seriousness, and profile privacy")
             CompatibilityBar(score = profile.trustScore.coerceIn(0, 100))
             DetailGrid(
                 rows = listOf(
@@ -578,47 +553,6 @@ private fun TrustProfileSection(profile: ProfileData) {
                     "Photo privacy" to titleCase(profile.photoPrivacy.replace('_', ' '))
                 )
             )
-            profile.trustExplanation?.summary?.takeIf { it.isNotBlank() }?.let { summary ->
-                Text(summary, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-            }
-            val labels = profile.trustSignals.ifEmpty { profile.trustWarnings.ifEmpty { listOf("No trust signals yet") } }
-            SignalChips(labels = labels.take(4), tone = if (trustColor == Success) ChipTone.Success else ChipTone.Info)
-            profile.trustFactors.take(6).forEach { factor ->
-                TrustFactorRow(factor = factor)
-            }
-            if (profile.seriousnessSignals.isNotEmpty()) {
-                SignalChips(labels = profile.seriousnessSignals.take(3), tone = ChipTone.Neutral)
-            }
-        }
-    }
-}
-
-@Composable
-private fun TrustFactorRow(factor: TrustFactorData) {
-    val toneColor = when (factor.status.lowercase()) {
-        "positive" -> Success
-        "partial", "pending" -> Info
-        "warning" -> Error
-        else -> TextSecondary
-    }
-    Surface(shape = RoundedCornerShape(14.dp), color = Color.White.copy(alpha = 0.7f), border = BorderStroke(1.dp, Divider)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Text(
-                text = if (factor.points > 0) "+${factor.points}" else factor.points.toString(),
-                style = MaterialTheme.typography.labelLarge,
-                color = toneColor,
-                fontWeight = FontWeight.ExtraBold
-            )
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(factor.label, style = MaterialTheme.typography.labelLarge, color = PrimaryDark, fontWeight = FontWeight.Bold)
-                Text(factor.detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-            }
         }
     }
 }
@@ -633,42 +567,3 @@ private fun DetailSection(title: String, subtitle: String, rows: List<Pair<Strin
     }
 }
 
-@Composable
-private fun FutureActionsCard(
-    onHide: () -> Unit,
-    onBlock: () -> Unit,
-    onReport: () -> Unit
-) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceSoft) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionTitle("Safety and privacy actions", "Room for profile controls without crowding the main actions")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                SafetyPill("Hide profile", InfoSoft, Info, Modifier.weight(1f), onClick = onHide)
-                SafetyPill("Block", ErrorSoft, Error, Modifier.weight(1f), onClick = onBlock)
-                SafetyPill("Report", SurfaceWarm, PrimaryDark, Modifier.weight(1f), onClick = onReport)
-            }
-            Text("Hide removes this member from your feed. Block prevents contact. Report sends a concern to SoulMatch support.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-        }
-    }
-}
-
-@Composable
-private fun SafetyPill(label: String, color: Color, content: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Surface(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        color = color,
-        border = BorderStroke(1.dp, Divider)
-    ) {
-        Text(
-            label,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 12.dp),
-            style = MaterialTheme.typography.labelSmall,
-            textAlign = TextAlign.Center,
-            color = content,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}
