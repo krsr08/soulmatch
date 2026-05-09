@@ -376,6 +376,8 @@ class MyProfileViewModel @Inject constructor(
     fun updateAssistStatus(
         isOptedIn: Boolean,
         supportLevel: String,
+        shareMode: String = _assistStatus.value.shareMode,
+        selectedAdvisorIds: List<String> = _assistStatus.value.selectedAdvisorIds,
         preferredContactWindow: String,
         familyContactName: String,
         familyContactPhone: String,
@@ -386,6 +388,8 @@ class MyProfileViewModel @Inject constructor(
             val optimistic = previous.copy(
                 isOptedIn = isOptedIn,
                 supportLevel = supportLevel,
+                shareMode = shareMode,
+                selectedAdvisorIds = selectedAdvisorIds,
                 preferredContactWindow = preferredContactWindow,
                 familyContactName = familyContactName,
                 familyContactPhone = familyContactPhone,
@@ -399,6 +403,8 @@ class MyProfileViewModel @Inject constructor(
                     AssistStatusRequest(
                         isOptedIn = isOptedIn,
                         supportLevel = supportLevel,
+                        shareMode = shareMode,
+                        selectedAdvisorIds = selectedAdvisorIds,
                         preferredContactWindow = preferredContactWindow,
                         familyContactName = familyContactName,
                         familyContactPhone = familyContactPhone,

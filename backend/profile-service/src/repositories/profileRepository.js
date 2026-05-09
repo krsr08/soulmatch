@@ -1085,6 +1085,7 @@ exports.getAssistStatusByUserId = async (userId) => {
        fd.family_pincode,
        amp.is_opted_in,
        amp.support_level,
+       amp.share_mode,
        amp.request_status,
        amp.preferred_contact_window,
        amp.family_contact_name,
@@ -1115,10 +1116,13 @@ exports.getAssistStatusByUserId = async (userId) => {
   );
   const row = r.rows[0];
   if (!row) return null;
+  const selectedAdvisorIds = await listSelectedAdvisorIdsForProfile(db, row.profile_id);
   return {
     profileId: row.profile_id,
     isOptedIn: row.is_opted_in === true,
     supportLevel: row.support_level || 'self_service',
+    shareMode: normalizeAssistShareMode(row.share_mode),
+    selectedAdvisorIds,
     requestStatus: row.request_status || 'not_requested',
     preferredContactWindow: row.preferred_contact_window || '',
     familyContactName: row.family_contact_name || '',
@@ -1287,6 +1291,9 @@ exports.upsertAssistStatus = async (userId, payload) => {
 
     const isOptedIn = payload.isOptedIn === true;
     const supportLevel = payload.supportLevel || 'self_service';
+    const shareMode = normalizeAssistShareMode(payload.shareMode);
+    const requestedAdvisorIds = [...new Set((Array.isArray(payload.selectedAdvisorIds) ? payload.selectedAdvisorIds : []).map((item) => String(item || '').trim()).filter(Boolean))];
+    let selectedAdvisorIds = [];
     let requestStatus = 'not_requested';
     let assignedAdvisorId = null;
     let assignedAt = null;
@@ -1294,21 +1301,30 @@ exports.upsertAssistStatus = async (userId, payload) => {
     let eventScore = null;
     let eventMetadata = {
       supportLevel,
-      isOptedIn
+      isOptedIn,
+      shareMode
     };
 
     if (isOptedIn && supportLevel === 'advisor_assisted') {
-      const { candidates } = await fetchAdvisorCandidates(client, profile.profile_id);
-      const topCandidate = candidates[0] || null;
-      if (topCandidate) {
+      if (requestedAdvisorIds.length > 0) {
+        const selectedResult = await client.query(
+          `SELECT advisor_id
+           FROM advisors
+           WHERE advisor_id = ANY($1::uuid[])
+             AND status = 'active'`,
+          [requestedAdvisorIds]
+        );
+        selectedAdvisorIds = selectedResult.rows.map((row) => row.advisor_id).filter(Boolean);
+        if (shareMode === 'single') selectedAdvisorIds = selectedAdvisorIds.slice(0, 1);
+      }
+      if (selectedAdvisorIds.length > 0) {
         requestStatus = 'assigned';
-        assignedAdvisorId = topCandidate.advisor_id;
+        assignedAdvisorId = selectedAdvisorIds[0];
         assignedAt = new Date();
-        eventType = 'advisor_assigned';
-        eventScore = topCandidate.score;
+        eventType = selectedAdvisorIds.length > 1 ? 'advisors_selected' : 'advisor_selected';
         eventMetadata = {
           ...eventMetadata,
-          reasons: topCandidate.reasons
+          selectedAdvisorIds
         };
       } else {
         requestStatus = 'waiting_assignment';
@@ -1325,6 +1341,7 @@ exports.upsertAssistStatus = async (userId, payload) => {
          profile_id,
          is_opted_in,
          support_level,
+         share_mode,
          request_status,
          preferred_contact_window,
          family_contact_name,
@@ -1336,17 +1353,18 @@ exports.upsertAssistStatus = async (userId, payload) => {
          created_at,
          updated_at
        )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW() + INTERVAL '7 days',NOW(),NOW())
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW() + INTERVAL '7 days',NOW(),NOW())
        ON CONFLICT (profile_id) DO UPDATE SET
          is_opted_in=$3,
          support_level=$4,
-         request_status=$5,
-         preferred_contact_window=$6,
-         family_contact_name=$7,
-         family_contact_phone=$8,
-         notes=$9,
-         assigned_advisor_id=$10,
-         assigned_at=$11,
+         share_mode=$5,
+         request_status=$6,
+         preferred_contact_window=$7,
+         family_contact_name=$8,
+         family_contact_phone=$9,
+         notes=$10,
+         assigned_advisor_id=$11,
+         assigned_at=$12,
          next_review_at=NOW() + INTERVAL '7 days',
          updated_at=NOW()
        RETURNING *`,
@@ -1355,6 +1373,7 @@ exports.upsertAssistStatus = async (userId, payload) => {
         profile.profile_id,
         isOptedIn,
         supportLevel,
+        shareMode,
         requestStatus,
         payload.preferredContactWindow || null,
         payload.familyContactName || null,
@@ -1364,6 +1383,26 @@ exports.upsertAssistStatus = async (userId, payload) => {
         assignedAt
       ]
     );
+
+    await client.query('DELETE FROM assisted_match_profile_advisors WHERE assisted_profile_id = $1', [upserted.rows[0].assisted_profile_id]);
+    if (isOptedIn && supportLevel === 'advisor_assisted' && selectedAdvisorIds.length > 0) {
+      for (const advisorId of selectedAdvisorIds) {
+        await client.query(
+          `INSERT INTO assisted_match_profile_advisors (
+             assisted_profile_agent_id,
+             assisted_profile_id,
+             profile_id,
+             advisor_id,
+             status,
+             selected_at,
+             created_at,
+             updated_at
+           )
+           VALUES ($1,$2,$3,$4,'selected',NOW(),NOW(),NOW())`,
+          [randomUUID(), upserted.rows[0].assisted_profile_id, profile.profile_id, advisorId]
+        );
+      }
+    }
 
     await client.query(
       `INSERT INTO assisted_match_assignment_events (
@@ -1883,6 +1922,22 @@ function normalizeOnboardingStatus(value) {
   return ['pending', 'approved', 'rejected', 'more_info'].includes(normalized) ? normalized : 'pending';
 }
 
+function normalizeAssistShareMode(value) {
+  return String(value || 'single').trim().toLowerCase() === 'multiple' ? 'multiple' : 'single';
+}
+
+async function listSelectedAdvisorIdsForProfile(db, profileId) {
+  const result = await db.query(
+    `SELECT advisor_id
+     FROM assisted_match_profile_advisors
+     WHERE profile_id = $1
+       AND status = 'selected'
+     ORDER BY selected_at ASC, created_at ASC`,
+    [profileId]
+  );
+  return result.rows.map((row) => row.advisor_id).filter(Boolean);
+}
+
 async function getAdvisorByUserId(userId, client = null) {
   const db = client || await getDB();
   const result = await db.query(
@@ -2284,7 +2339,25 @@ exports.listManagedProfilesByAgentUserId = async (userId) => {
   if (!advisor) return [];
   const db = await getDB();
   const result = await db.query(
-    `SELECT
+    `WITH accessible_profiles AS (
+       SELECT
+         p.profile_id,
+         'managed'::text AS profile_source,
+         0 AS source_rank
+       FROM profiles p
+       WHERE p.created_by_advisor_id = $1
+       UNION ALL
+       SELECT
+         amp.profile_id,
+         'assist'::text AS profile_source,
+         1 AS source_rank
+       FROM assisted_match_profile_advisors ampa
+       JOIN assisted_match_profiles amp ON amp.assisted_profile_id = ampa.assisted_profile_id
+       WHERE ampa.advisor_id = $1
+         AND ampa.status = 'selected'
+         AND amp.is_opted_in = TRUE
+     )
+     SELECT DISTINCT ON (p.profile_id)
        p.profile_id,
        p.user_id,
        p.first_name,
@@ -2296,9 +2369,14 @@ exports.listManagedProfilesByAgentUserId = async (userId) => {
        p.mother_tongue,
        p.primary_photo_url,
        p.completion_score,
-       p.review_status,
+       CASE
+         WHEN ap.profile_source = 'assist' AND p.review_status = 'draft' THEN
+           CASE WHEN p.verification_status = 'verified' THEN 'verified' ELSE 'submitted' END
+         ELSE p.review_status
+       END AS review_status,
        p.verification_status,
        p.rejection_reason,
+       ap.profile_source,
        p.created_at,
        p.updated_at,
        ec.occupation,
@@ -2310,7 +2388,8 @@ exports.listManagedProfilesByAgentUserId = async (userId) => {
        COALESCE(match_stats.match_count, 0) AS match_count,
        COALESCE(document_stats.verified_count, 0) AS verified_document_count,
        COALESCE(document_stats.total_count, 0) AS total_document_count
-     FROM profiles p
+     FROM accessible_profiles ap
+     JOIN profiles p ON p.profile_id = ap.profile_id
      LEFT JOIN education_career ec ON ec.profile_id = p.profile_id
      LEFT JOIN family_details fd ON fd.profile_id = p.profile_id
      LEFT JOIN (
@@ -2331,8 +2410,7 @@ exports.listManagedProfilesByAgentUserId = async (userId) => {
        FROM profile_documents
        GROUP BY profile_id
      ) document_stats ON document_stats.profile_id = p.profile_id
-     WHERE p.created_by_advisor_id = $1
-     ORDER BY p.updated_at DESC, p.created_at DESC`,
+     ORDER BY p.profile_id, ap.source_rank ASC, p.updated_at DESC, p.created_at DESC`,
     [advisor.advisor_id]
   );
   return result.rows.map((row) => ({
@@ -2357,6 +2435,7 @@ exports.listManagedProfilesByAgentUserId = async (userId) => {
     viewCount: Number(row.view_count || 0),
     matchCount: Number(row.match_count || 0),
     documentChecklistPercent: Number(row.total_document_count || 0) > 0 ? Math.round((Number(row.verified_document_count || 0) / Number(row.total_document_count || 0)) * 100) : 0,
+    profileSource: row.profile_source || 'managed',
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }));
