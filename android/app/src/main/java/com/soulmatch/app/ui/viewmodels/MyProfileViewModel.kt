@@ -383,9 +383,7 @@ class MyProfileViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             val previous = _assistStatus.value
-            _isSavingAssist.value = true
-            _status.value = null
-            _assistStatus.value = previous.copy(
+            val optimistic = previous.copy(
                 isOptedIn = isOptedIn,
                 supportLevel = supportLevel,
                 preferredContactWindow = preferredContactWindow,
@@ -393,6 +391,9 @@ class MyProfileViewModel @Inject constructor(
                 familyContactPhone = familyContactPhone,
                 notes = notes
             )
+            _isSavingAssist.value = true
+            _status.value = null
+            _assistStatus.value = optimistic
             try {
                 val response = profileApi.updateAssistStatus(
                     AssistStatusRequest(
@@ -405,9 +406,10 @@ class MyProfileViewModel @Inject constructor(
                     )
                 )
                 val body = response.body()
-                if (response.isSuccessful && body?.success == true && body.data != null) {
-                    _assistStatus.value = body.data
+                if (response.isSuccessful && body?.success == true) {
+                    _assistStatus.value = body.data ?: optimistic
                     _status.value = body.message ?: "SoulMatch Assist updated."
+                    refreshAssistStatus(keepCurrentOnFailure = true)
                 } else {
                     _assistStatus.value = previous
                     _status.value = body?.error?.message ?: "Couldn't update SoulMatch Assist right now."
@@ -421,6 +423,19 @@ class MyProfileViewModel @Inject constructor(
             } finally {
                 _isSavingAssist.value = false
             }
+        }
+    }
+
+    private suspend fun refreshAssistStatus(keepCurrentOnFailure: Boolean = false) {
+        val refreshed = runCatching { profileApi.getAssistStatus() }
+            .getOrNull()
+            ?.body()
+            ?.takeIf { it.success }
+            ?.data
+
+        when {
+            refreshed != null -> _assistStatus.value = refreshed
+            !keepCurrentOnFailure -> _assistStatus.value = AssistStatusData()
         }
     }
 

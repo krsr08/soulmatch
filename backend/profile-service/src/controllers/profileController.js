@@ -279,7 +279,10 @@ async function attachTrustSummary(profile) {
 
 function normalizeAssistPayload(body = {}) {
   const supportLevel = normalizeAssistSupportLevel(body.supportLevel || body.support_level || 'self_service');
-  const isOptedIn = body.isOptedIn === true || body.is_opted_in === true || body.enabled === true;
+  const rawOptIn = body.isOptedIn ?? body.is_opted_in ?? body.enabled ?? false;
+  const isOptedIn = rawOptIn === true ||
+    rawOptIn === 1 ||
+    String(rawOptIn).trim().toLowerCase() === 'true';
   if (!supportLevel) return null;
   return {
     isOptedIn,
