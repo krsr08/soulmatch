@@ -119,6 +119,15 @@ private data class BestMatchCarouselSlot(
     val insertSlot: Int = 0
 )
 
+private data class HomeAdPalette(
+    val container: Color,
+    val border: Color,
+    val chip: Color,
+    val accent: Color,
+    val title: Color,
+    val body: Color
+)
+
 @Composable
 fun DashboardScreen(
     content: HomeContentData = HomeContentData(),
@@ -234,9 +243,12 @@ fun DashboardScreen(
                                 )
                             }
                         }
-                        if (shouldPromptPartnerPreference && partnerPromptSkipped) {
+                        if (myProfile.profileId.isNotBlank()) {
                             item {
-                                PartnerPreferenceReminderBanner(onOpen = onOpenPartnerPreferences)
+                                PartnerPreferenceReminderBanner(
+                                    isConfigured = myProfile.isPartnerPrefSet,
+                                    onOpen = onOpenPartnerPreferences
+                                )
                             }
                         }
                         item {
@@ -244,7 +256,7 @@ fun DashboardScreen(
                                 title = content.bestMatchesTitle.ifBlank { "Best Matches" }.let {
                                     if (it.equals("Best matches", ignoreCase = true)) "Best Matches" else it
                                 },
-                                modifier = Modifier.padding(top = 18.dp),
+                                modifier = Modifier.padding(top = 8.dp),
                                 actionText = "View All (${bestMatches.size})",
                                 onAction = onOpenBestMatches
                             )
@@ -269,6 +281,7 @@ fun DashboardScreen(
                                     onViewProfile = onViewProfile,
                                     onInterest = { vm.sendInterest(it) },
                                     onShortlist = { vm.toggleShortlist(it) },
+                                    onIgnore = { vm.hideProfile(it) },
                                     onOpenSubscription = onOpenSubscription,
                                     onOpenSearch = onOpenSearch,
                                     onOpenAstrology = { onProfileMenuDestination("astrology_services") }
@@ -291,7 +304,7 @@ fun DashboardScreen(
                         }
                         item {
                             HomeSectionHeader(
-                                title = "Pending Invitations",
+                                title = "Interests Received",
                                 modifier = Modifier.padding(top = 24.dp),
                                 actionText = if (pendingInvitations.isEmpty()) null else "View All (${pendingInvitations.size})",
                                 onAction = if (pendingInvitations.isEmpty()) null else onOpenInterests
@@ -553,37 +566,57 @@ private fun HomeUpgradeInsertCard(
 
 @Composable
 private fun HomeAdInsertCard(ad: HomeBestMatchAdData, modifier: Modifier = Modifier, onOpen: () -> Unit) {
+    val palette = homeAdPalette(ad.type)
     PremiumCard(
         modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = palette.container,
         contentPadding = PaddingValues(16.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    HomeTag(ad.type.ifBlank { "Sponsored" })
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = palette.chip,
+                        border = BorderStroke(1.dp, palette.border.copy(alpha = 0.75f))
+                    ) {
+                        Text(
+                            (ad.type.ifBlank { "Sponsored" }).replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = palette.accent,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1
+                        )
+                    }
                     Text(
                         ad.title.ifBlank { "Recommended service" },
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.Bold
+                        ),
                         fontWeight = FontWeight.ExtraBold,
-                        color = PrimaryDark,
+                        color = palette.title,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                OutlinedButton(onClick = onOpen) {
+                Button(
+                    onClick = onOpen,
+                    shape = RoundedCornerShape(999.dp)
+                ) {
                     Text(ad.cta.ifBlank { "Open" })
                 }
             }
             Text(
                 ad.body.ifBlank { "Explore useful services and profiles selected for matrimony journeys." },
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
-                maxLines = 2,
+                style = MaterialTheme.typography.bodyMedium,
+                color = palette.body,
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -594,6 +627,35 @@ private fun shouldInsertBestMatchCard(content: HomeContentData, index: Int, last
     if (!content.showBestMatchInsertCards || index >= lastIndex) return false
     val frequency = content.bestMatchInsertFrequency.coerceIn(1, 5)
     return (index + 1) % frequency == 0
+}
+
+private fun homeAdPalette(type: String): HomeAdPalette {
+    return when (type.lowercase(Locale.getDefault())) {
+        "astrology" -> HomeAdPalette(
+            container = Color(0xFFF9F0FF),
+            border = Color(0xFFD8B2FF),
+            chip = Color(0xFFEEDCFF),
+            accent = Color(0xFF6D28D9),
+            title = Color(0xFF3B136F),
+            body = Color(0xFF5E3E85)
+        )
+        "profiles" -> HomeAdPalette(
+            container = Color(0xFFEFFAF5),
+            border = Color(0xFFB7E6CB),
+            chip = Color(0xFFD9F4E6),
+            accent = Color(0xFF047857),
+            title = Color(0xFF114B3A),
+            body = Color(0xFF45695D)
+        )
+        else -> HomeAdPalette(
+            container = Color(0xFFFFF1F4),
+            border = Color(0xFFF2C1D1),
+            chip = Color(0xFFFFE1EA),
+            accent = Color(0xFFB4235A),
+            title = Color(0xFF6D1031),
+            body = Color(0xFF70414E)
+        )
+    }
 }
 
 private fun buildBestMatchSlots(
@@ -684,10 +746,13 @@ private fun canonicalPlanRank(planId: String): Int {
 }
 
 @Composable
-private fun PartnerPreferenceReminderBanner(onOpen: () -> Unit) {
+private fun PartnerPreferenceReminderBanner(
+    isConfigured: Boolean,
+    onOpen: () -> Unit
+) {
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-        containerColor = Color(0xFFFFF0F3),
+        containerColor = if (isConfigured) Color(0xFFF8F5EC) else Color(0xFFFFF0F3),
         contentPadding = PaddingValues(14.dp)
     ) {
         Row(
@@ -697,19 +762,31 @@ private fun PartnerPreferenceReminderBanner(onOpen: () -> Unit) {
         ) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
-                    "Set Your Partner Preferences",
+                    if (isConfigured) "Partner Preferences Selected" else "Set Your Partner Preferences",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.ExtraBold,
                     color = PrimaryDark
                 )
                 Text(
-                    "Add age, religion, and manglik preference to improve match ranking.",
+                    if (isConfigured) {
+                        "Review or fine-tune your age, community, and horoscope preferences before exploring more matches."
+                    } else {
+                        "Add age, religion, and manglik preference to improve match ranking."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
+                if (isConfigured) {
+                    Text(
+                        "Selected and active for your current match feed.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF8D6B20),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
             Button(onClick = onOpen) {
-                Text("Update")
+                Text(if (isConfigured) "Review" else "Update")
             }
         }
     }
@@ -814,6 +891,7 @@ private fun BestMatchesCarousel(
     onViewProfile: (String) -> Unit,
     onInterest: (String) -> Unit,
     onShortlist: (String) -> Unit,
+    onIgnore: (String) -> Unit,
     onOpenSubscription: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenAstrology: () -> Unit
@@ -838,7 +916,8 @@ private fun BestMatchesCarousel(
                     modifier = Modifier.fillParentMaxWidth(0.88f),
                     onOpen = { onViewProfile(slot.profile.profileId) },
                     onInterest = { onInterest(slot.profile.profileId) },
-                    onShortlist = { onShortlist(slot.profile.profileId) }
+                    onShortlist = { onShortlist(slot.profile.profileId) },
+                    onIgnore = { onIgnore(slot.profile.profileId) }
                 )
             } else {
                 BestMatchInsertCard(
@@ -900,7 +979,8 @@ private fun HomeMatchCard(
     modifier: Modifier = Modifier,
     onOpen: () -> Unit,
     onInterest: () -> Unit,
-    onShortlist: () -> Unit
+    onShortlist: () -> Unit,
+    onIgnore: () -> Unit
 ) {
     Card(
         modifier = modifier
@@ -978,21 +1058,30 @@ private fun HomeMatchCard(
                         modifier = Modifier.size(22.dp)
                     )
                 }
+                RoundImageAction(
+                    selected = false,
+                    selectedContentDescription = "Profile hidden",
+                    unselectedContentDescription = "Ignore profile",
+                    onClick = onIgnore
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    OverlayTag("Created by ${profileOwnerLabel(profile.profileCreatedBy)}")
-                    OverlayTag(profile.matchReasons.firstOrNull { it.isNotBlank() } ?: "Fits age range")
-                }
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "${profile.name.removeSuffix(".")}, ${profile.age}",
+                            profile.name.removeSuffix("."),
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontFamily = FontFamily.Serif,
                                 fontWeight = FontWeight.Bold
@@ -1007,10 +1096,20 @@ private fun HomeMatchCard(
                         }
                     }
                     Text(
-                        "${profile.occupation.ifBlank { "Profession not added" }} | ${profile.location.ifBlank { "Location not added" }}",
+                        listOf(profile.heightCm?.let(::formatHeightLabel), profile.age.takeIf { it > 0 }?.let { "$it yrs" })
+                            .filterNotNull()
+                            .joinToString(" | ")
+                            .ifBlank { "Height and age in progress" },
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color.White.copy(alpha = 0.86f),
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        educationOccupationLocation(profile),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White.copy(alpha = 0.92f),
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
@@ -1031,37 +1130,44 @@ private fun HomeMatchCard(
                         }
                     }
                     Text(
-                        "Match Compatibility",
-                        style = MaterialTheme.typography.labelSmall,
+                        "${profile.compatibilityScore.coerceIn(0, 99)}% match compatibility",
+                        style = MaterialTheme.typography.labelMedium,
                         color = Color.White.copy(alpha = 0.92f),
                         fontWeight = FontWeight.SemiBold
                     )
                 }
+                Text(
+                    profile.lastActiveLabel.ifBlank { "Recently active" },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.82f),
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    "Profile created by ${profileOwnerLabel(profile.profileCreatedBy)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.92f),
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }
 }
 
 private fun profileOwnerLabel(profileCreatedBy: String): String =
-    if (profileCreatedBy.equals("mediator", ignoreCase = true)) "Mediator" else "Self"
+    if (profileCreatedBy.equals("self", ignoreCase = true)) "Self" else "Agent"
 
-@Composable
-private fun OverlayTag(label: String) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = Color.White.copy(alpha = 0.20f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.28f))
-    ) {
-        Text(
-            label.uppercase(Locale.getDefault()),
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = Color.White,
-            fontWeight = FontWeight.ExtraBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
+private fun formatHeightLabel(heightCm: Int): String {
+    val totalInches = (heightCm / 2.54).toInt()
+    val feet = totalInches / 12
+    val inches = totalInches % 12
+    return if (feet > 0) "$feet'$inches\"" else "$heightCm cm"
+}
+
+private fun educationOccupationLocation(profile: ProfileSummary): String {
+    return listOf(profile.education, profile.occupation, profile.location)
+        .filter { it.isNotBlank() }
+        .joinToString(" | ")
+        .ifBlank { "Education, occupation, and location in progress" }
 }
 
 @Composable
@@ -1129,37 +1235,47 @@ private fun NewProfilesCarousel(
 private fun NewProfileTile(profile: ProfileSummary, onClick: () -> Unit) {
     Column(
         modifier = Modifier
-            .width(146.dp)
+            .width(168.dp)
             .clickable(onClick = onClick),
-        horizontalAlignment = Alignment.Start
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        MemberPhoto(
-            photoUrl = profile.primaryPhoto,
-            contentDescription = profile.name,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(3f / 4f),
-            shape = RoundedCornerShape(16.dp)
-        )
-        Spacer(Modifier.height(10.dp))
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = BorderStroke(1.dp, SoftBorder.copy(alpha = 0.32f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            MemberPhoto(
+                photoUrl = profile.primaryPhoto,
+                contentDescription = profile.name,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(3f / 4f),
+                shape = RoundedCornerShape(18.dp)
+            )
+        }
+        Spacer(Modifier.height(12.dp))
         Text(
             "${profile.name.removeSuffix(".")}, ${profile.age}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFF1E1B18),
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.Bold
+            ),
+            color = Color(0xFF8F5D69),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Start
+            textAlign = TextAlign.Center
         )
         Text(
-            listOf(profile.occupation, profile.location)
+            listOf(profile.education, profile.occupation, profile.location)
                 .filter { it.isNotBlank() }
-                .joinToString(" | ")
+                .joinToString(" • ")
                 .ifBlank { "Details in progress" },
             style = MaterialTheme.typography.labelSmall,
             color = Color(0xFF594045),
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Start
+            textAlign = TextAlign.Center
         )
     }
 }
@@ -1302,7 +1418,7 @@ private fun NoPendingInvitationsCard(onBrowse: () -> Unit) {
                 }
             }
             Text(
-                "No pending invitations",
+                "No interests received yet",
                 style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold),
                 color = Color(0xFF1E1B18)
             )
