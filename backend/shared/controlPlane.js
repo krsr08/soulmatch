@@ -93,6 +93,7 @@ const DEFAULT_CONFIG = {
       bestMatchesTitle: 'Best matches',
       bestMatchesSubtitle: 'High-signal cards with interest, shortlist, profile, and more actions',
       bestMatchMinimumProfiles: 5,
+      bestMatchHighCompatibilityThreshold: 80,
       bestMatchInsertFrequency: 2,
       showBestMatchInsertCards: true,
       showBestMatchUpgradeCards: true,
@@ -166,11 +167,11 @@ const DEFAULT_CONFIG = {
       updatedAt: '29 Apr 2026',
       sections: [
         { heading: 'Information we collect', body: 'We collect details you add to your profile, such as name, age, gender, language, community, education, job, family details, photos, preferences, and verification information.' },
-        { heading: 'How we use it', body: 'We use your information to create your profile, recommend matches, show compatibility signals, run search filters, verify members, prevent misuse, and provide support.' },
+        { heading: 'How we use it', body: 'We use your information to create your profile, recommend matches, show compatibility signals, run search filters, verify members, prevent misuse, provide support, and offer optional profile-writing and ice-breaker suggestions.' },
         { heading: 'Who can see your profile', body: 'Your visibility and photo privacy settings decide who can see profile details and photos. You can hide or block members when you do not want further interaction.' },
-        { heading: 'Chats and safety', body: 'Messages, interests, reports, and safety actions may be processed to protect members, investigate complaints, and improve trust on the platform.' },
+        { heading: 'Chats and safety', body: 'Messages, interests, reports, and safety actions may be processed through rule-based and optional AI-assisted checks to protect members, investigate complaints, block risky requests, and improve trust on the platform.' },
         { heading: 'Payments', body: 'Payment details are handled by authorized payment partners. SoulMatch stores payment status, plan details, invoice data, and transaction references needed for service and support.' },
-        { heading: 'Sharing with partners', body: 'We share limited information with trusted service providers such as hosting, analytics, payment, notification, and support partners only for operating SoulMatch.' },
+        { heading: 'Sharing with partners', body: 'We share limited information with trusted service providers such as hosting, analytics, payment, notification, support, and configured AI providers only for operating SoulMatch features and safety checks.' },
         { heading: 'Your choices', body: 'You can edit profile details, manage photos, change privacy settings, delete photos, hide members, block members, and ask for account support from the app.' },
         { heading: 'Data security', body: 'We use access controls, verification, and monitoring to protect member data. No online service is risk free, so always be careful before sharing personal or financial information.' }
       ]

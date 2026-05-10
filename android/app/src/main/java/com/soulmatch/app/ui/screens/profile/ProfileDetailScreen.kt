@@ -114,6 +114,8 @@ fun ProfileDetailScreen(
     val shortlisted by vm.shortlisted.collectAsStateWithLifecycle()
     val canChat by vm.canChat.collectAsStateWithLifecycle()
     val photoActionStatus by vm.status.collectAsStateWithLifecycle()
+    val icebreakers by vm.icebreakers.collectAsStateWithLifecycle()
+    val isGeneratingIcebreakers by vm.isGeneratingIcebreakers.collectAsStateWithLifecycle()
     val subscription by subscriptionVm.subscription.collectAsStateWithLifecycle()
     val openChat: (String, String) -> Unit = onOpenChat ?: { _, _ -> }
     val openSubscription: (() -> Unit)? = onSubscribe
@@ -224,6 +226,14 @@ fun ProfileDetailScreen(
                                     vm.addToFamilyBoard()
                                 },
                                 onShare = { shareProfileWithFamily(context, data, compatibility.overallScore) }
+                            )
+                        }
+                        item {
+                            IcebreakerPanel(
+                                suggestions = icebreakers,
+                                isLoading = isGeneratingIcebreakers,
+                                onGenerate = { vm.generateIcebreakers() },
+                                onSelect = { actionNotice = it }
                             )
                         }
                         if (!actionNotice.isNullOrBlank()) {
@@ -489,6 +499,49 @@ private fun PrimaryActionPanel(
                 Icon(Icons.Filled.Bookmark, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(6.dp))
                 Text("Add to family board")
+            }
+        }
+    }
+}
+
+@Composable
+private fun IcebreakerPanel(
+    suggestions: List<String>,
+    isLoading: Boolean,
+    onGenerate: () -> Unit,
+    onSelect: (String) -> Unit
+) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.weight(1f)) {
+                    Text("Conversation starters", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Profile-aware lines for a respectful first message", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                }
+                OutlinedButton(onClick = onGenerate, enabled = !isLoading) {
+                    if (isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.size(6.dp))
+                    }
+                    Text(if (isLoading) "Preparing" else "Suggest")
+                }
+            }
+            suggestions.forEach { suggestion ->
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(suggestion) },
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, Divider)
+                ) {
+                    Text(
+                        suggestion,
+                        modifier = Modifier.padding(14.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = PrimaryDark
+                    )
+                }
             }
         }
     }

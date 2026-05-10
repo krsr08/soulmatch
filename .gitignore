@@ -28,9 +28,11 @@ __pycache__/
 .idea/
 *.log
 api-testing/device-smoke/
+api-testing/device-google-flow/
 backups/
 soulmatch-recovery/
 recovery-packages/
+security-reports/
 *.dump
 *.tar.gz
 *.archive.gz

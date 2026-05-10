@@ -631,6 +631,7 @@ private fun String.shouldShowBottomNavigation(): Boolean {
     return !startsWith("welcome") &&
         !startsWith("phone_entry") &&
         !startsWith("otp/") &&
+        !startsWith("auth_role_selection") &&
         !startsWith("agent_") &&
         !startsWith("profile_wizard") &&
         !startsWith("legal/")

@@ -33,6 +33,7 @@ export const getPayments = () => api.get('/payments');
 export const createRefund = payload => api.post('/payments/refunds', payload);
 export const getAlerts = () => api.get('/alerts');
 export const acknowledgeAlert = id => api.put('/alerts/' + id + '/ack');
+export const getConsentEvents = () => api.get('/consent-events');
 export const createCampaign = payload => api.post('/campaigns', payload);
 export const getAuditLogs = (limit = 100) => api.get('/audit-logs?limit=' + limit);
 export const getRoles = () => api.get('/roles');

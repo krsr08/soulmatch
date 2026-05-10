@@ -685,6 +685,8 @@ private fun Step5Lifestyle(existing: ProfileData?, vm: ProfileViewModel, onValid
     var smoking by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.smoking?.ifBlank { "never" } ?: "never") }
     var drinking by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.drinking?.ifBlank { "never" } ?: "never") }
     var aboutMe by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.aboutMe.orEmpty()) }
+    val bioSuggestions by vm.bioSuggestions.collectAsStateWithLifecycle()
+    val isGeneratingBio by vm.isGeneratingBioSuggestions.collectAsStateWithLifecycle()
 
     val isValid = diet.isNotBlank() && smoking.isNotBlank() && drinking.isNotBlank() && aboutMe.trim().length >= 30
     LaunchedEffect(diet, smoking, drinking, aboutMe) {
@@ -713,6 +715,37 @@ private fun Step5Lifestyle(existing: ProfileData?, vm: ProfileViewModel, onValid
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 5
             )
+            OutlinedButton(
+                onClick = { vm.requestBioSuggestions(aboutMe) },
+                enabled = !isGeneratingBio,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (isGeneratingBio) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.size(8.dp))
+                }
+                Text(if (isGeneratingBio) "Preparing suggestions" else "Suggest better profile intro")
+            }
+            bioSuggestions.forEach { suggestion ->
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            aboutMe = suggestion
+                            vm.clearBioSuggestions()
+                        },
+                    shape = RoundedCornerShape(16.dp),
+                    color = SurfaceSoft,
+                    border = BorderStroke(1.dp, Divider)
+                ) {
+                    Text(
+                        suggestion,
+                        modifier = Modifier.padding(14.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = PrimaryDark
+                    )
+                }
+            }
             PremiumCard(containerColor = SurfaceWarm, contentPadding = PaddingValues(14.dp)) {
                 Text("Prompt idea: mention your family rhythm, future city flexibility, hobbies, and what kind of partnership you want.", style = MaterialTheme.typography.bodySmall, color = PrimaryDark)
             }

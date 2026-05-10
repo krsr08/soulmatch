@@ -30,16 +30,19 @@ class ChatThreadViewModel @Inject constructor(
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     private val _currentUserId = MutableStateFlow(if (AppEnvironment.allowDemoFallback) MarketFixtures.currentUserId else "")
     private val _isLoading = MutableStateFlow(false)
+    private val _sendStatus = MutableStateFlow<String?>(null)
     private var socket: Socket? = null
     private var activePartnerId: String? = null
 
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
     val currentUserId: StateFlow<String> = _currentUserId.asStateFlow()
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    val sendStatus: StateFlow<String?> = _sendStatus.asStateFlow()
 
     fun load(participantUserId: String) {
         viewModelScope.launch {
             _isLoading.value = true
+            _sendStatus.value = null
             _currentUserId.value = prefs.userId.first() ?: if (AppEnvironment.allowDemoFallback) MarketFixtures.currentUserId else ""
             activePartnerId = participantUserId
             val chatId = MarketFixtures.makeChatId(_currentUserId.value, participantUserId)
@@ -66,6 +69,7 @@ class ChatThreadViewModel @Inject constructor(
     fun sendMessage(participantUserId: String, content: String) {
         val trimmed = content.trim()
         if (trimmed.isBlank()) return
+        _sendStatus.value = null
         val chatId = MarketFixtures.makeChatId(_currentUserId.value, participantUserId)
         val fallbackMessage = ChatMessage(
             messageId = "local-${System.currentTimeMillis()}",
@@ -82,16 +86,29 @@ class ChatThreadViewModel @Inject constructor(
             .put("content", trimmed)
         val activeSocket = socket
         if (activeSocket == null || !activeSocket.connected()) {
-            _messages.update { it + fallbackMessage }
+            if (AppEnvironment.allowDemoFallback) {
+                _messages.update { it + fallbackMessage }
+            } else {
+                _sendStatus.value = "Chat is still connecting. Please try again in a moment."
+            }
             return
         }
         activeSocket.emit("message:send", payload, Ack { args ->
             val ack = args.firstOrNull() as? JSONObject
+            val error = ack?.optString("error")?.takeIf { it.isNotBlank() }
+            if (error != null) {
+                _sendStatus.value = error
+                return@Ack
+            }
             val message = ack?.optJSONObject("message")?.toChatMessage() ?: fallbackMessage
             _messages.update { list ->
                 if (list.any { it.messageId == message.messageId }) list else list + message
             }
         })
+    }
+
+    fun clearSendStatus() {
+        _sendStatus.value = null
     }
 
     private suspend fun connectSocket(participantUserId: String) {

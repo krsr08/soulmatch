@@ -1,5 +1,6 @@
 const repo = require('../repositories/profileRepository');
 const media = require('../services/mediaService');
+const aiAssist = require('../services/aiAssistService');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 
 const ALLOWED_VERIFICATION_TYPES = new Set(['profile', 'identity', 'photo', 'education', 'income', 'family']);
@@ -386,7 +387,7 @@ exports.updateAssistStatus = async (req, res, next) => {
       return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Support level must be self_service, family_assisted, or advisor_assisted.'));
     }
     const before = await repo.getAssistStatusByUserId(req.user.userId);
-    const updated = await repo.upsertAssistStatus(req.user.userId, payload);
+    const updated = await repo.upsertAssistStatus(req.user.userId, { ...payload, audit: auditMeta(req) });
     if (!updated) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
     const status = await repo.getAssistStatusByUserId(req.user.userId);
     const recommendations = status?.profileId ? await repo.listAdvisorRecommendations(status.profileId, 3) : [];
@@ -438,6 +439,74 @@ exports.getProfile = async (req, res, next) => {
     res.json({ success: true, data: formatProfileForResponse(p) });
   } catch (err) { next(err); }
 };
+
+exports.suggestProfileBio = async (req, res, next) => {
+  try {
+    const profile = await requireOwnedProfile(req.params.profileId, req.user.userId);
+    const fullProfile = await repo.findFullById(profile.profile_id);
+    const result = await aiAssist.suggestBio({
+      profile: fullProfile,
+      currentBio: req.body?.currentBio || req.body?.current_bio || fullProfile?.about_me || ''
+    });
+    await repo.recordAiAssistEvent({
+      userId: req.user.userId,
+      profileId: profile.profile_id,
+      eventType: 'ai_bio_suggestions',
+      provider: result.provider,
+      model: result.model,
+      source: result.source,
+      metadata: {
+        suggestionCount: result.suggestions.length
+      }
+    });
+    res.json({
+      success: true,
+      data: {
+        ...result,
+        notice: result.source === 'ai'
+          ? 'Suggestions generated from your existing profile details. Please review before saving.'
+          : 'AI suggestions are currently unavailable, so SoulMatch used local profile guidance.'
+      }
+    });
+  } catch (err) { next(err); }
+};
+
+exports.generateIcebreakers = async (req, res, next) => {
+  try {
+    const access = await repo.canViewProfile(req.params.profileId, req.user.userId);
+    if (!access.allowed || access.owner) {
+      const status = access.reason === 'not_found' ? 404 : 403;
+      const code = access.reason === 'not_found' ? ErrorCodes.NOT_FOUND : ErrorCodes.FORBIDDEN;
+      return next(new AppError(status, code, access.reason === 'not_found' ? 'Profile not found' : 'This profile is not available for ice-breakers.'));
+    }
+    const [sourceProfile, targetProfile] = await Promise.all([
+      repo.findFullByUserId(req.user.userId),
+      repo.findFullById(req.params.profileId)
+    ]);
+    if (!sourceProfile || !targetProfile) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
+    const result = await aiAssist.generateIcebreakers({ sourceProfile, targetProfile });
+    await repo.recordAiAssistEvent({
+      userId: req.user.userId,
+      profileId: sourceProfile.profile_id,
+      targetProfileId: targetProfile.profile_id,
+      eventType: 'ai_icebreakers',
+      provider: result.provider,
+      model: result.model,
+      source: result.source,
+      metadata: {
+        suggestionCount: result.suggestions.length
+      }
+    });
+    res.json({
+      success: true,
+      data: {
+        ...result,
+        safetyNote: 'Use these as a starting point. Avoid sharing private contact or financial details in early conversations.'
+      }
+    });
+  } catch (err) { next(err); }
+};
+
 exports.updateProfile = async (req, res, next) => {
   try {
     await requireOwnedProfile(req.params.profileId, req.user.userId);
@@ -467,6 +536,18 @@ exports.uploadPhotos = async (req, res, next) => {
     if (!req.files || !req.files.length) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'No photos uploaded'));
     const before = await repo.getPhotos(req.params.profileId);
     const urls = await media.savePhotos(req.files, req.params.profileId);
+    await repo.recordConsentEvent({
+      userId: req.user?.userId,
+      profileId: req.params.profileId,
+      consentType: 'photo_upload',
+      status: 'granted',
+      purpose: 'Member or agent uploaded profile photos for matrimonial discovery and privacy-controlled profile display.',
+      metadata: {
+        fileCount: req.files.length,
+        uploadedUrlCount: urls.length
+      },
+      audit: auditMeta(req)
+    });
     const after = await repo.getPhotos(req.params.profileId);
     await auditUserChange(req, {
       profileId: req.params.profileId,
@@ -788,7 +869,7 @@ exports.submitVerification = async (req, res, next) => {
     const completionScore = await repo.calcCompletion(req.params.profileId);
     if (completionScore < 60) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Complete your profile to at least 60% before requesting verification.'));
 
-    const result = await repo.createVerificationRequest(profile, { type, documentUrl });
+    const result = await repo.createVerificationRequest(profile, { type, documentUrl, audit: auditMeta(req) });
     if (result.status === 'already_verified') {
       return res.json({ success: true, data: null, message: 'Your profile is already verified.' });
     }
@@ -831,7 +912,8 @@ exports.upsertAgentOnboarding = async (req, res, next) => {
     const kycDocuments = inlineDocuments.concat(inferredUploadDocuments);
     const saved = await repo.upsertAgentOnboarding(req.user.userId, {
       ...body,
-      kycDocuments
+      kycDocuments,
+      audit: auditMeta(req)
     });
     await auditUserChange(req, {
       entityType: 'agent_onboarding',
@@ -979,7 +1061,8 @@ exports.upsertManagedProfileDocument = async (req, res, next) => {
     if (fileUrl === false) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Document URL must be an HTTPS URL or a SoulMatch upload path.'));
     const result = await repo.upsertManagedProfileDocumentByAgentUserId(req.user.userId, req.params.profileId, {
       ...req.body,
-      fileUrl
+      fileUrl,
+      audit: auditMeta(req)
     });
     if (result.status === 'advisor_not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Agent profile not found'));
     if (result.status === 'not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Managed profile not found'));

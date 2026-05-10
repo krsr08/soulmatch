@@ -374,17 +374,37 @@ async def get_compatibility(user_id: str, target_profile_id: str) -> dict:
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         user_row = await conn.fetchrow(
-            "SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,ec.education_level,ec.annual_income,pd.height_cm,ld.diet,hd.is_manglik FROM profiles p LEFT JOIN education_career ec ON p.profile_id=ec.profile_id LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id WHERE p.user_id=$1",
-            user_id,
-        )
-        target_row = await conn.fetchrow(
             """
-            SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,ec.education_level,ec.annual_income,pd.height_cm,ld.diet,hd.is_manglik
+            SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
+                   ec.education_level,ec.annual_income,ec.occupation,ec.working_city,
+                   pd.height_cm,ld.diet,hd.is_manglik,fd.family_city,fd.family_pincode,fd.family_type,
+                   pp.age_min,pp.age_max,pp.religion AS pref_religion,pp.manglik_pref,
+                   pp.education_levels,pp.occupations,pp.annual_income_min,pp.annual_income_max,
+                   pp.height_min_cm,pp.height_max_cm,pp.locations,pp.diet_prefs,
+                   pp.marital_statuses,pp.family_types
             FROM profiles p
             LEFT JOIN education_career ec ON p.profile_id=ec.profile_id
             LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id
             LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id
             LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id
+            LEFT JOIN family_details fd ON p.profile_id=fd.profile_id
+            LEFT JOIN partner_preferences pp ON p.profile_id=pp.profile_id
+            WHERE p.user_id=$1
+            LIMIT 1
+            """,
+            user_id,
+        )
+        target_row = await conn.fetchrow(
+            """
+            SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
+                   ec.education_level,ec.annual_income,ec.occupation,ec.working_city,
+                   pd.height_cm,ld.diet,hd.is_manglik,fd.family_city,fd.family_pincode,fd.family_type
+            FROM profiles p
+            LEFT JOIN education_career ec ON p.profile_id=ec.profile_id
+            LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id
+            LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id
+            LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id
+            LEFT JOIN family_details fd ON p.profile_id=fd.profile_id
             WHERE p.profile_id=$1
               AND p.is_published=true
               AND COALESCE(p.admin_status,'active')='active'

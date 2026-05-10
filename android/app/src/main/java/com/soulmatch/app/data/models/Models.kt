@@ -248,6 +248,30 @@ data class ProfileStepResponse(
     val step: Int = 1
 )
 
+data class AiBioSuggestionRequest(
+    val currentBio: String = ""
+)
+
+data class AiSuggestionData(
+    val source: String = "rules",
+    val provider: String = "local",
+    val model: String = "fallback",
+    val suggestions: List<String> = emptyList(),
+    val notice: String = ""
+)
+
+data class IcebreakerRequest(
+    val intent: String = "first_message"
+)
+
+data class IcebreakerSuggestionData(
+    val source: String = "rules",
+    val provider: String = "local",
+    val model: String = "fallback",
+    val suggestions: List<String> = emptyList(),
+    val safetyNote: String = ""
+)
+
 data class PartnerPreferencesData(
     @SerializedName("age_min") val ageMin: Int = 24,
     @SerializedName("age_max") val ageMax: Int = 32,
@@ -824,6 +848,7 @@ data class HomeContentData(
     val bestMatchesTitle: String = "Best matches",
     val bestMatchesSubtitle: String = "High-signal cards with interest, shortlist, profile, and more actions",
     val bestMatchMinimumProfiles: Int = 5,
+    val bestMatchHighCompatibilityThreshold: Int = 80,
     val bestMatchInsertFrequency: Int = 2,
     val showBestMatchInsertCards: Boolean = true,
     val showBestMatchUpgradeCards: Boolean = true,
@@ -961,7 +986,7 @@ fun defaultSoulMatchPrivacy(): LegalDocumentData = LegalDocumentData(
         ),
         LegalSectionData(
             heading = "How we use it",
-            body = "We use your information to create your profile, recommend matches, show compatibility signals, run search filters, verify members, prevent misuse, and provide support."
+            body = "We use your information to create your profile, recommend matches, show compatibility signals, run search filters, verify members, prevent misuse, provide support, and offer optional profile-writing and ice-breaker suggestions."
         ),
         LegalSectionData(
             heading = "Who can see your profile",
@@ -969,7 +994,7 @@ fun defaultSoulMatchPrivacy(): LegalDocumentData = LegalDocumentData(
         ),
         LegalSectionData(
             heading = "Chats and safety",
-            body = "Messages, interests, reports, and safety actions may be processed to protect members, investigate complaints, and improve trust on the platform."
+            body = "Messages, interests, reports, and safety actions may be processed through rule-based and optional AI-assisted checks to protect members, investigate complaints, block risky requests, and improve trust on the platform."
         ),
         LegalSectionData(
             heading = "Payments",
@@ -977,7 +1002,7 @@ fun defaultSoulMatchPrivacy(): LegalDocumentData = LegalDocumentData(
         ),
         LegalSectionData(
             heading = "Sharing with partners",
-            body = "We share limited information with trusted service providers such as hosting, analytics, payment, notification, and support partners only for operating SoulMatch."
+            body = "We share limited information with trusted service providers such as hosting, analytics, payment, notification, support, and configured AI providers only for operating SoulMatch features and safety checks."
         ),
         LegalSectionData(
             heading = "Your choices",

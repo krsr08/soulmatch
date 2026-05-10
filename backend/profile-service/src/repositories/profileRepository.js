@@ -2,6 +2,7 @@ const { getDB } = require('../config/database');
 const { randomUUID } = require('crypto');
 const { scoreAdvisorCandidate, normalizeList } = require('../services/assistAllocationService');
 const logger = require('../utils/logger');
+const DPDP_NOTICE_VERSION = 'dpdp-2026-05-10-v1';
 
 function parseJsonList(value) {
   if (Array.isArray(value)) return value;
@@ -57,6 +58,51 @@ async function notifyMember(db, userId, title, body, data = {}) {
     [randomUUID(), userId, title, body, JSON.stringify(data || {})]
   );
   return false;
+}
+
+async function insertConsentEvent(client, {
+  userId = null,
+  profileId = null,
+  consentType,
+  status = 'granted',
+  purpose,
+  noticeVersion = DPDP_NOTICE_VERSION,
+  metadata = {},
+  audit = {}
+}) {
+  if (!consentType || !purpose) return null;
+  const result = await client.query(
+    `INSERT INTO consent_events (
+       consent_event_id,
+       user_id,
+       profile_id,
+       consent_type,
+       status,
+       purpose,
+       notice_version,
+       metadata,
+       source,
+       ip_address,
+       user_agent,
+       created_at
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,NOW())
+     RETURNING consent_event_id`,
+    [
+      randomUUID(),
+      userId,
+      profileId,
+      consentType,
+      status,
+      purpose,
+      noticeVersion,
+      JSON.stringify(metadata || {}),
+      audit.source || 'member_app',
+      audit.ipAddress || null,
+      audit.userAgent || null
+    ]
+  );
+  return result.rows[0]?.consent_event_id || null;
 }
 
 function clampScore(value) {
@@ -535,6 +581,18 @@ exports.createVerificationRequest = async (profile, data) => {
     }
     const verificationId = randomUUID();
     const documentUrl = data.documentUrl || current.primary_photo_url || null;
+    const consentEventId = documentUrl ? await insertConsentEvent(client, {
+      userId: profile.user_id,
+      profileId: profile.profile_id,
+      consentType: 'kyc_upload',
+      status: 'granted',
+      purpose: 'Member submitted an identity or profile verification document for admin review.',
+      metadata: {
+        verificationType: data.type || 'profile',
+        hasDocumentUrl: Boolean(documentUrl)
+      },
+      audit: data.audit || {}
+    }) : null;
     const inserted = await client.query(
       `INSERT INTO verifications (verification_id,user_id,type,status,document_url,created_at)
        VALUES ($1,$2,$3,'pending',$4,NOW())
@@ -556,7 +614,8 @@ exports.createVerificationRequest = async (profile, data) => {
           verificationId,
           profileId: profile.profile_id,
           userId: profile.user_id,
-          verificationType: data.type
+          verificationType: data.type,
+          consentEventId
         })
       ]
     );
@@ -1350,10 +1409,13 @@ exports.upsertAssistStatus = async (userId, payload) => {
          assigned_advisor_id,
          assigned_at,
          next_review_at,
+         consent_notice_version,
+         consent_granted_at,
+         consent_withdrawn_at,
          created_at,
          updated_at
        )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW() + INTERVAL '7 days',NOW(),NOW())
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW() + INTERVAL '7 days',$13,$14,$15,NOW(),NOW())
        ON CONFLICT (profile_id) DO UPDATE SET
          is_opted_in=$3,
          support_level=$4,
@@ -1366,6 +1428,9 @@ exports.upsertAssistStatus = async (userId, payload) => {
          assigned_advisor_id=$11,
          assigned_at=$12,
          next_review_at=NOW() + INTERVAL '7 days',
+         consent_notice_version=$13,
+         consent_granted_at=COALESCE($14, assisted_match_profiles.consent_granted_at),
+         consent_withdrawn_at=$15,
          updated_at=NOW()
        RETURNING *`,
       [
@@ -1380,12 +1445,41 @@ exports.upsertAssistStatus = async (userId, payload) => {
         payload.familyContactPhone || null,
         payload.notes || null,
         assignedAdvisorId,
-        assignedAt
+        assignedAt,
+        DPDP_NOTICE_VERSION,
+        isOptedIn ? new Date() : null,
+        isOptedIn ? null : new Date()
       ]
     );
 
+    await insertConsentEvent(client, {
+      userId,
+      profileId: profile.profile_id,
+      consentType: 'soulmatch_assistance',
+      status: isOptedIn ? 'granted' : 'withdrawn',
+      purpose: 'Member controls SoulMatch Assistance preference and whether the app can surface agent discovery/offline support options.',
+      metadata: {
+        supportLevel,
+        requestStatus,
+        shareMode
+      },
+      audit: payload.audit || {}
+    });
+
     await client.query('DELETE FROM assisted_match_profile_advisors WHERE assisted_profile_id = $1', [upserted.rows[0].assisted_profile_id]);
     if (isOptedIn && supportLevel === 'advisor_assisted' && selectedAdvisorIds.length > 0) {
+      await insertConsentEvent(client, {
+        userId,
+        profileId: profile.profile_id,
+        consentType: 'agent_profile_share',
+        status: 'granted',
+        purpose: 'Member chose specific active agents who may receive profile context for direct offline support.',
+        metadata: {
+          shareMode,
+          selectedAdvisorIds
+        },
+        audit: payload.audit || {}
+      });
       for (const advisorId of selectedAdvisorIds) {
         await client.query(
           `INSERT INTO assisted_match_profile_advisors (
@@ -1402,6 +1496,19 @@ exports.upsertAssistStatus = async (userId, payload) => {
           [randomUUID(), upserted.rows[0].assisted_profile_id, profile.profile_id, advisorId]
         );
       }
+    } else {
+      await insertConsentEvent(client, {
+        userId,
+        profileId: profile.profile_id,
+        consentType: 'agent_profile_share',
+        status: 'withdrawn',
+        purpose: 'Member did not allow profile sharing with agents in the current SoulMatch Assistance settings.',
+        metadata: {
+          shareMode,
+          selectedAdvisorIds: []
+        },
+        audit: payload.audit || {}
+      });
     }
 
     await client.query(
@@ -1727,6 +1834,40 @@ exports.updatePrivacy = async (profileId, data) => {
     'UPDATE profiles SET photo_privacy=COALESCE($1,photo_privacy),profile_visibility=COALESCE($2,profile_visibility),hide_last_seen=COALESCE($3,hide_last_seen),updated_at=NOW() WHERE profile_id=$4',
     [photoPrivacy, profileVisibility, hideLastSeen, profileId]
   );
+};
+
+exports.recordConsentEvent = async (event) => {
+  const db = await getDB();
+  return insertConsentEvent(db, event);
+};
+exports.recordAiAssistEvent = async ({
+  userId,
+  profileId,
+  targetProfileId = null,
+  eventType,
+  provider = 'local',
+  model = 'fallback',
+  source = 'rules',
+  metadata = {}
+}) => {
+  if (!userId || !eventType) return;
+  const db = await getDB();
+  await db.query(
+    `INSERT INTO analytics_events (event_type, service_name, user_id, payload, created_at)
+     VALUES ($1,'profile-service',$2,$3::jsonb,NOW())`,
+    [
+      eventType,
+      userId,
+      JSON.stringify({
+        profileId,
+        targetProfileId,
+        provider,
+        model,
+        source,
+        ...metadata
+      })
+    ]
+  ).catch((error) => logger.warn(`AI assist event logging failed: ${error.message}`));
 };
 exports.updateProfileStatus = async (profileId, status) => {
   const normalized = normalizeProfileStatus(status);
@@ -2136,6 +2277,18 @@ exports.upsertAgentOnboarding = async (userId, payload = {}) => {
     }
 
     const kycDocuments = Array.isArray(payload.kycDocuments) ? payload.kycDocuments : [];
+    const kycConsentEventId = kycDocuments.length ? await insertConsentEvent(client, {
+      userId,
+      profileId: null,
+      consentType: 'agent_kyc_upload',
+      status: 'granted',
+      purpose: 'Agent uploaded business/KYC documents so admins can review agency identity and platform trust eligibility.',
+      metadata: {
+        advisorId,
+        documentCount: kycDocuments.length
+      },
+      audit: payload.audit || {}
+    }) : null;
     for (const document of kycDocuments) {
       const documentType = ['aadhaar', 'pan', 'voter_id'].includes(String(document.documentType || document.document_type || '').trim().toLowerCase())
         ? String(document.documentType || document.document_type).trim().toLowerCase()
@@ -2144,10 +2297,10 @@ exports.upsertAgentOnboarding = async (userId, payload = {}) => {
       if (!documentType || !fileUrl) continue;
       await client.query(
         `INSERT INTO advisor_kyc_documents (
-           advisor_kyc_document_id, advisor_id, document_type, document_side, file_url, status, uploaded_at, created_at, updated_at
+           advisor_kyc_document_id, advisor_id, document_type, document_side, file_url, status, consent_event_id, uploaded_at, created_at, updated_at
          )
-         VALUES ($1,$2,$3,$4,$5,'uploaded',NOW(),NOW(),NOW())`,
-        [randomUUID(), advisorId, documentType, normalizeDocumentSide(document.documentSide || document.document_side), fileUrl]
+         VALUES ($1,$2,$3,$4,$5,'uploaded',$6,NOW(),NOW(),NOW())`,
+        [randomUUID(), advisorId, documentType, normalizeDocumentSide(document.documentSide || document.document_side), fileUrl, kycConsentEventId]
       );
     }
 
@@ -2693,22 +2846,37 @@ exports.upsertManagedProfileDocumentByAgentUserId = async (userId, profileId, pa
   if (!documentType || !fileUrl) return { status: 'invalid_document' };
   const documentSide = normalizeDocumentSide(payload.documentSide || payload.document_side);
   const db = await getDB();
+  const consentEventId = await insertConsentEvent(db, {
+    userId,
+    profileId,
+    consentType: 'kyc_upload',
+    status: 'granted',
+    purpose: 'Agent uploaded supporting documents for a managed member profile verification workflow.',
+    metadata: {
+      advisorId: advisor.advisor_id,
+      managedProfileUserId: profile.user_id,
+      documentType,
+      documentSide
+    },
+    audit: payload.audit || {}
+  });
   const result = await db.query(
     `INSERT INTO profile_documents (
-       profile_document_id, profile_id, advisor_id, document_type, document_side, file_url, status, review_comment, uploaded_at, created_at, updated_at
+       profile_document_id, profile_id, advisor_id, document_type, document_side, file_url, status, review_comment, consent_event_id, uploaded_at, created_at, updated_at
      )
-     VALUES ($1,$2,$3,$4,$5,$6,'uploaded',NULL,NOW(),NOW(),NOW())
+     VALUES ($1,$2,$3,$4,$5,$6,'uploaded',NULL,$7,NOW(),NOW(),NOW())
      ON CONFLICT (profile_id, document_type, document_side) DO UPDATE SET
        advisor_id = EXCLUDED.advisor_id,
        file_url = EXCLUDED.file_url,
        status = 'uploaded',
        review_comment = NULL,
+       consent_event_id = EXCLUDED.consent_event_id,
        uploaded_at = NOW(),
        reviewed_at = NULL,
        reviewed_by = NULL,
        updated_at = NOW()
      RETURNING *`,
-    [randomUUID(), profileId, advisor.advisor_id, documentType, documentSide, fileUrl]
+    [randomUUID(), profileId, advisor.advisor_id, documentType, documentSide, fileUrl, consentEventId]
   );
   return { status: 'saved', document: result.rows[0] };
 };

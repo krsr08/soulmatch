@@ -11,6 +11,7 @@ import com.soulmatch.app.BuildConfig
 import com.soulmatch.app.MainActivity
 import com.soulmatch.app.R
 import com.soulmatch.app.data.local.UserPreferences
+import com.soulmatch.app.util.CrashReporter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -25,6 +26,7 @@ class SoulMatchFCMService : FirebaseMessagingService() {
         registerToken(token)
     }
     override fun onMessageReceived(msg: RemoteMessage) {
+        CrashReporter.breadcrumb("fcm_message:${msg.data["type"].orEmpty().ifBlank { "default" }}")
         ensureNotificationChannels()
         val title = msg.notification?.title ?: "SoulMatch"; val body = msg.notification?.body ?: ""
         val channel = when (msg.data["type"]) { "message" -> "soulmatch_messages"; else -> "soulmatch_default" }
@@ -45,6 +47,7 @@ class SoulMatchFCMService : FirebaseMessagingService() {
                 .addHeader("Authorization", "Bearer $authToken")
                 .build()
             runCatching { OkHttpClient().newCall(request).execute().close() }
+                .onFailure { CrashReporter.recordNonFatal(it, "fcm_service_token_registration") }
         }
     }
 

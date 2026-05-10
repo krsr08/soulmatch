@@ -58,6 +58,7 @@ import com.soulmatch.app.ui.components.PremiumScreen
 import com.soulmatch.app.ui.components.SignalChip
 import com.soulmatch.app.ui.components.UpgradePlanGate
 import com.soulmatch.app.ui.theme.Divider
+import com.soulmatch.app.ui.theme.ErrorSoft
 import com.soulmatch.app.ui.theme.Info
 import com.soulmatch.app.ui.theme.InfoSoft
 import com.soulmatch.app.ui.theme.PrimaryDark
@@ -88,6 +89,7 @@ fun ChatScreen(
     val messages by vm.messages.collectAsStateWithLifecycle()
     val currentUserId by vm.currentUserId.collectAsStateWithLifecycle()
     val loading by vm.isLoading.collectAsStateWithLifecycle()
+    val sendStatus by vm.sendStatus.collectAsStateWithLifecycle()
     val subscription by subscriptionVm.subscription.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf("") }
     var callAction by remember { mutableStateOf<Boolean?>(null) }
@@ -189,6 +191,13 @@ fun ChatScreen(
                 ) {
                     item {
                         SafetyBanner()
+                    }
+                    if (!sendStatus.isNullOrBlank()) {
+                        item {
+                            PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = ErrorSoft) {
+                                Text(sendStatus ?: "", style = MaterialTheme.typography.bodyMedium, color = PrimaryDark, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
                     }
                     if (!hasActiveMembership) {
                         item {
