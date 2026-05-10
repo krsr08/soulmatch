@@ -65,11 +65,17 @@ class ProfileDetailViewModel @Inject constructor(
                 ?: if (AppEnvironment.allowDemoFallback) MarketFixtures.profileDetails(profileId) else null
             val discoverySummary = resolveDiscoverySummary(profileId)
             _profile.value = remoteProfile?.mergeDiscoverySummary(discoverySummary)
-            _compatibility.value = runCatching { matchingApi.getCompatibility(profileId) }
+            val summaryCompatibility = discoverySummary?.toCompatibilityData()
+            if (summaryCompatibility != null) {
+                _compatibility.value = summaryCompatibility
+            }
+            val remoteCompatibility = runCatching { matchingApi.getCompatibility(profileId) }
                 .getOrNull()
                 ?.body()
                 ?.takeIf { it.success }
                 ?.data
+            _compatibility.value = remoteCompatibility
+                ?: summaryCompatibility
                 ?: if (AppEnvironment.allowDemoFallback) MarketFixtures.compatibility(profileId) else CompatibilityData()
             val participantUserId = _profile.value?.userId.orEmpty()
             _canChat.value = if (participantUserId.isNotBlank()) {
@@ -134,6 +140,14 @@ class ProfileDetailViewModel @Inject constructor(
             trustLevel = if (summary.trustLevel.isNotBlank()) summary.trustLevel else trustLevel,
             trustSignals = if (summary.trustSignals.isNotEmpty()) summary.trustSignals else trustSignals,
             trustFactors = if (summary.trustFactors.isNotEmpty()) summary.trustFactors else trustFactors
+        )
+    }
+
+    private fun ProfileSummary.toCompatibilityData(): CompatibilityData? {
+        if (compatibilityScore <= 0) return null
+        return CompatibilityData(
+            overallScore = compatibilityScore.coerceIn(0, 99),
+            breakdown = compatibilityBreakdown
         )
     }
 

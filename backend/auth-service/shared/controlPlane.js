@@ -59,6 +59,7 @@ const DEFAULT_CONFIG = {
       bestMatchesTitle: 'Best matches',
       bestMatchesSubtitle: 'High-signal cards with interest, shortlist, profile, and more actions',
       bestMatchMinimumProfiles: 5,
+      bestMatchHighCompatibilityThreshold: 80,
       bestMatchInsertFrequency: 2,
       showBestMatchInsertCards: true,
       showBestMatchUpgradeCards: true,

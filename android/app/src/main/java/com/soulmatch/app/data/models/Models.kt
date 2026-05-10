@@ -848,6 +848,7 @@ data class HomeContentData(
     val bestMatchesTitle: String = "Best matches",
     val bestMatchesSubtitle: String = "High-signal cards with interest, shortlist, profile, and more actions",
     val bestMatchMinimumProfiles: Int = 5,
+    val bestMatchHighCompatibilityThreshold: Int = 80,
     val bestMatchInsertFrequency: Int = 2,
     val showBestMatchInsertCards: Boolean = true,
     val showBestMatchUpgradeCards: Boolean = true,

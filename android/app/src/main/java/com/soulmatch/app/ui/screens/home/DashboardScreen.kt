@@ -186,7 +186,11 @@ fun DashboardScreen(
             .thenBy { it.name }
     )
     val bestMatchProfileTarget = content.bestMatchMinimumProfiles.coerceAtLeast(5)
-    val highCompatibilityCount = rankedMatches.count { it.compatibilityScore >= 90 }
+    val highCompatibilityThreshold = content.bestMatchHighCompatibilityThreshold
+        .takeIf { it > 0 }
+        ?.coerceIn(70, 95)
+        ?: 80
+    val highCompatibilityCount = rankedMatches.count { it.compatibilityScore >= highCompatibilityThreshold }
     val bestMatchProfileCount = maxOf(bestMatchProfileTarget, highCompatibilityCount)
         .coerceAtMost(rankedMatches.size)
     val bestMatches = rankedMatches.take(bestMatchProfileCount)
