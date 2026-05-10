@@ -20,9 +20,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.Button
@@ -34,6 +36,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -45,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -100,7 +104,6 @@ fun SoulMatchAssistScreen(
     val isLoading by vm.isLoading.collectAsStateWithLifecycle()
     val isSaving by vm.isSavingAssist.collectAsStateWithLifecycle()
     var assistEnabled by remember(assist.profileId, assist.isOptedIn) { mutableStateOf(assist.isOptedIn) }
-    var supportLevel by remember(assist.profileId, assist.supportLevel) { mutableStateOf(assist.supportLevel) }
     var shareMode by remember(assist.profileId, assist.shareMode) { mutableStateOf(assist.shareMode) }
     var selectedAdvisorIds by remember(assist.profileId, assist.selectedAdvisorIds) { mutableStateOf(assist.selectedAdvisorIds) }
     var preferredWindow by remember(assist.profileId, assist.preferredContactWindow) { mutableStateOf(assist.preferredContactWindow) }
@@ -122,14 +125,27 @@ fun SoulMatchAssistScreen(
         assist.location.pincode
     ).filter { it.isNotBlank() }.joinToString(", ")
     val hasSavedFamilyDetails = familyContactName.isNotBlank() || familyContactPhone.isNotBlank() || preferredWindow.isNotBlank() || notes.isNotBlank()
-    val showAgentSelection = assistEnabled && supportLevel == "advisor_assisted"
+    val desiredSupportLevel = if (assistEnabled) "advisor_assisted" else "self_service"
+    val showAgentSelection = assistEnabled
+    val showFamilyEditor = assistEnabled && (editFamilyDetails || !hasSavedFamilyDetails)
+    val selectedAdvisorIdsForSave = if (showAgentSelection) selectedAdvisorIds else emptyList()
+    val hasUnsavedAssistChanges =
+        assistEnabled != assist.isOptedIn ||
+            desiredSupportLevel != assist.supportLevel ||
+            shareMode != assist.shareMode ||
+            selectedAdvisorIdsForSave != assist.selectedAdvisorIds ||
+            preferredWindow != assist.preferredContactWindow ||
+            familyContactName != assist.familyContactName ||
+            familyContactPhone != assist.familyContactPhone ||
+            notes != assist.notes
+    val showSaveCta = showFamilyEditor || hasUnsavedAssistChanges
     val canSaveSelection = !showAgentSelection || selectedAdvisorIds.isNotEmpty()
     val saveAssistChanges = {
         vm.updateAssistStatus(
             isOptedIn = assistEnabled,
-            supportLevel = supportLevel,
+            supportLevel = desiredSupportLevel,
             shareMode = shareMode,
-            selectedAdvisorIds = if (showAgentSelection) selectedAdvisorIds else emptyList(),
+            selectedAdvisorIds = selectedAdvisorIdsForSave,
             preferredContactWindow = preferredWindow,
             familyContactName = familyContactName,
             familyContactPhone = familyContactPhone,
@@ -164,25 +180,37 @@ fun SoulMatchAssistScreen(
                     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             SectionTitle("Control your assistance preference", "Enable SoulMatch Assistance if you want agent discovery and offline support options saved to your profile.")
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf(
-                                    "self_service" to "Self",
-                                    "family_assisted" to "Family",
-                                    "advisor_assisted" to "Agent"
-                                ).forEach { (value, label) ->
-                                    FilterChoiceChip(
-                                        label = label,
-                                        selected = supportLevel == value,
-                                        onClick = {
-                                            supportLevel = value
-                                            assistEnabled = value != "self_service"
-                                            if (value != "advisor_assisted") {
-                                                shareMode = "single"
-                                                selectedAdvisorIds = emptyList()
-                                            }
-                                        }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        if (assistEnabled) "Assistance is enabled" else "Assistance is disabled",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                    Text(
+                                        if (assistEnabled) {
+                                            "You can save family contact details and share your profile with selected local agents."
+                                        } else {
+                                            "Turn this on only when you want offline agent discovery support."
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextSecondary
                                     )
                                 }
+                                Switch(
+                                    checked = assistEnabled,
+                                    onCheckedChange = { enabled ->
+                                        assistEnabled = enabled
+                                        if (!enabled) {
+                                            shareMode = "single"
+                                            selectedAdvisorIds = emptyList()
+                                        }
+                                    }
+                                )
                             }
                             Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, Divider)) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -197,22 +225,36 @@ fun SoulMatchAssistScreen(
                             if (locationSummary.isNotBlank()) {
                                 MetricPill("Family location", locationSummary, background = MaterialTheme.colorScheme.surface)
                             }
-                            if (hasSavedFamilyDetails && !editFamilyDetails) {
-                                FamilyAssistSummaryCard(
-                                    familyContactName = familyContactName,
-                                    familyContactPhone = familyContactPhone,
-                                    preferredWindow = preferredWindow,
-                                    notes = notes,
-                                    onEdit = { editFamilyDetails = true },
-                                    onReset = {
-                                        familyContactName = ""
-                                        familyContactPhone = ""
-                                        preferredWindow = ""
-                                        notes = ""
-                                        editFamilyDetails = true
-                                    }
+                        }
+                    }
+                }
+                if (hasSavedFamilyDetails && !editFamilyDetails) {
+                    item {
+                        FamilyAssistSummaryCard(
+                            locationSummary = locationSummary,
+                            familyContactName = familyContactName,
+                            familyContactPhone = familyContactPhone,
+                            preferredWindow = preferredWindow,
+                            notes = notes,
+                            onEdit = { editFamilyDetails = true },
+                            onReset = {
+                                familyContactName = ""
+                                familyContactPhone = ""
+                                preferredWindow = ""
+                                notes = ""
+                                editFamilyDetails = true
+                            },
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+                } else if (showFamilyEditor) {
+                    item {
+                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                SectionTitle(
+                                    if (hasSavedFamilyDetails) "Edit family details" else "Add family details",
+                                    "These details are shared only with the agents you select."
                                 )
-                            } else {
                                 OutlinedTextField(
                                     value = familyContactName,
                                     onValueChange = { familyContactName = it },
@@ -242,7 +284,13 @@ fun SoulMatchAssistScreen(
                                     minLines = 3
                                 )
                             }
-                            if (showAgentSelection) {
+                        }
+                    }
+                }
+                if (showAgentSelection) {
+                    item {
+                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 SectionTitle(
                                     "Share your profile with agents",
                                     "Choose whether to share with one trusted agent or multiple agents, then select who should receive your profile."
@@ -269,18 +317,29 @@ fun SoulMatchAssistScreen(
                                     color = TextSecondary
                                 )
                             }
-                            Button(
-                                onClick = saveAssistChanges,
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !isLoading && !isSaving && canSaveSelection
-                            ) {
-                                Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Text("Save SoulMatch Assistance")
-                            }
                         }
                     }
                 }
-                if (supportLevel == "advisor_assisted" && !assist.readiness.canAutoAssign) {
+                if (showSaveCta) {
+                    item {
+                        Button(
+                            onClick = {
+                                saveAssistChanges()
+                                if (hasSavedFamilyDetails || familyContactName.isNotBlank() || familyContactPhone.isNotBlank() || preferredWindow.isNotBlank() || notes.isNotBlank()) {
+                                    editFamilyDetails = false
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            enabled = !isLoading && !isSaving && canSaveSelection
+                        ) {
+                            Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("Save SoulMatch Assistance")
+                        }
+                    }
+                }
+                if (showAgentSelection && !assist.readiness.canAutoAssign) {
                     item {
                         StatusInfoCard(
                             title = "Add stronger locality details for advisor routing",
@@ -363,14 +422,17 @@ fun SoulMatchAssistScreen(
 
 @Composable
 private fun FamilyAssistSummaryCard(
+    locationSummary: String,
     familyContactName: String,
     familyContactPhone: String,
     preferredWindow: String,
     notes: String,
     onEdit: () -> Unit,
-    onReset: () -> Unit
+    onReset: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Surface(
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, Divider)
@@ -381,28 +443,63 @@ private fun FamilyAssistSummaryCard(
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SectionTitle("Saved family details", "These details will be shared with the agents you select.")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Saved family details", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    if (locationSummary.isNotBlank()) {
+                        Text(locationSummary, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Filled.Edit, contentDescription = "Edit saved family details", tint = MaterialTheme.colorScheme.primary)
+                    }
+                    IconButton(onClick = onReset) {
+                        Icon(Icons.Filled.Refresh, contentDescription = "Reset saved family details", tint = TextSecondary)
+                    }
+                }
+            }
             if (familyContactName.isNotBlank()) {
-                MetricPill("Contact", familyContactName, background = SurfaceSoft)
+                SavedFamilyDetailRow("Contact", familyContactName)
             }
             if (familyContactPhone.isNotBlank()) {
-                MetricPill("Phone", familyContactPhone, background = SurfaceSoft)
+                SavedFamilyDetailRow("Phone", familyContactPhone)
             }
             if (preferredWindow.isNotBlank()) {
-                MetricPill("Preferred time", preferredWindow, background = SurfaceSoft)
+                SavedFamilyDetailRow("Preferred time", preferredWindow)
             }
             if (notes.isNotBlank()) {
                 Text(notes, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f)) {
-                    Text("Edit")
-                }
-                OutlinedButton(onClick = onReset, modifier = Modifier.weight(1f)) {
-                    Text("Reset")
-                }
-            }
         }
+    }
+}
+
+@Composable
+private fun SavedFamilyDetailRow(
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = TextSecondary, modifier = Modifier.weight(0.42f))
+        Text(
+            value,
+            modifier = Modifier.weight(0.58f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            textAlign = TextAlign.End,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -415,9 +512,34 @@ private fun AssistStatsRow(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        MetricPill("Active", stats.activeCount.toString(), modifier = Modifier.weight(1f), background = SurfaceSoft)
-        MetricPill("Verified", stats.verifiedCount.toString(), modifier = Modifier.weight(1f), background = SuccessSoft)
-        MetricPill("Unverified", stats.unverifiedCount.toString(), modifier = Modifier.weight(1f), background = SurfaceWarm)
+        AssistStatCard("Active", stats.activeCount.toString(), Modifier.weight(1f), MaterialTheme.colorScheme.primary, SurfaceSoft)
+        AssistStatCard("Verified", stats.verifiedCount.toString(), Modifier.weight(1f), Success, SuccessSoft)
+        AssistStatCard("Unverified", stats.unverifiedCount.toString(), Modifier.weight(1f), TextSecondary, MaterialTheme.colorScheme.surface)
+    }
+}
+
+@Composable
+private fun AssistStatCard(
+    label: String,
+    value: String,
+    modifier: Modifier,
+    accent: androidx.compose.ui.graphics.Color,
+    background: androidx.compose.ui.graphics.Color
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = background,
+        border = BorderStroke(1.dp, Divider.copy(alpha = 0.8f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = accent)
+            Text(label, style = MaterialTheme.typography.labelMedium, color = TextSecondary, maxLines = 1)
+        }
     }
 }
 
@@ -431,12 +553,14 @@ private fun AdvisorDirectoryCard(
     onToggleSelection: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
-    val isVerified = advisor.reasons.any { it.contains("verified", ignoreCase = true) }
+    val isVerified = advisor.score > 0 || advisor.reasons.any { it.contains("verified", ignoreCase = true) }
+    val location = listOf(advisor.locality, advisor.city, advisor.state).filter { it.isNotBlank() }.joinToString(", ")
+        .ifBlank { "Location shared after contact" }
     PremiumCard(
         modifier = modifier,
         containerColor = if (isHighlighted) SurfaceWarm else MaterialTheme.colorScheme.surface
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -463,13 +587,13 @@ private fun AdvisorDirectoryCard(
                     }
                     Text(
                         advisor.serviceLabel.ifBlank { "Registered agent" },
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        listOf(advisor.locality, advisor.city, advisor.state).filter { it.isNotBlank() }.joinToString(", ").ifBlank { "Location shared after contact" },
+                        location,
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
@@ -478,19 +602,13 @@ private fun AdvisorDirectoryCard(
             if (advisor.bio.isNotBlank()) {
                 Text(advisor.bio, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
             }
-            if (advisor.languages.isNotEmpty() || advisor.communities.isNotEmpty()) {
-                SignalChips(
-                    labels = (advisor.languages.take(2) + advisor.communities.take(2)).distinct().take(4),
-                    tone = ChipTone.Info
-                )
-            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                MetricPill("Success", "${advisor.successRate.toInt()}%", modifier = Modifier.weight(1f), background = SurfaceSoft)
-                MetricPill("Rating", String.format("%.1f/5", advisor.averageRating), modifier = Modifier.weight(1f), background = SurfaceSoft)
-                MetricPill("Cases", advisor.activeAssignments.toString(), modifier = Modifier.weight(1f), background = SurfaceSoft)
+                AgentMetric("Success", "${advisor.successRate.toInt()}%", modifier = Modifier.weight(1f))
+                AgentMetric("Rating", String.format("%.1f/5", advisor.averageRating), modifier = Modifier.weight(1f))
+                AgentMetric("Cases", advisor.activeAssignments.toString(), modifier = Modifier.weight(1f))
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -510,25 +628,48 @@ private fun AdvisorDirectoryCard(
                             context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${advisor.phone}")))
                         }
                     },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.size(44.dp),
+                    contentPadding = PaddingValues(0.dp),
                     enabled = advisor.phone.isNotBlank()
                 ) {
                     Icon(Icons.Filled.Call, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text("Call")
                 }
-                Button(
+                OutlinedButton(
                     onClick = {
                         if (advisor.email.isNotBlank()) {
                             context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:${advisor.email}")))
                         }
                     },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.size(44.dp),
+                    contentPadding = PaddingValues(0.dp),
                     enabled = advisor.email.isNotBlank()
                 ) {
                     Icon(Icons.Filled.Email, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text("Email")
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AgentMetric(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(8.dp),
+        color = SurfaceSoft,
+        border = BorderStroke(1.dp, Divider.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+            Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = TextSecondary, maxLines = 1)
         }
     }
 }
