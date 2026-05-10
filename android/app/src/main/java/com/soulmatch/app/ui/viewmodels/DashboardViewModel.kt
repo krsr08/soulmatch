@@ -291,16 +291,27 @@ class DashboardViewModel @Inject constructor(
         verifiedOnly: Boolean
     ): List<ProfileSummary> {
         val seedMap = seed.associateBy { it.profileId }
+        val candidateGender = oppositeGender(_myProfile.value.gender)
         val response = runCatching {
-            searchApi.advancedSearch(SearchRequest(page = 1, limit = 25, verifiedOnly = verifiedOnly))
+            searchApi.advancedSearch(
+                SearchRequest(
+                    page = 1,
+                    limit = 25,
+                    verifiedOnly = verifiedOnly,
+                    gender = candidateGender
+                )
+            )
         }.getOrNull()
-        return response
+        val topUpProfiles = response
             ?.body()
             ?.takeIf { response.isSuccessful && it.success }
             ?.data
             ?.results
             ?.map { result -> result.toProfileSummary(seedMap[result.profileId]) }
             .orEmpty()
+        return topUpProfiles.map { profile ->
+            if (profile.profileId in seedMap) profile else profile.withLiveCompatibility()
+        }
     }
 
     private fun mergeDiscoveryProfiles(
@@ -312,6 +323,28 @@ class DashboardViewModel @Inject constructor(
             if (profile.profileId.isNotBlank()) byId.putIfAbsent(profile.profileId, profile)
         }
         return byId.values.toList()
+    }
+
+    private suspend fun ProfileSummary.withLiveCompatibility(): ProfileSummary {
+        if (profileId.isBlank()) return this
+        val response = runCatching { matchingApi.getCompatibility(profileId) }.getOrNull()
+        val compatibility = response
+            ?.body()
+            ?.takeIf { response.isSuccessful && it.success }
+            ?.data
+            ?: return this
+        return copy(
+            compatibilityScore = compatibility.overallScore.coerceIn(0, 99),
+            compatibilityBreakdown = compatibility.breakdown ?: compatibilityBreakdown
+        )
+    }
+
+    private fun oppositeGender(gender: String): String? {
+        return when (gender.trim().lowercase()) {
+            "male" -> "female"
+            "female" -> "male"
+            else -> null
+        }
     }
 
     private companion object {
