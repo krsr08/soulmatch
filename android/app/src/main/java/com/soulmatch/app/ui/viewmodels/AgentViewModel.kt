@@ -10,6 +10,10 @@ import com.soulmatch.app.data.models.AgentManagedProfileCreateRequest
 import com.soulmatch.app.data.models.AgentOnboardingRequest
 import com.soulmatch.app.data.models.AgentProfileData
 import com.soulmatch.app.data.models.AgentProfileUpsertRequest
+import com.soulmatch.app.data.models.PaymentVerifyRequest
+import com.soulmatch.app.data.payments.PaymentCoordinator
+import com.soulmatch.app.data.payments.PaymentOutcome
+import com.soulmatch.app.data.payments.PendingCheckout
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +32,8 @@ data class AgentUiState(
     val agentProfile: AgentProfileData? = null,
     val membership: AgentMembershipData? = null,
     val managedProfiles: List<AgentManagedProfileSummaryData> = emptyList(),
+    val pennyCheckout: PendingCheckout? = null,
+    val processingPennyDrop: Boolean = false,
     val error: String? = null,
     val saveMessage: String? = null
 )
@@ -35,13 +41,36 @@ data class AgentUiState(
 @HiltViewModel
 class AgentViewModel @Inject constructor(
     private val profileApi: ProfileApiService,
-    private val userPreferences: UserPreferences
+    private val userPreferences: UserPreferences,
+    private val paymentCoordinator: PaymentCoordinator
 ) : ViewModel() {
     private val _state = MutableStateFlow(AgentUiState(loading = true))
     val state: StateFlow<AgentUiState> = _state.asStateFlow()
 
     init {
+        observePaymentResults()
         refresh()
+    }
+
+    private fun observePaymentResults() {
+        viewModelScope.launch {
+            paymentCoordinator.results.collect { result ->
+                when (result) {
+                    is PaymentOutcome.Success -> {
+                        if (result.order.planId == "agent_penny_drop") verifyPennyDropPayment(result)
+                    }
+                    is PaymentOutcome.Failure -> {
+                        if (result.order?.planId == "agent_penny_drop") {
+                            _state.value = _state.value.copy(
+                                processingPennyDrop = false,
+                                pennyCheckout = null,
+                                error = result.message.ifBlank { "Bank verification payment was not completed." }
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun refresh() {
@@ -99,6 +128,10 @@ class AgentViewModel @Inject constructor(
                     "businessName" to request.businessName.asPlainPart(),
                     "referralCode" to request.referralCode.asPlainPart(),
                     "serviceLabel" to request.serviceLabel.asPlainPart(),
+                    "yearsExperience" to request.yearsExperience.toString().asPlainPart(),
+                    "languages" to JSONArray(request.languages).toString().asPlainPart(),
+                    "termsAccepted" to request.termsAccepted.toString().asPlainPart(),
+                    "termsVersion" to request.termsVersion.asPlainPart(),
                     "kycDocumentMeta" to JSONArray(documentMeta).toString().asPlainPart(),
                     "kycDocuments" to JSONArray(request.kycDocuments.map {
                         mapOf(
@@ -218,6 +251,7 @@ class AgentViewModel @Inject constructor(
                     status = status,
                     languages = current?.languages.orEmpty(),
                     communities = current?.communities.orEmpty(),
+                    yearsExperience = current?.yearsExperience ?: 0,
                     feePreferences = mapOf(
                         "enabled" to enabled.toString(),
                         "matchSearchingRateInr" to verifiedProfileRate.trim(),
@@ -237,6 +271,74 @@ class AgentViewModel @Inject constructor(
                 }
             } catch (error: Exception) {
                 _state.value = _state.value.copy(saving = false, error = error.message ?: "Could not save commission settings.")
+            }
+        }
+    }
+
+    fun startPennyDropVerification() {
+        viewModelScope.launch {
+            _state.value = _state.value.copy(processingPennyDrop = true, error = null, saveMessage = null)
+            try {
+                val response = profileApi.createAgentPennyDropOrder()
+                val order = response.body()?.takeIf { response.isSuccessful && it.success }?.data
+                if (order == null) {
+                    _state.value = _state.value.copy(
+                        processingPennyDrop = false,
+                        error = response.body()?.error?.message ?: "Could not start bank verification."
+                    )
+                    return@launch
+                }
+                val checkout = PendingCheckout(order = order, planName = "Agent bank verification")
+                paymentCoordinator.registerCheckout(checkout)
+                _state.value = _state.value.copy(pennyCheckout = checkout)
+            } catch (error: Exception) {
+                _state.value = _state.value.copy(processingPennyDrop = false, error = error.message ?: "Could not start bank verification.")
+            }
+        }
+    }
+
+    fun markPennyCheckoutConsumed() {
+        _state.value = _state.value.copy(pennyCheckout = null)
+    }
+
+    fun failPennyCheckout(message: String) {
+        viewModelScope.launch {
+            paymentCoordinator.completeFailure(message)
+        }
+    }
+
+    private fun verifyPennyDropPayment(result: PaymentOutcome.Success) {
+        viewModelScope.launch {
+            try {
+                val response = profileApi.verifyAgentPennyDropPayment(
+                    PaymentVerifyRequest(
+                        orderId = result.order.orderId,
+                        paymentId = result.paymentId,
+                        signature = result.signature,
+                        planId = result.order.planId
+                    )
+                )
+                if (response.isSuccessful && response.body()?.success == true) {
+                    _state.value = _state.value.copy(
+                        processingPennyDrop = false,
+                        pennyCheckout = null,
+                        saveMessage = "Bank access payment confirmed. Final verification is pending review.",
+                        agentProfile = response.body()?.data ?: _state.value.agentProfile
+                    )
+                    refresh()
+                } else {
+                    _state.value = _state.value.copy(
+                        processingPennyDrop = false,
+                        pennyCheckout = null,
+                        error = response.body()?.error?.message ?: "Bank verification payment could not be confirmed."
+                    )
+                }
+            } catch (error: Exception) {
+                _state.value = _state.value.copy(
+                    processingPennyDrop = false,
+                    pennyCheckout = null,
+                    error = error.message ?: "Bank verification payment could not be confirmed."
+                )
             }
         }
     }

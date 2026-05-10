@@ -780,6 +780,14 @@ exports.updateAdvisorStatus = async (req, res) => {
              WHEN $3 = 'pending' THEN 'pending'
              ELSE onboarding_status
            END,
+           aadhaar_verification_status = CASE WHEN $3 = 'approved' THEN 'verified' WHEN $3 = 'rejected' THEN 'rejected' ELSE aadhaar_verification_status END,
+           pan_verification_status = CASE WHEN $3 = 'approved' THEN 'verified' WHEN $3 = 'rejected' THEN 'rejected' ELSE pan_verification_status END,
+           kyc_name_match_status = CASE WHEN $3 = 'approved' THEN 'matched' WHEN $3 = 'rejected' THEN 'manual_review' ELSE kyc_name_match_status END,
+           bank_verification_status = CASE WHEN $3 = 'approved' THEN 'verified' WHEN $3 = 'rejected' THEN 'rejected' ELSE bank_verification_status END,
+           bank_name_match_status = CASE WHEN $3 = 'approved' THEN 'matched' WHEN $3 = 'rejected' THEN 'manual_review' ELSE bank_name_match_status END,
+           penny_drop_status = CASE WHEN $3 = 'approved' THEN 'verified' WHEN $3 = 'rejected' THEN 'failed' ELSE penny_drop_status END,
+           penny_drop_name_match_status = CASE WHEN $3 = 'approved' THEN 'matched' WHEN $3 = 'rejected' THEN 'manual_review' ELSE penny_drop_name_match_status END,
+           fraud_review_status = CASE WHEN $3 = 'approved' THEN 'cleared' WHEN $3 = 'rejected' THEN 'needs_resubmission' ELSE fraud_review_status END,
            updated_at = NOW()
        WHERE advisor_id = $1
        RETURNING *`,
@@ -824,6 +832,14 @@ exports.approveAgent = async (req, res) => {
        SET onboarding_status = 'approved',
            kyc_status = 'approved',
            status = COALESCE($2, status),
+           aadhaar_verification_status = 'verified',
+           pan_verification_status = 'verified',
+           kyc_name_match_status = 'matched',
+           bank_verification_status = 'verified',
+           bank_name_match_status = 'matched',
+           penny_drop_status = 'verified',
+           penny_drop_name_match_status = 'matched',
+           fraud_review_status = 'cleared',
            approved_at = NOW(),
            approved_by = $3,
            rejected_at = NULL,
@@ -861,6 +877,10 @@ exports.rejectAgent = async (req, res) => {
       `UPDATE advisors
        SET onboarding_status = 'rejected',
            kyc_status = 'rejected',
+           aadhaar_verification_status = 'rejected',
+           pan_verification_status = 'rejected',
+           bank_verification_status = 'rejected',
+           fraud_review_status = 'needs_resubmission',
            onboarding_rejection_reason = $2,
            rejected_at = NOW(),
            updated_at = NOW()

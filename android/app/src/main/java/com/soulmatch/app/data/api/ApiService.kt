@@ -27,6 +27,8 @@ interface ProfileApiService {
         @PartMap fields: Map<String, @JvmSuppressWildcards RequestBody>,
         @Part documents: List<MultipartBody.Part>
     ): Response<GenericResponse<AgentProfileData>>
+    @POST("profile/agent/penny-drop/order") suspend fun createAgentPennyDropOrder(): Response<GenericResponse<OrderData>>
+    @POST("profile/agent/penny-drop/verify") suspend fun verifyAgentPennyDropPayment(@Body req: PaymentVerifyRequest): Response<GenericResponse<AgentProfileData>>
     @GET("profile/agent/membership") suspend fun getAgentMembership(): Response<GenericResponse<AgentMembershipData>>
     @GET("profile/agent/membership/plans") suspend fun getAgentMembershipPlans(): Response<GenericResponse<List<AgentMembershipData>>>
     @GET("profile/agent/managed-profiles") suspend fun getAgentManagedProfiles(): Response<GenericResponse<List<AgentManagedProfileSummaryData>>>

@@ -91,6 +91,21 @@ data class AgentProfileData(
     @SerializedName("kycStatus") val kycStatus: String = "pending",
     @SerializedName("onboardingStatus") val onboardingStatus: String = "pending",
     @SerializedName("onboardingRejectionReason") val onboardingRejectionReason: String = "",
+    @SerializedName("aadhaarVerificationStatus") val aadhaarVerificationStatus: String = "not_started",
+    @SerializedName("panVerificationStatus") val panVerificationStatus: String = "not_started",
+    @SerializedName("kycNameMatchStatus") val kycNameMatchStatus: String = "pending",
+    @SerializedName("bankVerificationStatus") val bankVerificationStatus: String = "not_started",
+    @SerializedName("bankName") val bankName: String = "",
+    @SerializedName("bankAccountLast4") val bankAccountLast4: String = "",
+    @SerializedName("bankIfsc") val bankIfsc: String = "",
+    @SerializedName("bankNameMatchStatus") val bankNameMatchStatus: String = "pending",
+    @SerializedName("pennyDropStatus") val pennyDropStatus: String = "not_started",
+    @SerializedName("pennyDropOrderId") val pennyDropOrderId: String = "",
+    @SerializedName("pennyDropAmountPaise") val pennyDropAmountPaise: Int = 100,
+    @SerializedName("pennyDropNameMatchStatus") val pennyDropNameMatchStatus: String = "pending",
+    @SerializedName("termsAcceptedAt") val termsAcceptedAt: String? = null,
+    @SerializedName("termsVersion") val termsVersion: String = "",
+    @SerializedName("fraudReviewStatus") val fraudReviewStatus: String = "pending",
     val status: String = "active",
     @SerializedName("feePreferences") val feePreferences: Map<String, String> = emptyMap(),
     @SerializedName("successRate") val successRate: Double = 0.0,
@@ -107,7 +122,11 @@ data class AgentKycDocumentData(
     @SerializedName("documentSide") val documentSide: String = "single",
     @SerializedName("fileUrl") val fileUrl: String = "",
     val status: String = "uploaded",
-    @SerializedName("reviewComment") val reviewComment: String = ""
+    @SerializedName("reviewComment") val reviewComment: String = "",
+    @SerializedName("isEncrypted") val isEncrypted: Boolean = false,
+    @SerializedName("contentSha256") val contentSha256: String = "",
+    @SerializedName("originalFileName") val originalFileName: String = "",
+    @SerializedName("mimeType") val mimeType: String = ""
 )
 
 data class AgentProfileUpsertRequest(
@@ -122,9 +141,12 @@ data class AgentProfileUpsertRequest(
     val pincode: String = "",
     val languages: List<String> = emptyList(),
     val communities: List<String> = emptyList(),
+    val yearsExperience: Int = 0,
     val bio: String = "",
     val serviceLabel: String = "SoulMatch Advisor",
     val status: String = "active",
+    val termsAccepted: Boolean = false,
+    val termsVersion: String = "agent-terms-2026-05-10-v1",
     val feePreferences: Map<String, String> = emptyMap()
 )
 
@@ -137,6 +159,10 @@ data class AgentOnboardingRequest(
     val businessName: String,
     val referralCode: String = "",
     val serviceLabel: String = "SoulMatch Agent",
+    val yearsExperience: Int = 0,
+    val languages: List<String> = emptyList(),
+    val termsAccepted: Boolean = false,
+    val termsVersion: String = "agent-terms-2026-05-10-v1",
     val serviceAreas: List<AgentServiceAreaData> = emptyList(),
     val kycDocuments: List<AgentKycDocumentInput> = emptyList()
 )

@@ -1,6 +1,7 @@
 const repo = require('../repositories/profileRepository');
 const media = require('../services/mediaService');
 const aiAssist = require('../services/aiAssistService');
+const secureDocuments = require('../services/secureDocumentService');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 
 const ALLOWED_VERIFICATION_TYPES = new Set(['profile', 'identity', 'photo', 'education', 'income', 'family']);
@@ -20,8 +21,9 @@ const hasPositiveNumber = (value) => Number.isFinite(Number(value)) && Number(va
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const INDIAN_DATE_RE = /^\d{2}[-/]\d{2}[-/]\d{4}$/;
 const AGENT_REVIEW_STATUSES = new Set(['draft', 'submitted', 'under_review', 'verified', 'rejected']);
-const AGENT_KYC_DOCUMENT_TYPES = new Set(['aadhaar', 'pan', 'voter_id']);
+const AGENT_KYC_DOCUMENT_TYPES = new Set(['aadhaar', 'pan', 'voter_id', 'cancelled_cheque']);
 const AGENT_DOCUMENT_SIDES = new Set(['front', 'back', 'single']);
+const AGENT_TERMS_VERSION = 'agent-terms-2026-05-10-v1';
 
 function requireAgentAccount(req) {
   if (req.user?.userType !== 'agent') {
@@ -212,6 +214,7 @@ function normalizeAgentReviewStatus(value) {
 
 function resolveUploadUrls(files = []) {
   return files.map((file) => {
+    if (file.fileUrl) return file.fileUrl;
     const normalized = file.path.replace(/\\/g, '/');
     return normalized.startsWith('/uploads/') ? normalized : `/uploads/${normalized.split('/').slice(-1)[0]}`;
   });
@@ -236,6 +239,15 @@ function parseAgentKycMeta(rawValue) {
   } catch (_) {
     return [];
   }
+}
+
+function coerceBoolean(value) {
+  return value === true || value === 'true' || value === 1 || value === '1';
+}
+
+function normalizeAgentTermsVersion(value) {
+  const normalized = String(value || AGENT_TERMS_VERSION).trim();
+  return normalized ? normalized.slice(0, 64) : AGENT_TERMS_VERSION;
 }
 
 function normalizeFamilyDecisionPayload(body = {}) {
@@ -895,24 +907,49 @@ exports.upsertAgentOnboarding = async (req, res, next) => {
     if (isBlank(body.fullName) || isBlank(body.phone) || isBlank(body.city) || isBlank(body.state) || isBlank(body.businessName)) {
       return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Full name, phone, city, state, and business name are required.'));
     }
-    const uploadUrls = resolveUploadUrls(req.files || []);
+    const encryptedFiles = await secureDocuments.encryptUploadedFiles(req.files || []);
+    const uploadUrls = resolveUploadUrls(encryptedFiles);
     const uploadedMeta = parseAgentKycMeta(body.kycDocumentMeta || body.kyc_document_meta);
     const inferredUploadDocuments = uploadUrls.map((fileUrl, index) => {
       const meta = uploadedMeta[index] || {};
-      const fallbackType = index === 0 ? 'aadhaar' : 'pan';
+      const fallbackType = index === 0 ? 'aadhaar' : index === 1 ? 'pan' : 'cancelled_cheque';
+      const fileMeta = encryptedFiles[index] || {};
       return {
         documentType: normalizeAgentKycDocumentType(meta.documentType || meta.type) || fallbackType,
         documentSide: normalizeAgentDocumentSide(meta.documentSide || meta.side),
-        fileUrl
+        fileUrl,
+        isEncrypted: fileMeta.isEncrypted === true,
+        encryptionAlgorithm: fileMeta.encryptionAlgorithm,
+        encryptionKeyRef: fileMeta.encryptionKeyRef,
+        encryptionIv: fileMeta.encryptionIv,
+        contentSha256: fileMeta.contentSha256,
+        originalFileName: fileMeta.originalFileName,
+        mimeType: fileMeta.mimeType,
+        fileSizeBytes: fileMeta.fileSizeBytes,
+        extractedMetadata: meta.extractedMetadata || meta.extracted_metadata || {},
+        verificationMetadata: {
+          source: 'agent_upload',
+          digilockerStatus: meta.digilockerStatus || 'not_connected',
+          ocrStatus: meta.ocrStatus || 'pending_vendor'
+        }
       };
     });
     const inlineDocuments = Array.isArray(body.kycDocuments)
       ? body.kycDocuments
       : parseAgentKycMeta(body.kycDocuments);
     const kycDocuments = inlineDocuments.concat(inferredUploadDocuments);
+    const hasRequiredUploads = ['aadhaar', 'pan', 'cancelled_cheque'].every((type) =>
+      kycDocuments.some((document) => normalizeAgentKycDocumentType(document.documentType || document.document_type) === type)
+    );
+    const termsAccepted = coerceBoolean(body.termsAccepted || body.terms_accepted);
+    if (!termsAccepted && hasRequiredUploads) {
+      return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Agent terms must be accepted before KYC submission.'));
+    }
     const saved = await repo.upsertAgentOnboarding(req.user.userId, {
       ...body,
       kycDocuments,
+      termsAccepted,
+      termsVersion: normalizeAgentTermsVersion(body.termsVersion || body.terms_version),
       audit: auditMeta(req)
     });
     await auditUserChange(req, {
@@ -930,7 +967,10 @@ exports.updateAgentProfile = async (req, res, next) => {
   try {
     requireAgentAccount(req);
     const before = await repo.getAgentProfileByUserId(req.user.userId);
-    const saved = await repo.updateAgentProfileByUserId(req.user.userId, req.body || {});
+    const saved = await repo.updateAgentProfileByUserId(req.user.userId, {
+      ...(req.body || {}),
+      audit: auditMeta(req)
+    });
     if (!saved) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Agent profile not found'));
     await auditUserChange(req, {
       entityType: 'agent_profile',
@@ -940,6 +980,30 @@ exports.updateAgentProfile = async (req, res, next) => {
       afterData: saved
     });
     res.json({ success: true, data: saved });
+  } catch (err) { next(err); }
+};
+
+exports.createAgentPennyDropOrder = async (req, res, next) => {
+  try {
+    requireAgentAccount(req);
+    const result = await repo.createAgentPennyDropOrder(req.user.userId);
+    if (result.status === 'advisor_not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Agent profile not found.'));
+    if (result.status === 'bank_document_required') return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Upload a cancelled cheque before bank verification.'));
+    if (result.status === 'gateway_not_configured') return next(new AppError(503, ErrorCodes.INTERNAL_ERROR, 'Agent bank verification payment is not configured.'));
+    if (result.status === 'gateway_error') return next(new AppError(502, ErrorCodes.INTERNAL_ERROR, 'Could not create bank verification order.'));
+    res.json({ success: true, data: result.order });
+  } catch (err) { next(err); }
+};
+
+exports.verifyAgentPennyDropPayment = async (req, res, next) => {
+  try {
+    requireAgentAccount(req);
+    const result = await repo.verifyAgentPennyDropPayment(req.user.userId, req.body || {});
+    if (result.status === 'advisor_not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Agent profile not found.'));
+    if (result.status === 'invalid_payment') return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Payment details are incomplete.'));
+    if (result.status === 'order_mismatch') return next(new AppError(409, ErrorCodes.VALIDATION_ERROR, 'Payment order does not match the latest bank verification order.'));
+    if (result.status === 'signature_mismatch') return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Payment signature could not be verified.'));
+    res.json({ success: true, data: result.profile, message: 'Bank access payment confirmed. Final verification is pending review.' });
   } catch (err) { next(err); }
 };
 

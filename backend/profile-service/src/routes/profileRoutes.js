@@ -16,6 +16,8 @@ router.get('/me', authenticate, ctrl.getMyProfile);
 router.get('/agent/me', authenticate, ctrl.getAgentProfile);
 router.post('/agent/onboarding', authenticate, documentUpload.array('documents', 6), ctrl.upsertAgentOnboarding);
 router.put('/agent/me', authenticate, ctrl.updateAgentProfile);
+router.post('/agent/penny-drop/order', authenticate, ctrl.createAgentPennyDropOrder);
+router.post('/agent/penny-drop/verify', authenticate, ctrl.verifyAgentPennyDropPayment);
 router.get('/agent/membership', authenticate, ctrl.getAgentMembership);
 router.get('/agent/membership/plans', authenticate, ctrl.getAgentMembershipPlans);
 router.get('/agent/managed-profiles', authenticate, ctrl.listManagedProfiles);

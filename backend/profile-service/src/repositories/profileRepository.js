@@ -1,5 +1,5 @@
 const { getDB } = require('../config/database');
-const { randomUUID } = require('crypto');
+const { createHash, createHmac, randomUUID } = require('crypto');
 const { scoreAdvisorCandidate, normalizeList } = require('../services/assistAllocationService');
 const logger = require('../utils/logger');
 const DPDP_NOTICE_VERSION = 'dpdp-2026-05-10-v1';
@@ -135,6 +135,12 @@ function toTextArray(value) {
     return value.map((item) => String(item || '').trim()).filter(Boolean);
   }
   if (!value || typeof value !== 'string') return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return toTextArray(parsed);
+  } catch (_) {
+    // Fall back to comma-separated text.
+  }
   return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
@@ -2060,7 +2066,34 @@ function normalizeDocumentSide(value) {
 
 function normalizeOnboardingStatus(value) {
   const normalized = String(value || 'pending').trim().toLowerCase();
-  return ['pending', 'approved', 'rejected', 'more_info'].includes(normalized) ? normalized : 'pending';
+  return ['draft', 'pending', 'under_review', 'approved', 'rejected', 'more_info'].includes(normalized) ? normalized : 'pending';
+}
+
+function normalizeNameForMatch(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function resolveNameMatchStatus(primaryName, compareName) {
+  const left = normalizeNameForMatch(primaryName);
+  const right = normalizeNameForMatch(compareName);
+  if (!left || !right) return 'pending';
+  return left === right || left.includes(right) || right.includes(left) ? 'matched' : 'manual_review';
+}
+
+function hashSensitiveValue(value) {
+  const raw = String(value || '').replace(/\s+/g, '');
+  if (!raw) return null;
+  const pepper = process.env.DOCUMENT_HASH_PEPPER || process.env.INTERNAL_SERVICE_SECRET || process.env.JWT_SECRET || 'soulmatch-local-hash';
+  return createHash('sha256').update(`${pepper}:${raw}`).digest('hex');
+}
+
+function lastFourDigits(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits ? digits.slice(-4) : null;
 }
 
 function normalizeAssistShareMode(value) {
@@ -2130,6 +2163,21 @@ async function buildAgentProfile(advisorId, client = null) {
        a.onboarding_rejection_reason,
        a.approved_at,
        a.rejected_at,
+       a.aadhaar_verification_status,
+       a.pan_verification_status,
+       a.kyc_name_match_status,
+       a.bank_verification_status,
+       a.bank_name,
+       a.bank_account_last4,
+       a.bank_ifsc,
+       a.bank_name_match_status,
+       a.penny_drop_status,
+       a.penny_drop_order_id,
+       a.penny_drop_amount_paise,
+       a.penny_drop_name_match_status,
+       a.terms_accepted_at,
+       a.terms_version,
+       a.fraud_review_status,
        COALESCE(
          json_agg(
            json_build_object(
@@ -2155,6 +2203,13 @@ async function buildAgentProfile(advisorId, client = null) {
              'fileUrl', akd.file_url,
              'status', akd.status,
              'reviewComment', akd.review_comment,
+             'isEncrypted', COALESCE(akd.is_encrypted, false),
+             'encryptionAlgorithm', akd.encryption_algorithm,
+             'contentSha256', akd.content_sha256,
+             'originalFileName', akd.original_file_name,
+             'mimeType', akd.mime_type,
+             'fileSizeBytes', akd.file_size_bytes,
+             'extractedMetadata', COALESCE(akd.extracted_metadata, '{}'::jsonb),
              'uploadedAt', akd.uploaded_at,
              'reviewedAt', akd.reviewed_at
            )
@@ -2201,6 +2256,21 @@ async function buildAgentProfile(advisorId, client = null) {
     onboardingRejectionReason: row.onboarding_rejection_reason || '',
     approvedAt: row.approved_at,
     rejectedAt: row.rejected_at,
+    aadhaarVerificationStatus: row.aadhaar_verification_status || 'not_started',
+    panVerificationStatus: row.pan_verification_status || 'not_started',
+    kycNameMatchStatus: row.kyc_name_match_status || 'pending',
+    bankVerificationStatus: row.bank_verification_status || 'not_started',
+    bankName: row.bank_name || '',
+    bankAccountLast4: row.bank_account_last4 || '',
+    bankIfsc: row.bank_ifsc || '',
+    bankNameMatchStatus: row.bank_name_match_status || 'pending',
+    pennyDropStatus: row.penny_drop_status || 'not_started',
+    pennyDropOrderId: row.penny_drop_order_id || '',
+    pennyDropAmountPaise: Number(row.penny_drop_amount_paise || 100),
+    pennyDropNameMatchStatus: row.penny_drop_name_match_status || 'pending',
+    termsAcceptedAt: row.terms_accepted_at,
+    termsVersion: row.terms_version || '',
+    fraudReviewStatus: row.fraud_review_status || 'pending',
     serviceAreas: row.service_areas || [],
     kycDocuments: row.kyc_documents || [],
     isOnboarded: row.onboarding_status === 'approved'
@@ -2220,13 +2290,48 @@ exports.upsertAgentOnboarding = async (userId, payload = {}) => {
     await client.query('BEGIN');
     const existing = await getAdvisorByUserId(userId, client);
     let advisorId = existing?.advisor_id || randomUUID();
+    const kycDocuments = Array.isArray(payload.kycDocuments) ? payload.kycDocuments : [];
+    const uploadedDocumentTypes = new Set(
+      kycDocuments
+        .map((document) => String(document.documentType || document.document_type || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const hasAadhaar = uploadedDocumentTypes.has('aadhaar');
+    const hasPan = uploadedDocumentTypes.has('pan');
+    const hasCancelledCheque = uploadedDocumentTypes.has('cancelled_cheque');
+    const hasRequiredFraudDocs = hasAadhaar && hasPan && hasCancelledCheque;
+    const termsAccepted = payload.termsAccepted === true || payload.termsAccepted === 'true';
+    const onboardingStatus = hasRequiredFraudDocs && termsAccepted ? 'under_review' : 'draft';
+    const languagesJson = payload.languages !== undefined ? JSON.stringify(toTextArray(payload.languages)) : JSON.stringify([]);
+    const yearsExperience = payload.yearsExperience !== undefined ? toIntegerOrDefault(payload.yearsExperience, 0) : 0;
+    const aadhaarDocument = kycDocuments.find((document) => String(document.documentType || document.document_type || '').trim().toLowerCase() === 'aadhaar');
+    const panDocument = kycDocuments.find((document) => String(document.documentType || document.document_type || '').trim().toLowerCase() === 'pan');
+    const chequeDocument = kycDocuments.find((document) => String(document.documentType || document.document_type || '').trim().toLowerCase() === 'cancelled_cheque');
+    const aadhaarMeta = aadhaarDocument?.extractedMetadata || aadhaarDocument?.extracted_metadata || {};
+    const panMeta = panDocument?.extractedMetadata || panDocument?.extracted_metadata || {};
+    const chequeMeta = chequeDocument?.extractedMetadata || chequeDocument?.extracted_metadata || {};
+    const aadhaarName = aadhaarMeta.fullName || aadhaarMeta.name || null;
+    const panName = panMeta.fullName || panMeta.name || null;
+    const chequeName = chequeMeta.accountHolderName || chequeMeta.name || null;
+    const bankAccountNumber = chequeMeta.accountNumber || chequeMeta.bankAccountNumber || null;
+    const kycNameMatchStatus = resolveNameMatchStatus(aadhaarName, panName);
+    const bankNameMatchStatus = resolveNameMatchStatus(aadhaarName || payload.fullName, chequeName);
     if (!existing) {
       await client.query(
         `INSERT INTO advisors (
            advisor_id, user_id, full_name, phone, email, city, state, business_name, referral_code,
-           service_label, onboarding_status, kyc_status, membership_plan, created_at, updated_at
+           service_label, years_experience, languages, onboarding_status, kyc_status, membership_plan,
+           aadhaar_verification_status, pan_verification_status, kyc_name_match_status,
+           bank_verification_status, bank_name, bank_account_last4, bank_account_hash, bank_ifsc, bank_name_match_status,
+           penny_drop_status, penny_drop_amount_paise, penny_drop_name_match_status,
+           terms_accepted_at, terms_ip_address, terms_user_agent, terms_version, fraud_review_status,
+           draft_saved_at, created_at, updated_at
          )
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending','pending','free',NOW(),NOW())`,
+         VALUES (
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,'pending','free',
+           $14,$15,$16,$17,$18,$19,$20,$21,$22,
+           'not_started',100,'pending',$23,$24,$25,$26,$27,NOW(),NOW(),NOW()
+         )`,
         [
           advisorId,
           userId,
@@ -2237,7 +2342,24 @@ exports.upsertAgentOnboarding = async (userId, payload = {}) => {
           payload.state || null,
           payload.businessName || null,
           payload.referralCode || null,
-          payload.serviceLabel || 'SoulMatch Agent'
+          payload.serviceLabel || 'SoulMatch Agent',
+          yearsExperience,
+          languagesJson,
+          onboardingStatus,
+          hasAadhaar ? 'under_review' : 'not_started',
+          hasPan ? 'under_review' : 'not_started',
+          kycNameMatchStatus,
+          hasCancelledCheque ? (bankAccountNumber ? 'pending_penny_drop' : 'pending_ocr') : 'not_started',
+          cleanShortText(chequeMeta.bankName || chequeMeta.bank_name, 160),
+          lastFourDigits(bankAccountNumber),
+          hashSensitiveValue(bankAccountNumber),
+          cleanShortText(chequeMeta.ifsc || chequeMeta.ifscCode || chequeMeta.bankIfsc, 24),
+          bankNameMatchStatus,
+          termsAccepted ? new Date() : null,
+          payload.audit?.ipAddress || null,
+          payload.audit?.userAgent || null,
+          cleanShortText(payload.termsVersion, 64),
+          hasRequiredFraudDocs && termsAccepted ? 'in_progress' : 'pending'
         ]
       );
     } else {
@@ -2252,13 +2374,68 @@ exports.upsertAgentOnboarding = async (userId, payload = {}) => {
              business_name = COALESCE($7, business_name),
              referral_code = COALESCE($8, referral_code),
              service_label = COALESCE($9, service_label),
-             onboarding_status = 'pending',
-             onboarding_rejection_reason = NULL,
+             years_experience = COALESCE($10, years_experience),
+             languages = COALESCE($11::jsonb, languages),
+             onboarding_status = CASE
+               WHEN $12::boolean THEN $13
+               ELSE onboarding_status
+             END,
+             onboarding_rejection_reason = CASE WHEN $12::boolean THEN NULL ELSE onboarding_rejection_reason END,
+             aadhaar_verification_status = CASE WHEN $14::boolean THEN 'under_review' ELSE aadhaar_verification_status END,
+             pan_verification_status = CASE WHEN $15::boolean THEN 'under_review' ELSE pan_verification_status END,
+             kyc_name_match_status = COALESCE($16, kyc_name_match_status),
+             bank_verification_status = CASE
+               WHEN $17::boolean AND $18 IS NOT NULL THEN 'pending_penny_drop'
+               WHEN $17::boolean THEN 'pending_ocr'
+               ELSE bank_verification_status
+             END,
+             bank_name = COALESCE($19, bank_name),
+             bank_account_last4 = COALESCE($20, bank_account_last4),
+             bank_account_hash = COALESCE($21, bank_account_hash),
+             bank_ifsc = COALESCE($22, bank_ifsc),
+             bank_name_match_status = COALESCE($23, bank_name_match_status),
+             terms_accepted_at = CASE WHEN $24::boolean THEN NOW() ELSE terms_accepted_at END,
+             terms_ip_address = CASE WHEN $24::boolean THEN $25 ELSE terms_ip_address END,
+             terms_user_agent = CASE WHEN $24::boolean THEN $26 ELSE terms_user_agent END,
+             terms_version = CASE WHEN $24::boolean THEN $27 ELSE terms_version END,
+             fraud_review_status = CASE WHEN $12::boolean THEN $28 ELSE fraud_review_status END,
+             draft_saved_at = NOW(),
              updated_at = NOW()
          WHERE advisor_id = $1`,
-        [advisorId, payload.fullName, payload.phone, payload.email || null, payload.city, payload.state || null, payload.businessName || null, payload.referralCode || null, payload.serviceLabel || null]
+        [
+          advisorId,
+          payload.fullName,
+          payload.phone,
+          payload.email || null,
+          payload.city,
+          payload.state || null,
+          payload.businessName || null,
+          payload.referralCode || null,
+          payload.serviceLabel || null,
+          payload.yearsExperience !== undefined ? toIntegerOrDefault(payload.yearsExperience, 0) : null,
+          payload.languages !== undefined ? JSON.stringify(toTextArray(payload.languages)) : null,
+          kycDocuments.length > 0,
+          onboardingStatus,
+          hasAadhaar,
+          hasPan,
+          kycNameMatchStatus,
+          hasCancelledCheque,
+          bankAccountNumber || null,
+          cleanShortText(chequeMeta.bankName || chequeMeta.bank_name, 160),
+          lastFourDigits(bankAccountNumber),
+          hashSensitiveValue(bankAccountNumber),
+          cleanShortText(chequeMeta.ifsc || chequeMeta.ifscCode || chequeMeta.bankIfsc, 24),
+          bankNameMatchStatus,
+          termsAccepted,
+          payload.audit?.ipAddress || null,
+          payload.audit?.UserAgent || payload.audit?.userAgent || null,
+          cleanShortText(payload.termsVersion, 64),
+          hasRequiredFraudDocs && termsAccepted ? 'in_progress' : 'pending'
+        ]
       );
-      await client.query('DELETE FROM advisor_kyc_documents WHERE advisor_id = $1', [advisorId]);
+      if (kycDocuments.length > 0) {
+        await client.query('DELETE FROM advisor_kyc_documents WHERE advisor_id = $1', [advisorId]);
+      }
       await client.query('DELETE FROM advisor_service_areas WHERE advisor_id = $1', [advisorId]);
     }
 
@@ -2276,7 +2453,6 @@ exports.upsertAgentOnboarding = async (userId, payload = {}) => {
       );
     }
 
-    const kycDocuments = Array.isArray(payload.kycDocuments) ? payload.kycDocuments : [];
     const kycConsentEventId = kycDocuments.length ? await insertConsentEvent(client, {
       userId,
       profileId: null,
@@ -2289,18 +2465,69 @@ exports.upsertAgentOnboarding = async (userId, payload = {}) => {
       },
       audit: payload.audit || {}
     }) : null;
+    if (termsAccepted) {
+      await insertConsentEvent(client, {
+        userId,
+        profileId: null,
+        consentType: 'agent_terms_acceptance',
+        status: 'granted',
+        purpose: 'Agent accepted SoulMatch agent terms, intermediary disclaimer, DPDP data usage notice, and advance fee restrictions.',
+        noticeVersion: cleanShortText(payload.termsVersion, 64) || DPDP_NOTICE_VERSION,
+        metadata: { advisorId, termsVersion: payload.termsVersion || null },
+        audit: payload.audit || {}
+      });
+      await client.query(
+        `INSERT INTO advisor_terms_acceptances (
+           advisor_terms_acceptance_id, advisor_id, user_id, terms_version, ip_address, user_agent, metadata, accepted_at
+         )
+         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,NOW())`,
+        [
+          randomUUID(),
+          advisorId,
+          userId,
+          cleanShortText(payload.termsVersion, 64) || DPDP_NOTICE_VERSION,
+          payload.audit?.ipAddress || null,
+          payload.audit?.userAgent || null,
+          JSON.stringify({
+            safeHarbourAccepted: true,
+            advanceFeeBanAccepted: true,
+            intermediaryDisclaimerAccepted: true
+          })
+        ]
+      );
+    }
     for (const document of kycDocuments) {
-      const documentType = ['aadhaar', 'pan', 'voter_id'].includes(String(document.documentType || document.document_type || '').trim().toLowerCase())
+      const documentType = ['aadhaar', 'pan', 'voter_id', 'cancelled_cheque'].includes(String(document.documentType || document.document_type || '').trim().toLowerCase())
         ? String(document.documentType || document.document_type).trim().toLowerCase()
         : null;
       const fileUrl = cleanShortText(document.fileUrl || document.file_url, 2048);
       if (!documentType || !fileUrl) continue;
       await client.query(
         `INSERT INTO advisor_kyc_documents (
-           advisor_kyc_document_id, advisor_id, document_type, document_side, file_url, status, consent_event_id, uploaded_at, created_at, updated_at
+           advisor_kyc_document_id, advisor_id, document_type, document_side, file_url, status, consent_event_id,
+           is_encrypted, encryption_algorithm, encryption_key_ref, encryption_iv, content_sha256,
+           original_file_name, mime_type, file_size_bytes, extracted_metadata, verification_metadata,
+           uploaded_at, created_at, updated_at
          )
-         VALUES ($1,$2,$3,$4,$5,'uploaded',$6,NOW(),NOW(),NOW())`,
-        [randomUUID(), advisorId, documentType, normalizeDocumentSide(document.documentSide || document.document_side), fileUrl, kycConsentEventId]
+         VALUES ($1,$2,$3,$4,$5,'under_review',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,NOW(),NOW(),NOW())`,
+        [
+          randomUUID(),
+          advisorId,
+          documentType,
+          normalizeDocumentSide(document.documentSide || document.document_side),
+          fileUrl,
+          kycConsentEventId,
+          document.isEncrypted === true || document.is_encrypted === true,
+          cleanShortText(document.encryptionAlgorithm || document.encryption_algorithm, 40),
+          cleanShortText(document.encryptionKeyRef || document.encryption_key_ref, 120),
+          document.encryptionIv || document.encryption_iv || null,
+          cleanShortText(document.contentSha256 || document.content_sha256, 128),
+          cleanShortText(document.originalFileName || document.original_file_name, 500),
+          cleanShortText(document.mimeType || document.mime_type, 120),
+          toIntegerOrNull(document.fileSizeBytes || document.file_size_bytes),
+          JSON.stringify(document.extractedMetadata || document.extracted_metadata || {}),
+          JSON.stringify(document.verificationMetadata || document.verification_metadata || {})
+        ]
       );
     }
 
@@ -2401,6 +2628,104 @@ exports.getActiveAdvisorDirectory = async (limit = 24) => {
   };
 };
 
+exports.createAgentPennyDropOrder = async (userId) => {
+  const advisor = await getAdvisorByUserId(userId);
+  if (!advisor) return { status: 'advisor_not_found' };
+  if (!advisor.bank_verification_status || advisor.bank_verification_status === 'not_started') {
+    return { status: 'bank_document_required' };
+  }
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !keySecret) return { status: 'gateway_not_configured' };
+
+  const amount = 100;
+  const receipt = `agent_penny_${advisor.advisor_id}_${Date.now()}`.slice(0, 40);
+  const response = await fetch('https://api.razorpay.com/v1/orders', {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString('base64')}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      amount,
+      currency: 'INR',
+      receipt,
+      notes: {
+        purpose: 'agent_reverse_penny_drop',
+        advisorId: advisor.advisor_id,
+        userId
+      }
+    }),
+    signal: AbortSignal.timeout(10000)
+  });
+  const order = await response.json().catch(() => null);
+  if (!response.ok || !order?.id) {
+    logger.warn(`Agent penny-drop order failed for ${advisor.advisor_id}: ${response.status}`);
+    return { status: 'gateway_error' };
+  }
+  const db = await getDB();
+  await db.query(
+    `UPDATE advisors
+     SET penny_drop_status = 'pending',
+         penny_drop_order_id = $2,
+         penny_drop_amount_paise = $3,
+         bank_verification_status = 'pending_penny_drop',
+         updated_at = NOW()
+     WHERE advisor_id = $1`,
+    [advisor.advisor_id, order.id, amount]
+  );
+  return {
+    status: 'created',
+    order: {
+      orderId: order.id,
+      amount,
+      currency: 'INR',
+      planId: 'agent_penny_drop',
+      gateway: 'razorpay',
+      keyId
+    }
+  };
+};
+
+exports.verifyAgentPennyDropPayment = async (userId, payload = {}) => {
+  const advisor = await getAdvisorByUserId(userId);
+  if (!advisor) return { status: 'advisor_not_found' };
+  const orderId = cleanShortText(payload.orderId || payload.order_id, 120);
+  const paymentId = cleanShortText(payload.paymentId || payload.payment_id, 120);
+  const signature = cleanShortText(payload.signature || payload.razorpay_signature, 255);
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!orderId || !paymentId || !signature || !keySecret) return { status: 'invalid_payment' };
+  if (advisor.penny_drop_order_id && advisor.penny_drop_order_id !== orderId) return { status: 'order_mismatch' };
+
+  const expected = createHmac('sha256', keySecret).update(`${orderId}|${paymentId}`).digest('hex');
+  if (expected !== signature) {
+    const db = await getDB();
+    await db.query(
+      `UPDATE advisors
+       SET penny_drop_status = 'failed',
+           bank_verification_status = 'rejected',
+           fraud_review_status = 'needs_resubmission',
+           updated_at = NOW()
+       WHERE advisor_id = $1`,
+      [advisor.advisor_id]
+    );
+    return { status: 'signature_mismatch' };
+  }
+
+  const db = await getDB();
+  await db.query(
+    `UPDATE advisors
+     SET penny_drop_status = 'paid',
+         penny_drop_payment_id = $2,
+         bank_verification_status = 'payment_confirmed',
+         fraud_review_status = 'in_progress',
+         updated_at = NOW()
+     WHERE advisor_id = $1`,
+    [advisor.advisor_id, paymentId]
+  );
+  return { status: 'verified', profile: await buildAgentProfile(advisor.advisor_id) };
+};
+
 exports.updateAgentProfileByUserId = async (userId, payload = {}) => {
   const db = await getDB();
   const client = await db.connect();
@@ -2428,6 +2753,10 @@ exports.updateAgentProfileByUserId = async (userId, payload = {}) => {
            communities = COALESCE($14::jsonb, communities),
            fee_preferences = COALESCE($15::jsonb, fee_preferences),
            status = COALESCE($16, status),
+           terms_accepted_at = CASE WHEN $17::boolean THEN NOW() ELSE terms_accepted_at END,
+           terms_ip_address = CASE WHEN $17::boolean THEN $18 ELSE terms_ip_address END,
+           terms_user_agent = CASE WHEN $17::boolean THEN $19 ELSE terms_user_agent END,
+           terms_version = CASE WHEN $17::boolean THEN $20 ELSE terms_version END,
            updated_at = NOW()
        WHERE advisor_id = $1`,
       [
@@ -2446,9 +2775,40 @@ exports.updateAgentProfileByUserId = async (userId, payload = {}) => {
         payload.languages !== undefined ? JSON.stringify(toTextArray(payload.languages)) : null,
         payload.communities !== undefined ? JSON.stringify(toTextArray(payload.communities)) : null,
         payload.feePreferences !== undefined ? JSON.stringify(payload.feePreferences || {}) : null,
-        cleanShortText(payload.status, 16)
+        cleanShortText(payload.status, 16),
+        payload.termsAccepted === true || payload.termsAccepted === 'true',
+        payload.audit?.ipAddress || null,
+        payload.audit?.userAgent || null,
+        cleanShortText(payload.termsVersion, 64) || DPDP_NOTICE_VERSION
       ]
     );
+    if (payload.termsAccepted === true || payload.termsAccepted === 'true') {
+      await insertConsentEvent(client, {
+        userId,
+        profileId: null,
+        consentType: 'agent_terms_acceptance',
+        status: 'granted',
+        purpose: 'Agent accepted SoulMatch agent terms from profile update.',
+        noticeVersion: cleanShortText(payload.termsVersion, 64) || DPDP_NOTICE_VERSION,
+        metadata: { advisorId: advisor.advisor_id, termsVersion: payload.termsVersion || null },
+        audit: payload.audit || {}
+      });
+      await client.query(
+        `INSERT INTO advisor_terms_acceptances (
+           advisor_terms_acceptance_id, advisor_id, user_id, terms_version, ip_address, user_agent, metadata, accepted_at
+         )
+         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,NOW())`,
+        [
+          randomUUID(),
+          advisor.advisor_id,
+          userId,
+          cleanShortText(payload.termsVersion, 64) || DPDP_NOTICE_VERSION,
+          payload.audit?.ipAddress || null,
+          payload.audit?.userAgent || null,
+          JSON.stringify({ profileUpdateAcceptance: true })
+        ]
+      );
+    }
     if (Array.isArray(payload.serviceAreas)) {
       await client.query('DELETE FROM advisor_service_areas WHERE advisor_id = $1', [advisor.advisor_id]);
       for (const [index, area] of payload.serviceAreas.entries()) {
