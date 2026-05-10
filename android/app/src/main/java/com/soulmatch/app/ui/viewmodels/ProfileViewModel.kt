@@ -6,6 +6,7 @@ import com.soulmatch.app.data.api.ProfileApiService
 import com.soulmatch.app.data.config.AppEnvironment
 import com.soulmatch.app.data.local.UserPreferences
 import com.soulmatch.app.data.mock.MarketFixtures
+import com.soulmatch.app.data.models.AiBioSuggestionRequest
 import com.soulmatch.app.data.models.ProfileData
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -24,12 +25,16 @@ class ProfileViewModel @Inject constructor(
     private val stepData = mutableMapOf<Int, Map<String, Any>>()
     private val _profile = MutableStateFlow<ProfileData?>(null)
     private val _isSaving = MutableStateFlow(false)
+    private val _isGeneratingBioSuggestions = MutableStateFlow(false)
+    private val _bioSuggestions = MutableStateFlow<List<String>>(emptyList())
     private val _errorMessage = MutableStateFlow<String?>(null)
     private val _loadMessage = MutableStateFlow<String?>(null)
     private var usingMockProfile = false
 
     val profile: StateFlow<ProfileData?> = _profile.asStateFlow()
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
+    val isGeneratingBioSuggestions: StateFlow<Boolean> = _isGeneratingBioSuggestions.asStateFlow()
+    val bioSuggestions: StateFlow<List<String>> = _bioSuggestions.asStateFlow()
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
     val loadMessage: StateFlow<String?> = _loadMessage.asStateFlow()
 
@@ -92,6 +97,36 @@ class ProfileViewModel @Inject constructor(
     fun updateStep5Data(d: Map<String, Any>) { stepData[5] = d }
     fun updateStep6Data(d: Map<String, Any>) { stepData[6] = d }
 
+    fun requestBioSuggestions(currentBio: String) {
+        val profileId = _profile.value?.profileId.orEmpty()
+        if (profileId.isBlank()) {
+            _bioSuggestions.value = localBioSuggestions(currentBio)
+            return
+        }
+        viewModelScope.launch {
+            _isGeneratingBioSuggestions.value = true
+            _errorMessage.value = null
+            val fallback = localBioSuggestions(currentBio)
+            try {
+                val response = profileApi.getBioSuggestions(profileId, AiBioSuggestionRequest(currentBio.trim()))
+                val body = response.body()
+                _bioSuggestions.value = if (response.isSuccessful && body?.success == true) {
+                    body.data?.suggestions?.takeIf { it.isNotEmpty() } ?: fallback
+                } else {
+                    fallback
+                }
+            } catch (_: Exception) {
+                _bioSuggestions.value = fallback
+            } finally {
+                _isGeneratingBioSuggestions.value = false
+            }
+        }
+    }
+
+    fun clearBioSuggestions() {
+        _bioSuggestions.value = emptyList()
+    }
+
     fun saveStep(step: Int, onSuccess: () -> Unit) {
         viewModelScope.launch {
             val payload = stepData[step]
@@ -149,5 +184,21 @@ class ProfileViewModel @Inject constructor(
             else ->
                 "Couldn't save your profile right now. Please try again."
         }
+    }
+
+    private fun localBioSuggestions(currentBio: String): List<String> {
+        val profile = _profile.value
+        val name = listOfNotNull(profile?.firstName, profile?.lastName)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+            .ifBlank { "I" }
+        val base = currentBio.trim().ifBlank {
+            "$name value family, respectful communication, and a meaningful partnership built on trust."
+        }
+        return listOf(
+            "$base I am looking for a mature partner who values family, kindness, and shared growth through every stage of life.",
+            "$name comes from a grounded family and believes marriage should bring respect, emotional support, and warmth to both families.",
+            "I am serious about finding a compatible life partner and hope to build a home shaped by trust, stability, and thoughtful family bonds."
+        )
     }
 }

@@ -3,6 +3,7 @@ const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
 const { getDB } = require('../config/database');
 const { isChatEnabled } = require('../middleware/featureGate');
+const { moderateMessage } = require('../services/safetyModerationService');
 const logger = require('../utils/logger');
 const makeChatId = (a, b) => [a, b].sort().join('_');
 const MAX_MESSAGE_LENGTH = parseInt(process.env.MAX_CHAT_MESSAGE_LENGTH || '2000', 10);
@@ -59,14 +60,29 @@ const getProfileIdByUserId = async (db, userId) => {
   );
   return res.rows[0]?.profile_id || null;
 };
-const detectAbusiveText = (content = '') => {
-  const text = String(content || '').toLowerCase();
-  const patterns = [
-    { type: 'phone_or_whatsapp_request', severity: 'medium', pattern: /\b(whatsapp|mobile number|phone number|call me)\b/ },
-    { type: 'financial_request', severity: 'high', pattern: /\b(loan|bank transfer|send money|upi|account number)\b/ },
-    { type: 'abusive_language_placeholder', severity: 'medium', pattern: /\b(abuse|threat|blackmail)\b/ }
-  ];
-  return patterns.filter((item) => item.pattern.test(text)).map(({ type, severity }) => ({ type, severity }));
+const recordSafetyEvent = async ({ senderId, receiverId, chatId, moderation }) => {
+  if (!moderation?.flags?.length) return;
+  try {
+    const db = await getDB();
+    await db.query(
+      `INSERT INTO analytics_events (event_type, service_name, user_id, payload, created_at)
+       VALUES ('chat_message_safety','chat-service',$1,$2::jsonb,NOW())`,
+      [
+        senderId,
+        JSON.stringify({
+          receiverId,
+          chatId,
+          action: moderation.action,
+          severity: moderation.severity,
+          flags: moderation.flags,
+          provider: moderation.provider,
+          model: moderation.model
+        })
+      ]
+    );
+  } catch (error) {
+    logger.warn('Chat safety analytics failed: ' + error.message);
+  }
 };
 const canChat = async (u1, u2) => {
   const db = await getDB();
@@ -114,7 +130,18 @@ exports.setupSocketHandlers = (io) => {
         }
         if (!await canChat(socket.userId, receiverId)) return cb && cb({ error: 'Send interest first to chat' });
         const cid = makeChatId(socket.userId, receiverId);
-        const safetyFlags = resolvedType === 'text' ? detectAbusiveText(content) : [];
+        const moderation = resolvedType === 'text'
+          ? await moderateMessage(content)
+          : { action: 'allow', severity: 'none', flags: [], provider: 'rules', model: 'local' };
+        await recordSafetyEvent({ senderId: socket.userId, receiverId, chatId: cid, moderation });
+        if (moderation.action === 'block') {
+          return cb && cb({
+            error: 'This message was blocked for safety. Please keep conversations respectful and avoid financial, private photo, or pressure requests.',
+            code: 'MESSAGE_BLOCKED',
+            safetyFlags: moderation.flags
+          });
+        }
+        const safetyFlags = moderation.flags || [];
         const msg = await Message.create({ chatId:cid, senderId:socket.userId, receiverId, type:resolvedType, content, duration, safetyFlags });
         await Conversation.findOneAndUpdate(
           { chatId:cid },

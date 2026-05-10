@@ -34,6 +34,8 @@ interface ProfileApiService {
     @POST("profile/agent/managed-profiles/{profileId}/submit") suspend fun submitAgentManagedProfile(@Path("profileId") profileId: String): Response<GenericResponse<ProfileData>>
     @GET("profile/assist/status") suspend fun getAssistStatus(): Response<GenericResponse<AssistStatusData>>
     @PUT("profile/assist/status") suspend fun updateAssistStatus(@Body req: AssistStatusRequest): Response<GenericResponse<AssistStatusData>>
+    @POST("profile/{profileId}/ai/bio-suggestions") suspend fun getBioSuggestions(@Path("profileId") id: String, @Body req: AiBioSuggestionRequest): Response<GenericResponse<AiSuggestionData>>
+    @POST("profile/{profileId}/ai/icebreakers") suspend fun getIcebreakers(@Path("profileId") id: String, @Body req: IcebreakerRequest = IcebreakerRequest()): Response<GenericResponse<IcebreakerSuggestionData>>
     @GET("profile/family-decisions") suspend fun getFamilyDecisions(): Response<GenericResponse<List<FamilyDecisionData>>>
     @PUT("profile/family-decisions/{targetProfileId}") suspend fun upsertFamilyDecision(@Path("targetProfileId") id: String, @Body req: FamilyDecisionRequest): Response<GenericResponse<FamilyDecisionData>>
     @POST("profile/family-decisions/{familyDecisionId}/comments") suspend fun addFamilyDecisionComment(@Path("familyDecisionId") id: String, @Body req: FamilyDecisionCommentRequest): Response<GenericResponse<FamilyDecisionCommentData>>

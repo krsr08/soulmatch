@@ -4,6 +4,7 @@ const Conversation = require('../models/Conversation');
 const { authenticate } = require('../middleware/authMiddleware');
 const { ensureChatEnabled } = require('../middleware/featureGate');
 const { getDB } = require('../config/database');
+const { detectTextSafety } = require('../services/safetyModerationService');
 const crypto = require('crypto');
 
 const router = express.Router();
@@ -65,16 +66,6 @@ async function getChatEligibility(db, currentUserId, targetUserId) {
   return { canChat: eligible, reason: eligible ? 'mutual_interest' : 'no_mutual_interest' };
 }
 
-function detectAbusiveText(content = '') {
-  const text = String(content || '').toLowerCase();
-  const patterns = [
-    { type: 'phone_or_whatsapp_request', severity: 'medium', pattern: /\b(whatsapp|mobile number|phone number|call me)\b/ },
-    { type: 'financial_request', severity: 'high', pattern: /\b(loan|bank transfer|send money|upi|account number)\b/ },
-    { type: 'abusive_language_placeholder', severity: 'medium', pattern: /\b(abuse|threat|blackmail)\b/ }
-  ];
-  return patterns.filter((item) => item.pattern.test(text)).map(({ type, severity }) => ({ type, severity }));
-}
-
 router.post('/messages/:messageId/report', authenticate, ensureChatEnabled, async (req, res, next) => {
   try {
     const message = await Message.findById(req.params.messageId).lean();
@@ -83,7 +74,7 @@ router.post('/messages/:messageId/report', authenticate, ensureChatEnabled, asyn
     }
     const reportedUserId = message.senderId === req.user.userId ? message.receiverId : message.senderId;
     const db = await getDB();
-    const flags = detectAbusiveText(message.content).concat(Array.isArray(message.safetyFlags) ? message.safetyFlags : []);
+    const flags = detectTextSafety(message.content).concat(Array.isArray(message.safetyFlags) ? message.safetyFlags : []);
     await db.query(
       `INSERT INTO chat_message_reports (
          chat_message_report_id,message_id,chat_id,reporter_user_id,reported_user_id,reason,description,safety_flags,status,created_at

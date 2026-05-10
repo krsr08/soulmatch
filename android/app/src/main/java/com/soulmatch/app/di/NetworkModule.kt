@@ -4,6 +4,7 @@ import com.soulmatch.app.data.api.*
 import com.soulmatch.app.data.local.UserPreferences
 import com.soulmatch.app.data.models.AuthData
 import com.soulmatch.app.data.models.GenericResponse
+import com.soulmatch.app.util.CrashReporter
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.TypeAdapter
@@ -112,8 +113,22 @@ object NetworkModule {
                 .build()
         }
         val log = HttpLoggingInterceptor().apply { level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE }
+        val reliability = Interceptor { chain ->
+            val request = chain.request()
+            try {
+                val response = chain.proceed(request)
+                if (response.code >= 500) {
+                    CrashReporter.breadcrumb("http_${response.code}:${request.url.encodedPath}")
+                }
+                response
+            } catch (error: Exception) {
+                CrashReporter.recordNonFatal(error, "network:${request.url.encodedPath}")
+                throw error
+            }
+        }
         return OkHttpClient.Builder()
             .addInterceptor(auth)
+            .addInterceptor(reliability)
             .addInterceptor(log)
             .authenticator(authenticator)
             .connectTimeout(30,TimeUnit.SECONDS)

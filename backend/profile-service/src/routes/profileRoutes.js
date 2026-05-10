@@ -36,6 +36,8 @@ router.post('/family-decisions/:familyDecisionId/comments', authenticate, ctrl.a
 router.put('/family-decisions/:targetProfileId', authenticate, ctrl.upsertFamilyDecision);
 router.post('/:profileId/match-feedback', authenticate, ctrl.recordMatchFeedback);
 router.get('/:profileId', authenticate, ctrl.getProfile);
+router.post('/:profileId/ai/bio-suggestions', authenticate, ctrl.suggestProfileBio);
+router.post('/:profileId/ai/icebreakers', authenticate, ctrl.generateIcebreakers);
 router.put('/:profileId', authenticate, ctrl.updateProfile);
 router.get('/:profileId/verifications', authenticate, ctrl.getVerifications);
 router.post('/:profileId/verifications', authenticate, ctrl.submitVerification);

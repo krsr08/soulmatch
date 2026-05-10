@@ -1595,6 +1595,29 @@ exports.getAlerts = async (req, res) => {
   }
 };
 
+exports.createSystemAlert = async (req, res) => {
+  try {
+    const db = await getDB();
+    const severity = ['critical', 'high', 'medium', 'low'].includes(String(req.body?.severity || '').toLowerCase())
+      ? String(req.body.severity).toLowerCase()
+      : 'medium';
+    const title = String(req.body?.title || 'Production monitor alert').trim().slice(0, 180);
+    const body = String(req.body?.body || '').trim().slice(0, 4000);
+    const source = String(req.body?.source || 'production-monitor').trim().slice(0, 80);
+    const metadata = req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {};
+    const result = await db.query(
+      `INSERT INTO admin_alerts (alert_id, severity, title, body, source, status, metadata, created_at)
+       VALUES ($1,$2,$3,$4,$5,'open',$6::jsonb,NOW())
+       RETURNING *`,
+      [crypto.randomUUID(), severity, title || 'Production monitor alert', body, source, JSON.stringify(metadata)]
+    );
+    broadcastAdminEvent('admin:alert_created', { alert: result.rows[0] });
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    respondServerError(res, err, 'Unable to create system alert right now.');
+  }
+};
+
 exports.ackAlert = async (req, res) => {
   try {
     const db = await getDB();
@@ -1606,6 +1629,38 @@ exports.ackAlert = async (req, res) => {
     res.json({ success: true, data: result.rows[0] || null });
   } catch (err) {
     respondServerError(res, err, 'Unable to acknowledge alert right now.');
+  }
+};
+
+exports.getConsentEvents = async (req, res) => {
+  try {
+    const db = await getDB();
+    const result = await db.query(
+      `SELECT
+         ce.consent_event_id,
+         ce.user_id,
+         ce.profile_id,
+         ce.consent_type,
+         ce.status,
+         ce.purpose,
+         ce.notice_version,
+         ce.metadata,
+         ce.source,
+         ce.ip_address,
+         ce.created_at,
+         p.first_name,
+         p.last_name,
+         u.phone,
+         u.email
+       FROM consent_events ce
+       LEFT JOIN profiles p ON p.profile_id = ce.profile_id
+       LEFT JOIN users u ON u.user_id = ce.user_id
+       ORDER BY ce.created_at DESC
+       LIMIT 200`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    respondServerError(res, err, 'Unable to load consent events right now.');
   }
 };
 

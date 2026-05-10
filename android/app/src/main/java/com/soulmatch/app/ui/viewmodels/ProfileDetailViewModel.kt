@@ -11,10 +11,12 @@ import com.soulmatch.app.data.local.ProfileInteractionStore
 import com.soulmatch.app.data.mock.MarketFixtures
 import com.soulmatch.app.data.models.CompatibilityData
 import com.soulmatch.app.data.models.FamilyDecisionRequest
+import com.soulmatch.app.data.models.IcebreakerRequest
 import com.soulmatch.app.data.models.InterestRequest
 import com.soulmatch.app.data.models.PhotoAccessRequestBody
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.ProfileSummary
+import com.soulmatch.app.data.models.fullName
 import com.soulmatch.app.data.realtime.InterestSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -38,6 +40,8 @@ class ProfileDetailViewModel @Inject constructor(
     private val _shortlisted = MutableStateFlow(false)
     private val _canChat = MutableStateFlow(false)
     private val _status = MutableStateFlow<String?>(null)
+    private val _icebreakers = MutableStateFlow<List<String>>(emptyList())
+    private val _isGeneratingIcebreakers = MutableStateFlow(false)
 
     val profile: StateFlow<ProfileData?> = _profile.asStateFlow()
     val compatibility: StateFlow<CompatibilityData> = _compatibility.asStateFlow()
@@ -46,6 +50,8 @@ class ProfileDetailViewModel @Inject constructor(
     val shortlisted: StateFlow<Boolean> = _shortlisted.asStateFlow()
     val canChat: StateFlow<Boolean> = _canChat.asStateFlow()
     val status: StateFlow<String?> = _status.asStateFlow()
+    val icebreakers: StateFlow<List<String>> = _icebreakers.asStateFlow()
+    val isGeneratingIcebreakers: StateFlow<Boolean> = _isGeneratingIcebreakers.asStateFlow()
 
     fun load(profileId: String) {
         if (_isLoading.value) return
@@ -176,6 +182,28 @@ class ProfileDetailViewModel @Inject constructor(
         }
     }
 
+    fun generateIcebreakers() {
+        val target = _profile.value?.profileId ?: return
+        viewModelScope.launch {
+            _isGeneratingIcebreakers.value = true
+            _status.value = null
+            val fallback = localIcebreakers(_profile.value)
+            try {
+                val response = profileApi.getIcebreakers(target, IcebreakerRequest())
+                val body = response.body()
+                _icebreakers.value = if (response.isSuccessful && body?.success == true) {
+                    body.data?.suggestions?.takeIf { it.isNotEmpty() } ?: fallback
+                } else {
+                    fallback
+                }
+            } catch (_: Exception) {
+                _icebreakers.value = fallback
+            } finally {
+                _isGeneratingIcebreakers.value = false
+            }
+        }
+    }
+
     fun addToFamilyBoard() {
         val target = _profile.value?.profileId ?: return
         viewModelScope.launch {
@@ -226,5 +254,18 @@ class ProfileDetailViewModel @Inject constructor(
 
     fun clearStatus() {
         _status.value = null
+    }
+
+    private fun localIcebreakers(profile: ProfileData?): List<String> {
+        val name = profile?.fullName()?.takeIf { it.isNotBlank() } ?: "there"
+        val location = if (profile == null) "" else profile.workingCity.ifBlank { profile.familyCity }
+        val work = listOfNotNull(profile?.educationLevel, profile?.occupation, location)
+            .filter { it.isNotBlank() }
+            .joinToString(", ")
+        return listOf(
+            "Hi $name, I liked your profile and would like to understand what kind of partnership you are hoping for.",
+            "Hello $name, your ${work.ifBlank { "profile details" }} stood out. Would you be open to a respectful conversation?",
+            "Hi $name, what values do you feel are most important when two families start a matrimonial conversation?"
+        )
     }
 }

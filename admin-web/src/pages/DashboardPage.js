@@ -18,6 +18,7 @@ import {
   getAnalyticsFunnel,
   getAuditLogs,
   getConfig,
+  getConsentEvents,
   getDashboard,
   getPayments,
   getProfiles,
@@ -766,7 +767,7 @@ function EngagementPanel({ config, patchConfig, onSave, campaign, setCampaign, o
   );
 }
 
-function ModerationPanel({ reports, alerts, onResolve, onAck }) {
+function ModerationPanel({ reports, alerts, consentEvents, onResolve, onAck }) {
   return (
     <div className="two-col">
       <Section eyebrow="Reports" title="Reported Users" detail="Abuse, fake profile, and safety concern queue.">
@@ -792,6 +793,18 @@ function ModerationPanel({ reports, alerts, onResolve, onAck }) {
           ))}
           {!alerts.length ? <div className="empty-state">No alerts.</div> : null}
         </div>
+      </Section>
+      <Section eyebrow="DPDP" title="Consent Ledger" detail="Latest privacy choices for photos, KYC, agent sharing, and SoulMatch Assistance.">
+        <Table
+          rows={consentEvents.slice(0, 25)}
+          columns={[
+            { key: 'consent_type', label: 'Type' },
+            { key: 'status', label: 'Status', render: (r) => <StatusBadge tone={r.status === 'withdrawn' ? 'amber' : 'green'}>{r.status}</StatusBadge> },
+            { key: 'member', label: 'Member', render: (r) => `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.phone || r.email || 'System' },
+            { key: 'notice_version', label: 'Notice' },
+            { key: 'created_at', label: 'Created', render: (r) => formatDateTime(r.created_at) }
+          ]}
+        />
       </Section>
     </div>
   );
@@ -942,6 +955,7 @@ export default function DashboardPage() {
   const [payments, setPayments] = useState({ transactions: [], plans: [], coupons: [] });
   const [reports, setReports] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [consentEvents, setConsentEvents] = useState([]);
   const [advisors, setAdvisors] = useState([]);
   const [assistedAssignments, setAssistedAssignments] = useState([]);
   const [roles, setRoles] = useState([]);
@@ -978,6 +992,7 @@ export default function DashboardPage() {
       { key: 'payments', label: 'Payments', request: getPayments() },
       { key: 'reports', label: 'Reports', request: getReports() },
       { key: 'alerts', label: 'Alerts', request: getAlerts() },
+      { key: 'consentEvents', label: 'Consent ledger', request: getConsentEvents() },
       { key: 'advisors', label: 'Advisor roster', request: getAdvisors() },
       { key: 'assistedAssignments', label: 'Assisted assignments', request: getAssistedAssignments() },
       { key: 'roles', label: 'Roles', request: getRoles() },
@@ -1007,6 +1022,7 @@ export default function DashboardPage() {
     setPayments(byKey.payments?.data?.data || { transactions: [], plans: [], coupons: [] });
     setReports(byKey.reports?.data?.data || []);
     setAlerts(byKey.alerts?.data?.data || []);
+    setConsentEvents(byKey.consentEvents?.data?.data || []);
     setAdvisors(byKey.advisors?.data?.data || []);
     setAssistedAssignments(byKey.assistedAssignments?.data?.data || []);
     setRoles(byKey.roles?.data?.data || []);
@@ -1227,7 +1243,7 @@ export default function DashboardPage() {
           {activeTab === 'payments' ? <PaymentsPanel payments={payments} config={configState} patchConfig={patchConfig} onSave={saveConfig} onRefund={async (t) => { await createRefund({ transactionId: t.transaction_id, amount: t.amount }); setMessage('Refund request queued.'); }} /> : null}
           {activeTab === 'cms' ? <CmsPanel config={configState} patchConfig={patchConfig} onSave={saveConfig} /> : null}
           {activeTab === 'engagement' ? <EngagementPanel config={configState} patchConfig={patchConfig} onSave={saveConfig} campaign={campaign} setCampaign={setCampaign} onCampaign={handleCampaign} /> : null}
-          {activeTab === 'moderation' ? <ModerationPanel reports={reports} alerts={alerts} onResolve={async (id) => { await resolveReport(id); await loadAll(); }} onAck={async (id) => { await acknowledgeAlert(id); await loadAll(); }} /> : null}
+          {activeTab === 'moderation' ? <ModerationPanel reports={reports} alerts={alerts} consentEvents={consentEvents} onResolve={async (id) => { await resolveReport(id); await loadAll(); }} onAck={async (id) => { await acknowledgeAlert(id); await loadAll(); }} /> : null}
           {activeTab === 'assist' ? (
             <AssistPanel
               advisors={advisors}

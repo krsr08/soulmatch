@@ -10,6 +10,7 @@ DISK_WARN_PERCENT="${DISK_WARN_PERCENT:-85}"
 MEMORY_WARN_PERCENT="${MEMORY_WARN_PERCENT:-90}"
 BACKUP_MAX_AGE_HOURS="${BACKUP_MAX_AGE_HOURS:-36}"
 ALERT_WEBHOOK_URL="${ALERT_WEBHOOK_URL:-}"
+ADMIN_ALERT_API_URL="${ADMIN_ALERT_API_URL:-http://127.0.0.1:3011/api/v1/admin/system/alerts}"
 
 mkdir -p "$OPS_DIR"
 STATE_FILE="$OPS_DIR/monitor-state.txt"
@@ -35,10 +36,14 @@ PY
 send_alert() {
   local status="$1"
   local details="$2"
+  local severity="medium"
 
-  [ -n "$ALERT_WEBHOOK_URL" ] || return 0
+  if [ "$status" = "FAIL" ]; then
+    severity="high"
+  fi
 
-  python3 - "$status" "$details" <<'PY' | curl -fsS -X POST -H 'Content-Type: application/json' --data-binary @- "$ALERT_WEBHOOK_URL" >/dev/null || true
+  if [ -n "$ALERT_WEBHOOK_URL" ]; then
+    python3 - "$status" "$details" <<'PY' | curl -fsS -X POST -H 'Content-Type: application/json' --data-binary @- "$ALERT_WEBHOOK_URL" >/dev/null || true
 import json
 import socket
 import sys
@@ -47,6 +52,31 @@ payload = {
 }
 print(json.dumps(payload))
 PY
+  fi
+
+  if [ -n "$ADMIN_ALERT_API_URL" ] && [ -n "${INTERNAL_SERVICE_SECRET:-}" ] && [ "$status" = "FAIL" ]; then
+    python3 - "$severity" "$details" "$status" <<'PY' | curl -fsS -X POST \
+      -H 'Content-Type: application/json' \
+      -H "x-internal-service-secret: $INTERNAL_SERVICE_SECRET" \
+      --data-binary @- \
+      "$ADMIN_ALERT_API_URL" >/dev/null || true
+import json
+import socket
+import sys
+
+payload = {
+    "severity": sys.argv[1],
+    "title": "SoulMatch production monitor failed",
+    "body": sys.argv[2],
+    "source": "production-monitor",
+    "metadata": {
+        "status": sys.argv[3],
+        "host": socket.gethostname()
+    }
+}
+print(json.dumps(payload))
+PY
+  fi
 }
 
 cd "$APP_DIR"

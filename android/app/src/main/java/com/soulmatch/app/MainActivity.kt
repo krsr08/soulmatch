@@ -34,6 +34,7 @@ import com.soulmatch.app.ui.navigation.AppNavigation
 import com.soulmatch.app.ui.screens.system.LaunchBrandScreen
 import com.soulmatch.app.ui.screens.system.MaintenanceScreen
 import com.soulmatch.app.ui.theme.SoulMatchTheme
+import com.soulmatch.app.util.CrashReporter
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.delay
@@ -60,6 +61,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
             super.dispatchGenericMotionEvent(ev)
         } catch (error: IllegalStateException) {
             if (error.message?.contains("ACTION_HOVER_EXIT event was not cleared") == true) {
+                CrashReporter.breadcrumb("ignored_hover_exit_state_error")
                 true
             } else {
                 throw error
@@ -95,10 +97,17 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
             LaunchedEffect(token) {
                 startDestination = null
                 if (token.isNullOrEmpty()) {
+                    CrashReporter.clearUser()
                     userPreferences.clearPendingAuthRoute()
                     startDestination = "welcome"
                     return@LaunchedEffect
                 }
+                CrashReporter.identify(
+                    userId = userPreferences.userId.first(),
+                    userType = userPreferences.userType.first(),
+                    profileId = userPreferences.profileId.first(),
+                    advisorId = userPreferences.advisorId.first()
+                )
                 ensurePushTokenRegistered()
 
                 val pendingAuthRoute = userPreferences.pendingAuthRoute.first()
@@ -115,6 +124,11 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                     when {
                         agentResponse?.isSuccessful == true && agentBody?.success == true -> {
                             userPreferences.saveAdvisorId(agentBody.data?.advisorId.orEmpty())
+                            CrashReporter.identify(
+                                userId = userPreferences.userId.first(),
+                                userType = "agent",
+                                advisorId = agentBody.data?.advisorId
+                            )
                             startDestination = resolveAgentRoute(agentBody.data)
                         }
                         agentResponse?.code() == 401 -> {
@@ -138,6 +152,11 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                         } else {
                             userPreferences.saveProfileId(profile?.profileId.orEmpty())
                         }
+                        CrashReporter.identify(
+                            userId = userPreferences.userId.first(),
+                            userType = "member",
+                            profileId = profile?.profileId
+                        )
                         userPreferences.saveWizardStep(resolveWizardStep(profile) ?: 7)
                         startDestination = resolvePostLoginRoute(profile)
                     }
@@ -176,6 +195,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
 
     override fun onPaymentSuccess(razorpayPaymentId: String?, paymentData: PaymentData?) {
         lifecycleScope.launch {
+            CrashReporter.breadcrumb("razorpay_success")
             paymentCoordinator.completeSuccess(
                 paymentId = razorpayPaymentId.orEmpty(),
                 signature = paymentData?.signature.orEmpty()
@@ -185,6 +205,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
 
     override fun onPaymentError(code: Int, response: String?, paymentData: PaymentData?) {
         lifecycleScope.launch {
+            CrashReporter.breadcrumb("razorpay_error:$code")
             paymentCoordinator.completeFailure(
                 message = resolvePaymentFailureMessage(code, response),
                 code = code,
@@ -235,6 +256,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                 val enabled = userPreferences.pushNotifications.first()
                 if (authToken.isNullOrBlank() || !enabled) return@launch
                 runCatching { notificationApi.registerFcmToken(FcmTokenRequest(fcmToken)) }
+                    .onFailure { CrashReporter.recordNonFatal(it, "fcm_token_registration") }
             }
         }
     }

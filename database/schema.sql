@@ -533,6 +533,31 @@ CREATE TABLE IF NOT EXISTS admin_alerts (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS consent_events (
+    consent_event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
+    profile_id UUID REFERENCES profiles(profile_id) ON DELETE SET NULL,
+    consent_type VARCHAR(48) NOT NULL,
+    status VARCHAR(24) NOT NULL,
+    purpose TEXT NOT NULL,
+    notice_version VARCHAR(48) NOT NULL,
+    metadata JSONB DEFAULT '{}'::JSONB,
+    source VARCHAR(40) DEFAULT 'member_app',
+    ip_address VARCHAR(80),
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT consent_events_type_check CHECK (
+        consent_type IN (
+            'photo_upload',
+            'kyc_upload',
+            'agent_kyc_upload',
+            'agent_profile_share',
+            'soulmatch_assistance'
+        )
+    ),
+    CONSTRAINT consent_events_status_check CHECK (status IN ('granted', 'withdrawn', 'updated'))
+);
+
 CREATE TABLE IF NOT EXISTS admin_campaigns (
     campaign_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(180) NOT NULL,
@@ -590,6 +615,8 @@ CREATE INDEX IF NOT EXISTS idx_profiles_match_search ON profiles(gender, is_publ
 CREATE INDEX IF NOT EXISTS idx_advisors_status_city ON advisors(status, kyc_status, city, state, pincode);
 CREATE INDEX IF NOT EXISTS idx_advisor_service_areas_lookup ON advisor_service_areas(city, state, pincode, locality);
 CREATE INDEX IF NOT EXISTS idx_assisted_match_profiles_status ON assisted_match_profiles(request_status, support_level, assigned_advisor_id);
+CREATE INDEX IF NOT EXISTS idx_consent_events_user_type_created ON consent_events(user_id, consent_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_consent_events_profile_type_created ON consent_events(profile_id, consent_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_assisted_assignment_events_profile ON assisted_match_assignment_events(profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_family_match_decisions_owner_status ON family_match_decisions(owner_profile_id, status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_family_match_decisions_target ON family_match_decisions(target_profile_id, updated_at DESC);
