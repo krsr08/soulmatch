@@ -110,14 +110,25 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                 )
                 ensurePushTokenRegistered()
 
+                val storedUserType = userPreferences.userType.first().orEmpty().lowercase()
                 val pendingAuthRoute = userPreferences.pendingAuthRoute.first()
                 if (!pendingAuthRoute.isNullOrBlank()) {
                     userPreferences.clearPendingAuthRoute()
-                    startDestination = pendingAuthRoute
+                    if (storedUserType == "agent" && pendingAuthRoute.startsWith("agent_")) {
+                        val agentResponse = runCatching { profileApi.getAgentProfile() }.getOrNull()
+                        val agentBody = agentResponse?.body()
+                        startDestination = if (agentResponse?.isSuccessful == true && agentBody?.success == true) {
+                            userPreferences.saveAdvisorId(agentBody.data?.advisorId.orEmpty())
+                            resolveAgentRoute(agentBody.data)
+                        } else {
+                            pendingAuthRoute
+                        }
+                    } else {
+                        startDestination = pendingAuthRoute
+                    }
                     return@LaunchedEffect
                 }
 
-                val storedUserType = userPreferences.userType.first().orEmpty().lowercase()
                 if (storedUserType == "agent") {
                     val agentResponse = runCatching { profileApi.getAgentProfile() }.getOrNull()
                     val agentBody = agentResponse?.body()

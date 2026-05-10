@@ -202,25 +202,22 @@ class AuthViewModel @Inject constructor(
     }
 
     private suspend fun persistSessionAndResolveRoute(data: AuthData, requestedUserType: String? = null): String {
-        val normalizedUserType = data.userType.ifBlank { "member" }
+        val normalizedUserType = data.userType.ifBlank { requestedUserType ?: "member" }
         prefs.saveUserType(normalizedUserType)
         prefs.saveAuthToken(data.accessToken)
         prefs.saveRefreshToken(data.refreshToken)
         prefs.saveUserId(data.userId)
-        val explicitSelectionRoute = when (requestedUserType) {
-            "agent" -> "agent_onboarding"
-            else -> null
-        }
-
         val route = if (data.isNewUser && requestedUserType.isNullOrBlank()) {
             "auth_role_selection"
-        } else if (explicitSelectionRoute != null) {
-            explicitSelectionRoute
         } else if (normalizedUserType == "agent") {
             val agentProfile = runCatching {
                 profileApi.getAgentProfile().body()?.takeIf { it.success }?.data
             }.getOrNull()
-            resolveAgentRoute(agentProfile)
+            if (data.isNewUser || agentProfile?.advisorId.isNullOrBlank()) {
+                "agent_onboarding"
+            } else {
+                resolveAgentRoute(agentProfile)
+            }
         } else if (!data.isNewUser) {
             val profile = runCatching {
                 profileApi.getMyProfile().body()?.takeIf { it.success }?.data

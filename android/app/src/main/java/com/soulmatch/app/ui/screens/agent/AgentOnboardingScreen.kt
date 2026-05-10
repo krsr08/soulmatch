@@ -84,9 +84,6 @@ fun AgentOnboardingScreen(
     val context = LocalContext.current
     val agentProfile = state.agentProfile
     val isRegisteredAgent = agentProfile?.advisorId != null
-    val docsEditable = !isRegisteredAgent ||
-        agentProfile?.kycStatus.equals("rejected", ignoreCase = true) ||
-        agentProfile?.onboardingStatus.equals("rejected", ignoreCase = true)
 
     var fullName by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -103,7 +100,7 @@ fun AgentOnboardingScreen(
     var chequeUri by remember { mutableStateOf<Uri?>(null) }
     val termsScrollState = rememberScrollState()
     val termsScrolledToBottom by remember {
-        derivedStateOf { termsScrollState.maxValue > 0 && termsScrollState.value >= termsScrollState.maxValue - 4 }
+        derivedStateOf { termsScrollState.maxValue == 0 || termsScrollState.value >= termsScrollState.maxValue - 4 }
     }
 
     LaunchedEffect(agentProfile?.advisorId, agentProfile?.phone, agentProfile?.email) {
@@ -136,6 +133,16 @@ fun AgentOnboardingScreen(
     val panReady = panUri != null || existingDocumentTypes.contains("pan")
     val chequeReady = chequeUri != null || existingDocumentTypes.contains("cancelled_cheque")
     val termsReady = termsAccepted || !agentProfile?.termsAcceptedAt.isNullOrBlank()
+    val reviewRejected = agentProfile?.kycStatus.equals("rejected", ignoreCase = true) ||
+        agentProfile?.onboardingStatus.equals("rejected", ignoreCase = true)
+    val aadhaarRejected = agentProfile?.aadhaarVerificationStatus.equals("rejected", ignoreCase = true)
+    val panRejected = agentProfile?.panVerificationStatus.equals("rejected", ignoreCase = true)
+    val bankRejected = agentProfile?.bankVerificationStatus.equals("rejected", ignoreCase = true)
+    val aadhaarEditable = !isRegisteredAgent || reviewRejected || aadhaarRejected || !aadhaarReady
+    val panEditable = !isRegisteredAgent || reviewRejected || panRejected || !panReady
+    val chequeEditable = !isRegisteredAgent || reviewRejected || bankRejected || !chequeReady
+    val termsEditable = !termsReady
+    val docsEditable = aadhaarEditable || panEditable || chequeEditable
     val detailsReady = fullName.isNotBlank() &&
         phone.isNotBlank() &&
         city.isNotBlank() &&
@@ -143,11 +150,14 @@ fun AgentOnboardingScreen(
         businessName.isNotBlank() &&
         (yearsExperience.toIntOrNull()?.let { it >= 0 } == true) &&
         languagesText.split(',').map { it.trim() }.any { it.isNotBlank() }
-    val requiresFraudSubmit = docsEditable && (!isRegisteredAgent || agentProfile?.onboardingStatus.equals("rejected", true) || agentProfile?.kycStatus.equals("rejected", true))
+    val requiresFraudSubmit = !isRegisteredAgent || reviewRejected || !aadhaarReady || !panReady || !chequeReady || !termsReady
     val canSubmit = !state.saving && detailsReady && (!requiresFraudSubmit || (aadhaarReady && panReady && chequeReady && termsReady))
     val pennyCheckout = state.pennyCheckout
     val pennyDropComplete = agentProfile?.pennyDropStatus in listOf("paid", "verified")
     val canStartPennyDrop = agentProfile?.advisorId != null && chequeReady && !pennyDropComplete && !state.processingPennyDrop
+    val afterSuccessfulSave = {
+        if (!isRegisteredAgent) onCompleted()
+    }
 
     LaunchedEffect(pennyCheckout?.order?.orderId) {
         val checkout = pennyCheckout ?: return@LaunchedEffect
@@ -263,7 +273,7 @@ fun AgentOnboardingScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("KYC Verification", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 22.sp)
                         Text(
-                            if (docsEditable) {
+                            if (docsEditable || termsEditable) {
                                 "Upload Aadhaar, PAN, and a cancelled cheque. Files are encrypted before storage and cheque details are never shown publicly."
                             } else {
                                 "Documents are locked while verification is in progress or approved. You can upload again if the review is rejected."
@@ -277,7 +287,7 @@ fun AgentOnboardingScreen(
                         subtitle = currentDocumentLabel(agentProfile?.kycDocuments?.firstOrNull { it.documentType == "aadhaar" }),
                         selectedName = aadhaarUri?.let { context.fileLabelFor(it) },
                         highlighted = true,
-                        enabled = docsEditable,
+                        enabled = aadhaarEditable,
                         onPick = { aadhaarPicker.launch(arrayOf("image/*", "application/pdf")) }
                     )
                     AgentDocumentCard(
@@ -285,7 +295,7 @@ fun AgentOnboardingScreen(
                         subtitle = currentDocumentLabel(agentProfile?.kycDocuments?.firstOrNull { it.documentType == "pan" }),
                         selectedName = panUri?.let { context.fileLabelFor(it) },
                         highlighted = false,
-                        enabled = docsEditable,
+                        enabled = panEditable,
                         onPick = { panPicker.launch(arrayOf("image/*", "application/pdf")) }
                     )
                     AgentDocumentCard(
@@ -293,7 +303,7 @@ fun AgentOnboardingScreen(
                         subtitle = currentDocumentLabel(agentProfile?.kycDocuments?.firstOrNull { it.documentType == "cancelled_cheque" }),
                         selectedName = chequeUri?.let { context.fileLabelFor(it) },
                         highlighted = false,
-                        enabled = docsEditable,
+                        enabled = chequeEditable,
                         onPick = { chequePicker.launch(arrayOf("image/*", "application/pdf")) }
                     )
                     UploadDropZone(
@@ -308,7 +318,7 @@ fun AgentOnboardingScreen(
 
                     TermsAcceptanceCard(
                         accepted = termsAccepted,
-                        locked = !docsEditable && termsReady,
+                        locked = termsReady,
                         scrollState = termsScrollState,
                         canAccept = termsScrolledToBottom || termsAccepted,
                         onAcceptedChange = { checked ->
@@ -330,15 +340,7 @@ fun AgentOnboardingScreen(
                                 panUri?.let { context.toAgentDocumentPart(it, "documents", 1) },
                                 chequeUri?.let { context.toAgentDocumentPart(it, "documents", 2) }
                             )
-                            if (
-                                !docsEditable ||
-                                (
-                                    documents.isEmpty() &&
-                                        agentProfile != null &&
-                                        agentProfile.kycDocuments.isNotEmpty() &&
-                                        agentProfile.onboardingStatus in listOf("approved", "under_review")
-                                )
-                            ) {
+                            if (documents.isEmpty()) {
                                 vm.saveAgentProfile(
                                     AgentProfileUpsertRequest(
                                         fullName = fullName,
@@ -353,7 +355,7 @@ fun AgentOnboardingScreen(
                                         serviceLabel = agentProfile?.serviceLabel?.ifBlank { "SoulMatch Agent" } ?: "SoulMatch Agent",
                                         termsAccepted = termsAccepted
                                     ),
-                                    onCompleted = onCompleted
+                                    onCompleted = afterSuccessfulSave
                                 )
                             } else {
                                 val request = AgentOnboardingRequest(
@@ -388,7 +390,7 @@ fun AgentOnboardingScreen(
                                     request = request,
                                     documents = documents,
                                     documentMeta = documentMeta,
-                                    onCompleted = onCompleted
+                                    onCompleted = afterSuccessfulSave
                                 )
                             }
                         },

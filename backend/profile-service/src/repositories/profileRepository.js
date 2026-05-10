@@ -2631,8 +2631,18 @@ exports.getActiveAdvisorDirectory = async (limit = 24) => {
 exports.createAgentPennyDropOrder = async (userId) => {
   const advisor = await getAdvisorByUserId(userId);
   if (!advisor) return { status: 'advisor_not_found' };
+  const db = await getDB();
   if (!advisor.bank_verification_status || advisor.bank_verification_status === 'not_started') {
-    return { status: 'bank_document_required' };
+    const cheque = await db.query(
+      `SELECT advisor_kyc_document_id
+       FROM advisor_kyc_documents
+       WHERE advisor_id = $1 AND document_type = 'cancelled_cheque'
+       LIMIT 1`,
+      [advisor.advisor_id]
+    );
+    if (!cheque.rowCount) {
+      return { status: 'bank_document_required' };
+    }
   }
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
@@ -2663,7 +2673,6 @@ exports.createAgentPennyDropOrder = async (userId) => {
     logger.warn(`Agent penny-drop order failed for ${advisor.advisor_id}: ${response.status}`);
     return { status: 'gateway_error' };
   }
-  const db = await getDB();
   await db.query(
     `UPDATE advisors
      SET penny_drop_status = 'pending',

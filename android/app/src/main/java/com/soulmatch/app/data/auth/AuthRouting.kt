@@ -55,7 +55,7 @@ fun resolvePostLoginRoute(profile: ProfileData?): String {
 }
 
 fun resolveAgentRoute(agentProfile: AgentProfileData?): String {
-    return if (agentProfile?.isOnboarded == true) {
+    return if (!agentProfile?.advisorId.isNullOrBlank()) {
         "agent_dashboard"
     } else {
         "agent_onboarding"
