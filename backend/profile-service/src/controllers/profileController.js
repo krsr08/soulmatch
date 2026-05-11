@@ -1044,7 +1044,7 @@ exports.createManagedProfile = async (req, res, next) => {
     requireAgentAccount(req);
     const result = await repo.createManagedProfileByAgentUserId(req.user.userId, req.body || {});
     if (result.status === 'advisor_not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Agent profile not found'));
-    if (result.status === 'advisor_not_approved') return next(new AppError(403, ErrorCodes.FORBIDDEN, 'Your agent account must be approved before creating member profiles.'));
+    if (result.status === 'advisor_not_approved') return next(new AppError(403, ErrorCodes.FORBIDDEN, 'Your agent account must be active and not rejected before creating member profiles.'));
     if (result.status === 'profile_limit_reached') return next(new AppError(403, ErrorCodes.FORBIDDEN, `Your current plan allows up to ${result.limit} active profiles.`));
     if (result.status === 'duplicate_contact') return next(new AppError(409, ErrorCodes.VALIDATION_ERROR, 'This mobile number or email is already linked to another profile.'));
     await auditUserChange(req, {

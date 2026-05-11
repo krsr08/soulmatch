@@ -143,13 +143,15 @@ fun AgentOnboardingScreen(
     val chequeEditable = !isRegisteredAgent || reviewRejected || bankRejected || !chequeReady
     val termsEditable = !termsReady
     val docsEditable = aadhaarEditable || panEditable || chequeEditable
+    val languagesReady = isRegisteredAgent || languagesText.split(',').map { it.trim() }.any { it.isNotBlank() }
+    val yearsExperienceReady = yearsExperience.isBlank() || (yearsExperience.toIntOrNull()?.let { it >= 0 } == true)
     val detailsReady = fullName.isNotBlank() &&
         phone.isNotBlank() &&
         city.isNotBlank() &&
         stateName.isNotBlank() &&
         businessName.isNotBlank() &&
-        (yearsExperience.toIntOrNull()?.let { it >= 0 } == true) &&
-        languagesText.split(',').map { it.trim() }.any { it.isNotBlank() }
+        yearsExperienceReady &&
+        languagesReady
     val requiresFraudSubmit = !isRegisteredAgent || reviewRejected || !aadhaarReady || !panReady || !chequeReady || !termsReady
     val canSubmit = !state.saving && detailsReady && (!requiresFraudSubmit || (aadhaarReady && panReady && chequeReady && termsReady))
     val pennyCheckout = state.pennyCheckout
@@ -310,7 +312,9 @@ fun AgentOnboardingScreen(
                         aadhaarReady = aadhaarReady,
                         panReady = panReady,
                         chequeReady = chequeReady,
-                        enabled = docsEditable,
+                        aadhaarEnabled = aadhaarEditable,
+                        panEnabled = panEditable,
+                        chequeEnabled = chequeEditable,
                         onPickAadhaar = { aadhaarPicker.launch(arrayOf("image/*", "application/pdf")) },
                         onPickPan = { panPicker.launch(arrayOf("image/*", "application/pdf")) },
                         onPickCheque = { chequePicker.launch(arrayOf("image/*", "application/pdf")) }
@@ -746,11 +750,14 @@ private fun UploadDropZone(
     aadhaarReady: Boolean,
     panReady: Boolean,
     chequeReady: Boolean,
-    enabled: Boolean,
+    aadhaarEnabled: Boolean,
+    panEnabled: Boolean,
+    chequeEnabled: Boolean,
     onPickAadhaar: () -> Unit,
     onPickPan: () -> Unit,
     onPickCheque: () -> Unit
 ) {
+    val enabled = aadhaarEnabled || panEnabled || chequeEnabled
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -765,17 +772,17 @@ private fun UploadDropZone(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Icon(Icons.Outlined.CloudUpload, contentDescription = null, tint = AgentColorsAccent, modifier = Modifier.size(30.dp))
-            Text(if (enabled) "Click to upload or replace documents" else "Document uploads are locked", fontWeight = FontWeight.Bold)
+            Text(if (enabled) "Upload missing or rejected documents" else "Document uploads are locked", fontWeight = FontWeight.Bold)
             Text(
-                if (enabled) "SVG, PNG, JPG or PDF (max. 10MB)" else "Re-opened automatically if KYC is rejected.",
+                if (enabled) "SVG, PNG, JPG or PDF (max. 10MB)" else "Only missing or rejected documents can be uploaded here.",
                 color = AgentColorsMuted,
                 style = MaterialTheme.typography.bodySmall
             )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MiniUploadStatus("Aadhaar", aadhaarReady, enabled, onPickAadhaar)
-                MiniUploadStatus("PAN", panReady, enabled, onPickPan)
+                MiniUploadStatus("Aadhaar", aadhaarReady, aadhaarEnabled, onPickAadhaar)
+                MiniUploadStatus("PAN", panReady, panEnabled, onPickPan)
             }
-            MiniUploadStatus("Cheque", chequeReady, enabled, onPickCheque)
+            MiniUploadStatus("Cheque", chequeReady, chequeEnabled, onPickCheque)
         }
     }
 }

@@ -10,6 +10,7 @@ import com.soulmatch.app.data.models.AgentManagedProfileCreateRequest
 import com.soulmatch.app.data.models.AgentOnboardingRequest
 import com.soulmatch.app.data.models.AgentProfileData
 import com.soulmatch.app.data.models.AgentProfileUpsertRequest
+import com.soulmatch.app.data.models.GenericResponse
 import com.soulmatch.app.data.models.PaymentVerifyRequest
 import com.soulmatch.app.data.payments.PaymentCoordinator
 import com.soulmatch.app.data.payments.PaymentOutcome
@@ -25,6 +26,8 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
+import org.json.JSONObject
+import retrofit2.Response
 
 data class AgentUiState(
     val loading: Boolean = false,
@@ -185,26 +188,29 @@ class AgentViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = _state.value.copy(saving = true, error = null, saveMessage = null)
             try {
-                val response = profileApi.createAgentManagedProfile(request).body()
-                if (response?.success == true && response.data != null) {
-                    val profileId = response.data.profileId
+                val createResponse = profileApi.createAgentManagedProfile(request)
+                val created = createResponse.body()
+                if (createResponse.isSuccessful && created?.success == true && created.data != null) {
+                    val profileId = created.data.profileId
                     if (photoParts.isNotEmpty()) {
-                        val uploadResponse = profileApi.uploadPhotos(profileId, photoParts).body()
-                        if (uploadResponse?.success != true) {
+                        val uploadResponse = profileApi.uploadPhotos(profileId, photoParts)
+                        val uploadBody = uploadResponse.body()
+                        if (!uploadResponse.isSuccessful || uploadBody?.success != true) {
                             _state.value = _state.value.copy(
                                 saving = false,
-                                error = uploadResponse?.error?.message ?: "Profile saved, but photo upload failed."
+                                error = extractErrorMessage(uploadResponse, "Profile saved, but photo upload failed.")
                             )
                             refresh()
                             return@launch
                         }
                     }
                     if (publishProfile) {
-                        val submitResponse = profileApi.submitAgentManagedProfile(profileId).body()
-                        if (submitResponse?.success != true) {
+                        val submitResponse = profileApi.submitAgentManagedProfile(profileId)
+                        val submitBody = submitResponse.body()
+                        if (!submitResponse.isSuccessful || submitBody?.success != true) {
                             _state.value = _state.value.copy(
                                 saving = false,
-                                error = submitResponse?.error?.message ?: "Profile saved, but submission failed."
+                                error = extractErrorMessage(submitResponse, "Profile saved, but submission failed.")
                             )
                             refresh()
                             return@launch
@@ -217,7 +223,10 @@ class AgentViewModel @Inject constructor(
                     refresh()
                     onCompleted()
                 } else {
-                    _state.value = _state.value.copy(saving = false, error = response?.error?.message ?: "Could not create member profile.")
+                    _state.value = _state.value.copy(
+                        saving = false,
+                        error = extractErrorMessage(createResponse, "Could not create member profile.")
+                    )
                 }
             } catch (error: Exception) {
                 _state.value = _state.value.copy(saving = false, error = error.message ?: "Could not create member profile.")
@@ -352,3 +361,18 @@ class AgentViewModel @Inject constructor(
 }
 
 private fun String.asPlainPart(): RequestBody = toRequestBody("text/plain".toMediaTypeOrNull())
+
+private fun <T> extractErrorMessage(response: Response<GenericResponse<T>>, fallback: String): String {
+    val body = response.body()
+    body?.error?.message?.takeIf { it.isNotBlank() }?.let { return it }
+    body?.message?.takeIf { it.isNotBlank() }?.let { return it }
+    val raw = runCatching { response.errorBody()?.string().orEmpty() }.getOrDefault("")
+    if (raw.isNotBlank()) {
+        runCatching {
+            val json = JSONObject(raw)
+            json.optJSONObject("error")?.optString("message")?.takeIf { it.isNotBlank() }
+                ?: json.optString("message").takeIf { it.isNotBlank() }
+        }.getOrNull()?.let { return it }
+    }
+    return fallback
+}

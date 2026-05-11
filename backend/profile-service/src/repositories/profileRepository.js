@@ -2984,7 +2984,9 @@ exports.createManagedProfileByAgentUserId = async (userId, payload = {}) => {
       await client.query('ROLLBACK');
       return { status: 'advisor_not_found' };
     }
-    if (advisor.onboarding_status !== 'approved') {
+    const advisorStatus = String(advisor.status || 'active').trim().toLowerCase();
+    const advisorOnboardingStatus = String(advisor.onboarding_status || 'draft').trim().toLowerCase();
+    if (advisorStatus === 'inactive' || advisorOnboardingStatus === 'rejected') {
       await client.query('ROLLBACK');
       return { status: 'advisor_not_approved' };
     }
