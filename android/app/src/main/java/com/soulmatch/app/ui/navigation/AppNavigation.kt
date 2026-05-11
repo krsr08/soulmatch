@@ -76,7 +76,7 @@ import com.soulmatch.app.ui.screens.success.SuccessStoriesScreen
 import com.soulmatch.app.ui.screens.subscription.SubscriptionHistoryScreen
 import com.soulmatch.app.ui.screens.subscription.SubscriptionScreen
 import com.soulmatch.app.ui.viewmodels.AnalyticsViewModel
-import com.soulmatch.app.ui.components.ProfileDrawerRoutes
+import com.soulmatch.app.ui.components.navigation.ProfileDrawerRoutes
 
 @Composable
 fun AppNavigation(

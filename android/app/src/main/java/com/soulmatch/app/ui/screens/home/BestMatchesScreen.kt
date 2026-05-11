@@ -44,10 +44,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.ProfileSummary
 import com.soulmatch.app.data.models.SubscriptionData
-import com.soulmatch.app.ui.components.PremiumCard
-import com.soulmatch.app.ui.components.PremiumScreen
-import com.soulmatch.app.ui.components.ProfileCard
-import com.soulmatch.app.ui.components.UpgradePlanGate
+import com.soulmatch.app.ui.components.premium.PremiumCard
+import com.soulmatch.app.ui.components.premium.PremiumScreen
+import com.soulmatch.app.ui.components.cards.ProfileCard
+import com.soulmatch.app.ui.components.premium.UpgradePlanGate
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.SurfaceSoft
 import com.soulmatch.app.ui.theme.SurfaceWarm

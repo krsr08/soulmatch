@@ -56,11 +56,11 @@ import com.soulmatch.app.data.upgrade.UpgradePackage
 import com.soulmatch.app.data.upgrade.UpgradePackageGroup
 import com.soulmatch.app.data.upgrade.UpgradeTabConfig
 import com.soulmatch.app.data.upgrade.UpgradeTabKey
-import com.soulmatch.app.ui.components.ChipTone
-import com.soulmatch.app.ui.components.PremiumCard
-import com.soulmatch.app.ui.components.PremiumScreen
-import com.soulmatch.app.ui.components.SectionTitle
-import com.soulmatch.app.ui.components.SignalChip
+import com.soulmatch.app.ui.components.premium.ChipTone
+import com.soulmatch.app.ui.components.premium.PremiumCard
+import com.soulmatch.app.ui.components.premium.PremiumScreen
+import com.soulmatch.app.ui.components.premium.SectionTitle
+import com.soulmatch.app.ui.components.premium.SignalChip
 import com.soulmatch.app.ui.formatCurrency
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.SurfaceWarm

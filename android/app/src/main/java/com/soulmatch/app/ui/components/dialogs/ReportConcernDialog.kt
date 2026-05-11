@@ -1,4 +1,6 @@
-package com.soulmatch.app.ui.components
+package com.soulmatch.app.ui.components.dialogs
+
+// Shared reporting dialog used wherever a member can flag a profile or interaction.
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth

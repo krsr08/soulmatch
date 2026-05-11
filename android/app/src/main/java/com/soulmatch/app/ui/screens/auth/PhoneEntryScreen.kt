@@ -41,8 +41,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.PhoneEntryContentData
-import com.soulmatch.app.ui.components.PremiumCard
-import com.soulmatch.app.ui.components.PremiumScreen
+import com.soulmatch.app.ui.components.premium.PremiumCard
+import com.soulmatch.app.ui.components.premium.PremiumScreen
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.Error
 import com.soulmatch.app.ui.theme.PrimaryDark

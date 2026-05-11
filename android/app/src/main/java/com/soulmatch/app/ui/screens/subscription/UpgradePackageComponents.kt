@@ -39,9 +39,9 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.soulmatch.app.data.upgrade.UpgradePackage
 import com.soulmatch.app.data.upgrade.UpgradePackageGroup
-import com.soulmatch.app.ui.components.ChipTone
-import com.soulmatch.app.ui.components.PremiumCard
-import com.soulmatch.app.ui.components.SignalChip
+import com.soulmatch.app.ui.components.premium.ChipTone
+import com.soulmatch.app.ui.components.premium.PremiumCard
+import com.soulmatch.app.ui.components.premium.SignalChip
 import com.soulmatch.app.ui.formatCurrency
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.InfoSoft

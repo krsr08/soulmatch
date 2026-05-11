@@ -44,9 +44,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.NotificationData
 import com.soulmatch.app.data.models.fullName
-import com.soulmatch.app.ui.components.PremiumCard
-import com.soulmatch.app.ui.components.PremiumScreen
-import com.soulmatch.app.ui.components.ProfileStrengthAdvisor
+import com.soulmatch.app.ui.components.premium.PremiumCard
+import com.soulmatch.app.ui.components.premium.PremiumScreen
+import com.soulmatch.app.ui.components.status.ProfileStrengthAdvisor
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.viewmodels.DashboardViewModel

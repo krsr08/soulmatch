@@ -22,8 +22,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.soulmatch.app.data.models.LegalDocumentData
 import com.soulmatch.app.data.models.LegalSectionData
-import com.soulmatch.app.ui.components.PremiumCard
-import com.soulmatch.app.ui.components.PremiumScreen
+import com.soulmatch.app.ui.components.premium.PremiumCard
+import com.soulmatch.app.ui.components.premium.PremiumScreen
 import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
 

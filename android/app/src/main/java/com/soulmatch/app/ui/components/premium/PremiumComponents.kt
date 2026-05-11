@@ -1,4 +1,6 @@
-package com.soulmatch.app.ui.components
+package com.soulmatch.app.ui.components.premium
+
+// Shared SoulMatch surface system: premium cards, chips, section headers, grids, and upgrade gates.
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background

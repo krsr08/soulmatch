@@ -59,11 +59,11 @@ import com.soulmatch.app.data.models.InterestListItem
 import com.soulmatch.app.data.models.ShortlistItem
 import com.soulmatch.app.data.models.ViewerData
 import com.soulmatch.app.data.models.fullName
-import com.soulmatch.app.ui.components.ChipTone
-import com.soulmatch.app.ui.components.MemberPhoto
-import com.soulmatch.app.ui.components.PremiumCard
-import com.soulmatch.app.ui.components.PremiumScreen
-import com.soulmatch.app.ui.components.SignalChip
+import com.soulmatch.app.ui.components.premium.ChipTone
+import com.soulmatch.app.ui.components.media.MemberPhoto
+import com.soulmatch.app.ui.components.premium.PremiumCard
+import com.soulmatch.app.ui.components.premium.PremiumScreen
+import com.soulmatch.app.ui.components.premium.SignalChip
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.Error
 import com.soulmatch.app.ui.theme.ErrorSoft

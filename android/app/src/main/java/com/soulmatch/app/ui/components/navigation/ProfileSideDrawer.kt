@@ -1,4 +1,6 @@
-package com.soulmatch.app.ui.components
+package com.soulmatch.app.ui.components.navigation
+
+// Member profile side drawer and route constants shared by dashboard/profile navigation.
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
@@ -42,6 +44,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.soulmatch.app.ui.components.media.MemberPhoto
 import com.soulmatch.app.ui.theme.TextSecondary
 
 object ProfileDrawerRoutes {

@@ -92,11 +92,11 @@ import com.soulmatch.app.data.models.defaultHomeBestMatchAds
 import com.soulmatch.app.data.models.fullName
 import com.soulmatch.app.data.upgrade.UpgradePackage
 import com.soulmatch.app.data.upgrade.UpgradePackageGroup
-import com.soulmatch.app.ui.components.MemberPhoto
-import com.soulmatch.app.ui.components.PremiumCard
-import com.soulmatch.app.ui.components.PremiumScreen
-import com.soulmatch.app.ui.components.ProfileSideDrawer
-import com.soulmatch.app.ui.components.ProfileStrengthAdvisor
+import com.soulmatch.app.ui.components.media.MemberPhoto
+import com.soulmatch.app.ui.components.premium.PremiumCard
+import com.soulmatch.app.ui.components.premium.PremiumScreen
+import com.soulmatch.app.ui.components.navigation.ProfileSideDrawer
+import com.soulmatch.app.ui.components.status.ProfileStrengthAdvisor
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.PrimaryDark
 import com.soulmatch.app.ui.theme.SurfaceSoft

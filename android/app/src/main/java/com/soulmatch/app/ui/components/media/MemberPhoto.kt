@@ -1,4 +1,6 @@
-package com.soulmatch.app.ui.components
+package com.soulmatch.app.ui.components.media
+
+// Centralized member photo rendering so privacy blur/placeholder behavior stays consistent.
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box

@@ -1,4 +1,6 @@
-package com.soulmatch.app.ui.components
+package com.soulmatch.app.ui.components.dialogs
+
+// Shared action dialog for gated phone/contact flows.
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call

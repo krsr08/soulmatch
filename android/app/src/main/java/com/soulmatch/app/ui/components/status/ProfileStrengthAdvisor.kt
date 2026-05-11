@@ -1,4 +1,6 @@
-package com.soulmatch.app.ui.components
+package com.soulmatch.app.ui.components.status
+
+// Shared profile-strength rules used by member screens to keep readiness messaging consistent.
 
 import com.soulmatch.app.data.models.ProfileData
 

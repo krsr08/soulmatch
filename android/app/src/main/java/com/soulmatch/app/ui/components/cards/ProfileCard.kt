@@ -1,4 +1,6 @@
-package com.soulmatch.app.ui.components
+package com.soulmatch.app.ui.components.cards
+
+// Reusable profile discovery cards and compatibility visuals used across match/search surfaces.
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -43,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.soulmatch.app.data.models.ProfileSummary
+import com.soulmatch.app.ui.components.media.MemberPhoto
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.Error
 import com.soulmatch.app.ui.theme.PrimaryDark
