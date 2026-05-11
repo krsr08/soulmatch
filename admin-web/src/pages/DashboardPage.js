@@ -247,17 +247,6 @@ function fullName(row) {
   return [row?.first_name || row?.firstName, row?.last_name || row?.lastName].filter(Boolean).join(' ') || row?.full_name || 'Unnamed';
 }
 
-function ageFromDob(dob) {
-  if (!dob) return '-';
-  const date = new Date(dob);
-  if (Number.isNaN(date.getTime())) return '-';
-  const now = new Date();
-  let age = now.getFullYear() - date.getFullYear();
-  const monthDiff = now.getMonth() - date.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < date.getDate())) age -= 1;
-  return age > 0 ? age : '-';
-}
-
 function toneForStatus(status) {
   const normalized = String(status || '').toLowerCase();
   if (['active', 'verified', 'approved', 'paid', 'success', 'captured'].includes(normalized)) return 'success';
@@ -469,7 +458,7 @@ function AdminButton({ variant = 'secondary', children, className = '', ...props
   );
 }
 
-function AdminShell({ activeTab, onTab, session, search, onSearch, children }) {
+function AdminShell({ activeTab, onTab, session, search, onSearch, onHelp, children }) {
   const navigate = useNavigate();
   const handleTab = (id) => {
     if (id === 'logout') {
@@ -520,9 +509,9 @@ function AdminShell({ activeTab, onTab, session, search, onSearch, children }) {
             <input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search records..." />
           </label>
           <div className="topbar-actions">
-            <button type="button" title="Notifications"><Icon name="bell" /></button>
-            <button type="button" title="Help"><Icon name="help" /></button>
-            <span>Admin Settings</span>
+            <button type="button" title="Notifications" onClick={() => handleTab('notifications')}><Icon name="bell" /></button>
+            <button type="button" title="Help" onClick={onHelp}><Icon name="help" /></button>
+            <button type="button" className="settings-link" onClick={() => handleTab('settings')}>Admin Settings</button>
             <div className="small-avatar">{(session.email || 'A').charAt(0).toUpperCase()}</div>
           </div>
         </header>
@@ -545,19 +534,19 @@ function SectionHeader({ eyebrow, title, description, actions }) {
   );
 }
 
-function StatCard({ tone, label, value, sub, link, onClick }) {
+function StatCard({ tone, label, value, sub, link = 'View Details', onClick }) {
   return (
     <button type="button" className={`stat-tile ${tone || ''}`} onClick={onClick}>
       <div className="stat-icon"><Icon name="trend" /></div>
       <strong>{value}</strong>
       <span>{label}</span>
       <small>{sub}</small>
-      {link ? <em>{link}</em> : null}
+      <em>{link}</em>
     </button>
   );
 }
 
-function SimpleLineChart({ rows }) {
+function SimpleLineChart({ rows, ariaLabel = 'Revenue trend chart' }) {
   const values = (rows || []).map((row) => numberValue(row.revenue || row.total || row.value));
   const labels = (rows || []).map((row) => row.label || row.month || '');
   const max = Math.max(...values, 1);
@@ -569,7 +558,8 @@ function SimpleLineChart({ rows }) {
   const area = points ? `20,160 ${points} 280,160` : '';
   return (
     <div className="chart-card">
-      <svg viewBox="0 0 300 180" role="img" aria-label="Revenue trend chart">
+      <svg viewBox="0 0 300 180" role="img" aria-label={ariaLabel}>
+        {[40, 80, 120, 160].map((y) => <line key={y} x1="18" x2="282" y1={y} y2={y} className="chart-grid-line" />)}
         <polyline points={area} className="chart-area" />
         <polyline points={points} className="chart-line" />
         {values.map((value, index) => {
@@ -585,27 +575,94 @@ function SimpleLineChart({ rows }) {
   );
 }
 
-function DonutChart({ rows, total }) {
-  const free = numberValue(rows.find((row) => String(row.plan_id).toLowerCase() === 'free')?.total);
-  const paid = Math.max(numberValue(total) - free, 0);
-  const percent = numberValue(total) ? (paid / numberValue(total)) * 100 : 0;
+function PieChart({ title, total, segments, centerLabel = 'Total' }) {
+  const primary = numberValue(segments[0]?.value);
+  const percent = numberValue(total) ? (primary / numberValue(total)) * 100 : 0;
   return (
-    <div className="donut-wrap">
+    <div className="donut-wrap multi">
+      <h4>{title}</h4>
       <div className="donut" style={{ '--paid': `${percent}%` }}>
         <strong>{compactNumber(total)}</strong>
-        <span>Total</span>
+        <span>{centerLabel}</span>
       </div>
       <div className="donut-legend">
-        <p><b className="dot free" /> Free <strong>{free}</strong> <span>{metricPercent(free, total)}</span></p>
-        <p><b className="dot paid" /> Paid <strong>{paid}</strong> <span>{metricPercent(paid, total)}</span></p>
+        {segments.map((segment, index) => (
+          <p key={segment.label}>
+            <b className={`dot ${index === 0 ? 'paid' : 'free'}`} />
+            {segment.label}
+            <strong>{segment.value}</strong>
+            <span>{metricPercent(segment.value, total)}</span>
+          </p>
+        ))}
       </div>
-      <StatusPill status="approved">Paid conversion {metricPercent(paid, total)}</StatusPill>
     </div>
   );
 }
 
-function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs, onTab, onMember, onAgent }) {
+function createMonthlyTrend(rows, dateKey = 'created_at') {
+  const buckets = new Map();
+  const now = new Date();
+  for (let index = 5; index >= 0; index -= 1) {
+    const date = new Date(now.getFullYear(), now.getMonth() - index, 1);
+    const key = `${date.getFullYear()}-${date.getMonth()}`;
+    buckets.set(key, {
+      label: date.toLocaleDateString('en-IN', { month: 'short' }),
+      value: 0
+    });
+  }
+  rows.forEach((row) => {
+    const date = new Date(row[dateKey]);
+    if (Number.isNaN(date.getTime())) return;
+    const key = `${date.getFullYear()}-${date.getMonth()}`;
+    if (buckets.has(key)) buckets.get(key).value += 1;
+  });
+  return Array.from(buckets.values());
+}
+
+function MembersAddedChart({ profiles }) {
+  const [range, setRange] = useState('90');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const filtered = useMemo(() => {
+    const now = new Date();
+    const start = from
+      ? new Date(from)
+      : new Date(now.getTime() - Number(range) * 24 * 60 * 60 * 1000);
+    const end = to ? new Date(to) : now;
+    return profiles.filter((profile) => {
+      const created = new Date(profile.created_at);
+      return !Number.isNaN(created.getTime()) && created >= start && created <= end;
+    });
+  }, [from, profiles, range, to]);
+  const trend = createMonthlyTrend(filtered).map((row) => ({ ...row, revenue: row.value }));
+  return (
+    <div className="admin-card">
+      <div className="card-title-row chart-title-row">
+        <h3>Members Added</h3>
+        <div className="chart-controls">
+          <select value={range} onChange={(event) => setRange(event.target.value)}>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="180">Last 180 days</option>
+          </select>
+          <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+          <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+        </div>
+      </div>
+      <SimpleLineChart rows={trend} ariaLabel="Members added trend chart" />
+      <div className="mini-stat-row as-tags">
+        <span>Selected range <strong>{filtered.length}</strong></span>
+        <span>Total profiles <strong>{profiles.length}</strong></span>
+      </div>
+    </div>
+  );
+}
+
+function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs, search, onTab, onMember, onAgent, onCreateMember }) {
   const admin = stats.adminConsole || EMPTY_STATS.adminConsole;
+  const [memberFilter, setMemberFilter] = useState('all');
+  const [memberSort, setMemberSort] = useState('newest');
   const members = admin.members || {};
   const agents = admin.agents || {};
   const queues = admin.queues || {};
@@ -617,20 +674,56 @@ function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs,
   const pendingRevenue = payments.transactions
     .filter((tx) => ['pending', 'created', 'attempted'].includes(String(tx.status || '').toLowerCase()))
     .reduce((sum, tx) => sum + numberValue(tx.amount), 0);
-  const recentMembers = (admin.recentMembers?.length ? admin.recentMembers : profiles.slice(0, 7));
+  const baseRecentMembers = (admin.recentMembers?.length ? admin.recentMembers : profiles.slice(0, 12))
+    .map((profile) => ({ ...(profiles.find((item) => item.profile_id === profile.profile_id) || {}), ...profile }));
+  const memberSource = (profile) => {
+    if (profile.created_by_advisor_id) return 'Agent';
+    if (profile.profile_created_by === 'admin' || profile.acquisition_source === 'admin_manual') return 'Admin';
+    return 'Self';
+  };
+  const recentMembers = baseRecentMembers
+    .filter((profile) => {
+      const source = memberSource(profile).toLowerCase();
+      if (memberFilter !== 'all' && source !== memberFilter) return false;
+      const q = search.trim().toLowerCase();
+      if (!q) return true;
+      return [
+        profile.profile_id,
+        profile.user_id,
+        fullName(profile),
+        profile.phone,
+        profile.email,
+        profile.gender,
+        profile.plan_id,
+        source
+      ].filter(Boolean).join(' ').toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      if (memberSort === 'oldest') return new Date(a.created_at) - new Date(b.created_at);
+      if (memberSort === 'name') return fullName(a).localeCompare(fullName(b));
+      return new Date(b.created_at) - new Date(a.created_at);
+    })
+    .slice(0, 7);
   const leaderboard = admin.agentLeaderboard?.length
     ? admin.agentLeaderboard
     : advisors.slice(0, 5).map((agent) => ({ ...agent, members_added: agent.active_assignments || 0 }));
   const quickPending = numberValue(queues.member_kyc || stats.pendingApprovals);
+  const activeAgents = numberValue(agents.active || advisors.filter((agent) => agent.status === 'active').length);
+  const paidAgentCount = advisors.filter((agent) => !['', 'free', 'starter'].includes(String(agent.membership_plan || '').toLowerCase())).length;
+  const freeAgentCount = Math.max(numberValue(agents.total || advisors.length) - paidAgentCount, 0);
+  const dashboardAudit = (admin.recentAudit?.length ? admin.recentAudit : auditLogs)
+    .filter((log) => !/deploy|deployment|version|service health|release/i.test(`${log.action || ''} ${log.entity_type || ''}`))
+    .slice(0, 8);
+  const revenueTrend = admin.revenueTrend || [];
 
   return (
     <div className="admin-content dashboard-grid">
       <SectionHeader
         title="Good morning, Admin"
-        description={`${todayLong()} · Here's your platform overview`}
+        description={`${todayLong()} | Here's your platform overview`}
         actions={(
           <>
-            <AdminButton variant="secondary" onClick={() => onTab('member-signup')}><Icon name="plus" /> Add Member</AdminButton>
+            <AdminButton variant="secondary" onClick={onCreateMember}><Icon name="plus" /> Add Member</AdminButton>
             <AdminButton variant="primary" onClick={() => onTab('member-verify')}><Icon name="check" /> Verify Pending ({quickPending})</AdminButton>
             <AdminButton variant="secondary" onClick={() => onTab('data-export')}><Icon name="export" /> Export Report</AdminButton>
           </>
@@ -638,11 +731,11 @@ function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs,
       />
 
       <div className="stat-grid five">
-        <StatCard tone="terracotta" label="Total Members" value={compactNumber(totalMembers)} sub={`Paid: ${paidMembers} · Free: ${freeMembers} · New today: ${numberValue(members.new_today || stats.newUsersToday)}`} link="View all" onClick={() => onTab('members-all')} />
-        <StatCard tone="peach" label="Grooms Registered" value={compactNumber(members.grooms)} sub={`Paid: ${Math.round(paidMembers * 0.62)} · Free: ${Math.max(numberValue(members.grooms) - Math.round(paidMembers * 0.62), 0)} · Verified: ${numberValue(members.verified)}`} link="View all" onClick={() => onTab('members-all')} />
-        <StatCard tone="mauve" label="Brides Registered" value={compactNumber(members.brides)} sub={`Paid: ${Math.max(paidMembers - Math.round(paidMembers * 0.62), 0)} · Free: ${Math.max(numberValue(members.brides) - paidMembers, 0)} · Verified: ${numberValue(members.verified)}`} link="View all" onClick={() => onTab('members-all')} />
-        <StatCard tone="sage" label="Total Revenue" value={money(totalRevenue)} sub={`This month: ${money(monthlyRevenue)} · Pending: ${money(pendingRevenue)}`} link="View report" onClick={() => onTab('member-payments')} />
-        <StatCard tone="steel" label="Active Agents" value={compactNumber(agents.active || advisors.filter((a) => a.status === 'active').length)} sub={`Verified: ${numberValue(agents.verified)} · Pending: ${numberValue(agents.pending)} · Suspended: ${numberValue(agents.suspended)}`} link="Manage" onClick={() => onTab('agents-all')} />
+        <StatCard tone="terracotta" label="Total Members" value={compactNumber(totalMembers)} sub={`Paid: ${paidMembers} | Free: ${freeMembers} | New Today: ${numberValue(members.new_today || stats.newUsersToday)}`} onClick={() => onTab('members-all')} />
+        <StatCard tone="peach" label="Grooms Registered" value={compactNumber(members.grooms)} sub={`Paid: ${Math.round(paidMembers * 0.62)} | Free: ${Math.max(numberValue(members.grooms) - Math.round(paidMembers * 0.62), 0)} | New Today: ${numberValue(members.grooms_today || 0)}`} onClick={() => onTab('members-all')} />
+        <StatCard tone="mauve" label="Brides Registered" value={compactNumber(members.brides)} sub={`Paid: ${Math.max(paidMembers - Math.round(paidMembers * 0.62), 0)} | Free: ${Math.max(numberValue(members.brides) - Math.max(paidMembers - Math.round(paidMembers * 0.62), 0), 0)} | New Today: ${numberValue(members.brides_today || 0)}`} onClick={() => onTab('members-all')} />
+        <StatCard tone="sage" label="Total Revenue" value={money(totalRevenue)} sub={`This Month: ${money(monthlyRevenue)} | Pending: ${money(pendingRevenue)} | New Today: ${money(stats.revenueToday || 0)}`} onClick={() => onTab('member-payments')} />
+        <StatCard tone="steel" label="Active Agents" value={compactNumber(activeAgents)} sub={`Verified: ${numberValue(agents.verified)} | Pending: ${numberValue(agents.pending)} | Suspended: ${numberValue(agents.suspended)}`} onClick={() => onTab('agents-all')} />
       </div>
 
       <div className="workspace-columns">
@@ -650,41 +743,57 @@ function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs,
           <div className="admin-card">
             <div className="card-title-row">
               <h3>New Registered Members</h3>
-              <select defaultValue="week"><option value="week">This Week</option><option value="month">This Month</option></select>
+              <div className="table-controls">
+                <select value={memberFilter} onChange={(event) => setMemberFilter(event.target.value)}>
+                  <option value="all">All sources</option>
+                  <option value="self">Created by Self</option>
+                  <option value="agent">Created by Agent</option>
+                  <option value="admin">Created by Admin</option>
+                </select>
+                <select value={memberSort} onChange={(event) => setMemberSort(event.target.value)}>
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="name">Name A-Z</option>
+                </select>
+              </div>
             </div>
             <div className="data-table">
               <table>
                 <thead>
                   <tr>
+                    <th>Profile ID</th>
                     <th>Photo</th>
                     <th>Name / ID</th>
                     <th>Gender</th>
                     <th>Joining Date</th>
-                    <th>DOB</th>
-                    <th>Age</th>
                     <th>Type</th>
+                    <th>Created By</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {recentMembers.map((profile) => (
-                    <tr key={profile.profile_id || profile.user_id}>
-                      <td><ProfileAvatar profile={profile} /></td>
-                      <td><strong>{fullName(profile)}</strong><small>{profile.profile_id?.slice(0, 8) || profile.user_id?.slice(0, 8)}</small></td>
-                      <td><StatusPill status="neutral">{profile.gender || '-'}</StatusPill></td>
-                      <td>{dateOnly(profile.created_at)}</td>
-                      <td>{dateOnly(profile.dob)}</td>
-                      <td>{ageFromDob(profile.dob)}</td>
-                      <td><StatusPill status={profile.plan_id === 'free' ? 'neutral' : 'approved'}>{profile.plan_id || 'free'}</StatusPill></td>
-                      <td>
-                        <div className="row-actions">
-                          <button title="View" onClick={() => onMember(profile)}><Icon name="eye" /></button>
-                          <button title="Edit" onClick={() => onMember(profile)}><Icon name="edit" /></button>
-                          <button title="Verify" onClick={() => onTab('member-verify')}><Icon name="check" /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {recentMembers.map((profile) => {
+                    const source = memberSource(profile);
+                    return (
+                      <tr key={profile.profile_id || profile.user_id}>
+                        <td><code>{profile.profile_id?.slice(0, 8) || '-'}</code></td>
+                        <td><ProfileAvatar profile={profile} /></td>
+                        <td><strong>{fullName(profile)}</strong><small>{profile.user_id?.slice(0, 8) || profile.phone || profile.email}</small></td>
+                        <td><StatusPill status="neutral">{profile.gender || '-'}</StatusPill></td>
+                        <td>{dateOnly(profile.created_at)}</td>
+                        <td><StatusPill status={profile.plan_id === 'free' ? 'neutral' : 'approved'}>{profile.plan_id || 'free'}</StatusPill></td>
+                        <td>{source}</td>
+                        <td>
+                          <div className="row-actions">
+                            <button title="View" onClick={() => onMember(profile)}><Icon name="eye" /></button>
+                            <button title="Edit" onClick={() => onMember(profile)}><Icon name="edit" /></button>
+                            <button title="Verify" onClick={() => onTab('member-verify')}><Icon name="check" /></button>
+                            <button title="Block" onClick={() => onTab('member-block')}><Icon name="ban" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -693,38 +802,57 @@ function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs,
 
           <div className="admin-card">
             <div className="card-title-row">
-              <h3>Revenue — Last 6 Months</h3>
+              <h3>Revenue - Last 6 Months</h3>
               <StatusPill status="approved">Growth {stats.conversionRate || 0}%</StatusPill>
             </div>
-            <SimpleLineChart rows={admin.revenueTrend || []} />
-            <div className="mini-stat-row">
-              <span>Highest month <strong>{money(Math.max(...(admin.revenueTrend || []).map((r) => numberValue(r.revenue)), 0))}</strong></span>
-              <span>Average <strong>{money((admin.revenueTrend || []).reduce((sum, row) => sum + numberValue(row.revenue), 0) / Math.max((admin.revenueTrend || []).length, 1))}</strong></span>
+            <SimpleLineChart rows={revenueTrend} />
+            <div className="mini-stat-row as-tags">
+              <span>Highest month <strong>{money(Math.max(...revenueTrend.map((row) => numberValue(row.revenue)), 0))}</strong></span>
+              <span>Average <strong>{money(revenueTrend.reduce((sum, row) => sum + numberValue(row.revenue), 0) / Math.max(revenueTrend.length, 1))}</strong></span>
               <span>30d revenue <strong>{money(stats.revenue30d)}</strong></span>
             </div>
           </div>
+
+          <MembersAddedChart profiles={profiles} />
         </section>
 
         <aside className="workspace-right">
           <div className="admin-card alerts-card">
             <h3>Alerts & Actions Required</h3>
             {[
-              { tone: 'danger', title: `${numberValue(queues.member_kyc || stats.pendingApprovals)} members pending KYC verification`, action: 'Verify Now', tab: 'member-verify' },
-              { tone: 'warning', title: `${numberValue(queues.agent_kyc)} agents pending onboarding approval`, action: 'Review', tab: 'agent-verification' },
-              { tone: 'danger', title: `${numberValue(queues.photos)} flagged photos awaiting moderation`, action: 'Moderate', tab: 'photo-moderation' },
-              { tone: 'warning', title: `${numberValue(queues.upgrades)} pending plan upgrade requests`, action: 'Review', tab: 'member-upgrades' },
-              { tone: 'info', title: `${numberValue(queues.alerts || alerts.length)} platform alerts open`, action: 'View', tab: 'audit-logs' }
+              { tone: 'danger', count: numberValue(queues.member_kyc || stats.pendingApprovals), title: 'Member KYC pending', action: 'Verify now', tab: 'member-verify' },
+              { tone: 'warning', count: numberValue(queues.agent_kyc), title: 'Agent approvals pending', action: 'Review agents', tab: 'agent-verification' },
+              { tone: 'danger', count: numberValue(queues.photos), title: 'Photos flagged', action: 'Moderate', tab: 'photo-moderation' },
+              { tone: 'warning', count: numberValue(queues.upgrades), title: 'Plan upgrades pending', action: 'Review', tab: 'member-upgrades' },
+              { tone: 'info', count: numberValue(queues.alerts || alerts.length), title: 'Open platform alerts', action: 'View alerts', tab: 'notifications' }
             ].map((alert) => (
               <button key={alert.title} className={`alert-row ${alert.tone}`} onClick={() => onTab(alert.tab)}>
+                <b>{alert.count}</b>
                 <span>{alert.title}</span>
                 <strong>{alert.action}</strong>
               </button>
             ))}
           </div>
 
-          <div className="admin-card">
+          <div className="admin-card membership-card">
             <h3>Membership Breakdown</h3>
-            <DonutChart rows={admin.membershipBreakdown || []} total={totalMembers} />
+            <div className="triple-pie-grid">
+              <PieChart
+                title="Free / Paid Members"
+                total={totalMembers}
+                segments={[{ label: 'Paid', value: paidMembers }, { label: 'Free', value: freeMembers }]}
+              />
+              <PieChart
+                title="Bride / Groom"
+                total={numberValue(members.brides) + numberValue(members.grooms)}
+                segments={[{ label: 'Bride', value: numberValue(members.brides) }, { label: 'Groom', value: numberValue(members.grooms) }]}
+              />
+              <PieChart
+                title="Free / Paid Agents"
+                total={freeAgentCount + paidAgentCount}
+                segments={[{ label: 'Paid', value: paidAgentCount }, { label: 'Free', value: freeAgentCount }]}
+              />
+            </div>
           </div>
 
           <div className="admin-card">
@@ -736,7 +864,7 @@ function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs,
               {leaderboard.map((agent, index) => (
                 <button key={agent.advisor_id || agent.full_name} onClick={() => onAgent(agent)}>
                   <b>{index + 1}</b>
-                  <span>{agent.full_name}<small>{agent.city || '-'} · {agent.members_added || agent.active_assignments || 0} members</small></span>
+                  <span>{agent.full_name}<small>{agent.city || '-'} | {agent.members_added || agent.active_assignments || 0} members</small></span>
                   <em>{Number(agent.average_rating || 0).toFixed(1)}</em>
                 </button>
               ))}
@@ -747,10 +875,10 @@ function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs,
 
       <div className="admin-card full">
         <div className="card-title-row">
-          <h3>Audit Log — Recent Activity</h3>
+          <h3>Dashboard Activity Audit</h3>
           <button type="button" onClick={() => onTab('audit-logs')}>View full audit log</button>
         </div>
-        <AuditLogTable logs={admin.recentAudit?.length ? admin.recentAudit : auditLogs.slice(0, 8)} />
+        <AuditLogTable logs={dashboardAudit} />
       </div>
     </div>
   );
@@ -1122,6 +1250,9 @@ function ContentPanel({ reports, alerts, consentEvents, onResolve, onAck }) {
 }
 
 function SystemPanel({ roles, users, auditLogs, services, activeTab }) {
+  const deploymentLogs = auditLogs
+    .filter((log) => /deploy|deployment|version|service health|release/i.test(`${log.action || ''} ${log.entity_type || ''}`))
+    .slice(0, 20);
   if (activeTab === 'service-health') {
     return (
       <div className="admin-content">
@@ -1134,6 +1265,13 @@ function SystemPanel({ roles, users, auditLogs, services, activeTab }) {
               <p>{service.url || service.message || 'No endpoint reported'}</p>
             </div>
           ))}
+        </div>
+        <div className="admin-card full">
+          <div className="card-title-row">
+            <h3>Deployment / Version Audit</h3>
+            <StatusPill status="neutral">{deploymentLogs.length} records</StatusPill>
+          </div>
+          <AuditLogTable logs={deploymentLogs} />
         </div>
       </div>
     );
@@ -1496,6 +1634,32 @@ function AgentDrawer({ agent, linkedProfiles, onClose, onSave, onStatus }) {
   );
 }
 
+function HelpDrawer({ onClose }) {
+  return (
+    <DrawerShell title="Admin Help" subtitle="Quick actions and dashboard navigation" onClose={onClose}>
+      <div className="drawer-section help-list">
+        <h4>Dashboard controls</h4>
+        <article>
+          <Icon name="search" />
+          <span>Use the top search box to filter dashboard member rows and management tables by profile ID, name, phone, email, plan or source.</span>
+        </article>
+        <article>
+          <Icon name="bell" />
+          <span>Notifications opens engagement and system notices that need admin attention.</span>
+        </article>
+        <article>
+          <Icon name="gear" />
+          <span>Admin Settings opens console configuration, account options, CMS and system preferences.</span>
+        </article>
+        <article>
+          <Icon name="plus" />
+          <span>Add Member opens the admin 360-degree member creation drawer without leaving the dashboard.</span>
+        </article>
+      </div>
+    </DrawerShell>
+  );
+}
+
 function StatusTile({ label, value }) {
   return (
     <div className="status-tile">
@@ -1648,7 +1812,7 @@ export default function DashboardPage() {
 
   const renderContent = () => {
     if (['dashboard', 'overview'].includes(activeTab)) {
-      return <DashboardHome stats={stats} profiles={profiles} advisors={advisors} payments={payments} alerts={alerts} auditLogs={auditLogs} onTab={setActiveTab} onMember={(profile) => setDrawer({ type: 'member', entity: profile })} onAgent={(agent) => setDrawer({ type: 'agent', entity: agent })} />;
+      return <DashboardHome stats={stats} profiles={profiles} advisors={advisors} payments={payments} alerts={alerts} auditLogs={auditLogs} search={search} onTab={setActiveTab} onMember={(profile) => setDrawer({ type: 'member', entity: profile })} onAgent={(agent) => setDrawer({ type: 'agent', entity: agent })} onCreateMember={() => setDrawer({ type: 'member', entity: null })} />;
     }
     if (['members', 'members-all', 'member-profile', 'member-signup', 'member-password', 'member-block', 'member-validity'].includes(activeTab)) {
       return <MembersPanel profiles={profiles} search={search} onOpen={(profile) => setDrawer({ type: 'member', entity: profile })} onCreate={() => setDrawer({ type: 'member', entity: null })} onStatus={handleProfileStatus} onBlock={handleBlockProfile} />;
@@ -1665,7 +1829,7 @@ export default function DashboardPage() {
     if (['agent-plans', 'agent-upgrades', 'agent-payments', 'agent-invoices'].includes(activeTab)) {
       return <SubscriptionPanel config={config} payments={payments} type="agent" onSave={handleConfigSave} />;
     }
-    if (['content', 'photo-moderation', 'chat-moderation', 'flagged-content', 'visitor-enquiry', 'lead-management'].includes(activeTab)) {
+    if (['content', 'photo-moderation', 'chat-moderation', 'flagged-content', 'visitor-enquiry', 'lead-management', 'notifications'].includes(activeTab)) {
       return <ContentPanel reports={reports} alerts={alerts} consentEvents={consentEvents} onResolve={(id) => withNotice(resolveReport(id), 'Report resolved.')} onAck={(id) => withNotice(acknowledgeAlert(id), 'Alert acknowledged.')} />;
     }
     if (activeTab === 'dynamic-config') {
@@ -1674,7 +1838,7 @@ export default function DashboardPage() {
     if (['system', 'role-master', 'user-master', 'notifications', 'data-export', 'audit-logs', 'service-health', 'cms-management', 'settings', 'change-password'].includes(activeTab)) {
       return <SystemPanel roles={roles} users={users} auditLogs={auditLogs} services={services} activeTab={activeTab} funnel={funnel} events={events} />;
     }
-    return <DashboardHome stats={stats} profiles={profiles} advisors={advisors} payments={payments} alerts={alerts} auditLogs={auditLogs} onTab={setActiveTab} onMember={(profile) => setDrawer({ type: 'member', entity: profile })} onAgent={(agent) => setDrawer({ type: 'agent', entity: agent })} />;
+    return <DashboardHome stats={stats} profiles={profiles} advisors={advisors} payments={payments} alerts={alerts} auditLogs={auditLogs} search={search} onTab={setActiveTab} onMember={(profile) => setDrawer({ type: 'member', entity: profile })} onAgent={(agent) => setDrawer({ type: 'agent', entity: agent })} onCreateMember={() => setDrawer({ type: 'member', entity: null })} />;
   };
 
   const linkedProfiles = drawer?.type === 'agent'
@@ -1682,7 +1846,7 @@ export default function DashboardPage() {
     : [];
 
   return (
-    <AdminShell activeTab={activeTab} onTab={setActiveTab} session={session} search={search} onSearch={setSearch}>
+    <AdminShell activeTab={activeTab} onTab={setActiveTab} session={session} search={search} onSearch={setSearch} onHelp={() => setDrawer({ type: 'help' })}>
       {notice ? <div className="toast-notice">{notice}<button onClick={() => setNotice('')}>Dismiss</button></div> : null}
       {renderContent()}
       {drawer?.type === 'member' ? (
@@ -1702,6 +1866,7 @@ export default function DashboardPage() {
           onStatus={handleAdvisorStatus}
         />
       ) : null}
+      {drawer?.type === 'help' ? <HelpDrawer onClose={() => setDrawer(null)} /> : null}
     </AdminShell>
   );
 }
