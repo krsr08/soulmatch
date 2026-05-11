@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { getDB } = require('../config/database');
 const logger = require('../utils/logger');
-const { CONFIG_KEYS, DEFAULT_CONFIG, getConfigMap, getPublicRuntimeConfig, upsertConfigSection } = require('../../shared/controlPlane');
+const { CONFIG_KEYS, DEFAULT_CONFIG, getConfigMap, getConfigSection, getPublicRuntimeConfig, upsertConfigSection } = require('../../shared/controlPlane');
 const { getServiceHealth } = require('../services/serviceHealth');
 const { broadcastAdminEvent, getRealtimeSnapshot } = require('../realtime/adminRealtime');
 
@@ -371,17 +371,26 @@ exports.adminLogin = async (req, res) => {
     const valid = await isValidAdminPassword(String(password || ''));
     if (!valid) return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid admin email or password.' } });
     const role = getAdminRole();
+    let permissions = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.admin;
+    try {
+      const db = await getDB();
+      const configured = await getConfigSection(db, 'admin_roles');
+      const match = (configured.roles || []).find((item) => item.role === role);
+      if (match && Array.isArray(match.permissions)) permissions = match.permissions;
+    } catch (error) {
+      logger.warn(`Admin role permissions fallback used: ${error.message}`);
+    }
     const token = jwt.sign(
       {
         role,
         roles: [role],
-        permissions: ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.admin,
+        permissions,
         email: normalizedEmail
       },
       getAdminSecret(),
       { expiresIn: '8h' }
     );
-    res.json({ success: true, data: { token, role, permissions: ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.admin } });
+    res.json({ success: true, data: { token, role, permissions } });
   } catch (err) {
     respondServerError(res, err, 'Unable to complete admin sign-in right now.');
   }
@@ -620,6 +629,8 @@ exports.getUsers = async (req, res) => {
          u.email,
          u.is_active,
          u.is_banned,
+         u.user_type,
+         u.last_login,
          u.referred_by_code,
          u.acquisition_source,
          u.created_at,
@@ -2322,16 +2333,32 @@ exports.getAuditLogs = async (req, res) => {
 };
 
 exports.getRoles = async (req, res) => {
-  res.json({
-    success: true,
-    data: [
-      { role: 'super_admin', label: 'Super Admin', permissions: ROLE_PERMISSIONS.super_admin },
-      { role: 'moderator', label: 'Moderator', permissions: ROLE_PERMISSIONS.moderator },
-      { role: 'support_agent', label: 'Support Agent', permissions: ROLE_PERMISSIONS.support_agent },
-      { role: 'marketing_manager', label: 'Marketing Manager', permissions: ROLE_PERMISSIONS.marketing_manager }
-    ],
-    current: req.admin?.role || 'admin'
-  });
+  const defaultRoles = DEFAULT_CONFIG.admin_roles.roles.map((role) => ({
+    ...role,
+    permissions: ROLE_PERMISSIONS[role.role] || role.permissions || []
+  }));
+  try {
+    const db = await getDB();
+    const configured = await getConfigSection(db, 'admin_roles');
+    const roles = Array.isArray(configured.roles) && configured.roles.length
+      ? configured.roles
+      : defaultRoles;
+    res.json({
+      success: true,
+      data: roles.map((role) => ({
+        ...role,
+        permissions: Array.isArray(role.permissions) ? role.permissions : []
+      })),
+      current: req.admin?.role || 'admin'
+    });
+  } catch (err) {
+    res.json({
+      success: true,
+      data: defaultRoles,
+      current: req.admin?.role || 'admin',
+      meta: { degraded: true, message: 'Role configuration database is unavailable. Showing default admin roles.' }
+    });
+  }
 };
 
 exports.getPendingStories = async (req, res) => {

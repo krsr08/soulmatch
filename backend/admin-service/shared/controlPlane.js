@@ -97,6 +97,45 @@ const DEFAULT_CONFIG = {
     profileBoosts: true,
     aiModeration: true
   },
+  admin_roles: {
+    roles: [
+      {
+        role: 'super_admin',
+        label: 'Super Admin',
+        description: 'Full access to every admin console module, finance control, configuration and audit data.',
+        scope: 'unrestricted',
+        permissions: ['*']
+      },
+      {
+        role: 'admin',
+        label: 'Admin',
+        description: 'Operational management of members, agents, payments, moderation and configurations.',
+        scope: 'partial',
+        permissions: ['dashboard:read', 'profiles:write', 'verification:write', 'payments:write', 'config:write', 'cms:write', 'moderation:write', 'analytics:read']
+      },
+      {
+        role: 'moderator',
+        label: 'Moderator',
+        description: 'Content validation, verification review, profile approval and dispute handling.',
+        scope: 'compliance',
+        permissions: ['dashboard:read', 'profiles:read', 'verification:write', 'moderation:write', 'analytics:read']
+      },
+      {
+        role: 'support_agent',
+        label: 'Support Agent',
+        description: 'Member support access with limited profile visibility and moderation read access.',
+        scope: 'support',
+        permissions: ['dashboard:read', 'profiles:read', 'profiles:support', 'moderation:read']
+      },
+      {
+        role: 'marketing_manager',
+        label: 'Marketing Manager',
+        description: 'CMS, campaigns, referrals, analytics and audience engagement control.',
+        scope: 'marketing',
+        permissions: ['dashboard:read', 'cms:write', 'campaigns:write', 'analytics:read']
+      }
+    ]
+  },
   matching: {
     algorithmVersion: 'v1.0',
     weights: {

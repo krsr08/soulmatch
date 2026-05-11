@@ -66,6 +66,7 @@ const EMPTY_STATS = {
 const DEFAULT_CONFIG = {
   monetization: { currency: 'INR', plans: [], premiumLimits: {}, upgradePackageGroups: [] },
   assisted_matchmaking: { enabled: true, advisorPlans: [], memberModes: [] },
+  admin_roles: { roles: [] },
   notification_templates: {},
   legal: {},
   content: {},
@@ -174,6 +175,47 @@ const AGENT_PLAN_FALLBACK = [
   { id: 'platinum', name: 'Platinum', price: 4999, profilesAllowed: -1, visibleMatches: -1, contactViews: -1, analytics: true }
 ];
 
+const RBAC_MODULES = [
+  {
+    key: 'profiles',
+    label: 'Member Management',
+    permissions: { view: 'profiles:read', add: 'profiles:add', edit: 'profiles:write', delete: 'profiles:delete', export: 'profiles:export' }
+  },
+  {
+    key: 'advisors',
+    label: 'Agent & Matchmakers',
+    permissions: { view: 'advisors:read', add: 'advisors:add', edit: 'advisors:write', delete: 'advisors:delete', export: 'advisors:export' }
+  },
+  {
+    key: 'payments',
+    label: 'Revenue & Analytics',
+    permissions: { view: 'analytics:read', add: 'payments:add', edit: 'payments:write', delete: 'payments:delete', export: 'analytics:export' }
+  },
+  {
+    key: 'config',
+    label: 'System Configuration',
+    permissions: { view: 'config:read', add: 'config:add', edit: 'config:write', delete: 'config:delete', export: 'config:export' }
+  },
+  {
+    key: 'moderation',
+    label: 'Content & Moderation',
+    permissions: { view: 'moderation:read', add: 'moderation:add', edit: 'moderation:write', delete: 'moderation:delete', export: 'moderation:export' }
+  },
+  {
+    key: 'campaigns',
+    label: 'Notifications & Campaigns',
+    permissions: { view: 'campaigns:read', add: 'campaigns:write', edit: 'campaigns:write', delete: 'campaigns:delete', export: 'campaigns:export' }
+  }
+];
+
+const ROLE_COPY = {
+  super_admin: { description: 'Full access to every admin console module, finance control, configuration and audit data.', scope: 'unrestricted' },
+  admin: { description: 'Operational management of members, agents, payments, moderation and configurations.', scope: 'partial' },
+  moderator: { description: 'Content validation, verification review, profile approval and dispute handling.', scope: 'compliance' },
+  support_agent: { description: 'Member support access with limited profile visibility and moderation read access.', scope: 'support' },
+  marketing_manager: { description: 'CMS, campaigns, referrals, analytics and audience engagement control.', scope: 'marketing' }
+};
+
 function decodeSession() {
   try {
     const token = localStorage.getItem('adminToken');
@@ -194,7 +236,8 @@ function normalizeConfig(config) {
     ...DEFAULT_CONFIG,
     ...(config || {}),
     monetization: { ...DEFAULT_CONFIG.monetization, ...(config?.monetization || {}) },
-    assisted_matchmaking: { ...DEFAULT_CONFIG.assisted_matchmaking, ...(config?.assisted_matchmaking || {}) }
+    assisted_matchmaking: { ...DEFAULT_CONFIG.assisted_matchmaking, ...(config?.assisted_matchmaking || {}) },
+    admin_roles: { ...DEFAULT_CONFIG.admin_roles, ...(config?.admin_roles || {}) }
   };
 }
 
@@ -245,6 +288,50 @@ function todayLong() {
 
 function fullName(row) {
   return [row?.first_name || row?.firstName, row?.last_name || row?.lastName].filter(Boolean).join(' ') || row?.full_name || 'Unnamed';
+}
+
+function titleFromKey(value) {
+  return String(value || '')
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function getRoleLabel(role) {
+  return role?.label || titleFromKey(role?.role || 'Role');
+}
+
+function allPermissionTokens() {
+  return Array.from(new Set(RBAC_MODULES.flatMap((module) => Object.values(module.permissions))));
+}
+
+function normalizeRoleForUi(role) {
+  const key = role?.role || String(role?.label || 'custom_role').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const copy = ROLE_COPY[key] || {};
+  return {
+    role: key,
+    label: getRoleLabel({ ...role, role: key }),
+    description: role?.description || copy.description || 'Custom admin role configured for the SoulMatch console.',
+    scope: role?.scope || copy.scope || 'custom',
+    permissions: Array.isArray(role?.permissions) ? role.permissions : []
+  };
+}
+
+function roleHasPermission(role, token) {
+  const permissions = Array.isArray(role?.permissions) ? role.permissions : [];
+  if (permissions.includes('*')) return true;
+  if (permissions.includes(token)) return true;
+  if (token.endsWith(':read')) return permissions.some((permission) => permission === token.replace(':read', ':write'));
+  return false;
+}
+
+function toggleRolePermission(role, token, enabled) {
+  const expanded = role.permissions.includes('*') ? allPermissionTokens() : role.permissions;
+  const next = new Set(expanded);
+  if (enabled) next.add(token);
+  else next.delete(token);
+  return { ...role, permissions: Array.from(next).sort() };
 }
 
 function toneForStatus(status) {
@@ -460,6 +547,8 @@ function AdminButton({ variant = 'secondary', children, className = '', ...props
 
 function AdminShell({ activeTab, onTab, session, search, onSearch, onHelp, children }) {
   const navigate = useNavigate();
+  const roleSurfaceTabs = ['system', 'role-master', 'user-master', 'settings', 'change-password'];
+  const isRoleSurface = roleSurfaceTabs.includes(activeTab);
   const handleTab = (id) => {
     if (id === 'logout') {
       localStorage.removeItem('adminToken');
@@ -502,19 +591,21 @@ function AdminShell({ activeTab, onTab, session, search, onSearch, onHelp, child
           </div>
         </div>
       </aside>
-      <main className="console-main">
-        <header className="console-topbar">
-          <label className="global-search">
-            <Icon name="search" />
-            <input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search records..." />
-          </label>
-          <div className="topbar-actions">
-            <button type="button" title="Notifications" onClick={() => handleTab('notifications')}><Icon name="bell" /></button>
-            <button type="button" title="Help" onClick={onHelp}><Icon name="help" /></button>
-            <button type="button" className="settings-link" onClick={() => handleTab('settings')}>Admin Settings</button>
-            <div className="small-avatar">{(session.email || 'A').charAt(0).toUpperCase()}</div>
-          </div>
-        </header>
+      <main className={`console-main ${isRoleSurface ? 'role-surface-main' : ''}`}>
+        {!isRoleSurface ? (
+          <header className="console-topbar">
+            <label className="global-search">
+              <Icon name="search" />
+              <input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search records..." />
+            </label>
+            <div className="topbar-actions">
+              <button type="button" title="Notifications" onClick={() => handleTab('notifications')}><Icon name="bell" /></button>
+              <button type="button" title="Help" onClick={onHelp}><Icon name="help" /></button>
+              <button type="button" className="settings-link" onClick={() => handleTab('settings')}>Admin Settings</button>
+              <div className="small-avatar">{(session.email || 'A').charAt(0).toUpperCase()}</div>
+            </div>
+          </header>
+        ) : null}
         {children}
       </main>
     </div>
@@ -1249,7 +1340,282 @@ function ContentPanel({ reports, alerts, consentEvents, onResolve, onAck }) {
   );
 }
 
-function SystemPanel({ roles, users, auditLogs, services, activeTab }) {
+function getAssignedAdminUsers(users, auditLogs, session) {
+  const map = new Map();
+  users
+    .filter((user) => String(user.user_type || '').toLowerCase() === 'admin')
+    .forEach((user) => {
+      const email = user.email || user.phone || user.user_id;
+      map.set(email, {
+        id: user.user_id,
+        name: fullName(user) === 'Unnamed' ? email : fullName(user),
+        email,
+        role: user.admin_role || 'admin',
+        status: user.is_active === false || user.is_banned ? 'inactive' : 'active',
+        joinedAt: user.created_at,
+        lastActive: user.last_login || user.created_at,
+        avatar: user.primary_photo_url
+      });
+    });
+  auditLogs.forEach((log) => {
+    const email = log.admin_email;
+    if (!email) return;
+    const existing = map.get(email);
+    map.set(email, {
+      id: existing?.id || email,
+      name: existing?.name || titleFromKey(email.split('@')[0]),
+      email,
+      role: log.admin_role || existing?.role || 'admin',
+      status: existing?.status || 'active',
+      joinedAt: existing?.joinedAt || log.created_at,
+      lastActive: log.created_at || existing?.lastActive,
+      avatar: existing?.avatar
+    });
+  });
+  if (session?.email && !map.has(session.email)) {
+    map.set(session.email, {
+      id: session.email,
+      name: titleFromKey(session.email.split('@')[0]),
+      email: session.email,
+      role: session.role || 'admin',
+      status: 'active',
+      joinedAt: null,
+      lastActive: new Date().toISOString()
+    });
+  }
+  return Array.from(map.values()).sort((a, b) => new Date(b.lastActive || 0) - new Date(a.lastActive || 0));
+}
+
+function RoleMasterView({ roles, users, auditLogs, search, onSearch, session, onSaveRoles, onTab }) {
+  const normalizedRoles = useMemo(() => (roles.length ? roles : DEFAULT_CONFIG.admin_roles.roles).map(normalizeRoleForUi), [roles]);
+  const [draftRoles, setDraftRoles] = useState(normalizedRoles);
+  const [selectedRoleId, setSelectedRoleId] = useState(normalizedRoles[0]?.role || 'super_admin');
+  const [propagate, setPropagate] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ role: '', label: '', description: '', scope: 'custom' });
+
+  useEffect(() => {
+    setDraftRoles(normalizedRoles);
+    if (!normalizedRoles.some((role) => role.role === selectedRoleId)) {
+      setSelectedRoleId(normalizedRoles[0]?.role || 'super_admin');
+    }
+  }, [normalizedRoles, selectedRoleId]);
+
+  const q = search.trim().toLowerCase();
+  const selectedRole = draftRoles.find((role) => role.role === selectedRoleId) || draftRoles[0] || normalizeRoleForUi({ role: 'admin', label: 'Admin', permissions: [] });
+  const assignedUsers = useMemo(() => getAssignedAdminUsers(users, auditLogs, session), [auditLogs, session, users]);
+  const filteredRoles = draftRoles.filter((role) => {
+    if (!q) return true;
+    return [role.role, role.label, role.description, role.scope].filter(Boolean).join(' ').toLowerCase().includes(q);
+  });
+  const filteredUsers = assignedUsers.filter((user) => {
+    const matchesRole = user.role === selectedRole.role || selectedRole.permissions.includes('*');
+    const matchesSearch = !q || [user.name, user.email, user.role, user.status].filter(Boolean).join(' ').toLowerCase().includes(q);
+    return matchesRole && matchesSearch;
+  });
+  const roleUserCount = (roleId) => assignedUsers.filter((user) => user.role === roleId).length;
+
+  const updatePermission = (token, enabled) => {
+    setDraftRoles((current) => current.map((role) => (
+      role.role === selectedRole.role ? toggleRolePermission(role, token, enabled) : role
+    )));
+  };
+
+  const createRole = (event) => {
+    event.preventDefault();
+    const nextRole = normalizeRoleForUi({
+      ...form,
+      role: form.role || form.label,
+      permissions: ['dashboard:read']
+    });
+    if (!nextRole.role || draftRoles.some((role) => role.role === nextRole.role)) return;
+    setDraftRoles((current) => [...current, nextRole]);
+    setSelectedRoleId(nextRole.role);
+    setForm({ role: '', label: '', description: '', scope: 'custom' });
+    setShowCreate(false);
+  };
+
+  const saveRoles = async () => {
+    setSaving(true);
+    try {
+      await onSaveRoles({ roles: draftRoles });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="admin-content role-master-page">
+      <div className="role-master-header">
+        <div>
+          <h2>Role Master</h2>
+          <p>{draftRoles.length} roles | {assignedUsers.length} admin identities from users and audit logs</p>
+        </div>
+        <label className="role-master-search">
+          <Icon name="search" />
+          <input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search roles or users..." />
+        </label>
+        <div className="role-master-actions">
+          <button type="button" title="Notifications" onClick={() => onTab('notifications')}><Icon name="bell" /></button>
+          <button type="button" title="Help"><Icon name="help" /></button>
+          <AdminButton variant="secondary" onClick={() => setShowCreate((value) => !value)}><Icon name="plus" /> Create New Role</AdminButton>
+        </div>
+      </div>
+
+      <div className="role-master-grid">
+        <section className="role-list-panel">
+          <div className="role-section-title">
+            <span>Admin Roles</span>
+            <StatusPill status="neutral">{filteredRoles.length} defined</StatusPill>
+          </div>
+          {showCreate ? (
+            <form className="role-create-card" onSubmit={createRole}>
+              <Input value={form.label} onChange={(value) => setForm((current) => ({ ...current, label: value, role: value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') }))} placeholder="Role name" required />
+              <Input value={form.description} onChange={(value) => setForm((current) => ({ ...current, description: value }))} placeholder="Short role description" required />
+              <Input value={form.scope} onChange={(value) => setForm((current) => ({ ...current, scope: value }))} placeholder="Scope label" />
+              <AdminButton variant="primary" type="submit">Add Role</AdminButton>
+            </form>
+          ) : null}
+          <div className="role-card-list">
+            {filteredRoles.map((role) => (
+              <button
+                type="button"
+                key={role.role}
+                className={`role-card ${role.role === selectedRole.role ? 'active' : ''}`}
+                onClick={() => setSelectedRoleId(role.role)}
+              >
+                <span className="role-card-top">
+                  <strong>{role.label}</strong>
+                  <Icon name={role.permissions.includes('*') ? 'crown' : role.role.includes('moderator') ? 'flag' : 'lock'} />
+                </span>
+                <p>{role.description}</p>
+                <span className="role-card-meta">
+                  <small><Icon name="users" /> {roleUserCount(role.role)} users</small>
+                  <small className={`scope-${role.scope}`}>{titleFromKey(role.scope)}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="role-detail-panel">
+          <div className="admin-card permission-card">
+            <div className="permission-card-head">
+              <h3><Icon name="lock" /> Permissions Matrix: {selectedRole.label}</h3>
+              <label className="inline-switch">
+                <span>Propagate changes to assigned users?</span>
+                <input type="checkbox" checked={propagate} onChange={(event) => setPropagate(event.target.checked)} />
+              </label>
+            </div>
+            <div className="permission-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Module Name</th>
+                    <th>View</th>
+                    <th>Add</th>
+                    <th>Edit</th>
+                    <th>Delete</th>
+                    <th>Export</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {RBAC_MODULES.map((module) => (
+                    <tr key={module.key}>
+                      <td>{module.label}</td>
+                      {['view', 'add', 'edit', 'delete', 'export'].map((action) => {
+                        const token = module.permissions[action];
+                        return (
+                          <td key={action}>
+                            <input
+                              type="checkbox"
+                              checked={roleHasPermission(selectedRole, token)}
+                              onChange={(event) => updatePermission(token, event.target.checked)}
+                              aria-label={`${selectedRole.label} ${action} ${module.label}`}
+                            />
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="permission-footer">
+              <span>{propagate ? 'Changes apply to this role the next time assigned admins sign in.' : 'Role definition will be saved without propagation note.'}</span>
+              <div>
+                <AdminButton variant="secondary" onClick={() => setDraftRoles(normalizedRoles)}>Reset</AdminButton>
+                <AdminButton variant="primary" onClick={saveRoles} disabled={saving}>{saving ? 'Saving...' : 'Save Role Changes'}</AdminButton>
+              </div>
+            </div>
+          </div>
+
+          <div className="admin-card assigned-users-card">
+            <div className="permission-card-head">
+              <h3><Icon name="users" /> Assigned Users</h3>
+              <AdminButton variant="secondary" onClick={() => onTab('user-master')}><Icon name="plus" /> Assign New User</AdminButton>
+            </div>
+            <div className="data-table compact-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Staff Member</th>
+                    <th>Email Address</th>
+                    <th>Last Active</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.map((user) => (
+                    <tr key={user.id || user.email}>
+                      <td>
+                        <div className="staff-cell">
+                          {user.avatar ? <img src={user.avatar} alt="" /> : <b>{String(user.name || user.email).charAt(0).toUpperCase()}</b>}
+                          <span><strong>{user.name}</strong><small>Joined {dateOnly(user.joinedAt)}</small></span>
+                        </div>
+                      </td>
+                      <td>{user.email}</td>
+                      <td>{dateTime(user.lastActive)}</td>
+                      <td><StatusPill status={user.status}>{user.status}</StatusPill></td>
+                      <td>
+                        <div className="row-actions">
+                          <button title="Edit user" onClick={() => onTab('user-master')}><Icon name="edit" /></button>
+                          <button title="Reset password" onClick={() => onTab('change-password')}><Icon name="key" /></button>
+                          <button title="Disable user" onClick={() => onTab('user-master')}><Icon name="ban" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!filteredUsers.length ? <EmptyState title="No assigned users" body="Admin identities appear here after sign-in or audited actions." /> : null}
+            </div>
+          </div>
+
+          <div className="admin-card permission-audit-card">
+            <div className="card-title-row">
+              <h3>Permission Audit Log</h3>
+              <button type="button" onClick={() => onTab('audit-logs')}>View Full Logs</button>
+            </div>
+            <div className="permission-audit-list">
+              {auditLogs.filter((log) => /role|permission|config|user|password/i.test(`${log.action || ''} ${log.entity_type || ''}`)).slice(0, 4).map((log) => (
+                <article key={log.audit_id || `${log.created_at}-${log.action}`}>
+                  <time>{dateTime(log.created_at)}</time>
+                  <span><strong>{log.admin_email || 'System'}</strong> {log.action} <em>{log.entity_type || 'record'}</em></span>
+                </article>
+              ))}
+              {!auditLogs.length ? <EmptyState title="No permission audit logs" body="Role and user changes will appear here after admins make updates." /> : null}
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function SystemPanel({ roles, users, auditLogs, services, activeTab, search, onSearch, session, onSaveRoles, onTab }) {
   const deploymentLogs = auditLogs
     .filter((log) => /deploy|deployment|version|service health|release/i.test(`${log.action || ''} ${log.entity_type || ''}`))
     .slice(0, 20);
@@ -1283,6 +1649,9 @@ function SystemPanel({ roles, users, auditLogs, services, activeTab }) {
         <div className="admin-card"><AuditLogTable logs={auditLogs} /></div>
       </div>
     );
+  }
+  if (activeTab !== 'service-health' && activeTab !== 'audit-logs') {
+    return <RoleMasterView roles={roles} users={users} auditLogs={auditLogs} search={search} onSearch={onSearch} session={session} onSaveRoles={onSaveRoles} onTab={onTab} />;
   }
   return (
     <div className="admin-content">
@@ -1323,7 +1692,7 @@ function DynamicConfigPanel({ config, onSave }) {
   const [selected, setSelected] = useState('monetization');
   const [json, setJson] = useState(JSON.stringify(config.monetization || {}, null, 2));
   const [error, setError] = useState('');
-  const keys = ['monetization', 'assisted_matchmaking', 'notification_templates', 'legal', 'content', 'theme'];
+  const keys = ['monetization', 'assisted_matchmaking', 'admin_roles', 'notification_templates', 'legal', 'content', 'theme'];
 
   useEffect(() => {
     setJson(JSON.stringify(config[selected] || {}, null, 2));
@@ -1810,6 +2179,10 @@ export default function DashboardPage() {
     await withNotice(updateConfig(key, payload), 'Configuration saved.');
   };
 
+  const handleSaveRoles = async (payload) => {
+    await withNotice(updateConfig('admin_roles', payload), 'Role permissions saved.');
+  };
+
   const renderContent = () => {
     if (['dashboard', 'overview'].includes(activeTab)) {
       return <DashboardHome stats={stats} profiles={profiles} advisors={advisors} payments={payments} alerts={alerts} auditLogs={auditLogs} search={search} onTab={setActiveTab} onMember={(profile) => setDrawer({ type: 'member', entity: profile })} onAgent={(agent) => setDrawer({ type: 'agent', entity: agent })} onCreateMember={() => setDrawer({ type: 'member', entity: null })} />;
@@ -1836,7 +2209,7 @@ export default function DashboardPage() {
       return <DynamicConfigPanel config={config} onSave={handleConfigSave} />;
     }
     if (['system', 'role-master', 'user-master', 'notifications', 'data-export', 'audit-logs', 'service-health', 'cms-management', 'settings', 'change-password'].includes(activeTab)) {
-      return <SystemPanel roles={roles} users={users} auditLogs={auditLogs} services={services} activeTab={activeTab} funnel={funnel} events={events} />;
+      return <SystemPanel roles={roles} users={users} auditLogs={auditLogs} services={services} activeTab={activeTab} search={search} onSearch={setSearch} session={session} onSaveRoles={handleSaveRoles} onTab={setActiveTab} funnel={funnel} events={events} />;
     }
     return <DashboardHome stats={stats} profiles={profiles} advisors={advisors} payments={payments} alerts={alerts} auditLogs={auditLogs} search={search} onTab={setActiveTab} onMember={(profile) => setDrawer({ type: 'member', entity: profile })} onAgent={(agent) => setDrawer({ type: 'agent', entity: agent })} onCreateMember={() => setDrawer({ type: 'member', entity: null })} />;
   };
