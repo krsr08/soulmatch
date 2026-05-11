@@ -2291,11 +2291,20 @@ exports.upsertAgentOnboarding = async (userId, payload = {}) => {
     const existing = await getAdvisorByUserId(userId, client);
     let advisorId = existing?.advisor_id || randomUUID();
     const kycDocuments = Array.isArray(payload.kycDocuments) ? payload.kycDocuments : [];
-    const uploadedDocumentTypes = new Set(
-      kycDocuments
-        .map((document) => String(document.documentType || document.document_type || '').trim().toLowerCase())
-        .filter(Boolean)
-    );
+    const currentDocumentTypes = kycDocuments
+      .map((document) => String(document.documentType || document.document_type || '').trim().toLowerCase())
+      .filter(Boolean);
+    const persistedDocumentTypes = existing
+      ? new Set(
+        (await client.query(
+          'SELECT document_type FROM advisor_kyc_documents WHERE advisor_id = $1',
+          [existing.advisor_id]
+        )).rows
+          .map((document) => String(document.document_type || '').trim().toLowerCase())
+          .filter(Boolean)
+      )
+      : new Set();
+    const uploadedDocumentTypes = new Set([...persistedDocumentTypes, ...currentDocumentTypes]);
     const hasAadhaar = uploadedDocumentTypes.has('aadhaar');
     const hasPan = uploadedDocumentTypes.has('pan');
     const hasCancelledCheque = uploadedDocumentTypes.has('cancelled_cheque');
@@ -2414,7 +2423,7 @@ exports.upsertAgentOnboarding = async (userId, payload = {}) => {
           payload.serviceLabel || null,
           payload.yearsExperience !== undefined ? toIntegerOrDefault(payload.yearsExperience, 0) : null,
           payload.languages !== undefined ? JSON.stringify(toTextArray(payload.languages)) : null,
-          kycDocuments.length > 0,
+          kycDocuments.length > 0 || termsAccepted,
           onboardingStatus,
           hasAadhaar,
           hasPan,

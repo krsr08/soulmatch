@@ -938,13 +938,10 @@ exports.upsertAgentOnboarding = async (req, res, next) => {
       ? body.kycDocuments
       : parseAgentKycMeta(body.kycDocuments);
     const kycDocuments = inlineDocuments.concat(inferredUploadDocuments);
-    const hasRequiredUploads = ['aadhaar', 'pan', 'cancelled_cheque'].every((type) =>
-      kycDocuments.some((document) => normalizeAgentKycDocumentType(document.documentType || document.document_type) === type)
-    );
     const termsAccepted = coerceBoolean(body.termsAccepted || body.terms_accepted);
-    if (!termsAccepted && hasRequiredUploads) {
-      return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Agent terms must be accepted before KYC submission.'));
-    }
+    // Mobile onboarding saves encrypted KYC and bank documents as a draft before
+    // the final terms screen. The repository keeps the profile out of admin
+    // review until termsAccepted is true.
     const saved = await repo.upsertAgentOnboarding(req.user.userId, {
       ...body,
       kycDocuments,
