@@ -29,6 +29,18 @@ function parseNumber(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function parseBool(value, fallback = false) {
+  if (value === true || value === 'true' || value === 1 || value === '1') return true;
+  if (value === false || value === 'false' || value === 0 || value === '0') return false;
+  return fallback;
+}
+
+function arrayInput(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
+  if (typeof value === 'string') return value.split(',').map((item) => item.trim()).filter(Boolean);
+  return [];
+}
+
 function normalizeListInput(value) {
   if (Array.isArray(value)) {
     return value.map((item) => String(item || '').trim()).filter(Boolean);
@@ -403,6 +415,113 @@ exports.getDashboard = async (req, res) => {
       db.query("SELECT COUNT(DISTINCT user_id) AS total FROM analytics_events WHERE created_at >= NOW() - INTERVAL '30 days' AND user_id IS NOT NULL")
     ]);
     const today = await db.query("SELECT COUNT(*) FROM users WHERE created_at>=NOW()-INTERVAL '24 hours'");
+    const [
+      memberBreakdown,
+      agentBreakdown,
+      revenueTrend,
+      pendingQueues,
+      recentMembers,
+      membershipBreakdown,
+      agentLeaderboard,
+      recentAudit
+    ] = await Promise.all([
+      db.query(
+        `SELECT
+           COUNT(*)::int AS total,
+           COUNT(*) FILTER (WHERE LOWER(COALESCE(p.gender,'')) IN ('male','groom'))::int AS grooms,
+           COUNT(*) FILTER (WHERE LOWER(COALESCE(p.gender,'')) IN ('female','bride'))::int AS brides,
+           COUNT(*) FILTER (WHERE COALESCE(p.verification_status,'pending')='verified')::int AS verified,
+           COUNT(*) FILTER (WHERE p.created_at >= CURRENT_DATE)::int AS new_today,
+           COUNT(*) FILTER (WHERE COALESCE(s.plan_id,'free') <> 'free' AND COALESCE(s.is_active,false)=true)::int AS paid,
+           COUNT(*) FILTER (WHERE COALESCE(s.plan_id,'free') = 'free' OR s.subscription_id IS NULL)::int AS free,
+           COUNT(*) FILTER (WHERE p.created_by_advisor_id IS NOT NULL OR p.profile_created_by='mediator')::int AS agent_created,
+           COUNT(*) FILTER (WHERE p.created_by_advisor_id IS NULL AND COALESCE(p.profile_created_by,'self')='self')::int AS self_created
+         FROM profiles p
+         LEFT JOIN subscriptions s ON s.user_id = p.user_id AND s.is_active = true`
+      ),
+      db.query(
+        `SELECT
+           COUNT(*)::int AS total,
+           COUNT(*) FILTER (WHERE status='active')::int AS active,
+           COUNT(*) FILTER (WHERE kyc_status='approved')::int AS verified,
+           COUNT(*) FILTER (WHERE kyc_status='pending' OR onboarding_status IN ('pending','more_info'))::int AS pending,
+           COUNT(*) FILTER (WHERE status='suspended' OR onboarding_status='rejected')::int AS suspended
+         FROM advisors`
+      ),
+      db.query(
+        `SELECT TO_CHAR(month_bucket, 'Mon') AS label,
+                COALESCE(SUM(t.amount),0)::numeric AS revenue
+         FROM generate_series(
+           date_trunc('month', NOW()) - INTERVAL '5 months',
+           date_trunc('month', NOW()),
+           INTERVAL '1 month'
+         ) AS months(month_bucket)
+         LEFT JOIN transactions t
+           ON date_trunc('month', t.created_at) = month_bucket
+          AND t.status IN ('paid','success','captured')
+         GROUP BY month_bucket
+         ORDER BY month_bucket`
+      ),
+      db.query(
+        `SELECT
+           (SELECT COUNT(*) FROM verifications WHERE status='pending')::int AS member_kyc,
+           (SELECT COUNT(*) FROM advisors WHERE kyc_status='pending' OR onboarding_status IN ('pending','more_info'))::int AS agent_kyc,
+           (SELECT COUNT(*) FROM reports WHERE status='pending')::int AS reports,
+           (SELECT COUNT(*) FROM profile_photos WHERE is_approved=false)::int AS photos,
+           (SELECT COUNT(*) FROM payment_orders WHERE status IN ('created','attempted','pending'))::int AS upgrades,
+           (SELECT COUNT(*) FROM admin_alerts WHERE status='open')::int AS alerts`
+      ),
+      db.query(
+        `SELECT
+           p.profile_id,
+           p.user_id,
+           p.first_name,
+           p.last_name,
+           p.gender,
+           p.dob,
+           p.created_at,
+           p.primary_photo_url,
+           COALESCE(p.verification_status,'pending') AS verification_status,
+           COALESCE(p.admin_status,'active') AS admin_status,
+           COALESCE(s.plan_id,'free') AS plan_id,
+           u.phone,
+           u.email
+         FROM profiles p
+         JOIN users u ON u.user_id = p.user_id
+         LEFT JOIN subscriptions s ON s.user_id = p.user_id AND s.is_active=true
+         ORDER BY p.created_at DESC
+         LIMIT 7`
+      ),
+      db.query(
+        `SELECT COALESCE(s.plan_id,'free') AS plan_id,
+                COUNT(*)::int AS total,
+                COALESCE(SUM(s.amount_paid),0)::numeric AS revenue
+         FROM profiles p
+         LEFT JOIN subscriptions s ON s.user_id = p.user_id AND s.is_active=true
+         GROUP BY COALESCE(s.plan_id,'free')
+         ORDER BY total DESC`
+      ),
+      db.query(
+        `SELECT
+           a.advisor_id,
+           a.full_name,
+           a.city,
+           a.state,
+           a.average_rating,
+           COUNT(p.profile_id)::int AS members_added
+         FROM advisors a
+         LEFT JOIN profiles p ON p.created_by_advisor_id = a.advisor_id
+         GROUP BY a.advisor_id
+         ORDER BY members_added DESC, a.average_rating DESC NULLS LAST
+         LIMIT 5`
+      ),
+      db.query(
+        `SELECT admin_email, admin_role, action, entity_type, entity_id, ip_address, created_at
+         FROM admin_audit_logs
+         ORDER BY created_at DESC
+         LIMIT 8`
+      )
+    ]);
     const health = await getServiceHealth();
     const signups = parseInt(analytics.rows[0].signups || 0, 10);
     const paymentSuccesses = parseInt(analytics.rows[0].payment_successes || 0, 10);
@@ -437,6 +556,16 @@ exports.getDashboard = async (req, res) => {
         landingPages: {
           total: parseInt(landings.rows[0].total || 0, 10),
           active: parseInt(landings.rows[0].active || 0, 10)
+        },
+        adminConsole: {
+          members: memberBreakdown.rows[0] || {},
+          agents: agentBreakdown.rows[0] || {},
+          revenueTrend: revenueTrend.rows || [],
+          queues: pendingQueues.rows[0] || {},
+          recentMembers: recentMembers.rows || [],
+          membershipBreakdown: membershipBreakdown.rows || [],
+          agentLeaderboard: agentLeaderboard.rows || [],
+          recentAudit: recentAudit.rows || []
         },
         services: health
       }
@@ -636,25 +765,89 @@ exports.getProfiles = async (req, res) => {
          p.marital_status,
          p.completion_score,
          p.is_published,
+         p.is_partner_pref_set,
+         p.profile_status,
+         p.profile_created_by,
          COALESCE(p.verification_status, 'pending') AS verification_status,
          COALESCE(p.admin_status, CASE WHEN u.is_banned THEN 'suspended' ELSE 'active' END) AS admin_status,
+         p.review_status,
+         p.rejection_reason,
+         p.review_notes,
+         p.submitted_at,
+         p.reviewed_at,
+         p.verified_at,
+         p.created_by_advisor_id,
          p.primary_photo_url,
+         p.photo_privacy,
+         p.profile_visibility,
+         p.hide_last_seen,
+         u.user_type,
+         COALESCE(s.plan_id, 'free') AS plan_id,
+         s.start_date AS subscription_start_date,
+         s.end_date AS subscription_end_date,
+         s.amount_paid,
          ec.education_level,
+         ec.is_employed,
          ec.occupation,
          ec.annual_income,
          ec.working_city,
+         ec.working_state,
+         ec.working_pincode,
          ph.height_cm,
+         ph.weight_kg,
+         ph.complexion,
+         ph.body_type,
+         ph.blood_group,
+         fd.father_occupation,
+         fd.mother_occupation,
+         fd.num_brothers,
+         fd.num_sisters,
          fd.family_city,
+         fd.family_state,
+         fd.family_locality,
+         fd.family_pincode,
          fd.family_type,
+         hd.rashi,
+         hd.nakshatra,
+         hd.is_manglik,
+         hd.birth_city,
+         hd.gotra,
          ld.diet,
+         ld.smoking,
+         ld.drinking,
          ld.about_me,
+         pp.age_min,
+         pp.age_max,
+         pp.religion AS preference_religion,
+         pp.manglik_pref,
+         pp.education_levels,
+         pp.occupations,
+         pp.annual_income_min,
+         pp.annual_income_max,
+         pp.height_min_cm,
+         pp.height_max_cm,
+         pp.locations,
+         pp.location_radius_km,
+         pp.diet_prefs,
+         pp.marital_statuses,
+         pp.family_types,
+         pp.relocation_open,
+         pp.timeline,
+         pp.deal_breakers,
+         pp.good_to_have,
+         a.full_name AS advisor_name,
+         a.agent_code AS advisor_code,
          p.created_at
        FROM profiles p
        JOIN users u ON u.user_id = p.user_id
+       LEFT JOIN subscriptions s ON s.user_id = p.user_id AND s.is_active=true
        LEFT JOIN education_career ec ON ec.profile_id = p.profile_id
        LEFT JOIN physical_details ph ON ph.profile_id = p.profile_id
        LEFT JOIN family_details fd ON fd.profile_id = p.profile_id
+       LEFT JOIN horoscope_details hd ON hd.profile_id = p.profile_id
        LEFT JOIN lifestyle_details ld ON ld.profile_id = p.profile_id
+       LEFT JOIN partner_preferences pp ON pp.profile_id = p.profile_id
+       LEFT JOIN advisors a ON a.advisor_id = p.created_by_advisor_id
        ${whereSql}
        ORDER BY p.created_at DESC
        LIMIT $7 OFFSET $8`,
@@ -734,13 +927,13 @@ exports.createAdvisor = async (req, res) => {
     await client.query('BEGIN');
     const advisor = await client.query(
       `INSERT INTO advisors (
-         advisor_id, full_name, phone, email, service_label, bio, gender,
+         advisor_id, full_name, phone, email, business_name, years_experience, service_label, bio, gender,
          city, state, pincode, languages, communities, max_active_assignments,
          success_rate, complaint_score, average_rating, kyc_status, status,
          membership_plan, membership_expires_at, notes, created_at, updated_at
        )
        VALUES (
-         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14,$15,$16,$17,$18,$19,$20,$21,NOW(),NOW()
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb,$15,$16,$17,$18,$19,$20,$21,$22,$23,NOW(),NOW()
        )
        RETURNING *`,
       [
@@ -748,6 +941,8 @@ exports.createAdvisor = async (req, res) => {
         body.fullName,
         body.phone,
         body.email || null,
+        body.businessName || body.business_name || null,
+        body.yearsExperience !== undefined || body.years_experience !== undefined ? parseNumber(body.yearsExperience ?? body.years_experience, 0) : null,
         body.serviceLabel || 'SoulMatch Advisor',
         body.bio || null,
         body.gender || null,
@@ -799,23 +994,25 @@ exports.updateAdvisor = async (req, res) => {
        SET full_name = COALESCE($2, full_name),
            phone = COALESCE($3, phone),
            email = COALESCE($4, email),
-           service_label = COALESCE($5, service_label),
-           bio = COALESCE($6, bio),
-           gender = COALESCE($7, gender),
-           city = COALESCE($8, city),
-           state = COALESCE($9, state),
-           pincode = COALESCE($10, pincode),
-           languages = COALESCE($11::jsonb, languages),
-           communities = COALESCE($12::jsonb, communities),
-           max_active_assignments = COALESCE($13, max_active_assignments),
-           success_rate = COALESCE($14, success_rate),
-           complaint_score = COALESCE($15, complaint_score),
-           average_rating = COALESCE($16, average_rating),
-           kyc_status = COALESCE($17, kyc_status),
-           status = COALESCE($18, status),
-           membership_plan = COALESCE($19, membership_plan),
-           membership_expires_at = COALESCE($20, membership_expires_at),
-           notes = COALESCE($21, notes),
+           business_name = COALESCE($5, business_name),
+           years_experience = COALESCE($6, years_experience),
+           service_label = COALESCE($7, service_label),
+           bio = COALESCE($8, bio),
+           gender = COALESCE($9, gender),
+           city = COALESCE($10, city),
+           state = COALESCE($11, state),
+           pincode = COALESCE($12, pincode),
+           languages = COALESCE($13::jsonb, languages),
+           communities = COALESCE($14::jsonb, communities),
+           max_active_assignments = COALESCE($15, max_active_assignments),
+           success_rate = COALESCE($16, success_rate),
+           complaint_score = COALESCE($17, complaint_score),
+           average_rating = COALESCE($18, average_rating),
+           kyc_status = COALESCE($19, kyc_status),
+           status = COALESCE($20, status),
+           membership_plan = COALESCE($21, membership_plan),
+           membership_expires_at = COALESCE($22, membership_expires_at),
+           notes = COALESCE($23, notes),
            updated_at = NOW()
        WHERE advisor_id = $1
        RETURNING *`,
@@ -824,6 +1021,8 @@ exports.updateAdvisor = async (req, res) => {
         body.fullName || null,
         body.phone || null,
         body.email || null,
+        body.businessName || body.business_name || null,
+        body.yearsExperience !== undefined || body.years_experience !== undefined ? parseNumber(body.yearsExperience ?? body.years_experience, 0) : null,
         body.serviceLabel || null,
         body.bio || null,
         body.gender || null,
@@ -1209,8 +1408,8 @@ exports.createProfile = async (req, res) => {
     const body = req.body || {};
     await client.query('BEGIN');
     const user = await client.query(
-      `INSERT INTO users (phone, email, is_verified, is_active, acquisition_source, created_at, updated_at)
-       VALUES ($1,$2,$3,true,'admin_manual',NOW(),NOW())
+      `INSERT INTO users (phone, email, is_verified, is_active, user_type, acquisition_source, created_at, updated_at)
+       VALUES ($1,$2,$3,true,'member','admin_manual',NOW(),NOW())
        RETURNING user_id, phone, email`,
       [body.phone || null, body.email || null, body.isVerified === true]
     );
@@ -1220,9 +1419,10 @@ exports.createProfile = async (req, res) => {
       `INSERT INTO profiles (
          user_id, first_name, last_name, dob, gender, religion, caste, mother_tongue,
          marital_status, completion_score, is_published, primary_photo_url,
-         verification_status, admin_status, created_at, updated_at
+         verification_status, admin_status, profile_status, profile_created_by,
+         created_by_advisor_id, review_status, created_at, updated_at
        )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'active',NOW(),NOW())
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'active',$14,$15,$16,$17,NOW(),NOW())
        RETURNING *`,
       [
         userId,
@@ -1237,7 +1437,11 @@ exports.createProfile = async (req, res) => {
         score,
         body.isPublished === true,
         body.primaryPhotoUrl || body.primary_photo_url || null,
-        body.verificationStatus || 'pending'
+        body.verificationStatus || 'pending',
+        body.profileStatus || body.profile_status || 'active',
+        body.profileCreatedBy || body.profile_created_by || (body.createdByAdvisorId || body.created_by_advisor_id ? 'mediator' : 'self'),
+        body.createdByAdvisorId || body.created_by_advisor_id || null,
+        body.reviewStatus || body.review_status || 'draft'
       ]
     );
     const profileId = profile.rows[0].profile_id;
@@ -1247,14 +1451,46 @@ exports.createProfile = async (req, res) => {
       [profileId, body.heightCm || body.height_cm || null, body.weightKg || null, body.complexion || '', body.bodyType || '', body.bloodGroup || '']
     );
     await client.query(
-      `INSERT INTO education_career (profile_id, education_level, occupation, annual_income, working_city)
-       VALUES ($1,$2,$3,$4,$5)`,
-      [profileId, body.educationLevel || '', body.occupation || '', body.annualIncome || '', body.workingCity || body.working_city || '']
+      `INSERT INTO education_career (profile_id, education_level, is_employed, occupation, annual_income, working_city, working_state, working_pincode)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [
+        profileId,
+        body.educationLevel || body.education_level || '',
+        parseBool(body.isEmployed ?? body.is_employed, Boolean(body.occupation || body.workingCity || body.working_city)),
+        body.occupation || '',
+        body.annualIncome || body.annual_income || '',
+        body.workingCity || body.working_city || '',
+        body.workingState || body.working_state || '',
+        body.workingPincode || body.working_pincode || ''
+      ]
     );
     await client.query(
-      `INSERT INTO family_details (profile_id, father_occupation, mother_occupation, num_brothers, num_sisters, family_type, family_city)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [profileId, body.fatherOccupation || '', body.motherOccupation || '', body.numBrothers || 0, body.numSisters || 0, body.familyType || '', body.familyCity || '']
+      `INSERT INTO family_details (profile_id, father_occupation, mother_occupation, num_brothers, num_sisters, family_type, family_city, family_state, family_locality, family_pincode)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [
+        profileId,
+        body.fatherOccupation || body.father_occupation || '',
+        body.motherOccupation || body.mother_occupation || '',
+        body.numBrothers || body.num_brothers || 0,
+        body.numSisters || body.num_sisters || 0,
+        body.familyType || body.family_type || '',
+        body.familyCity || body.family_city || '',
+        body.familyState || body.family_state || '',
+        body.familyLocality || body.family_locality || '',
+        body.familyPincode || body.family_pincode || ''
+      ]
+    );
+    await client.query(
+      `INSERT INTO horoscope_details (profile_id, rashi, nakshatra, is_manglik, birth_city, gotra)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [
+        profileId,
+        body.rashi || '',
+        body.nakshatra || '',
+        parseBool(body.isManglik ?? body.is_manglik, false),
+        body.birthCity || body.birth_city || '',
+        body.gotra || ''
+      ]
     );
     await client.query(
       `INSERT INTO lifestyle_details (profile_id, diet, smoking, drinking, about_me)
@@ -1306,40 +1542,257 @@ exports.bulkCreateProfiles = async (req, res) => {
 };
 
 exports.updateProfile = async (req, res) => {
+  const db = await getDB();
+  const client = await db.connect();
   try {
-    const db = await getDB();
     const body = req.body || {};
     const profileId = req.params.id;
     const score = profileScore(body);
-    const result = await db.query(
+    await client.query('BEGIN');
+    const profileResult = await client.query(
       `UPDATE profiles
-       SET first_name=COALESCE($2, first_name),
-           last_name=COALESCE($3, last_name),
-           religion=COALESCE($4, religion),
-           caste=COALESCE($5, caste),
-           mother_tongue=COALESCE($6, mother_tongue),
-           primary_photo_url=COALESCE($7, primary_photo_url),
-           completion_score=GREATEST(completion_score, $8),
-           updated_at=NOW()
-       WHERE profile_id=$1
+       SET first_name = COALESCE($2, first_name),
+           last_name = COALESCE($3, last_name),
+           dob = COALESCE($4, dob),
+           gender = COALESCE($5, gender),
+           religion = COALESCE($6, religion),
+           caste = COALESCE($7, caste),
+           mother_tongue = COALESCE($8, mother_tongue),
+           marital_status = COALESCE($9, marital_status),
+           primary_photo_url = COALESCE($10, primary_photo_url),
+           is_published = COALESCE($11, is_published),
+           profile_status = COALESCE($12, profile_status),
+           profile_created_by = COALESCE($13, profile_created_by),
+           verification_status = COALESCE($14, verification_status),
+           admin_status = COALESCE($15, admin_status),
+           photo_privacy = COALESCE($16, photo_privacy),
+           profile_visibility = COALESCE($17, profile_visibility),
+           hide_last_seen = COALESCE($18, hide_last_seen),
+           review_status = COALESCE($19, review_status),
+           review_notes = COALESCE($20, review_notes),
+           rejection_reason = COALESCE($21, rejection_reason),
+           completion_score = GREATEST(COALESCE(completion_score, 0), $22),
+           updated_at = NOW()
+       WHERE profile_id = $1
        RETURNING *`,
       [
         profileId,
-        body.firstName || body.first_name || null,
-        body.lastName || body.last_name || null,
+        body.firstName ?? body.first_name ?? null,
+        body.lastName ?? body.last_name ?? null,
+        body.dob || null,
+        body.gender || null,
         body.religion || null,
         body.caste || null,
-        body.motherTongue || body.mother_tongue || null,
-        body.primaryPhotoUrl || body.primary_photo_url || null,
+        body.motherTongue ?? body.mother_tongue ?? null,
+        body.maritalStatus ?? body.marital_status ?? null,
+        body.primaryPhotoUrl ?? body.primary_photo_url ?? null,
+        body.isPublished !== undefined || body.is_published !== undefined ? parseBool(body.isPublished ?? body.is_published) : null,
+        body.profileStatus ?? body.profile_status ?? null,
+        body.profileCreatedBy ?? body.profile_created_by ?? null,
+        body.verificationStatus ?? body.verification_status ?? null,
+        body.adminStatus ?? body.admin_status ?? null,
+        body.photoPrivacy ?? body.photo_privacy ?? null,
+        body.profileVisibility ?? body.profile_visibility ?? null,
+        body.hideLastSeen !== undefined || body.hide_last_seen !== undefined ? parseBool(body.hideLastSeen ?? body.hide_last_seen) : null,
+        body.reviewStatus ?? body.review_status ?? null,
+        body.reviewNotes ?? body.review_notes ?? null,
+        body.rejectionReason ?? body.rejection_reason ?? null,
         score
       ]
     );
-    if (!result.rows[0]) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found.' } });
-    await auditLog(db, req, 'profile.update', 'profile', profileId, body);
-    broadcastAdminEvent('admin:profile_updated', { profile: result.rows[0] });
-    res.json({ success: true, data: result.rows[0] });
+    const profile = profileResult.rows[0];
+    if (!profile) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found.' } });
+    }
+
+    await client.query(
+      `UPDATE users
+       SET phone = COALESCE($2, phone),
+           email = COALESCE($3, email),
+           is_active = COALESCE($4, is_active),
+           is_banned = COALESCE($5, is_banned),
+           updated_at = NOW()
+       WHERE user_id = $1`,
+      [
+        profile.user_id,
+        body.phone || null,
+        body.email || null,
+        body.isActive !== undefined || body.is_active !== undefined ? parseBool(body.isActive ?? body.is_active) : null,
+        body.isBanned !== undefined || body.is_banned !== undefined ? parseBool(body.isBanned ?? body.is_banned) : null
+      ]
+    );
+
+    await client.query(
+      `INSERT INTO physical_details (profile_id, height_cm, weight_kg, complexion, body_type, blood_group)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (profile_id)
+       DO UPDATE SET height_cm=COALESCE($2, physical_details.height_cm),
+                     weight_kg=COALESCE($3, physical_details.weight_kg),
+                     complexion=COALESCE($4, physical_details.complexion),
+                     body_type=COALESCE($5, physical_details.body_type),
+                     blood_group=COALESCE($6, physical_details.blood_group)`,
+      [
+        profileId,
+        body.heightCm ?? body.height_cm ?? null,
+        body.weightKg ?? body.weight_kg ?? null,
+        body.complexion ?? null,
+        body.bodyType ?? body.body_type ?? null,
+        body.bloodGroup ?? body.blood_group ?? null
+      ]
+    );
+
+    await client.query(
+      `INSERT INTO education_career (profile_id, education_level, is_employed, occupation, annual_income, working_city, working_state, working_pincode)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (profile_id)
+       DO UPDATE SET education_level=COALESCE($2, education_career.education_level),
+                     is_employed=COALESCE($3, education_career.is_employed),
+                     occupation=COALESCE($4, education_career.occupation),
+                     annual_income=COALESCE($5, education_career.annual_income),
+                     working_city=COALESCE($6, education_career.working_city),
+                     working_state=COALESCE($7, education_career.working_state),
+                     working_pincode=COALESCE($8, education_career.working_pincode)`,
+      [
+        profileId,
+        body.educationLevel ?? body.education_level ?? null,
+        body.isEmployed !== undefined || body.is_employed !== undefined ? parseBool(body.isEmployed ?? body.is_employed) : null,
+        body.occupation ?? null,
+        body.annualIncome ?? body.annual_income ?? null,
+        body.workingCity ?? body.working_city ?? null,
+        body.workingState ?? body.working_state ?? null,
+        body.workingPincode ?? body.working_pincode ?? null
+      ]
+    );
+
+    await client.query(
+      `INSERT INTO family_details (profile_id, father_occupation, mother_occupation, num_brothers, num_sisters, family_type, family_city, family_state, family_locality, family_pincode)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       ON CONFLICT (profile_id)
+       DO UPDATE SET father_occupation=COALESCE($2, family_details.father_occupation),
+                     mother_occupation=COALESCE($3, family_details.mother_occupation),
+                     num_brothers=COALESCE($4, family_details.num_brothers),
+                     num_sisters=COALESCE($5, family_details.num_sisters),
+                     family_type=COALESCE($6, family_details.family_type),
+                     family_city=COALESCE($7, family_details.family_city),
+                     family_state=COALESCE($8, family_details.family_state),
+                     family_locality=COALESCE($9, family_details.family_locality),
+                     family_pincode=COALESCE($10, family_details.family_pincode)`,
+      [
+        profileId,
+        body.fatherOccupation ?? body.father_occupation ?? null,
+        body.motherOccupation ?? body.mother_occupation ?? null,
+        body.numBrothers ?? body.num_brothers ?? null,
+        body.numSisters ?? body.num_sisters ?? null,
+        body.familyType ?? body.family_type ?? null,
+        body.familyCity ?? body.family_city ?? null,
+        body.familyState ?? body.family_state ?? null,
+        body.familyLocality ?? body.family_locality ?? null,
+        body.familyPincode ?? body.family_pincode ?? null
+      ]
+    );
+
+    await client.query(
+      `INSERT INTO horoscope_details (profile_id, rashi, nakshatra, is_manglik, birth_city, gotra)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (profile_id)
+       DO UPDATE SET rashi=COALESCE($2, horoscope_details.rashi),
+                     nakshatra=COALESCE($3, horoscope_details.nakshatra),
+                     is_manglik=COALESCE($4, horoscope_details.is_manglik),
+                     birth_city=COALESCE($5, horoscope_details.birth_city),
+                     gotra=COALESCE($6, horoscope_details.gotra)`,
+      [
+        profileId,
+        body.rashi ?? null,
+        body.nakshatra ?? null,
+        body.isManglik !== undefined || body.is_manglik !== undefined ? parseBool(body.isManglik ?? body.is_manglik) : null,
+        body.birthCity ?? body.birth_city ?? null,
+        body.gotra ?? null
+      ]
+    );
+
+    await client.query(
+      `INSERT INTO lifestyle_details (profile_id, diet, smoking, drinking, about_me)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (profile_id)
+       DO UPDATE SET diet=COALESCE($2, lifestyle_details.diet),
+                     smoking=COALESCE($3, lifestyle_details.smoking),
+                     drinking=COALESCE($4, lifestyle_details.drinking),
+                     about_me=COALESCE($5, lifestyle_details.about_me)`,
+      [
+        profileId,
+        body.diet ?? null,
+        body.smoking ?? null,
+        body.drinking ?? null,
+        body.aboutMe ?? body.about_me ?? null
+      ]
+    );
+
+    if (body.preferenceReligion !== undefined || body.ageMin !== undefined || body.age_min !== undefined) {
+      await client.query(
+        `INSERT INTO partner_preferences (
+           profile_id, age_min, age_max, religion, manglik_pref, education_levels, occupations,
+           annual_income_min, annual_income_max, height_min_cm, height_max_cm, locations,
+           location_radius_km, diet_prefs, marital_statuses, family_types, relocation_open,
+           timeline, deal_breakers, good_to_have, updated_at
+         )
+         VALUES ($1,$2,$3,$4,$5,$6::text[],$7::text[],$8,$9,$10,$11,$12::text[],$13,$14::text[],$15::text[],$16::text[],$17,$18,$19::text[],$20::text[],NOW())
+         ON CONFLICT (profile_id)
+         DO UPDATE SET age_min=COALESCE($2, partner_preferences.age_min),
+                       age_max=COALESCE($3, partner_preferences.age_max),
+                       religion=COALESCE($4, partner_preferences.religion),
+                       manglik_pref=COALESCE($5, partner_preferences.manglik_pref),
+                       education_levels=COALESCE($6::text[], partner_preferences.education_levels),
+                       occupations=COALESCE($7::text[], partner_preferences.occupations),
+                       annual_income_min=COALESCE($8, partner_preferences.annual_income_min),
+                       annual_income_max=COALESCE($9, partner_preferences.annual_income_max),
+                       height_min_cm=COALESCE($10, partner_preferences.height_min_cm),
+                       height_max_cm=COALESCE($11, partner_preferences.height_max_cm),
+                       locations=COALESCE($12::text[], partner_preferences.locations),
+                       location_radius_km=COALESCE($13, partner_preferences.location_radius_km),
+                       diet_prefs=COALESCE($14::text[], partner_preferences.diet_prefs),
+                       marital_statuses=COALESCE($15::text[], partner_preferences.marital_statuses),
+                       family_types=COALESCE($16::text[], partner_preferences.family_types),
+                       relocation_open=COALESCE($17, partner_preferences.relocation_open),
+                       timeline=COALESCE($18, partner_preferences.timeline),
+                       deal_breakers=COALESCE($19::text[], partner_preferences.deal_breakers),
+                       good_to_have=COALESCE($20::text[], partner_preferences.good_to_have),
+                       updated_at=NOW()`,
+        [
+          profileId,
+          body.ageMin ?? body.age_min ?? null,
+          body.ageMax ?? body.age_max ?? null,
+          body.preferenceReligion ?? body.preference_religion ?? null,
+          body.manglikPref ?? body.manglik_pref ?? null,
+          body.educationLevels !== undefined || body.education_levels !== undefined ? arrayInput(body.educationLevels ?? body.education_levels) : null,
+          body.occupations !== undefined ? arrayInput(body.occupations) : null,
+          body.annualIncomeMin ?? body.annual_income_min ?? null,
+          body.annualIncomeMax ?? body.annual_income_max ?? null,
+          body.heightMinCm ?? body.height_min_cm ?? null,
+          body.heightMaxCm ?? body.height_max_cm ?? null,
+          body.locations !== undefined ? arrayInput(body.locations) : null,
+          body.locationRadiusKm ?? body.location_radius_km ?? null,
+          body.dietPrefs !== undefined || body.diet_prefs !== undefined ? arrayInput(body.dietPrefs ?? body.diet_prefs) : null,
+          body.maritalStatuses !== undefined || body.marital_statuses !== undefined ? arrayInput(body.maritalStatuses ?? body.marital_statuses) : null,
+          body.familyTypes !== undefined || body.family_types !== undefined ? arrayInput(body.familyTypes ?? body.family_types) : null,
+          body.relocationOpen !== undefined || body.relocation_open !== undefined ? parseBool(body.relocationOpen ?? body.relocation_open) : null,
+          body.timeline ?? null,
+          body.dealBreakers !== undefined || body.deal_breakers !== undefined ? arrayInput(body.dealBreakers ?? body.deal_breakers) : null,
+          body.goodToHave !== undefined || body.good_to_have !== undefined ? arrayInput(body.goodToHave ?? body.good_to_have) : null
+        ]
+      );
+      await client.query('UPDATE profiles SET is_partner_pref_set=true WHERE profile_id=$1', [profileId]);
+    }
+
+    await auditLog(client, req, 'profile.update_360', 'profile', profileId, body);
+    await client.query('COMMIT');
+    broadcastAdminEvent('admin:profile_updated', { profile });
+    res.json({ success: true, data: profile });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     respondServerError(res, err, 'Unable to update profile right now.');
+  } finally {
+    client.release();
   }
 };
 

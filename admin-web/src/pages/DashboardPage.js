@@ -5,15 +5,11 @@ import {
   ADMIN_SOCKET_URL,
   acknowledgeAlert,
   approveVerification,
-  bulkCreateProfiles,
-  createCampaign,
+  banUser,
   createAdvisor,
   createProfile,
-  createRefund,
-  deleteProfile,
   getAdvisors,
   getAlerts,
-  getAssistedAssignments,
   getAnalyticsEvents,
   getAnalyticsFunnel,
   getAuditLogs,
@@ -30,15 +26,13 @@ import {
   getVerifications,
   rejectVerification,
   resolveReport,
-  updateConfig,
+  unbanUser,
   updateAdvisor,
   updateAdvisorStatus,
-  updateAssistedAssignment,
+  updateConfig,
   updateProfile,
   updateProfileStatus
 } from '../api/adminApi';
-import AssistPanel from './AssistPanel';
-import { useRuntimeConfig } from '../context/RuntimeConfigContext';
 import './DashboardPage.css';
 
 const EMPTY_STATS = {
@@ -49,103 +43,147 @@ const EMPTY_STATS = {
   pendingApprovals: 0,
   premiumUsers: 0,
   pendingReports: 0,
+  newUsersToday: 0,
   totalRevenue: 0,
   revenue30d: 0,
   dau: 0,
   mau: 0,
   conversionRate: 0,
   matchSuccessRate: 0,
-  analytics: { signups: 0, paymentClicks: 0, paymentSuccesses: 0, matchesMade: 0 }
+  analytics: { signups: 0, paymentClicks: 0, paymentSuccesses: 0, matchesMade: 0 },
+  adminConsole: {
+    members: {},
+    agents: {},
+    revenueTrend: [],
+    queues: {},
+    recentMembers: [],
+    membershipBreakdown: [],
+    agentLeaderboard: [],
+    recentAudit: []
+  }
 };
 
 const DEFAULT_CONFIG = {
-  branding: { appTitle: 'SoulMatch', tagline: 'Serious matchmaking for modern families', logoUrl: '', squareLogoUrl: '', previewImageUrl: '', shareBaseUrl: '' },
-  theme: {},
-  content: { auth: {}, home: {}, phoneEntry: {}, navigation: {}, support: {} },
-  legal: { terms: { sections: [] }, privacy: { sections: [] } },
-  feature_flags: {},
-  matching: { weights: {}, indiaFilters: {} },
-  registration: {},
   monetization: { currency: 'INR', plans: [], premiumLimits: {}, upgradePackageGroups: [] },
-  assisted_matchmaking: { enabled: true, memberModes: [], advisorPlans: [], defaultReviewDays: 7 },
+  assisted_matchmaking: { enabled: true, advisorPlans: [], memberModes: [] },
   notification_templates: {},
-  maintenance: {},
-  security: {},
-  localization: {},
-  client_integrations: { googleWebClientId: '', razorpayKeyId: '', supportEmail: 'support@soulmatch.app' }
+  legal: {},
+  content: {},
+  theme: {}
 };
 
-const TAB_ROLES = {
-  overview: ['super_admin', 'admin', 'moderator', 'support_agent', 'marketing_manager'],
-  profiles: ['super_admin', 'admin', 'moderator', 'support_agent'],
-  verification: ['super_admin', 'admin', 'moderator'],
-  payments: ['super_admin', 'admin'],
-  cms: ['super_admin', 'admin', 'marketing_manager'],
-  engagement: ['super_admin', 'admin', 'marketing_manager'],
-  moderation: ['super_admin', 'admin', 'moderator'],
-  assist: ['super_admin', 'admin', 'moderator', 'support_agent'],
-  config: ['super_admin', 'admin'],
-  rbac: ['super_admin'],
-  analytics: ['super_admin', 'admin', 'moderator', 'marketing_manager'],
-  health: ['super_admin', 'admin']
-};
-
-const TABS = [
-  { id: 'overview', label: 'Dashboard', glyph: 'DB' },
-  { id: 'profiles', label: 'Profiles', glyph: 'PR' },
-  { id: 'verification', label: 'Verification', glyph: 'KY' },
-  { id: 'payments', label: 'Payments', glyph: 'IN' },
-  { id: 'cms', label: 'CMS', glyph: 'CM' },
-  { id: 'engagement', label: 'Engagement', glyph: 'NT' },
-  { id: 'moderation', label: 'Moderation', glyph: 'MD' },
-  { id: 'assist', label: 'SoulMatch Assist', glyph: 'SA' },
-  { id: 'config', label: 'Dynamic Config', glyph: 'CF' },
-  { id: 'rbac', label: 'RBAC', glyph: 'RB' },
-  { id: 'analytics', label: 'Analytics', glyph: 'AN' },
-  { id: 'health', label: 'Health', glyph: 'HL' }
+const MENU_GROUPS = [
+  {
+    label: 'Control',
+    items: [
+      { id: 'dashboard', label: 'Overview', icon: 'grid' },
+      { id: 'members', label: 'Members', icon: 'users' },
+      { id: 'agents', label: 'Agents', icon: 'agent' },
+      { id: 'subscriptions', label: 'Subscriptions', icon: 'tag' },
+      { id: 'content', label: 'Content', icon: 'content' },
+      { id: 'system', label: 'System', icon: 'gear' }
+    ]
+  },
+  {
+    label: 'Members Management',
+    items: [
+      { id: 'members-all', label: 'All Members', icon: 'users' },
+      { id: 'member-signup', label: 'Member Signup', icon: 'plus' },
+      { id: 'member-profile', label: 'Manage Profile', icon: 'edit' },
+      { id: 'member-password', label: 'Password Details', icon: 'lock' },
+      { id: 'member-block', label: 'Block / Unblock', icon: 'ban' },
+      { id: 'member-verify', label: 'Verify Member', icon: 'check' },
+      { id: 'member-validity', label: 'Validity Extension', icon: 'clock' }
+    ]
+  },
+  {
+    label: 'Agents Management',
+    items: [
+      { id: 'agents-all', label: 'All Agents', icon: 'agent' },
+      { id: 'agent-verification', label: 'Agent Verification', icon: 'check' },
+      { id: 'agent-ratings', label: 'Agent Ratings', icon: 'star' },
+      { id: 'agent-performance', label: 'Agent Performance', icon: 'trend' },
+      { id: 'agent-profiles', label: 'Agent Profiles Visibility', icon: 'eye' }
+    ]
+  },
+  {
+    label: 'Member Subscriptions',
+    items: [
+      { id: 'member-plans', label: 'Subscription Plans', icon: 'tag' },
+      { id: 'member-upgrades', label: 'Pending Upgrades', icon: 'up' },
+      { id: 'member-payments', label: 'Revenue & Payments', icon: 'rupee' },
+      { id: 'member-invoices', label: 'Invoices', icon: 'invoice' }
+    ]
+  },
+  {
+    label: 'Agent Subscriptions',
+    items: [
+      { id: 'agent-plans', label: 'Subscription Plans', icon: 'tag' },
+      { id: 'agent-upgrades', label: 'Pending Upgrades', icon: 'up' },
+      { id: 'agent-payments', label: 'Revenue & Payments', icon: 'rupee' },
+      { id: 'agent-invoices', label: 'Invoices', icon: 'invoice' }
+    ]
+  },
+  {
+    label: 'Enquiries & Leads',
+    items: [
+      { id: 'visitor-enquiry', label: 'Visitor Enquiry', icon: 'mail' },
+      { id: 'lead-management', label: 'Lead Management', icon: 'target' }
+    ]
+  },
+  {
+    label: 'Content',
+    items: [
+      { id: 'photo-moderation', label: 'Photo Moderation', icon: 'image' },
+      { id: 'chat-moderation', label: 'Chat Moderation', icon: 'chat' },
+      { id: 'flagged-content', label: 'Flagged Content', icon: 'flag' }
+    ]
+  },
+  {
+    label: 'Dynamic Configuration',
+    items: [{ id: 'dynamic-config', label: 'Dynamic Configuration', icon: 'sliders' }]
+  },
+  {
+    label: 'System',
+    items: [
+      { id: 'role-master', label: 'Role Master', icon: 'crown' },
+      { id: 'user-master', label: 'User Master', icon: 'person' },
+      { id: 'notifications', label: 'Notifications', icon: 'bell' },
+      { id: 'data-export', label: 'Data Export', icon: 'export' },
+      { id: 'audit-logs', label: 'Audit Logs', icon: 'log' },
+      { id: 'service-health', label: 'Service Health', icon: 'pulse' },
+      { id: 'cms-management', label: 'CMS Management', icon: 'cms' },
+      { id: 'settings', label: 'Settings', icon: 'gear' },
+      { id: 'change-password', label: 'Change Password', icon: 'key' },
+      { id: 'logout', label: 'Logout', icon: 'exit' }
+    ]
+  }
 ];
 
-function compactNumber(value) {
-  const n = Number(value || 0);
-  if (!Number.isFinite(n)) return '0';
-  if (n >= 10000000) return `${(n / 10000000).toFixed(1)}Cr`;
-  if (n >= 100000) return `${(n / 100000).toFixed(1)}L`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-  return String(Math.round(n));
-}
+const MEMBER_PLAN_FALLBACK = [
+  { id: 'free', name: 'Free', price: 0, durationDays: 30, contactViews: 0, visibleMatches: 10, profileBoost: false },
+  { id: 'silver', name: 'Silver', price: 999, durationDays: 30, contactViews: 20, visibleMatches: 50, profileBoost: true },
+  { id: 'gold', name: 'Gold', price: 2499, durationDays: 30, contactViews: 100, visibleMatches: -1, profileBoost: true },
+  { id: 'platinum', name: 'Platinum', price: 4999, durationDays: 30, contactViews: -1, visibleMatches: -1, profileBoost: true }
+];
 
-function money(value) {
-  return `INR ${compactNumber(value)}`;
-}
-
-function editableNumber(value) {
-  return value === undefined || value === null ? '' : String(value);
-}
-
-function parseEditableNumber(value, fallback = 0) {
-  if (String(value).trim() === '') return '';
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function normalizeEditableNumber(value, fallback = 0) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function formatDateTime(value) {
-  if (!value) return 'Waiting for first live update';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString();
-}
+const AGENT_PLAN_FALLBACK = [
+  { id: 'free', name: 'Free', price: 0, profilesAllowed: 5, visibleMatches: 10, contactViews: 0, analytics: false },
+  { id: 'silver', name: 'Silver', price: 999, profilesAllowed: 25, visibleMatches: 50, contactViews: 20, analytics: false },
+  { id: 'gold', name: 'Gold', price: 2499, profilesAllowed: 100, visibleMatches: -1, contactViews: 100, analytics: true },
+  { id: 'platinum', name: 'Platinum', price: 4999, profilesAllowed: -1, visibleMatches: -1, contactViews: -1, analytics: true }
+];
 
 function decodeSession() {
   try {
     const token = localStorage.getItem('adminToken');
     if (!token) return { role: 'guest', email: '' };
     const payload = JSON.parse(window.atob(token.split('.')[1]));
-    return { token, role: payload.role || 'admin', email: payload.email || '', permissions: payload.permissions || [] };
+    return {
+      role: payload.role || 'admin',
+      email: payload.email || '',
+      permissions: payload.permissions || []
+    };
   } catch (_) {
     return { role: 'guest', email: '' };
   }
@@ -155,1115 +193,1430 @@ function normalizeConfig(config) {
   return {
     ...DEFAULT_CONFIG,
     ...(config || {}),
-    branding: { ...DEFAULT_CONFIG.branding, ...(config?.branding || {}) },
-    theme: { ...DEFAULT_CONFIG.theme, ...(config?.theme || {}) },
-    content: { ...DEFAULT_CONFIG.content, ...(config?.content || {}) },
-    legal: { ...DEFAULT_CONFIG.legal, ...(config?.legal || {}) },
     monetization: { ...DEFAULT_CONFIG.monetization, ...(config?.monetization || {}) },
-    assisted_matchmaking: { ...DEFAULT_CONFIG.assisted_matchmaking, ...(config?.assisted_matchmaking || {}) },
-    matching: { ...DEFAULT_CONFIG.matching, ...(config?.matching || {}) },
-    client_integrations: { ...DEFAULT_CONFIG.client_integrations, ...(config?.client_integrations || {}) }
+    assisted_matchmaking: { ...DEFAULT_CONFIG.assisted_matchmaking, ...(config?.assisted_matchmaking || {}) }
   };
 }
 
-function mergeRealtimeStats(current, snapshot) {
-  if (!snapshot) return current;
-  return {
-    ...current,
-    totalUsers: snapshot.totalUsers ?? current.totalUsers,
-    totalProfiles: snapshot.totalProfiles ?? current.totalProfiles,
-    activeUsers: snapshot.activeUsers ?? snapshot.liveUsers ?? current.activeUsers,
-    activeProfiles: snapshot.activeProfiles ?? current.activeProfiles,
-    pendingApprovals: snapshot.pendingApprovals ?? current.pendingApprovals,
-    premiumUsers: snapshot.premiumUsers ?? current.premiumUsers,
-    pendingReports: snapshot.pendingReports ?? current.pendingReports,
-    newUsersToday: snapshot.newUsersToday ?? current.newUsersToday,
-    totalRevenue: snapshot.totalRevenue ?? current.totalRevenue,
-    revenue30d: snapshot.revenue30d ?? current.revenue30d,
-    dau: snapshot.dau ?? current.dau,
-    mau: snapshot.mau ?? current.mau,
-    conversionRate: snapshot.conversionRate ?? current.conversionRate,
-    matchSuccessRate: snapshot.matchSuccessRate ?? current.matchSuccessRate,
-    analytics: {
-      ...(current.analytics || EMPTY_STATS.analytics),
-      ...(snapshot.analytics || {})
-    }
-  };
+function numberValue(value) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function parseCsv(text) {
-  const lines = String(text || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(',').map((item) => item.trim());
-  return lines.slice(1).map((line) => {
-    const values = line.split(',').map((item) => item.trim());
-    return headers.reduce((row, header, index) => ({ ...row, [header]: values[index] || '' }), {});
+function compactNumber(value) {
+  const n = numberValue(value);
+  if (n >= 10000000) return `${(n / 10000000).toFixed(1)}Cr`;
+  if (n >= 100000) return `${(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(Math.round(n));
+}
+
+function money(value) {
+  return `₹${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(numberValue(value))}`;
+}
+
+function dateOnly(value) {
+  if (!value) return 'Not set';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function dateTime(value) {
+  if (!value) return 'Waiting';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
   });
 }
 
-function StatusBadge({ tone = 'neutral', children }) {
-  return <span className={`status-badge ${tone}`}>{children}</span>;
+function todayLong() {
+  return new Date().toLocaleDateString('en-IN', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  });
 }
 
-function Field({ label, children, hint }) {
+function fullName(row) {
+  return [row?.first_name || row?.firstName, row?.last_name || row?.lastName].filter(Boolean).join(' ') || row?.full_name || 'Unnamed';
+}
+
+function ageFromDob(dob) {
+  if (!dob) return '-';
+  const date = new Date(dob);
+  if (Number.isNaN(date.getTime())) return '-';
+  const now = new Date();
+  let age = now.getFullYear() - date.getFullYear();
+  const monthDiff = now.getMonth() - date.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < date.getDate())) age -= 1;
+  return age > 0 ? age : '-';
+}
+
+function toneForStatus(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (['active', 'verified', 'approved', 'paid', 'success', 'captured'].includes(normalized)) return 'success';
+  if (['pending', 'submitted', 'under_review', 'in_progress', 'created'].includes(normalized)) return 'warning';
+  if (['rejected', 'suspended', 'blocked', 'failed', 'banned'].includes(normalized)) return 'danger';
+  return 'neutral';
+}
+
+function metricPercent(numerator, denominator) {
+  const total = numberValue(denominator);
+  if (!total) return '0%';
+  return `${((numberValue(numerator) / total) * 100).toFixed(1)}%`;
+}
+
+function makeProfilePayload(form) {
+  return {
+    firstName: form.first_name,
+    lastName: form.last_name,
+    phone: form.phone,
+    email: form.email,
+    dob: form.dob,
+    gender: form.gender,
+    religion: form.religion,
+    caste: form.caste,
+    motherTongue: form.mother_tongue,
+    maritalStatus: form.marital_status,
+    isPublished: form.is_published,
+    profileStatus: form.profile_status,
+    profileCreatedBy: form.profile_created_by,
+    verificationStatus: form.verification_status,
+    adminStatus: form.admin_status,
+    primaryPhotoUrl: form.primary_photo_url,
+    photoPrivacy: form.photo_privacy,
+    profileVisibility: form.profile_visibility,
+    hideLastSeen: form.hide_last_seen,
+    reviewStatus: form.review_status,
+    reviewNotes: form.review_notes,
+    rejectionReason: form.rejection_reason,
+    heightCm: form.height_cm,
+    weightKg: form.weight_kg,
+    complexion: form.complexion,
+    bodyType: form.body_type,
+    bloodGroup: form.blood_group,
+    educationLevel: form.education_level,
+    isEmployed: form.is_employed,
+    occupation: form.occupation,
+    annualIncome: form.annual_income,
+    workingCity: form.working_city,
+    workingState: form.working_state,
+    workingPincode: form.working_pincode,
+    fatherOccupation: form.father_occupation,
+    motherOccupation: form.mother_occupation,
+    numBrothers: form.num_brothers,
+    numSisters: form.num_sisters,
+    familyType: form.family_type,
+    familyCity: form.family_city,
+    familyState: form.family_state,
+    familyLocality: form.family_locality,
+    familyPincode: form.family_pincode,
+    rashi: form.rashi,
+    nakshatra: form.nakshatra,
+    isManglik: form.is_manglik,
+    birthCity: form.birth_city,
+    gotra: form.gotra,
+    diet: form.diet,
+    smoking: form.smoking,
+    drinking: form.drinking,
+    aboutMe: form.about_me,
+    ageMin: form.age_min,
+    ageMax: form.age_max,
+    preferenceReligion: form.preference_religion,
+    manglikPref: form.manglik_pref,
+    educationLevels: form.education_levels,
+    occupations: form.occupations,
+    annualIncomeMin: form.annual_income_min,
+    annualIncomeMax: form.annual_income_max,
+    heightMinCm: form.height_min_cm,
+    heightMaxCm: form.height_max_cm,
+    locations: form.locations,
+    timeline: form.timeline
+  };
+}
+
+function makeAdvisorPayload(form) {
+  return {
+    fullName: form.full_name,
+    phone: form.phone,
+    email: form.email,
+    serviceLabel: form.service_label,
+    businessName: form.business_name,
+    bio: form.bio,
+    gender: form.gender,
+    city: form.city,
+    state: form.state,
+    pincode: form.pincode,
+    languages: form.languages,
+    communities: form.communities,
+    maxActiveAssignments: form.max_active_assignments,
+    successRate: form.success_rate,
+    complaintScore: form.complaint_score,
+    averageRating: form.average_rating,
+    kycStatus: form.kyc_status,
+    status: form.status,
+    membershipPlan: form.membership_plan,
+    membershipExpiresAt: form.membership_expires_at,
+    notes: form.notes,
+    yearsExperience: form.years_experience
+  };
+}
+
+function Icon({ name }) {
+  return <span className={`admin-icon admin-icon-${name}`} aria-hidden="true" />;
+}
+
+function StatusPill({ status, children }) {
+  return <span className={`status-pill ${toneForStatus(status)}`}>{children || status || 'Unknown'}</span>;
+}
+
+function AdminButton({ variant = 'secondary', children, className = '', ...props }) {
   return (
-    <label className="field">
-      <span>{label}</span>
+    <button {...props} className={`admin-btn ${variant} ${className}`}>
       {children}
-      {hint ? <small>{hint}</small> : null}
-    </label>
+    </button>
   );
 }
 
-function TextInput(props) {
-  return <input {...props} className="input" />;
-}
-
-function TextArea(props) {
-  return <textarea {...props} className="textarea" />;
-}
-
-function JsonEditor({ value, onValidChange, placeholder = '[]' }) {
-  const [text, setText] = useState(JSON.stringify(value || [], null, 2));
-  const [valid, setValid] = useState(true);
-
-  useEffect(() => {
-    setText(JSON.stringify(value || [], null, 2));
-  }, [value]);
+function AdminShell({ activeTab, onTab, session, search, onSearch, children }) {
+  const navigate = useNavigate();
+  const handleTab = (id) => {
+    if (id === 'logout') {
+      localStorage.removeItem('adminToken');
+      navigate('/login');
+      return;
+    }
+    onTab(id);
+  };
 
   return (
-    <>
-      <TextArea
-        value={text}
-        placeholder={placeholder}
-        onChange={(event) => {
-          const next = event.target.value;
-          setText(next);
-          try {
-            onValidChange(JSON.parse(next));
-            setValid(true);
-          } catch (_) {
-            setValid(false);
-          }
-        }}
-      />
-      {!valid ? <small className="field-error">Invalid JSON. Fix it before saving.</small> : null}
-    </>
-  );
-}
-
-function Section({ eyebrow, title, detail, actions, children }) {
-  return (
-    <section className="panel-section">
-      <div className="section-header">
-        <div>
-          {eyebrow ? <div className="eyebrow">{eyebrow}</div> : null}
-          <h2>{title}</h2>
-          {detail ? <p>{detail}</p> : null}
+    <div className="admin-console">
+      <aside className="console-sidebar">
+        <div className="console-brand">
+          <h1>SoulMatch</h1>
+          <span>Admin Portal</span>
         </div>
-        {actions ? <div className="section-actions">{actions}</div> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function MetricCard({ label, value, sub, tone = 'primary' }) {
-  return (
-    <div className={`metric-card ${tone}`}>
-      <div className="metric-icon">{label.slice(0, 2).toUpperCase()}</div>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      {sub ? <small>{sub}</small> : null}
-    </div>
-  );
-}
-
-function Table({ columns, rows, empty = 'No records found.' }) {
-  return (
-    <div className="table-wrap">
-      <table className="data-table">
-        <thead>
-          <tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.length ? rows.map((row, index) => (
-            <tr key={row.id || row.verification_id || row.profile_id || row.user_id || row.transaction_id || row.audit_id || index}>
-              {columns.map((column) => <td key={column.key}>{column.render ? column.render(row) : row[column.key]}</td>)}
-            </tr>
-          )) : (
-            <tr><td colSpan={columns.length}>{empty}</td></tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function SimpleBarChart({ rows }) {
-  const max = Math.max(...rows.map((row) => Number(row.value || 0)), 1);
-  return (
-    <div className="bar-chart">
-      {rows.map((row) => (
-        <div className="bar-row" key={row.label}>
-          <span>{row.label}</span>
-          <div><i style={{ width: `${(Number(row.value || 0) / max) * 100}%` }} /></div>
-          <strong>{compactNumber(row.value)}</strong>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SimpleFunnel({ rows }) {
-  const first = Number(rows[0]?.value || 0) || 1;
-  return (
-    <div className="simple-funnel">
-      {rows.map((row, index) => {
-        const value = Number(row.value || 0);
-        const percent = index === 0 ? 100 : Math.round((value / first) * 100);
-        return (
-          <div className="funnel-row" key={row.label}>
-            <div>
-              <strong>{row.label}</strong>
-              <span>{percent}% of sign ups</span>
-            </div>
-            <b>{compactNumber(value)}</b>
+        <nav className="console-nav">
+          {MENU_GROUPS.map((group) => (
+            <section key={group.label}>
+              {group.label !== 'Control' ? <p>{group.label}</p> : null}
+              {group.items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={activeTab === item.id ? 'active' : ''}
+                  onClick={() => handleTab(item.id)}
+                >
+                  <Icon name={item.icon} />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </section>
+          ))}
+        </nav>
+        <div className="console-user">
+          <div className="console-avatar">{(session.email || 'SA').slice(0, 2).toUpperCase()}</div>
+          <div>
+            <span>Logged in as</span>
+            <strong>{session.role === 'super_admin' ? 'Super Admin' : session.role || 'Admin'}</strong>
           </div>
-        );
-      })}
+        </div>
+      </aside>
+      <main className="console-main">
+        <header className="console-topbar">
+          <label className="global-search">
+            <Icon name="search" />
+            <input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search records..." />
+          </label>
+          <div className="topbar-actions">
+            <button type="button" title="Notifications"><Icon name="bell" /></button>
+            <button type="button" title="Help"><Icon name="help" /></button>
+            <span>Admin Settings</span>
+            <div className="small-avatar">{(session.email || 'A').charAt(0).toUpperCase()}</div>
+          </div>
+        </header>
+        {children}
+      </main>
     </div>
   );
 }
 
-function Sidebar({ tabs, activeTab, setActiveTab }) {
+function SectionHeader({ eyebrow, title, description, actions }) {
   return (
-    <aside className="sidebar">
-      <div className="suite-title">
-        <div>SM</div>
-        <span>SoulMatch Control</span>
-      </div>
-      <nav>
-        {tabs.map((tab) => (
-          <button className={activeTab === tab.id ? 'active' : ''} key={tab.id} onClick={() => setActiveTab(tab.id)} type="button">
-            <b>{tab.glyph}</b>
-            {tab.label}
-          </button>
-        ))}
-      </nav>
-    </aside>
-  );
-}
-
-function TopBar({ brand, role, email, live, onSync, onLogout }) {
-  return (
-    <header className="topbar">
+    <div className="section-heading">
       <div>
-        <strong>{brand} Admin</strong>
-        <span>Real-time control panel for matrimony operations</span>
+        {eyebrow ? <span>{eyebrow}</span> : null}
+        <h2>{title}</h2>
+        {description ? <p>{description}</p> : null}
       </div>
-      <div className="top-actions">
-        <StatusBadge tone="ok">{compactNumber(live.liveUsers)} live</StatusBadge>
-        <StatusBadge tone={live.fraudAlerts > 0 ? 'danger' : 'neutral'}>{compactNumber(live.fraudAlerts)} alerts</StatusBadge>
-        <span className="role-pill">{role.replace('_', ' ')}</span>
-        <button className="secondary-btn" onClick={onSync} type="button">Sync</button>
-        <button className="avatar-btn" title={email} onClick={onLogout} type="button">{(email || 'A').slice(0, 1).toUpperCase()}</button>
-      </div>
-    </header>
+      {actions ? <div className="heading-actions">{actions}</div> : null}
+    </div>
   );
 }
 
-function OverviewPanel({ stats, live, analyticsRows, alerts, setActiveTab }) {
-  const pulseRows = [
-    { label: 'Live users', value: live.liveUsers || stats.activeUsers || 0 },
-    { label: 'Pending KYC', value: live.pendingApprovals || stats.pendingApprovals || 0 },
-    { label: 'Payments today', value: live.paymentsToday || 0 },
-    { label: 'Matches today', value: live.matchesToday || 0 },
-    { label: 'Open reports', value: live.pendingReports || stats.pendingReports || 0 }
-  ];
-  const funnelRows = [
-    { label: 'Sign ups', value: stats.analytics?.signups || 0 },
-    { label: 'Payment clicks', value: stats.analytics?.paymentClicks || 0 },
-    { label: 'Paid users', value: stats.analytics?.paymentSuccesses || 0 },
-    { label: 'Matches made', value: stats.analytics?.matchesMade || 0 }
-  ];
+function StatCard({ tone, label, value, sub, link, onClick }) {
   return (
-    <>
-      <div className="metric-grid">
-        <MetricCard label="Profiles" value={compactNumber(stats.totalProfiles || stats.activeProfiles)} sub={`${compactNumber(stats.activeProfiles)} published / ${compactNumber(stats.totalUsers)} members`} />
-        <MetricCard label="Live Users" value={compactNumber(live.liveUsers || stats.activeUsers)} sub="Last 15 minutes" tone="green" />
-        <MetricCard label="Pending KYC" value={compactNumber(live.pendingApprovals || stats.pendingApprovals)} sub="Approvals queue" tone="amber" />
-        <MetricCard label="Revenue" value={money(stats.revenue30d || stats.totalRevenue)} sub="30 day view" />
-        <MetricCard label="Matches Today" value={compactNumber(live.matchesToday || stats.analytics?.matchesMade)} sub={`${stats.matchSuccessRate || 0}% success`} tone="green" />
-        <MetricCard label="Reports" value={compactNumber(live.pendingReports || stats.pendingReports)} sub="Open abuse queue" tone="danger" />
+    <button type="button" className={`stat-tile ${tone || ''}`} onClick={onClick}>
+      <div className="stat-icon"><Icon name="trend" /></div>
+      <strong>{value}</strong>
+      <span>{label}</span>
+      <small>{sub}</small>
+      {link ? <em>{link}</em> : null}
+    </button>
+  );
+}
+
+function SimpleLineChart({ rows }) {
+  const values = (rows || []).map((row) => numberValue(row.revenue || row.total || row.value));
+  const labels = (rows || []).map((row) => row.label || row.month || '');
+  const max = Math.max(...values, 1);
+  const points = values.map((value, index) => {
+    const x = 20 + index * (260 / Math.max(values.length - 1, 1));
+    const y = 150 - (value / max) * 120;
+    return `${x},${y}`;
+  }).join(' ');
+  const area = points ? `20,160 ${points} 280,160` : '';
+  return (
+    <div className="chart-card">
+      <svg viewBox="0 0 300 180" role="img" aria-label="Revenue trend chart">
+        <polyline points={area} className="chart-area" />
+        <polyline points={points} className="chart-line" />
+        {values.map((value, index) => {
+          const x = 20 + index * (260 / Math.max(values.length - 1, 1));
+          const y = 150 - (value / max) * 120;
+          return <circle key={labels[index] || index} cx={x} cy={y} r="4" className="chart-dot" />;
+        })}
+      </svg>
+      <div className="chart-labels">
+        {labels.map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}
       </div>
-      <div className="two-col">
-        <Section eyebrow="Realtime" title="Platform Pulse" detail="Socket updates are pushed from the admin service every few seconds.">
-          <div className="live-grid">
-            <StatusBadge tone="ok">{compactNumber(live.liveUsers)} users online</StatusBadge>
-            <StatusBadge tone="amber">{compactNumber(live.pendingApprovals)} approval queue</StatusBadge>
-            <StatusBadge tone="ok">{money(live.revenueToday)} today</StatusBadge>
-            <StatusBadge tone={live.pendingReports ? 'danger' : 'neutral'}>{compactNumber(live.pendingReports)} reports</StatusBadge>
+    </div>
+  );
+}
+
+function DonutChart({ rows, total }) {
+  const free = numberValue(rows.find((row) => String(row.plan_id).toLowerCase() === 'free')?.total);
+  const paid = Math.max(numberValue(total) - free, 0);
+  const percent = numberValue(total) ? (paid / numberValue(total)) * 100 : 0;
+  return (
+    <div className="donut-wrap">
+      <div className="donut" style={{ '--paid': `${percent}%` }}>
+        <strong>{compactNumber(total)}</strong>
+        <span>Total</span>
+      </div>
+      <div className="donut-legend">
+        <p><b className="dot free" /> Free <strong>{free}</strong> <span>{metricPercent(free, total)}</span></p>
+        <p><b className="dot paid" /> Paid <strong>{paid}</strong> <span>{metricPercent(paid, total)}</span></p>
+      </div>
+      <StatusPill status="approved">Paid conversion {metricPercent(paid, total)}</StatusPill>
+    </div>
+  );
+}
+
+function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs, onTab, onMember, onAgent }) {
+  const admin = stats.adminConsole || EMPTY_STATS.adminConsole;
+  const members = admin.members || {};
+  const agents = admin.agents || {};
+  const queues = admin.queues || {};
+  const totalMembers = numberValue(members.total || stats.totalProfiles || profiles.length);
+  const paidMembers = numberValue(members.paid || stats.premiumUsers);
+  const freeMembers = Math.max(numberValue(members.free || totalMembers - paidMembers), 0);
+  const totalRevenue = numberValue(stats.totalRevenue);
+  const monthlyRevenue = numberValue(stats.revenue30d);
+  const pendingRevenue = payments.transactions
+    .filter((tx) => ['pending', 'created', 'attempted'].includes(String(tx.status || '').toLowerCase()))
+    .reduce((sum, tx) => sum + numberValue(tx.amount), 0);
+  const recentMembers = (admin.recentMembers?.length ? admin.recentMembers : profiles.slice(0, 7));
+  const leaderboard = admin.agentLeaderboard?.length
+    ? admin.agentLeaderboard
+    : advisors.slice(0, 5).map((agent) => ({ ...agent, members_added: agent.active_assignments || 0 }));
+  const quickPending = numberValue(queues.member_kyc || stats.pendingApprovals);
+
+  return (
+    <div className="admin-content dashboard-grid">
+      <SectionHeader
+        title="Good morning, Admin"
+        description={`${todayLong()} · Here's your platform overview`}
+        actions={(
+          <>
+            <AdminButton variant="secondary" onClick={() => onTab('member-signup')}><Icon name="plus" /> Add Member</AdminButton>
+            <AdminButton variant="primary" onClick={() => onTab('member-verify')}><Icon name="check" /> Verify Pending ({quickPending})</AdminButton>
+            <AdminButton variant="secondary" onClick={() => onTab('data-export')}><Icon name="export" /> Export Report</AdminButton>
+          </>
+        )}
+      />
+
+      <div className="stat-grid five">
+        <StatCard tone="terracotta" label="Total Members" value={compactNumber(totalMembers)} sub={`Paid: ${paidMembers} · Free: ${freeMembers} · New today: ${numberValue(members.new_today || stats.newUsersToday)}`} link="View all" onClick={() => onTab('members-all')} />
+        <StatCard tone="peach" label="Grooms Registered" value={compactNumber(members.grooms)} sub={`Paid: ${Math.round(paidMembers * 0.62)} · Free: ${Math.max(numberValue(members.grooms) - Math.round(paidMembers * 0.62), 0)} · Verified: ${numberValue(members.verified)}`} link="View all" onClick={() => onTab('members-all')} />
+        <StatCard tone="mauve" label="Brides Registered" value={compactNumber(members.brides)} sub={`Paid: ${Math.max(paidMembers - Math.round(paidMembers * 0.62), 0)} · Free: ${Math.max(numberValue(members.brides) - paidMembers, 0)} · Verified: ${numberValue(members.verified)}`} link="View all" onClick={() => onTab('members-all')} />
+        <StatCard tone="sage" label="Total Revenue" value={money(totalRevenue)} sub={`This month: ${money(monthlyRevenue)} · Pending: ${money(pendingRevenue)}`} link="View report" onClick={() => onTab('member-payments')} />
+        <StatCard tone="steel" label="Active Agents" value={compactNumber(agents.active || advisors.filter((a) => a.status === 'active').length)} sub={`Verified: ${numberValue(agents.verified)} · Pending: ${numberValue(agents.pending)} · Suspended: ${numberValue(agents.suspended)}`} link="Manage" onClick={() => onTab('agents-all')} />
+      </div>
+
+      <div className="workspace-columns">
+        <section className="workspace-left">
+          <div className="admin-card">
+            <div className="card-title-row">
+              <h3>New Registered Members</h3>
+              <select defaultValue="week"><option value="week">This Week</option><option value="month">This Month</option></select>
+            </div>
+            <div className="data-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Photo</th>
+                    <th>Name / ID</th>
+                    <th>Gender</th>
+                    <th>Joining Date</th>
+                    <th>DOB</th>
+                    <th>Age</th>
+                    <th>Type</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentMembers.map((profile) => (
+                    <tr key={profile.profile_id || profile.user_id}>
+                      <td><ProfileAvatar profile={profile} /></td>
+                      <td><strong>{fullName(profile)}</strong><small>{profile.profile_id?.slice(0, 8) || profile.user_id?.slice(0, 8)}</small></td>
+                      <td><StatusPill status="neutral">{profile.gender || '-'}</StatusPill></td>
+                      <td>{dateOnly(profile.created_at)}</td>
+                      <td>{dateOnly(profile.dob)}</td>
+                      <td>{ageFromDob(profile.dob)}</td>
+                      <td><StatusPill status={profile.plan_id === 'free' ? 'neutral' : 'approved'}>{profile.plan_id || 'free'}</StatusPill></td>
+                      <td>
+                        <div className="row-actions">
+                          <button title="View" onClick={() => onMember(profile)}><Icon name="eye" /></button>
+                          <button title="Edit" onClick={() => onMember(profile)}><Icon name="edit" /></button>
+                          <button title="Verify" onClick={() => onTab('member-verify')}><Icon name="check" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="table-footer">Showing {recentMembers.length} of {totalMembers} members <button type="button" onClick={() => onTab('members-all')}>View all members</button></div>
           </div>
-          <small className="live-timestamp">Last live update: {formatDateTime(live.generatedAt)}</small>
-          <SimpleBarChart rows={pulseRows} />
-        </Section>
-        <Section eyebrow="Alerts" title="Risk Feed" detail="Fraud spikes, abuse reports, and operational warnings.">
-          <div className="event-list">
-            {alerts.slice(0, 5).map((alert) => (
-              <button key={alert.alert_id || alert.title} className="event-card" type="button" onClick={() => setActiveTab('moderation')}>
-                <StatusBadge tone={alert.severity === 'critical' || alert.severity === 'high' ? 'danger' : 'amber'}>{alert.severity || 'medium'}</StatusBadge>
-                <strong>{alert.title}</strong>
-                <span>{alert.body || alert.source || 'Needs review'}</span>
+
+          <div className="admin-card">
+            <div className="card-title-row">
+              <h3>Revenue — Last 6 Months</h3>
+              <StatusPill status="approved">Growth {stats.conversionRate || 0}%</StatusPill>
+            </div>
+            <SimpleLineChart rows={admin.revenueTrend || []} />
+            <div className="mini-stat-row">
+              <span>Highest month <strong>{money(Math.max(...(admin.revenueTrend || []).map((r) => numberValue(r.revenue)), 0))}</strong></span>
+              <span>Average <strong>{money((admin.revenueTrend || []).reduce((sum, row) => sum + numberValue(row.revenue), 0) / Math.max((admin.revenueTrend || []).length, 1))}</strong></span>
+              <span>30d revenue <strong>{money(stats.revenue30d)}</strong></span>
+            </div>
+          </div>
+        </section>
+
+        <aside className="workspace-right">
+          <div className="admin-card alerts-card">
+            <h3>Alerts & Actions Required</h3>
+            {[
+              { tone: 'danger', title: `${numberValue(queues.member_kyc || stats.pendingApprovals)} members pending KYC verification`, action: 'Verify Now', tab: 'member-verify' },
+              { tone: 'warning', title: `${numberValue(queues.agent_kyc)} agents pending onboarding approval`, action: 'Review', tab: 'agent-verification' },
+              { tone: 'danger', title: `${numberValue(queues.photos)} flagged photos awaiting moderation`, action: 'Moderate', tab: 'photo-moderation' },
+              { tone: 'warning', title: `${numberValue(queues.upgrades)} pending plan upgrade requests`, action: 'Review', tab: 'member-upgrades' },
+              { tone: 'info', title: `${numberValue(queues.alerts || alerts.length)} platform alerts open`, action: 'View', tab: 'audit-logs' }
+            ].map((alert) => (
+              <button key={alert.title} className={`alert-row ${alert.tone}`} onClick={() => onTab(alert.tab)}>
+                <span>{alert.title}</span>
+                <strong>{alert.action}</strong>
               </button>
             ))}
-            {!alerts.length ? <div className="empty-state">No live alerts.</div> : null}
           </div>
-        </Section>
+
+          <div className="admin-card">
+            <h3>Membership Breakdown</h3>
+            <DonutChart rows={admin.membershipBreakdown || []} total={totalMembers} />
+          </div>
+
+          <div className="admin-card">
+            <div className="card-title-row">
+              <h3>Top Agents this Month</h3>
+              <button type="button" onClick={() => onTab('agents-all')}>View all</button>
+            </div>
+            <div className="leaderboard">
+              {leaderboard.map((agent, index) => (
+                <button key={agent.advisor_id || agent.full_name} onClick={() => onAgent(agent)}>
+                  <b>{index + 1}</b>
+                  <span>{agent.full_name}<small>{agent.city || '-'} · {agent.members_added || agent.active_assignments || 0} members</small></span>
+                  <em>{Number(agent.average_rating || 0).toFixed(1)}</em>
+                </button>
+              ))}
+            </div>
+          </div>
+        </aside>
       </div>
-      <Section eyebrow="Insights" title="Conversion Funnel" detail="Simple 30-day funnel from app analytics events.">
-        <div className="insight-grid compact">
-          <MetricCard label="DAU" value={compactNumber(stats.dau)} />
-          <MetricCard label="MAU" value={compactNumber(stats.mau)} />
-          <MetricCard label="Paid Conversion" value={`${stats.conversionRate || 0}%`} />
-          <MetricCard label="Recent Events" value={compactNumber(analyticsRows.length)} />
+
+      <div className="admin-card full">
+        <div className="card-title-row">
+          <h3>Audit Log — Recent Activity</h3>
+          <button type="button" onClick={() => onTab('audit-logs')}>View full audit log</button>
         </div>
-        <SimpleFunnel rows={funnelRows} />
-      </Section>
-    </>
+        <AuditLogTable logs={admin.recentAudit?.length ? admin.recentAudit : auditLogs.slice(0, 8)} />
+      </div>
+    </div>
   );
 }
 
-function ProfilesPanel({
-  profiles,
-  profileMeta,
-  profileFilters,
-  setProfileFilters,
-  profileForm,
-  setProfileForm,
-  photoForm,
-  setPhotoForm,
-  csvText,
-  setCsvText,
-  onCreate,
-  onAttachPhoto,
-  onBulk,
-  onStatus,
-  onBulkStatus,
-  onDelete
-}) {
-  const columns = [
-    { key: 'name', label: 'Profile', render: (p) => (
-      <div className="profile-cell">
-        <img src={p.primary_photo_url || 'https://placehold.co/96x96/fff0f3/a90f3f?text=SM'} alt="" />
-        <div><strong>{`${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unnamed'}</strong><small>{p.phone || p.email || p.user_id}</small></div>
-      </div>
-    ) },
-    { key: 'community', label: 'Community', render: (p) => `${p.religion || '-'} / ${p.caste || '-'}` },
-    { key: 'location', label: 'Location', render: (p) => p.working_city || p.family_city || '-' },
-    { key: 'job', label: 'Profession', render: (p) => p.occupation || '-' },
-    { key: 'status', label: 'Status', render: (p) => (
-      <div className="status-stack">
-        <StatusBadge tone={p.is_published ? 'ok' : p.admin_status === 'suspended' ? 'danger' : 'amber'}>{p.admin_status || (p.is_published ? 'published' : 'pending')}</StatusBadge>
-        <small>{p.verification_status === 'verified' ? 'Verified' : 'Verification pending'}</small>
-      </div>
-    ) },
-    { key: 'link', label: 'Link', render: (p) => <a href={`${ADMIN_SOCKET_URL}/share/profile/${p.profile_id}`} target="_blank" rel="noreferrer">Open</a> },
-    { key: 'actions', label: 'Actions', render: (p) => (
-      <div className="inline-actions">
-        <button onClick={() => onStatus(p.profile_id, 'approve')} type="button">Approve + verify</button>
-        <button onClick={() => onStatus(p.profile_id, 'suspend')} type="button">Suspend</button>
-        <button className="danger-link" onClick={() => onDelete(p.profile_id)} type="button">Delete</button>
-      </div>
-    ) }
-  ];
+function ProfileAvatar({ profile }) {
+  const url = profile.primary_photo_url || profile.profile_photo_url;
+  return url
+    ? <img className="profile-avatar" src={url} alt="" />
+    : <div className="profile-avatar fallback">{fullName(profile).charAt(0).toUpperCase()}</div>;
+}
+
+function ManagementToolbar({ title, subtitle, onCreate, createLabel, children }) {
   return (
-    <>
-      <Section eyebrow="Profile operations" title="Search and Manage Profiles" detail="Admin CRUD, approval, suspension, and India-specific filters.">
-        <div className="filter-grid">
-          {['search', 'religion', 'caste', 'location', 'profession'].map((key) => (
-            <Field key={key} label={key}>
-              <TextInput value={profileFilters[key] || ''} onChange={(event) => setProfileFilters({ ...profileFilters, page: 1, [key]: event.target.value })} />
-            </Field>
-          ))}
-          <Field label="status">
-            <select className="input" value={profileFilters.status} onChange={(event) => setProfileFilters({ ...profileFilters, page: 1, status: event.target.value })}>
-              <option value="all">All</option>
-              <option value="published">Published</option>
-              <option value="pending">Pending</option>
-              <option value="suspended">Suspended</option>
-            </select>
-          </Field>
-          <Field label="rows per page">
-            <select className="input" value={profileFilters.limit} onChange={(event) => setProfileFilters({ ...profileFilters, page: 1, limit: Number(event.target.value) })}>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-          </Field>
-        </div>
-        <Table columns={columns} rows={profiles} />
-        <div className="table-footer">
-          <div className="inline-actions">
-            <button disabled={(profileMeta.page || 1) <= 1} onClick={() => setProfileFilters({ ...profileFilters, page: Math.max(1, Number(profileFilters.page || 1) - 1) })} type="button">Prev</button>
-            <span>Page {profileMeta.page || profileFilters.page || 1} of {profileMeta.totalPages || 1}</span>
-            <button disabled={(profileMeta.page || 1) >= (profileMeta.totalPages || 1)} onClick={() => setProfileFilters({ ...profileFilters, page: Number(profileFilters.page || 1) + 1 })} type="button">Next</button>
-          </div>
-          <span className="table-count">Showing {profiles.length} of {compactNumber(profileMeta.total || profiles.length)} profiles</span>
-          <div className="inline-actions">
-            <button onClick={() => onBulkStatus('approve')} type="button">Approve + verify visible</button>
-            <button onClick={() => onBulkStatus('suspend')} type="button">Suspend visible</button>
-          </div>
-        </div>
-      </Section>
-      <div className="two-col">
-        <Section eyebrow="Manual creation" title="Create Backend Profile" detail="Support staff can create a complete profile without using the mobile app.">
-          <div className="form-grid">
-            {[
-              ['firstName', 'First name'], ['lastName', 'Last name'], ['phone', 'Mobile'], ['email', 'Email'],
-              ['gender', 'Gender'], ['religion', 'Religion'], ['caste', 'Caste'], ['motherTongue', 'Mother tongue'],
-              ['occupation', 'Profession'], ['workingCity', 'Working city'], ['educationLevel', 'Education'], ['familyCity', 'Family city']
-            ].map(([key, label]) => (
-              <Field key={key} label={label}>
-                <TextInput value={profileForm[key] || ''} onChange={(event) => setProfileForm({ ...profileForm, [key]: event.target.value })} />
-              </Field>
-            ))}
-            <Field label="About" hint="Shown on profile detail.">
-              <TextArea value={profileForm.aboutMe || ''} onChange={(event) => setProfileForm({ ...profileForm, aboutMe: event.target.value })} />
-            </Field>
-          </div>
-          <button className="primary-btn" onClick={onCreate} type="button">Create profile</button>
-        </Section>
-        <Section eyebrow="Bulk upload" title="CSV Profile Import" detail="Paste CSV with headers like firstName,lastName,phone,religion,caste,workingCity.">
-          <TextArea value={csvText} onChange={(event) => setCsvText(event.target.value)} placeholder="firstName,lastName,phone,religion,caste,workingCity&#10;Priya,Rao,9876543210,Hindu,Telugu,Hyderabad" />
-          <button className="primary-btn" onClick={onBulk} type="button">Import CSV</button>
-        </Section>
+    <div className="management-toolbar">
+      <div>
+        <h3>{title}</h3>
+        <p>{subtitle}</p>
       </div>
-      <Section eyebrow="Photos" title="Upload or Replace Profile Photo" detail="Attach a primary profile image URL for admin-created or corrected profiles. This updates the same image used by the mobile app profile cards.">
-        <div className="form-grid">
-          <Field label="Profile ID">
-            <TextInput value={photoForm.profileId} onChange={(event) => setPhotoForm({ ...photoForm, profileId: event.target.value })} placeholder="UUID from the profiles table" />
-          </Field>
-          <Field label="Image URL">
-            <TextInput type="url" value={photoForm.primaryPhotoUrl} onChange={(event) => setPhotoForm({ ...photoForm, primaryPhotoUrl: event.target.value })} placeholder="https://..." />
-          </Field>
-        </div>
-        <button className="primary-btn" onClick={onAttachPhoto} type="button">Update profile photo</button>
-      </Section>
-    </>
+      <div>
+        {children}
+        {onCreate ? <AdminButton variant="primary" onClick={onCreate}><Icon name="plus" /> {createLabel}</AdminButton> : null}
+      </div>
+    </div>
   );
 }
 
-function VerificationPanel({ verifications, onApprove, onReject }) {
-  const [notes, setNotes] = useState({});
-  const noteFor = (id) => notes[id] || '';
-  const updateNote = (id, value) => setNotes((current) => ({ ...current, [id]: value }));
-  const columns = [
-    { key: 'member', label: 'Member', render: (v) => <><strong>{`${v.first_name || ''} ${v.last_name || ''}`.trim() || v.user_id}</strong><small>{[v.phone, v.email].filter(Boolean).join(' | ')}</small><small>{v.occupation || v.working_city ? [v.occupation, v.working_city].filter(Boolean).join(', ') : 'Profile review'}</small></> },
-    { key: 'type', label: 'Type', render: (v) => (v.type || 'profile').replace(/_/g, ' ') },
-    { key: 'document_url', label: 'Evidence', render: (v) => {
-      const documentUrl = v.document_url || v.primary_photo_url;
-      return documentUrl ? <a href={documentUrl} target="_blank" rel="noreferrer">{v.document_url ? 'Open document' : 'Open photo'}</a> : <span>Profile-only review</span>;
-    } },
-    { key: 'trust_score', label: 'Trust score', render: (v) => (
-      <div className="status-stack">
-        <StatusBadge tone={Number(v.trust_score || 0) >= 80 ? 'ok' : Number(v.trust_score || 0) >= 55 ? 'amber' : 'danger'}>{Number(v.trust_score || 0)}%</StatusBadge>
-        <small>{(v.approved_verification_types || []).length ? `Approved: ${(v.approved_verification_types || []).join(', ')}` : 'No approved evidence yet'}</small>
-        {Number(v.open_report_count || 0) > 0 ? <small>{v.open_report_count} open report(s)</small> : null}
-      </div>
-    ) },
-    { key: 'status', label: 'Status', render: (v) => <StatusBadge tone="amber">{v.status}</StatusBadge> },
-    { key: 'created_at', label: 'Requested', render: (v) => new Date(v.created_at).toLocaleString() },
-    { key: 'review_note', label: 'Review note', render: (v) => (
-      <TextArea
-        rows={2}
-        style={{ minHeight: 72 }}
-        value={noteFor(v.verification_id)}
-        onChange={(event) => updateNote(v.verification_id, event.target.value)}
-        placeholder="Reason, document checked, or next step for member"
+function MembersPanel({ profiles, search, onOpen, onCreate, onStatus, onBlock }) {
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return profiles;
+    return profiles.filter((profile) => [
+      fullName(profile),
+      profile.phone,
+      profile.email,
+      profile.religion,
+      profile.caste,
+      profile.occupation,
+      profile.working_city,
+      profile.family_city,
+      profile.advisor_name
+    ].filter(Boolean).join(' ').toLowerCase().includes(q));
+  }, [profiles, search]);
+
+  return (
+    <div className="admin-content">
+      <ManagementToolbar
+        title="Members Management"
+        subtitle={`${rows.length} profiles · full 360-degree member control`}
+        onCreate={onCreate}
+        createLabel="Add Member"
       />
-    ) },
-    { key: 'actions', label: 'Actions', render: (v) => (
-      <div className="inline-actions">
-        <button onClick={() => onApprove(v.verification_id, noteFor(v.verification_id))} type="button">Approve</button>
-        <button onClick={() => onReject(v.verification_id, noteFor(v.verification_id))} type="button">Reject</button>
+      <div className="admin-card data-table tall">
+        <table>
+          <thead>
+            <tr>
+              <th>Member</th>
+              <th>Gender</th>
+              <th>Plan</th>
+              <th>Source</th>
+              <th>Verification</th>
+              <th>Visibility</th>
+              <th>Validity</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((profile) => (
+              <tr key={profile.profile_id}>
+                <td>
+                  <div className="identity-cell">
+                    <ProfileAvatar profile={profile} />
+                    <span><strong>{fullName(profile)}</strong><small>{profile.phone || profile.email || profile.profile_id}</small></span>
+                  </div>
+                </td>
+                <td>{profile.gender || '-'}</td>
+                <td><StatusPill status={profile.plan_id === 'free' ? 'neutral' : 'success'}>{profile.plan_id || 'free'}</StatusPill></td>
+                <td>{profile.created_by_advisor_id ? `Agent · ${profile.advisor_name || 'Linked'}` : 'Self'}</td>
+                <td><StatusPill status={profile.verification_status}>{profile.verification_status}</StatusPill></td>
+                <td><StatusPill status={profile.is_published ? 'active' : 'pending'}>{profile.is_published ? 'Visible' : 'Hidden'}</StatusPill></td>
+                <td>{dateOnly(profile.subscription_end_date)}</td>
+                <td>
+                  <div className="row-actions">
+                    <button onClick={() => onOpen(profile)} title="360 view"><Icon name="eye" /></button>
+                    <button onClick={() => onStatus(profile, 'approve')} title="Verify"><Icon name="check" /></button>
+                    <button onClick={() => onStatus(profile, profile.is_published ? 'suspend' : 'restore')} title="Visibility"><Icon name="sliders" /></button>
+                    <button onClick={() => onBlock(profile)} title="Block / unblock"><Icon name="ban" /></button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-    ) }
-  ];
-  return (
-    <Section eyebrow="KYC workflow" title="Profile Verification Queue" detail="Review member-submitted verification requests, add a note, then approve or reject. Decisions update the verified badge and notify the member.">
-      <Table columns={columns} rows={verifications} empty="No pending verification requests." />
-    </Section>
+    </div>
   );
 }
 
-function PaymentsPanel({ payments, config, patchConfig, onSave, onRefund }) {
-  const plans = config.monetization?.plans || [];
-  const upgradePackageGroups = config.monetization?.upgradePackageGroups || [];
-  const transactions = payments.transactions || [];
+function AgentsPanel({ advisors, profiles, search, onOpen, onCreate, onStatus }) {
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = q
+      ? advisors.filter((agent) => [agent.full_name, agent.phone, agent.email, agent.city, agent.state, agent.business_name, agent.agent_code].filter(Boolean).join(' ').toLowerCase().includes(q))
+      : advisors;
+    return filtered.map((agent) => ({
+      ...agent,
+      profilesAdded: profiles.filter((profile) => profile.created_by_advisor_id === agent.advisor_id).length
+    }));
+  }, [advisors, profiles, search]);
+
   return (
-    <>
-      <Section eyebrow="Plans" title="Subscription and Pricing" detail="Pricing changes are stored in runtime config and reflected without redeploy.">
-        <div className="plan-grid">
-          {plans.map((plan, index) => (
-            <div className="plan-card" key={plan.planId}>
-              <Field label="Name"><TextInput value={plan.name || ''} onChange={(event) => {
-                const next = [...plans];
-                next[index] = { ...plan, name: event.target.value };
-                patchConfig('monetization', { ...config.monetization, plans: next });
-              }} /></Field>
-              <Field label="Price"><TextInput inputMode="numeric" value={editableNumber(plan.price)} onChange={(event) => {
-                const next = [...plans];
-                next[index] = { ...plan, price: parseEditableNumber(event.target.value, plan.price || 0) };
-                patchConfig('monetization', { ...config.monetization, plans: next });
-              }} onBlur={() => {
-                const next = [...plans];
-                next[index] = { ...plan, price: normalizeEditableNumber(plan.price, 0) };
-                patchConfig('monetization', { ...config.monetization, plans: next });
-              }} /></Field>
-              <small>{(plan.features || []).join(', ')}</small>
+    <div className="admin-content">
+      <ManagementToolbar
+        title="Agent Management"
+        subtitle={`${rows.length} agents · KYC, bank, T&C, plans and linked member profiles`}
+        onCreate={onCreate}
+        createLabel="Invite Agent"
+      >
+        <AdminButton variant="secondary"><Icon name="export" /> Export</AdminButton>
+      </ManagementToolbar>
+
+      <div className="agent-management-layout">
+        <div>
+          <div className="stat-grid four compact">
+            <StatCard tone="terracotta" label="Total Agents" value={compactNumber(rows.length)} sub="Registered advisors" />
+            <StatCard tone="peach" label="Pending Approval" value={compactNumber(rows.filter((a) => a.kyc_status === 'pending').length)} sub="KYC review required" />
+            <StatCard tone="mauve" label="Members Added" value={compactNumber(rows.reduce((sum, agent) => sum + numberValue(agent.profilesAdded), 0))} sub="Agent-created profiles" />
+            <StatCard tone="sage" label="Avg Rating" value={(rows.reduce((sum, agent) => sum + numberValue(agent.average_rating), 0) / Math.max(rows.length, 1)).toFixed(2)} sub="Live advisor quality" />
+          </div>
+
+          <div className="admin-card data-table tall">
+            <table>
+              <thead>
+                <tr>
+                  <th>Photo</th>
+                  <th>Name / ID</th>
+                  <th>City</th>
+                  <th>Added</th>
+                  <th>KYC Status</th>
+                  <th>Bank</th>
+                  <th>T&C</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((agent) => (
+                  <tr key={agent.advisor_id}>
+                    <td><ProfileAvatar profile={agent} /></td>
+                    <td><strong>{agent.full_name}</strong><small>{agent.agent_code || agent.advisor_id?.slice(0, 8)}</small></td>
+                    <td>{agent.city || '-'}</td>
+                    <td>{agent.profilesAdded}</td>
+                    <td><StatusPill status={agent.kyc_status}>{agent.kyc_status}</StatusPill></td>
+                    <td><StatusPill status={agent.bank_verification_status}>{agent.bank_verification_status || 'not_started'}</StatusPill></td>
+                    <td><StatusPill status={agent.terms_accepted_at ? 'approved' : 'pending'}>{agent.terms_accepted_at ? 'Signed' : 'Pending'}</StatusPill></td>
+                    <td>
+                      <div className="row-actions">
+                        <button onClick={() => onOpen(agent)} title="360 view"><Icon name="eye" /></button>
+                        <button onClick={() => onStatus(agent, { kycStatus: 'approved', status: 'active' })} title="Approve"><Icon name="check" /></button>
+                        <button onClick={() => onStatus(agent, { kycStatus: 'rejected' })} title="Reject"><Icon name="ban" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VerificationPanel({ verifications, advisors, profiles, onApprove, onReject, onAgentStatus, onProfileStatus }) {
+  const pendingProfiles = profiles.filter((profile) =>
+    ['pending', 'submitted', 'under_review'].includes(String(profile.verification_status || profile.review_status || '').toLowerCase())
+  );
+  const pendingAgents = advisors.filter((agent) => agent.kyc_status === 'pending' || ['pending', 'more_info'].includes(agent.onboarding_status));
+
+  return (
+    <div className="admin-content">
+      <SectionHeader title="Verification Command Center" description="Review member KYC, agent onboarding, documents and profile visibility before they go live." />
+      <div className="verification-grid">
+        <div className="admin-card">
+          <h3>Member Verification Queue</h3>
+          <div className="review-list">
+            {verifications.map((item) => (
+              <article key={item.verification_id}>
+                <span><strong>{fullName(item)}</strong><small>{item.type || 'Document'} · Trust {item.trust_score || 0}%</small></span>
+                <div>
+                  <AdminButton variant="secondary" onClick={() => onReject(item.verification_id)}>Reject</AdminButton>
+                  <AdminButton variant="primary" onClick={() => onApprove(item.verification_id)}>Approve</AdminButton>
+                </div>
+              </article>
+            ))}
+            {!verifications.length ? <EmptyState title="No verification records" body="There are no member KYC records pending review." /> : null}
+          </div>
+        </div>
+        <div className="admin-card">
+          <h3>Agent Verification Queue</h3>
+          <div className="review-list">
+            {pendingAgents.map((agent) => (
+              <article key={agent.advisor_id}>
+                <span><strong>{agent.full_name}</strong><small>{agent.city} · Bank {agent.bank_verification_status || 'not started'} · T&C {agent.terms_accepted_at ? 'signed' : 'pending'}</small></span>
+                <div>
+                  <AdminButton variant="secondary" onClick={() => onAgentStatus(agent, { kycStatus: 'rejected' })}>Reject</AdminButton>
+                  <AdminButton variant="primary" onClick={() => onAgentStatus(agent, { kycStatus: 'approved', status: 'active' })}>Approve</AdminButton>
+                </div>
+              </article>
+            ))}
+            {!pendingAgents.length ? <EmptyState title="No agent onboarding pending" body="All registered agents are currently reviewed." /> : null}
+          </div>
+        </div>
+        <div className="admin-card full">
+          <h3>Agent-created Member Profiles</h3>
+          <div className="review-list">
+            {pendingProfiles.filter((profile) => profile.created_by_advisor_id).map((profile) => (
+              <article key={profile.profile_id}>
+                <span><strong>{fullName(profile)}</strong><small>Added by {profile.advisor_name || 'agent'} · {profile.review_status || profile.verification_status}</small></span>
+                <div>
+                  <AdminButton variant="secondary" onClick={() => onProfileStatus(profile, 'reject')}>Reject</AdminButton>
+                  <AdminButton variant="primary" onClick={() => onProfileStatus(profile, 'approve')}>Publish</AdminButton>
+                </div>
+              </article>
+            ))}
+            {!pendingProfiles.filter((profile) => profile.created_by_advisor_id).length ? <EmptyState title="No agent-created profiles pending" body="Published profiles will move into managed profiles after verification." /> : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SubscriptionPanel({ config, payments, type, onSave }) {
+  const isAgent = type === 'agent';
+  const sectionKey = isAgent ? 'assisted_matchmaking' : 'monetization';
+  const plansKey = isAgent ? 'advisorPlans' : 'plans';
+  const fallback = isAgent ? AGENT_PLAN_FALLBACK : MEMBER_PLAN_FALLBACK;
+  const section = config[sectionKey] || {};
+  const initialPlans = Array.isArray(section[plansKey]) && section[plansKey].length ? section[plansKey] : fallback;
+  const [plansText, setPlansText] = useState(JSON.stringify(initialPlans, null, 2));
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const plans = Array.isArray(section[plansKey]) && section[plansKey].length ? section[plansKey] : fallback;
+    setPlansText(JSON.stringify(plans, null, 2));
+  }, [fallback, plansKey, section]);
+
+  const save = () => {
+    try {
+      const parsed = JSON.parse(plansText);
+      if (!Array.isArray(parsed)) throw new Error('Plan config must be an array.');
+      setError('');
+      onSave(sectionKey, { ...section, [plansKey]: parsed });
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <div className="admin-content">
+      <SectionHeader
+        title={`${isAgent ? 'Agent' : 'Member'} Subscription Management`}
+        description="Plans, limits, pricing, payment history and upgrade rules are configurable from here."
+        actions={<AdminButton variant="primary" onClick={save}>Save Plan Configuration</AdminButton>}
+      />
+      <div className="subscription-grid">
+        <div className="admin-card">
+          <h3>{isAgent ? 'Agent Plans JSON' : 'Member Plans JSON'}</h3>
+          <p className="muted">Edit every plan field without a code change. Keep valid JSON array format.</p>
+          <textarea className="json-editor" value={plansText} onChange={(event) => setPlansText(event.target.value)} />
+          {error ? <p className="form-error">{error}</p> : null}
+        </div>
+        <div className="admin-card">
+          <h3>Live Plan Preview</h3>
+          <div className="plan-preview">
+            {(JSON.parse(JSON.stringify(initialPlans)) || []).map((plan) => (
+              <article key={plan.id || plan.planId || plan.name}>
+                <span>{plan.name || plan.planId || plan.id}</span>
+                <strong>{money(plan.price || plan.monthlyPrice || 0)}</strong>
+                <small>{isAgent ? `${plan.profilesAllowed ?? '-'} profiles · ${plan.contactViews ?? '-'} contacts` : `${plan.contactViews ?? '-'} contacts · ${plan.visibleMatches ?? '-'} matches`}</small>
+              </article>
+            ))}
+          </div>
+        </div>
+        <div className="admin-card full">
+          <h3>Payments & Invoices</h3>
+          <PaymentsTable payments={payments} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaymentsTable({ payments }) {
+  const rows = payments.transactions || [];
+  return (
+    <div className="data-table compact-table">
+      <table>
+        <thead><tr><th>Member</th><th>Plan</th><th>Amount</th><th>Status</th><th>Gateway</th><th>Date</th></tr></thead>
+        <tbody>
+          {rows.slice(0, 20).map((tx) => (
+            <tr key={tx.transaction_id}>
+              <td>{fullName(tx)}<small>{tx.phone}</small></td>
+              <td>{tx.plan_id || '-'}</td>
+              <td>{money(tx.amount)}</td>
+              <td><StatusPill status={tx.status}>{tx.status}</StatusPill></td>
+              <td>{tx.gateway || 'razorpay'}</td>
+              <td>{dateOnly(tx.created_at)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {!rows.length ? <EmptyState title="No payment records" body="Payment records will appear here after transactions are captured." /> : null}
+    </div>
+  );
+}
+
+function ContentPanel({ reports, alerts, consentEvents, onResolve, onAck }) {
+  return (
+    <div className="admin-content">
+      <SectionHeader title="Content & Moderation" description="Review profile reports, flagged content, DPDP consent activity and platform alerts." />
+      <div className="workspace-columns even">
+        <div className="admin-card">
+          <h3>Flagged Content</h3>
+          <div className="review-list">
+            {reports.map((report) => (
+              <article key={report.report_id}>
+                <span><strong>{report.reason || 'Report'}</strong><small>{report.description || report.reporter_phone}</small></span>
+                <AdminButton variant="primary" onClick={() => onResolve(report.report_id)}>Resolve</AdminButton>
+              </article>
+            ))}
+            {!reports.length ? <EmptyState title="No open reports" body="User reports and flagged content are clear." /> : null}
+          </div>
+        </div>
+        <div className="admin-card">
+          <h3>Platform Alerts</h3>
+          <div className="review-list">
+            {alerts.map((alert) => (
+              <article key={alert.alert_id}>
+                <span><strong>{alert.title}</strong><small>{alert.body || alert.severity}</small></span>
+                <AdminButton variant="secondary" onClick={() => onAck(alert.alert_id)}>Ack</AdminButton>
+              </article>
+            ))}
+            {!alerts.length ? <EmptyState title="No open alerts" body="System monitoring has no unacknowledged alerts." /> : null}
+          </div>
+        </div>
+        <div className="admin-card full">
+          <h3>Consent Ledger</h3>
+          <div className="data-table compact-table">
+            <table>
+              <thead><tr><th>User</th><th>Consent</th><th>Status</th><th>Purpose</th><th>Date</th></tr></thead>
+              <tbody>
+                {consentEvents.slice(0, 25).map((event) => (
+                  <tr key={event.consent_event_id}>
+                    <td>{fullName(event)}<small>{event.phone || event.email}</small></td>
+                    <td>{event.consent_type}</td>
+                    <td><StatusPill status={event.status}>{event.status}</StatusPill></td>
+                    <td>{event.purpose}</td>
+                    <td>{dateOnly(event.created_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SystemPanel({ roles, users, auditLogs, services, activeTab }) {
+  if (activeTab === 'service-health') {
+    return (
+      <div className="admin-content">
+        <SectionHeader title="Service Health" description="Live status for backend services used by production." />
+        <div className="service-grid">
+          {services.map((service) => (
+            <div className="admin-card service-card" key={service.name || service.service}>
+              <StatusPill status={service.status || service.ok ? 'active' : 'failed'}>{service.status || (service.ok ? 'healthy' : 'down')}</StatusPill>
+              <h3>{service.name || service.service}</h3>
+              <p>{service.url || service.message || 'No endpoint reported'}</p>
             </div>
           ))}
         </div>
-        <button className="primary-btn" onClick={() => onSave('monetization')} type="button">Save pricing</button>
-      </Section>
-      <Section eyebrow="App membership" title="Upgrade Packages Used by the Mobile App" detail="This JSON feeds payment/upgrade-packages, so the Android membership screen and admin pricing stay aligned.">
-        <JsonEditor value={upgradePackageGroups} onValidChange={(packages) => patchConfig('monetization', { ...config.monetization, upgradePackageGroups: packages })} />
-        <button className="primary-btn" onClick={() => onSave('monetization')} type="button">Save app membership packages</button>
-      </Section>
-      <Section eyebrow="Payments" title="Transactions and Refunds" detail="Track payment status, gateway ids, and refund requests.">
-        <Table
-          rows={transactions}
-          columns={[
-            { key: 'member', label: 'Member', render: (t) => `${t.first_name || ''} ${t.last_name || ''}`.trim() || t.phone || t.user_id },
-            { key: 'plan_id', label: 'Plan' },
-            { key: 'amount', label: 'Amount', render: (t) => money(t.amount) },
-            { key: 'status', label: 'Status', render: (t) => <StatusBadge tone={['paid', 'success', 'captured'].includes(t.status) ? 'ok' : 'amber'}>{t.status}</StatusBadge> },
-            { key: 'actions', label: 'Actions', render: (t) => <button onClick={() => onRefund(t)} type="button">Refund</button> }
-          ]}
-        />
-      </Section>
-    </>
-  );
-}
-
-function CmsPanel({ config, patchConfig, onSave }) {
-  const branding = config.branding || {};
-  const content = config.content || {};
-  const legal = config.legal || {};
-  const updateBranding = (patch) => patchConfig('branding', { ...branding, ...patch });
-  const updateContent = (section, patch) => patchConfig('content', { ...content, [section]: { ...(content[section] || {}), ...patch } });
-  const updateLegal = (section, key, value) => patchConfig('legal', { ...legal, [section]: { ...(legal[section] || {}), [key]: value } });
-  const pageSections = [
-    ['auth', 'Login page'],
-    ['phoneEntry', 'Mobile number page'],
-    ['home', 'Home dashboard'],
-    ['navigation', 'Bottom navigation'],
-    ['support', 'Support copy']
-  ];
-  return (
-    <>
-    <div className="two-col">
-      <Section eyebrow="Branding" title="Login Image and App Identity" detail="Control the login hero image and brand copy without a mobile release. Leave preview image URL blank to use the bundled Indian wedding image.">
-        <Field label="App title"><TextInput value={branding.appTitle || ''} onChange={(e) => updateBranding({ appTitle: e.target.value })} /></Field>
-        <Field label="Tagline"><TextArea value={branding.tagline || ''} onChange={(e) => updateBranding({ tagline: e.target.value })} /></Field>
-        <Field label="Login preview image URL"><TextInput value={branding.previewImageUrl || ''} onChange={(e) => updateBranding({ previewImageUrl: e.target.value })} /></Field>
-        <Field label="Logo URL"><TextInput value={branding.logoUrl || ''} onChange={(e) => updateBranding({ logoUrl: e.target.value })} /></Field>
-        <Field label="Square logo URL"><TextInput value={branding.squareLogoUrl || ''} onChange={(e) => updateBranding({ squareLogoUrl: e.target.value })} /></Field>
-        <button className="primary-btn" onClick={() => onSave('branding')} type="button">Save branding</button>
-      </Section>
-      <Section eyebrow="CMS" title="Mobile App Content" detail="Login, home, phone entry, navigation, and support text.">
-        <Field label="Login hero"><TextInput value={content.auth?.heroTitle || ''} onChange={(e) => updateContent('auth', { heroTitle: e.target.value })} /></Field>
-        <Field label="Login subtitle"><TextArea value={content.auth?.heroSubtitle || ''} onChange={(e) => updateContent('auth', { heroSubtitle: e.target.value })} /></Field>
-        <Field label="Home header"><TextArea value={content.home?.headerSubtitle || ''} onChange={(e) => updateContent('home', { headerSubtitle: e.target.value })} /></Field>
-        <Field label="Best Matches minimum real profiles" hint="Ads and upgrade cards do not count toward this number. Keep 5 or higher.">
-          <TextInput
-            type="number"
-            min="5"
-            value={content.home?.bestMatchMinimumProfiles ?? 5}
-            onChange={(e) => updateContent('home', { bestMatchMinimumProfiles: Math.max(5, normalizeEditableNumber(e.target.value, 5)) })}
-          />
-        </Field>
-        <Field label="Best Matches insert frequency" hint="Example: 2 shows an insert card after every two profile cards.">
-          <TextInput
-            type="number"
-            min="1"
-            max="5"
-            value={content.home?.bestMatchInsertFrequency ?? 2}
-            onChange={(e) => updateContent('home', { bestMatchInsertFrequency: Math.min(5, Math.max(1, normalizeEditableNumber(e.target.value, 2))) })}
-          />
-        </Field>
-        <Field label="Show Best Matches insert cards">
-          <input
-            type="checkbox"
-            checked={content.home?.showBestMatchInsertCards !== false}
-            onChange={(e) => updateContent('home', { showBestMatchInsertCards: e.target.checked })}
-          />
-        </Field>
-        <Field label="Show upgrade insert cards">
-          <input
-            type="checkbox"
-            checked={content.home?.showBestMatchUpgradeCards !== false}
-            onChange={(e) => updateContent('home', { showBestMatchUpgradeCards: e.target.checked })}
-          />
-        </Field>
-        <Field label="Show ad insert cards">
-          <input
-            type="checkbox"
-            checked={content.home?.showBestMatchAdCards !== false}
-            onChange={(e) => updateContent('home', { showBestMatchAdCards: e.target.checked })}
-          />
-        </Field>
-        <Field label="Best Matches ad cards JSON">
-          <JsonEditor value={content.home?.bestMatchAdCards || []} onValidChange={(value) => updateContent('home', { bestMatchAdCards: value })} placeholder="[]" />
-        </Field>
-        <Field label="Support email"><TextInput value={content.support?.email || ''} onChange={(e) => updateContent('support', { email: e.target.value })} /></Field>
-        <button className="primary-btn" onClick={() => onSave('content')} type="button">Save content</button>
-      </Section>
-      <Section eyebrow="Static pages" title="Terms and Privacy" detail="Configurable legal content for app links.">
-        <Field label="Terms title"><TextInput value={legal.terms?.title || ''} onChange={(e) => updateLegal('terms', 'title', e.target.value)} /></Field>
-        <Field label="Privacy title"><TextInput value={legal.privacy?.title || ''} onChange={(e) => updateLegal('privacy', 'title', e.target.value)} /></Field>
-        <Field label="Terms sections JSON"><JsonEditor value={legal.terms?.sections || []} onValidChange={(value) => updateLegal('terms', 'sections', value)} /></Field>
-        <Field label="Privacy sections JSON"><JsonEditor value={legal.privacy?.sections || []} onValidChange={(value) => updateLegal('privacy', 'sections', value)} /></Field>
-        <button className="primary-btn" onClick={() => onSave('legal')} type="button">Save legal pages</button>
-      </Section>
-    </div>
-    <Section eyebrow="CMS" title="Page-wise Static Content" detail="Every static text block used by the mobile app is editable here by page. Changes are exposed through public runtime config without rebuilding the app.">
-      <div className="cms-page-grid">
-        {pageSections.map(([key, title]) => (
-          <div className="template-card" key={key}>
-            <strong>{title}</strong>
-            <JsonEditor value={content[key] || {}} onValidChange={(value) => patchConfig('content', { ...content, [key]: value })} placeholder="{}" />
-          </div>
-        ))}
       </div>
-      <button className="primary-btn" onClick={() => onSave('content')} type="button">Save page content</button>
-    </Section>
-    </>
-  );
-}
-
-function EngagementPanel({ config, patchConfig, onSave, campaign, setCampaign, onCampaign }) {
-  const templates = config.notification_templates || {};
+    );
+  }
+  if (activeTab === 'audit-logs') {
+    return (
+      <div className="admin-content">
+        <SectionHeader title="Audit Logs" description="Every admin action should leave a recovery-grade audit trail." />
+        <div className="admin-card"><AuditLogTable logs={auditLogs} /></div>
+      </div>
+    );
+  }
   return (
-    <div className="two-col">
-      <Section eyebrow="Templates" title="Notification Templates" detail="Push, SMS, email, and match alert text.">
-        {Object.keys(templates).map((key) => (
-          <div className="template-card" key={key}>
-            <strong>{key}</strong>
-            <TextInput value={templates[key]?.title || ''} onChange={(e) => patchConfig('notification_templates', { ...templates, [key]: { ...templates[key], title: e.target.value } })} />
-            <TextArea value={templates[key]?.body || ''} onChange={(e) => patchConfig('notification_templates', { ...templates, [key]: { ...templates[key], body: e.target.value } })} />
-          </div>
-        ))}
-        <button className="primary-btn" onClick={() => onSave('notification_templates')} type="button">Save templates</button>
-      </Section>
-      <Section eyebrow="Campaigns" title="Create Engagement Campaign" detail="Draft a campaign for match alerts, offers, or winback journeys.">
-        <Field label="Name"><TextInput value={campaign.name} onChange={(e) => setCampaign({ ...campaign, name: e.target.value })} /></Field>
-        <Field label="Channel"><select className="input" value={campaign.channel} onChange={(e) => setCampaign({ ...campaign, channel: e.target.value })}><option>push</option><option>email</option><option>sms</option></select></Field>
-        <Field label="Audience JSON"><TextArea value={campaign.audienceText} onChange={(e) => setCampaign({ ...campaign, audienceText: e.target.value })} /></Field>
-        <button className="primary-btn" onClick={onCampaign} type="button">Create campaign draft</button>
-      </Section>
-    </div>
-  );
-}
-
-function ModerationPanel({ reports, alerts, consentEvents, onResolve, onAck }) {
-  return (
-    <div className="two-col">
-      <Section eyebrow="Reports" title="Reported Users" detail="Abuse, fake profile, and safety concern queue.">
-        <Table
-          rows={reports}
-          columns={[
-            { key: 'reason', label: 'Reason' },
-            { key: 'description', label: 'Concern' },
-            { key: 'reported_phone', label: 'Reported' },
-            { key: 'status', label: 'Status', render: (r) => <StatusBadge tone="amber">{r.status}</StatusBadge> },
-            { key: 'actions', label: 'Actions', render: (r) => <button onClick={() => onResolve(r.report_id)} type="button">Resolve</button> }
-          ]}
-        />
-      </Section>
-      <Section eyebrow="Security" title="Fraud and Abuse Alerts" detail="Realtime alerts from admin-service and future ML detectors.">
-        <div className="event-list">
-          {alerts.map((alert) => (
-            <button className="event-card" key={alert.alert_id || alert.title} onClick={() => alert.alert_id && onAck(alert.alert_id)} type="button">
-              <StatusBadge tone={alert.severity === 'critical' || alert.severity === 'high' ? 'danger' : 'amber'}>{alert.severity}</StatusBadge>
-              <strong>{alert.title}</strong>
-              <span>{alert.body}</span>
-            </button>
-          ))}
-          {!alerts.length ? <div className="empty-state">No alerts.</div> : null}
-        </div>
-      </Section>
-      <Section eyebrow="DPDP" title="Consent Ledger" detail="Latest privacy choices for photos, KYC, agent sharing, and SoulMatch Assistance.">
-        <Table
-          rows={consentEvents.slice(0, 25)}
-          columns={[
-            { key: 'consent_type', label: 'Type' },
-            { key: 'status', label: 'Status', render: (r) => <StatusBadge tone={r.status === 'withdrawn' ? 'amber' : 'green'}>{r.status}</StatusBadge> },
-            { key: 'member', label: 'Member', render: (r) => `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.phone || r.email || 'System' },
-            { key: 'notice_version', label: 'Notice' },
-            { key: 'created_at', label: 'Created', render: (r) => formatDateTime(r.created_at) }
-          ]}
-        />
-      </Section>
-    </div>
-  );
-}
-
-function ConfigPanel({ config, patchConfig, onSave }) {
-  const flags = config.feature_flags || {};
-  const matching = config.matching || { weights: {}, indiaFilters: {} };
-  const registration = config.registration || {};
-  const security = config.security || {};
-  const clientIntegrations = config.client_integrations || {};
-  const updateWeight = (key, value) => patchConfig('matching', { ...matching, weights: { ...(matching.weights || {}), [key]: parseEditableNumber(value, matching.weights?.[key] || 0) } });
-  const normalizeWeight = (key) => patchConfig('matching', { ...matching, weights: { ...(matching.weights || {}), [key]: normalizeEditableNumber(matching.weights?.[key], 0) } });
-  return (
-    <>
-      <Section eyebrow="Feature flags" title="Dynamic Configuration" detail="These values change app behavior without redeploy.">
-        <div className="toggle-grid">
-          {Object.keys(flags).map((key) => (
-            <label className="toggle-row" key={key}>
-              <span><strong>{key}</strong><small>Runtime feature flag</small></span>
-              <input type="checkbox" checked={Boolean(flags[key])} onChange={(e) => patchConfig('feature_flags', { ...flags, [key]: e.target.checked })} />
-            </label>
-          ))}
-        </div>
-        <button className="primary-btn" onClick={() => onSave('feature_flags')} type="button">Save feature flags</button>
-      </Section>
-      <Section eyebrow="Client SDK keys" title="Public App Integrations" detail="These are public client identifiers used by the Android app. Keep real secrets like OAuth client secret, Razorpay secret, JWT secret, and Firebase service account keys on the server or in a vault.">
-        <div className="form-grid">
-          <Field label="Google Web Client ID">
-            <TextInput value={clientIntegrations.googleWebClientId || ''} onChange={(e) => patchConfig('client_integrations', { ...clientIntegrations, googleWebClientId: e.target.value })} />
-          </Field>
-          <Field label="Razorpay Key ID">
-            <TextInput value={clientIntegrations.razorpayKeyId || ''} onChange={(e) => patchConfig('client_integrations', { ...clientIntegrations, razorpayKeyId: e.target.value })} />
-          </Field>
-          <Field label="Support email">
-            <TextInput value={clientIntegrations.supportEmail || ''} onChange={(e) => patchConfig('client_integrations', { ...clientIntegrations, supportEmail: e.target.value })} />
-          </Field>
-        </div>
-        <div className="empty-state subtle">
-          Public identifiers can change from the control panel. Private provider secrets must never be sent to the mobile app.
-        </div>
-        <button className="primary-btn" onClick={() => onSave('client_integrations')} type="button">Save app integrations</button>
-      </Section>
-      <div className="two-col">
-        <Section eyebrow="Match engine" title="Algorithm Weights" detail="Tune India-specific match scoring weights.">
-          <div className="form-grid">
-            {Object.keys(matching.weights || {}).map((key) => (
-              <Field key={key} label={key}>
-                <TextInput inputMode="numeric" value={editableNumber(matching.weights[key])} onChange={(e) => updateWeight(key, e.target.value)} onBlur={() => normalizeWeight(key)} />
-              </Field>
+    <div className="admin-content">
+      <SectionHeader title="System Management" description="Roles, admin users, notifications, exports, settings and operational controls." />
+      <div className="workspace-columns even">
+        <div className="admin-card">
+          <h3>Role Master</h3>
+          <div className="role-list">
+            {roles.map((role) => (
+              <article key={role.role}>
+                <strong>{role.label || role.role}</strong>
+                <small>{Array.isArray(role.permissions) ? role.permissions.join(', ') : 'Configured'}</small>
+              </article>
             ))}
           </div>
-          <button className="primary-btn" onClick={() => onSave('matching')} type="button">Save matching</button>
-        </Section>
-        <Section eyebrow="Safety" title="Registration and Security" detail="Rate limits, KYC gates, PII masking, and supported regions.">
-          <Field label="OTP limit per phone"><TextInput inputMode="numeric" value={editableNumber(registration.dailyOtpLimitPerPhone)} onChange={(e) => patchConfig('registration', { ...registration, dailyOtpLimitPerPhone: parseEditableNumber(e.target.value, registration.dailyOtpLimitPerPhone || 0) })} onBlur={() => patchConfig('registration', { ...registration, dailyOtpLimitPerPhone: normalizeEditableNumber(registration.dailyOtpLimitPerPhone, 0) })} /></Field>
-          <Field label="Minimum age"><TextInput inputMode="numeric" value={editableNumber(registration.minimumAge || 18)} onChange={(e) => patchConfig('registration', { ...registration, minimumAge: parseEditableNumber(e.target.value, registration.minimumAge || 18) })} onBlur={() => patchConfig('registration', { ...registration, minimumAge: normalizeEditableNumber(registration.minimumAge, 18) })} /></Field>
-          <Field label="API rate limit/minute"><TextInput inputMode="numeric" value={editableNumber(security.apiRateLimitPerMinute)} onChange={(e) => patchConfig('security', { ...security, apiRateLimitPerMinute: parseEditableNumber(e.target.value, security.apiRateLimitPerMinute || 0) })} onBlur={() => patchConfig('security', { ...security, apiRateLimitPerMinute: normalizeEditableNumber(security.apiRateLimitPerMinute, 0) })} /></Field>
-          <button className="primary-btn" onClick={() => Promise.all([onSave('registration'), onSave('security')])} type="button">Save limits</button>
-        </Section>
-      </div>
-    </>
-  );
-}
-
-function RbacPanel({ roles, session }) {
-  return (
-    <Section eyebrow="RBAC" title="Role-Based Access Control" detail="UI sections and admin APIs are scoped by admin role.">
-      <div className="role-grid">
-        {roles.map((role) => (
-          <div className="role-card" key={role.role}>
-            <strong>{role.label}</strong>
-            <StatusBadge tone={session.role === role.role ? 'ok' : 'neutral'}>{role.role}</StatusBadge>
-            <small>{(role.permissions || []).join(', ')}</small>
+        </div>
+        <div className="admin-card">
+          <h3>User Master</h3>
+          <div className="role-list">
+            {users.slice(0, 12).map((user) => (
+              <article key={user.user_id}>
+                <strong>{fullName(user) || user.email || user.phone}</strong>
+                <small>{user.email || user.phone} · {user.is_active ? 'active' : 'inactive'}</small>
+              </article>
+            ))}
           </div>
-        ))}
+        </div>
+        <div className="admin-card full">
+          <h3>Operational Notes</h3>
+          <p className="muted">Password reset, admin-user creation, granular RBAC persistence and one-click exports need dedicated backend endpoints before they can be made destructive. The redesigned console exposes the control surface and keeps existing live APIs wired safely.</p>
+        </div>
       </div>
-    </Section>
+    </div>
   );
 }
 
-function AnalyticsPanel({ funnel, events, auditLogs }) {
-  const chartRows = funnel.map((item) => ({ label: item.event_type, value: item.total }));
+function DynamicConfigPanel({ config, onSave }) {
+  const [selected, setSelected] = useState('monetization');
+  const [json, setJson] = useState(JSON.stringify(config.monetization || {}, null, 2));
+  const [error, setError] = useState('');
+  const keys = ['monetization', 'assisted_matchmaking', 'notification_templates', 'legal', 'content', 'theme'];
+
+  useEffect(() => {
+    setJson(JSON.stringify(config[selected] || {}, null, 2));
+  }, [config, selected]);
+
+  const save = () => {
+    try {
+      const parsed = JSON.parse(json);
+      setError('');
+      onSave(selected, parsed);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   return (
-    <>
-      <Section eyebrow="Funnel" title="Analytics and Insights" detail="DAU/MAU, conversion, match success, and event pipeline.">
-        <SimpleBarChart rows={chartRows.length ? chartRows : [{ label: 'No events', value: 0 }]} />
-      </Section>
-      <Section eyebrow="Audit" title="Admin Action Logs" detail="Every sensitive admin action is retained for compliance.">
-        <Table
-          rows={auditLogs}
-          columns={[
-            { key: 'admin_email', label: 'Admin' },
-            { key: 'action', label: 'Action' },
-            { key: 'entity_type', label: 'Entity' },
-            { key: 'created_at', label: 'Time', render: (r) => String(r.created_at || '').replace('T', ' ').slice(0, 19) }
-          ]}
-        />
-      </Section>
-      <Section eyebrow="Events" title="Product Events" detail="Latest application and service events.">
-        <Table
-          rows={events}
-          columns={[
-            { key: 'event_type', label: 'Event' },
-            { key: 'service_name', label: 'Service' },
-            { key: 'user_id', label: 'User' },
-            { key: 'created_at', label: 'Time', render: (r) => String(r.created_at || '').replace('T', ' ').slice(0, 19) }
-          ]}
-        />
-      </Section>
-    </>
+    <div className="admin-content">
+      <SectionHeader title="Dynamic Configuration" description="Runtime configuration without app redeploys." actions={<AdminButton variant="primary" onClick={save}>Save Section</AdminButton>} />
+      <div className="config-layout">
+        <div className="admin-card config-nav">
+          {keys.map((key) => (
+            <button key={key} className={selected === key ? 'active' : ''} onClick={() => setSelected(key)}>{key.replaceAll('_', ' ')}</button>
+          ))}
+        </div>
+        <div className="admin-card">
+          <h3>{selected.replaceAll('_', ' ')}</h3>
+          <textarea className="json-editor large" value={json} onChange={(event) => setJson(event.target.value)} />
+          {error ? <p className="form-error">{error}</p> : null}
+        </div>
+      </div>
+    </div>
   );
 }
 
-function HealthPanel({ services }) {
+function AuditLogTable({ logs }) {
   return (
-    <Section eyebrow="Observability" title="Service Health" detail="Each microservice is checked independently so failures are visible without blocking the admin panel.">
-      <div className="service-grid">
-        {services.map((service) => (
-          <div className="service-card" key={service.key || service.label}>
-            <StatusBadge tone={service.ok ? 'ok' : 'danger'}>{service.ok ? 'online' : 'offline'}</StatusBadge>
-            <strong>{service.label || service.key}</strong>
-            <small>{service.url}</small>
-            <span>{service.latencyMs || 0}ms {service.status ? `/ HTTP ${service.status}` : ''}</span>
+    <div className="data-table compact-table">
+      <table>
+        <thead><tr><th>Timestamp</th><th>Admin/Agent</th><th>Action</th><th>Target</th><th>IP Address</th></tr></thead>
+        <tbody>
+          {logs.map((log, index) => (
+            <tr key={`${log.created_at}-${index}`}>
+              <td><code>{dateTime(log.created_at)}</code></td>
+              <td>{log.admin_email || log.admin_role || 'system'}</td>
+              <td><code>{log.action}</code></td>
+              <td>{log.entity_type || '-'} {log.entity_id ? String(log.entity_id).slice(0, 8) : ''}</td>
+              <td><code>{log.ip_address || '-'}</code></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {!logs.length ? <EmptyState title="No audit logs" body="Audit records will appear after admin actions are performed." /> : null}
+    </div>
+  );
+}
+
+function EmptyState({ title, body }) {
+  return (
+    <div className="empty-state">
+      <strong>{title}</strong>
+      <span>{body}</span>
+    </div>
+  );
+}
+
+function DrawerShell({ title, subtitle, onClose, children, footer }) {
+  return (
+    <div className="drawer-backdrop" role="presentation">
+      <aside className="entity-drawer" role="dialog" aria-modal="true">
+        <header>
+          <div>
+            <h3>{title}</h3>
+            <p>{subtitle}</p>
           </div>
-        ))}
+          <button onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+        </header>
+        <div className="drawer-body">{children}</div>
+        {footer ? <footer>{footer}</footer> : null}
+      </aside>
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return <label className="admin-field"><span>{label}</span>{children}</label>;
+}
+
+function Input({ value, onChange, ...props }) {
+  return <input {...props} value={value ?? ''} onChange={(event) => onChange(event.target.value)} />;
+}
+
+function Select({ value, onChange, children }) {
+  return <select value={value ?? ''} onChange={(event) => onChange(event.target.value)}>{children}</select>;
+}
+
+function BoolSelect({ value, onChange }) {
+  return (
+    <select value={value ? 'true' : 'false'} onChange={(event) => onChange(event.target.value === 'true')}>
+      <option value="true">Enabled</option>
+      <option value="false">Disabled</option>
+    </select>
+  );
+}
+
+function MemberDrawer({ profile, onClose, onSave, onStatus }) {
+  const [form, setForm] = useState(() => ({
+    first_name: '',
+    last_name: '',
+    phone: '',
+    email: '',
+    dob: '',
+    gender: '',
+    religion: '',
+    caste: '',
+    mother_tongue: '',
+    marital_status: 'never_married',
+    verification_status: 'pending',
+    admin_status: 'active',
+    profile_status: 'active',
+    profile_created_by: 'self',
+    is_published: false,
+    photo_privacy: 'all',
+    profile_visibility: 'all',
+    hide_last_seen: false,
+    ...profile,
+    dob: profile?.dob ? String(profile.dob).slice(0, 10) : ''
+  }));
+  const [saving, setSaving] = useState(false);
+  const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const submit = async () => {
+    setSaving(true);
+    try {
+      await onSave(form);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <DrawerShell
+      title={profile?.profile_id ? 'Member 360 View' : 'Create Member'}
+      subtitle={profile?.profile_id ? `${fullName(form)} · ${form.profile_id}` : 'Admin-created member profile'}
+      onClose={onClose}
+      footer={(
+        <>
+          {profile?.profile_id ? <AdminButton variant="secondary" onClick={() => onStatus(form, 'reject')}>Reject</AdminButton> : null}
+          {profile?.profile_id ? <AdminButton variant="secondary" onClick={() => onStatus(form, form.is_published ? 'suspend' : 'restore')}>{form.is_published ? 'Hide' : 'Show'} Profile</AdminButton> : null}
+          <AdminButton variant="primary" onClick={submit} disabled={saving}>{saving ? 'Saving...' : 'Save Member'}</AdminButton>
+        </>
+      )}
+    >
+      <div className="drawer-section">
+        <h4>Identity & Access</h4>
+        <div className="form-grid two">
+          <Field label="First name"><Input value={form.first_name} onChange={(v) => set('first_name', v)} /></Field>
+          <Field label="Last name"><Input value={form.last_name} onChange={(v) => set('last_name', v)} /></Field>
+          <Field label="Mobile"><Input value={form.phone} onChange={(v) => set('phone', v)} /></Field>
+          <Field label="Email"><Input value={form.email} onChange={(v) => set('email', v)} /></Field>
+          <Field label="DOB"><Input type="date" value={form.dob} onChange={(v) => set('dob', v)} /></Field>
+          <Field label="Gender"><Select value={form.gender} onChange={(v) => set('gender', v)}><option value="">Select</option><option>male</option><option>female</option><option>other</option></Select></Field>
+          <Field label="Verification"><Select value={form.verification_status} onChange={(v) => set('verification_status', v)}><option>pending</option><option>verified</option><option>rejected</option></Select></Field>
+          <Field label="Admin status"><Select value={form.admin_status} onChange={(v) => set('admin_status', v)}><option>active</option><option>suspended</option><option>rejected</option></Select></Field>
+        </div>
       </div>
-    </Section>
+      <div className="drawer-section">
+        <h4>Profile Details</h4>
+        <div className="form-grid two">
+          <Field label="Religion"><Input value={form.religion} onChange={(v) => set('religion', v)} /></Field>
+          <Field label="Caste"><Input value={form.caste} onChange={(v) => set('caste', v)} /></Field>
+          <Field label="Mother tongue"><Input value={form.mother_tongue} onChange={(v) => set('mother_tongue', v)} /></Field>
+          <Field label="Marital status"><Input value={form.marital_status} onChange={(v) => set('marital_status', v)} /></Field>
+          <Field label="Height cm"><Input type="number" value={form.height_cm} onChange={(v) => set('height_cm', v)} /></Field>
+          <Field label="Weight kg"><Input type="number" value={form.weight_kg} onChange={(v) => set('weight_kg', v)} /></Field>
+          <Field label="Complexion"><Input value={form.complexion} onChange={(v) => set('complexion', v)} /></Field>
+          <Field label="Body type"><Input value={form.body_type} onChange={(v) => set('body_type', v)} /></Field>
+        </div>
+      </div>
+      <div className="drawer-section">
+        <h4>Education, Work & Family</h4>
+        <div className="form-grid two">
+          <Field label="Education"><Input value={form.education_level} onChange={(v) => set('education_level', v)} /></Field>
+          <Field label="Currently employed"><BoolSelect value={form.is_employed} onChange={(v) => set('is_employed', v)} /></Field>
+          <Field label="Occupation"><Input value={form.occupation} onChange={(v) => set('occupation', v)} /></Field>
+          <Field label="Annual income"><Input value={form.annual_income} onChange={(v) => set('annual_income', v)} /></Field>
+          <Field label="Working city"><Input value={form.working_city} onChange={(v) => set('working_city', v)} /></Field>
+          <Field label="Working state"><Input value={form.working_state} onChange={(v) => set('working_state', v)} /></Field>
+          <Field label="Family city"><Input value={form.family_city} onChange={(v) => set('family_city', v)} /></Field>
+          <Field label="Family type"><Input value={form.family_type} onChange={(v) => set('family_type', v)} /></Field>
+          <Field label="Father occupation"><Input value={form.father_occupation} onChange={(v) => set('father_occupation', v)} /></Field>
+          <Field label="Mother occupation"><Input value={form.mother_occupation} onChange={(v) => set('mother_occupation', v)} /></Field>
+        </div>
+      </div>
+      <div className="drawer-section">
+        <h4>Visibility, Preferences & Notes</h4>
+        <div className="form-grid two">
+          <Field label="Published"><BoolSelect value={form.is_published} onChange={(v) => set('is_published', v)} /></Field>
+          <Field label="Photo privacy"><Select value={form.photo_privacy} onChange={(v) => set('photo_privacy', v)}><option>all</option><option>matches_only</option><option>request_only</option><option>private</option></Select></Field>
+          <Field label="Age min"><Input type="number" value={form.age_min} onChange={(v) => set('age_min', v)} /></Field>
+          <Field label="Age max"><Input type="number" value={form.age_max} onChange={(v) => set('age_max', v)} /></Field>
+          <Field label="Preference religion"><Input value={form.preference_religion} onChange={(v) => set('preference_religion', v)} /></Field>
+          <Field label="Preference locations"><Input value={Array.isArray(form.locations) ? form.locations.join(', ') : form.locations} onChange={(v) => set('locations', v)} /></Field>
+        </div>
+        <Field label="About me"><textarea value={form.about_me || ''} onChange={(event) => set('about_me', event.target.value)} /></Field>
+        <Field label="Admin review notes"><textarea value={form.review_notes || ''} onChange={(event) => set('review_notes', event.target.value)} /></Field>
+      </div>
+    </DrawerShell>
+  );
+}
+
+function AgentDrawer({ agent, linkedProfiles, onClose, onSave, onStatus }) {
+  const [form, setForm] = useState(() => ({
+    full_name: '',
+    phone: '',
+    email: '',
+    business_name: '',
+    city: '',
+    state: '',
+    pincode: '',
+    languages: [],
+    communities: [],
+    years_experience: '',
+    service_label: 'SoulMatch Advisor',
+    kyc_status: 'pending',
+    status: 'active',
+    membership_plan: 'free',
+    ...agent
+  }));
+  const [saving, setSaving] = useState(false);
+  const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const submit = async () => {
+    setSaving(true);
+    try {
+      await onSave(form);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const docs = Array.isArray(form.kyc_documents) ? form.kyc_documents : [];
+
+  return (
+    <DrawerShell
+      title={agent?.advisor_id ? 'Agent 360 View' : 'Create Agent'}
+      subtitle={agent?.advisor_id ? `${form.full_name} · ${form.agent_code || form.advisor_id}` : 'Admin-created agent account'}
+      onClose={onClose}
+      footer={(
+        <>
+          {agent?.advisor_id ? <AdminButton variant="secondary" onClick={() => onStatus(form, { kycStatus: 'rejected' })}>Reject KYC</AdminButton> : null}
+          {agent?.advisor_id ? <AdminButton variant="secondary" onClick={() => onStatus(form, { status: form.status === 'active' ? 'suspended' : 'active' })}>{form.status === 'active' ? 'Suspend' : 'Activate'}</AdminButton> : null}
+          <AdminButton variant="primary" onClick={submit} disabled={saving}>{saving ? 'Saving...' : 'Save Agent'}</AdminButton>
+        </>
+      )}
+    >
+      <div className="drawer-section">
+        <h4>Business Profile</h4>
+        <div className="form-grid two">
+          <Field label="Full name"><Input value={form.full_name} onChange={(v) => set('full_name', v)} /></Field>
+          <Field label="Business name"><Input value={form.business_name} onChange={(v) => set('business_name', v)} /></Field>
+          <Field label="Phone"><Input value={form.phone} onChange={(v) => set('phone', v)} /></Field>
+          <Field label="Email"><Input value={form.email} onChange={(v) => set('email', v)} /></Field>
+          <Field label="City"><Input value={form.city} onChange={(v) => set('city', v)} /></Field>
+          <Field label="State"><Input value={form.state} onChange={(v) => set('state', v)} /></Field>
+          <Field label="Experience"><Input type="number" value={form.years_experience} onChange={(v) => set('years_experience', v)} /></Field>
+          <Field label="Languages"><Input value={Array.isArray(form.languages) ? form.languages.join(', ') : form.languages} onChange={(v) => set('languages', v)} /></Field>
+        </div>
+        <Field label="Bio"><textarea value={form.bio || ''} onChange={(event) => set('bio', event.target.value)} /></Field>
+      </div>
+      <div className="drawer-section">
+        <h4>Fraud Controls & KYC</h4>
+        <div className="status-grid">
+          <StatusTile label="Aadhaar" value={form.aadhaar_verification_status || 'not_started'} />
+          <StatusTile label="PAN" value={form.pan_verification_status || 'not_started'} />
+          <StatusTile label="Bank" value={form.bank_verification_status || 'not_started'} />
+          <StatusTile label="Penny Drop" value={form.penny_drop_status || 'not_started'} />
+          <StatusTile label="Terms" value={form.terms_accepted_at ? 'signed' : 'pending'} />
+          <StatusTile label="Fraud Review" value={form.fraud_review_status || 'pending'} />
+        </div>
+        <div className="form-grid two">
+          <Field label="KYC status"><Select value={form.kyc_status} onChange={(v) => set('kyc_status', v)}><option>pending</option><option>approved</option><option>rejected</option></Select></Field>
+          <Field label="Agent status"><Select value={form.status} onChange={(v) => set('status', v)}><option>active</option><option>paused</option><option>suspended</option></Select></Field>
+          <Field label="Membership plan"><Input value={form.membership_plan} onChange={(v) => set('membership_plan', v)} /></Field>
+          <Field label="Membership expiry"><Input type="date" value={form.membership_expires_at ? String(form.membership_expires_at).slice(0, 10) : ''} onChange={(v) => set('membership_expires_at', v)} /></Field>
+        </div>
+        <div className="document-list">
+          {docs.map((doc) => (
+            <article key={doc.advisorKycDocumentId || doc.fileUrl}>
+              <span>{doc.documentType || doc.document_type}<small>{doc.documentSide || doc.document_side}</small></span>
+              <StatusPill status={doc.status}>{doc.status}</StatusPill>
+              {doc.fileUrl ? <a href={doc.fileUrl} target="_blank" rel="noreferrer">View</a> : null}
+            </article>
+          ))}
+          {!docs.length ? <EmptyState title="No KYC documents" body="Uploaded Aadhaar, PAN, voter ID or cheque documents will appear here." /> : null}
+        </div>
+      </div>
+      <div className="drawer-section">
+        <h4>Linked Member Profiles</h4>
+        <div className="document-list">
+          {linkedProfiles.map((profile) => (
+            <article key={profile.profile_id}>
+              <span>{fullName(profile)}<small>{profile.review_status || profile.verification_status}</small></span>
+              <StatusPill status={profile.is_published ? 'active' : 'pending'}>{profile.is_published ? 'Visible' : 'Pending'}</StatusPill>
+            </article>
+          ))}
+          {!linkedProfiles.length ? <EmptyState title="No member profiles linked" body="Agent-created profiles will be linked here automatically." /> : null}
+        </div>
+        <Field label="Internal notes"><textarea value={form.notes || ''} onChange={(event) => set('notes', event.target.value)} /></Field>
+      </div>
+    </DrawerShell>
+  );
+}
+
+function StatusTile({ label, value }) {
+  return (
+    <div className="status-tile">
+      <span>{label}</span>
+      <StatusPill status={value}>{value}</StatusPill>
+    </div>
   );
 }
 
 export default function DashboardPage() {
-  const navigate = useNavigate();
-  const { config: runtimeConfig, refresh: refreshRuntime } = useRuntimeConfig();
-  const session = useMemo(decodeSession, []);
-  const visibleTabs = useMemo(() => TABS.filter((tab) => TAB_ROLES[tab.id]?.includes(session.role)), [session.role]);
-  const [activeTab, setActiveTab] = useState(visibleTabs[0]?.id || 'overview');
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [search, setSearch] = useState('');
   const [stats, setStats] = useState(EMPTY_STATS);
-  const [live, setLive] = useState({ generatedAt: '', liveUsers: 0, pendingApprovals: 0, paymentsToday: 0, revenueToday: 0, matchesToday: 0, pendingReports: 0, fraudAlerts: 0 });
-  const [configState, setConfigState] = useState(DEFAULT_CONFIG);
   const [profiles, setProfiles] = useState([]);
-  const [profileMeta, setProfileMeta] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
-  const [profileFilters, setProfileFilters] = useState({ page: 1, limit: 25, search: '', religion: '', caste: '', location: '', profession: '', status: 'all' });
-  const [profileForm, setProfileForm] = useState({ gender: 'female', religion: 'Hindu', maritalStatus: 'never_married' });
-  const [photoForm, setPhotoForm] = useState({ profileId: '', primaryPhotoUrl: '' });
-  const [csvText, setCsvText] = useState('');
+  const [advisors, setAdvisors] = useState([]);
   const [verifications, setVerifications] = useState([]);
   const [payments, setPayments] = useState({ transactions: [], plans: [], coupons: [] });
-  const [reports, setReports] = useState([]);
   const [alerts, setAlerts] = useState([]);
+  const [reports, setReports] = useState([]);
   const [consentEvents, setConsentEvents] = useState([]);
-  const [advisors, setAdvisors] = useState([]);
-  const [assistedAssignments, setAssistedAssignments] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [funnel, setFunnel] = useState([]);
   const [events, setEvents] = useState([]);
-  const [auditLogs, setAuditLogs] = useState([]);
   const [services, setServices] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [campaign, setCampaign] = useState({ name: '', channel: 'push', audienceText: '{"plan":"free"}' });
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [moduleIssues, setModuleIssues] = useState([]);
+  const [config, setConfig] = useState(DEFAULT_CONFIG);
+  const [drawer, setDrawer] = useState(null);
+  const [notice, setNotice] = useState('');
+  const session = useMemo(decodeSession, []);
 
-  const patchConfig = (key, value) => setConfigState((current) => ({ ...current, [key]: value }));
-
-  const loadProfiles = useCallback(async () => {
-    const response = await getProfiles(profileFilters);
-    setProfiles(response.data.data || []);
-    setProfileMeta(response.data.meta || { page: profileFilters.page, limit: profileFilters.limit, total: 0, totalPages: 1 });
-  }, [profileFilters]);
-
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    setMessage('');
-    setModuleIssues([]);
-    const requestDefs = [
-      { key: 'dashboard', label: 'Dashboard metrics', critical: true, request: getDashboard() },
-      { key: 'realtime', label: 'Realtime metrics', request: getRealtimeSnapshot() },
-      { key: 'config', label: 'Runtime config', critical: true, request: getConfig() },
-      { key: 'profiles', label: 'Profiles', request: getProfiles(profileFilters) },
-      { key: 'verifications', label: 'Verification queue', request: getVerifications() },
-      { key: 'payments', label: 'Payments', request: getPayments() },
-      { key: 'reports', label: 'Reports', request: getReports() },
-      { key: 'alerts', label: 'Alerts', request: getAlerts() },
-      { key: 'consentEvents', label: 'Consent ledger', request: getConsentEvents() },
-      { key: 'advisors', label: 'Advisor roster', request: getAdvisors() },
-      { key: 'assistedAssignments', label: 'Assisted assignments', request: getAssistedAssignments() },
-      { key: 'roles', label: 'Roles', request: getRoles() },
-      { key: 'funnel', label: 'Funnel analytics', request: getAnalyticsFunnel() },
-      { key: 'events', label: 'Recent events', request: getAnalyticsEvents(100) },
-      { key: 'auditLogs', label: 'Audit logs', request: getAuditLogs(100) },
-      { key: 'services', label: 'Service health', request: getServiceHealth() },
-      { key: 'users', label: 'Users', request: getUsers(1, '') }
-    ];
-    const requests = await Promise.allSettled(requestDefs.map((item) => item.request));
-    const byKey = requestDefs.reduce((acc, item, index) => {
-      acc[item.key] = requests[index].status === 'fulfilled' ? requests[index].value : null;
-      return acc;
-    }, {});
-    const failed = requestDefs.filter((item, index) => requests[index].status === 'rejected');
-    const criticalFailed = failed.filter((item) => item.critical);
-    const optionalFailed = failed.filter((item) => !item.critical);
-
-    const nextStats = { ...EMPTY_STATS, ...(byKey.dashboard?.data?.data || {}) };
-    const snapshot = byKey.realtime?.data?.data;
-    if (snapshot) setLive(snapshot);
-    setStats(snapshot ? mergeRealtimeStats(nextStats, snapshot) : nextStats);
-    setConfigState(normalizeConfig(byKey.config?.data?.data?.config || runtimeConfig));
-    setProfiles(byKey.profiles?.data?.data || []);
-    setProfileMeta(byKey.profiles?.data?.meta || { page: profileFilters.page, limit: profileFilters.limit, total: 0, totalPages: 1 });
-    setVerifications(byKey.verifications?.data?.data || []);
-    setPayments(byKey.payments?.data?.data || { transactions: [], plans: [], coupons: [] });
-    setReports(byKey.reports?.data?.data || []);
-    setAlerts(byKey.alerts?.data?.data || []);
-    setConsentEvents(byKey.consentEvents?.data?.data || []);
-    setAdvisors(byKey.advisors?.data?.data || []);
-    setAssistedAssignments(byKey.assistedAssignments?.data?.data || []);
-    setRoles(byKey.roles?.data?.data || []);
-    setFunnel(byKey.funnel?.data?.data || []);
-    setEvents(byKey.events?.data?.data || []);
-    setAuditLogs(byKey.auditLogs?.data?.data || []);
-    setServices(byKey.services?.data?.data || byKey.dashboard?.data?.data?.services || []);
-    setUsers(byKey.users?.data?.data || []);
-    setModuleIssues(optionalFailed.map((item) => item.label));
-    if (criticalFailed.length) {
-      setError(`Critical admin data could not be loaded: ${criticalFailed.map((item) => item.label).join(', ')}.`);
-    }
-    setLoading(false);
-  }, [profileFilters, runtimeConfig]);
-
-  useEffect(() => { loadAll(); }, []);
-  useEffect(() => { loadProfiles().catch(() => {}); }, [loadProfiles]);
+  const reload = useCallback(async () => {
+    const [
+      dashboardRes,
+      realtimeRes,
+      profilesRes,
+      advisorsRes,
+      verificationsRes,
+      paymentsRes,
+      alertsRes,
+      reportsRes,
+      consentRes,
+      rolesRes,
+      usersRes,
+      auditRes,
+      funnelRes,
+      eventsRes,
+      serviceRes,
+      configRes
+    ] = await Promise.all([
+      getDashboard().catch(() => ({ data: { data: EMPTY_STATS } })),
+      getRealtimeSnapshot().catch(() => ({ data: { data: null } })),
+      getProfiles({ page: 1, limit: 100, search: '' }).catch(() => ({ data: { data: [] } })),
+      getAdvisors().catch(() => ({ data: { data: [] } })),
+      getVerifications().catch(() => ({ data: { data: [] } })),
+      getPayments().catch(() => ({ data: { data: { transactions: [], plans: [], coupons: [] } } })),
+      getAlerts().catch(() => ({ data: { data: [] } })),
+      getReports().catch(() => ({ data: { data: [] } })),
+      getConsentEvents().catch(() => ({ data: { data: [] } })),
+      getRoles().catch(() => ({ data: { data: [] } })),
+      getUsers(1, '').catch(() => ({ data: { data: [] } })),
+      getAuditLogs(200).catch(() => ({ data: { data: [] } })),
+      getAnalyticsFunnel().catch(() => ({ data: { data: [] } })),
+      getAnalyticsEvents(100).catch(() => ({ data: { data: [] } })),
+      getServiceHealth().catch(() => ({ data: { data: [] } })),
+      getConfig().catch(() => ({ data: { data: { config: DEFAULT_CONFIG } } }))
+    ]);
+    const baseStats = { ...EMPTY_STATS, ...(dashboardRes.data?.data || {}) };
+    setStats({ ...baseStats, ...(realtimeRes.data?.data || {}) });
+    setProfiles(profilesRes.data?.data || []);
+    setAdvisors(advisorsRes.data?.data || []);
+    setVerifications(verificationsRes.data?.data || []);
+    setPayments(paymentsRes.data?.data || { transactions: [], plans: [], coupons: [] });
+    setAlerts(alertsRes.data?.data || []);
+    setReports(reportsRes.data?.data || []);
+    setConsentEvents(consentRes.data?.data || []);
+    setRoles(rolesRes.data?.data || []);
+    setUsers(usersRes.data?.data || []);
+    setAuditLogs(auditRes.data?.data || []);
+    setFunnel(funnelRes.data?.data || []);
+    setEvents(eventsRes.data?.data || []);
+    setServices(serviceRes.data?.data || []);
+    setConfig(normalizeConfig(configRes.data?.data?.config || DEFAULT_CONFIG));
+  }, []);
 
   useEffect(() => {
-    if (!session.token) return undefined;
-    const socket = io(`${ADMIN_SOCKET_URL}/admin`, {
-      path: '/admin-socket',
-      auth: { token: session.token },
+    reload().catch((err) => setNotice(err.message));
+  }, [reload]);
+
+  useEffect(() => {
+    const socket = io(ADMIN_SOCKET_URL, {
+      auth: { token: localStorage.getItem('adminToken') },
       transports: ['websocket', 'polling']
     });
-    socket.on('admin:snapshot', (snapshot) => {
-      setLive(snapshot);
-      setStats((current) => mergeRealtimeStats(current, snapshot));
-    });
-    socket.on('admin:profile_created', loadProfiles);
-    socket.on('admin:profile_status', loadProfiles);
-    socket.on('admin:config_updated', (event) => {
-      if (event.key && event.config) setConfigState((current) => ({ ...current, [event.key]: event.config }));
-      refreshRuntime();
-    });
+    socket.on('admin:dashboard_metrics', (payload) => setStats((current) => ({ ...current, ...(payload || {}) })));
+    socket.on('admin:profile_created', reload);
+    socket.on('admin:profile_updated', reload);
+    socket.on('admin:profile_status', reload);
+    socket.on('admin:config_updated', reload);
     return () => socket.disconnect();
-  }, [session.token, loadProfiles, refreshRuntime]);
+  }, [reload]);
 
-  useEffect(() => {
-    if (!session.token) return undefined;
-    const interval = window.setInterval(async () => {
-      const [response, healthResponse] = await Promise.all([
-        getRealtimeSnapshot().catch(() => null),
-        getServiceHealth().catch(() => null)
-      ]);
-      const snapshot = response?.data?.data;
-      if (snapshot) {
-        setLive(snapshot);
-        setStats((current) => mergeRealtimeStats(current, snapshot));
-      }
-      if (healthResponse?.data?.data) setServices(healthResponse.data.data);
-    }, 10000);
-    return () => window.clearInterval(interval);
-  }, [session.token]);
-
-  const saveConfig = async (key) => {
-    setMessage('');
-    setError('');
+  const withNotice = async (promise, message) => {
     try {
-      await updateConfig(key, configState[key] || {});
-      await refreshRuntime();
-      setMessage(`${key.replace('_', ' ')} saved and broadcast.`);
+      await promise;
+      setNotice(message);
+      await reload();
     } catch (err) {
-      setError(err.response?.data?.error?.message || err.message || 'Could not save config.');
+      setNotice(err.response?.data?.error?.message || err.message);
     }
   };
 
-  const handleCreateProfile = async () => {
-    try {
-      await createProfile(profileForm);
-      setProfileForm({ gender: 'female', religion: 'Hindu', maritalStatus: 'never_married' });
-      setMessage('Profile created.');
-      await loadProfiles();
-    } catch (err) {
-      setError(err.response?.data?.error?.message || err.message || 'Could not create profile.');
+  const handleSaveProfile = async (form) => {
+    const payload = makeProfilePayload(form);
+    if (form.profile_id) {
+      await withNotice(updateProfile(form.profile_id, payload), 'Member profile updated.');
+    } else {
+      await withNotice(createProfile(payload), 'Member profile created.');
     }
+    setDrawer(null);
   };
 
-  const handleBulk = async () => {
-    try {
-      const rows = parseCsv(csvText);
-      await bulkCreateProfiles(rows);
-      setCsvText('');
-      setMessage(`${rows.length} profile rows submitted.`);
-      await loadProfiles();
-    } catch (err) {
-      setError(err.response?.data?.error?.message || err.message || 'Could not import CSV.');
+  const handleProfileStatus = async (profile, action) => {
+    await withNotice(updateProfileStatus(profile.profile_id, action, `Admin ${action} from console`), `Member ${action} completed.`);
+  };
+
+  const handleBlockProfile = async (profile) => {
+    if (!profile.user_id) return;
+    const blocked = profile.is_banned === true;
+    await withNotice(blocked ? unbanUser(profile.user_id) : banUser(profile.user_id), blocked ? 'Member unblocked.' : 'Member blocked.');
+  };
+
+  const handleSaveAdvisor = async (form) => {
+    const payload = makeAdvisorPayload(form);
+    if (form.advisor_id) {
+      await withNotice(updateAdvisor(form.advisor_id, payload), 'Agent profile updated.');
+    } else {
+      await withNotice(createAdvisor(payload), 'Agent profile created.');
     }
+    setDrawer(null);
   };
 
-  const handleStatus = async (id, action) => {
-    await updateProfileStatus(id, action);
-    await loadProfiles();
+  const handleAdvisorStatus = async (agent, payload) => {
+    await withNotice(updateAdvisorStatus(agent.advisor_id, payload), 'Agent status updated.');
   };
 
-  const handleBulkStatus = async (action) => {
-    await Promise.all(profiles.map((profile) => updateProfileStatus(profile.profile_id, action)));
-    await loadProfiles();
-    setMessage(`${profiles.length} visible profiles updated.`);
+  const handleConfigSave = async (key, payload) => {
+    await withNotice(updateConfig(key, payload), 'Configuration saved.');
   };
 
-  const handleDeleteProfile = async (id) => {
-    await deleteProfile(id);
-    await loadProfiles();
-  };
-
-  const handleAttachPhoto = async () => {
-    if (!photoForm.profileId || !photoForm.primaryPhotoUrl) {
-      setError('Profile ID and photo URL are required.');
-      return;
+  const renderContent = () => {
+    if (['dashboard', 'overview'].includes(activeTab)) {
+      return <DashboardHome stats={stats} profiles={profiles} advisors={advisors} payments={payments} alerts={alerts} auditLogs={auditLogs} onTab={setActiveTab} onMember={(profile) => setDrawer({ type: 'member', entity: profile })} onAgent={(agent) => setDrawer({ type: 'agent', entity: agent })} />;
     }
-    await updateProfile(photoForm.profileId, { primaryPhotoUrl: photoForm.primaryPhotoUrl });
-    setPhotoForm({ profileId: '', primaryPhotoUrl: '' });
-    setMessage('Profile photo updated.');
-    await loadProfiles();
-  };
-
-  const handleCampaign = async () => {
-    let audience = {};
-    try { audience = JSON.parse(campaign.audienceText || '{}'); } catch (_) { audience = {}; }
-    await createCampaign({ name: campaign.name, channel: campaign.channel, audience });
-    setCampaign({ name: '', channel: 'push', audienceText: '{"plan":"free"}' });
-    setMessage('Campaign draft created.');
-  };
-
-  const handleCreateAdvisor = async (payload) => {
-    try {
-      await createAdvisor(payload);
-      setMessage('Advisor onboarded successfully.');
-      setError('');
-      await loadAll();
-    } catch (err) {
-      setError(err.response?.data?.error?.message || err.message || 'Could not create advisor.');
+    if (['members', 'members-all', 'member-profile', 'member-signup', 'member-password', 'member-block', 'member-validity'].includes(activeTab)) {
+      return <MembersPanel profiles={profiles} search={search} onOpen={(profile) => setDrawer({ type: 'member', entity: profile })} onCreate={() => setDrawer({ type: 'member', entity: null })} onStatus={handleProfileStatus} onBlock={handleBlockProfile} />;
     }
-  };
-
-  const handleUpdateAdvisor = async (advisorId, payload) => {
-    try {
-      await updateAdvisor(advisorId, payload);
-      setMessage('Advisor profile updated.');
-      setError('');
-      await loadAll();
-    } catch (err) {
-      setError(err.response?.data?.error?.message || err.message || 'Could not update advisor.');
+    if (['agents', 'agents-all', 'agent-ratings', 'agent-performance', 'agent-profiles'].includes(activeTab)) {
+      return <AgentsPanel advisors={advisors} profiles={profiles} search={search} onOpen={(agent) => setDrawer({ type: 'agent', entity: agent })} onCreate={() => setDrawer({ type: 'agent', entity: null })} onStatus={handleAdvisorStatus} />;
     }
-  };
-
-  const handleUpdateAdvisorStatus = async (advisorId, payload) => {
-    try {
-      await updateAdvisorStatus(advisorId, payload);
-      setMessage('Advisor trust status updated.');
-      setError('');
-      await loadAll();
-    } catch (err) {
-      setError(err.response?.data?.error?.message || err.message || 'Could not update advisor status.');
+    if (['member-verify', 'agent-verification'].includes(activeTab)) {
+      return <VerificationPanel verifications={verifications} advisors={advisors} profiles={profiles} onApprove={(id) => withNotice(approveVerification(id, 'Approved from admin console'), 'Verification approved.')} onReject={(id) => withNotice(rejectVerification(id, 'Rejected from admin console'), 'Verification rejected.')} onAgentStatus={handleAdvisorStatus} onProfileStatus={handleProfileStatus} />;
     }
-  };
-
-  const handleUpdateAssistedAssignment = async (assistedProfileId, payload) => {
-    try {
-      await updateAssistedAssignment(assistedProfileId, payload);
-      setMessage('Assisted assignment updated.');
-      setError('');
-      await loadAll();
-    } catch (err) {
-      setError(err.response?.data?.error?.message || err.message || 'Could not update assisted assignment.');
+    if (['subscriptions', 'member-plans', 'member-upgrades', 'member-payments', 'member-invoices'].includes(activeTab)) {
+      return <SubscriptionPanel config={config} payments={payments} type="member" onSave={handleConfigSave} />;
     }
-  };
-
-  const handleSaveAssistConfig = async (nextConfig) => {
-    try {
-      await updateConfig('assisted_matchmaking', nextConfig || {});
-      setConfigState((current) => ({ ...current, assisted_matchmaking: nextConfig || {} }));
-      setMessage('SoulMatch Assist settings saved.');
-      setError('');
-    } catch (err) {
-      setError(err.response?.data?.error?.message || err.message || 'Could not save assist settings.');
+    if (['agent-plans', 'agent-upgrades', 'agent-payments', 'agent-invoices'].includes(activeTab)) {
+      return <SubscriptionPanel config={config} payments={payments} type="agent" onSave={handleConfigSave} />;
     }
+    if (['content', 'photo-moderation', 'chat-moderation', 'flagged-content', 'visitor-enquiry', 'lead-management'].includes(activeTab)) {
+      return <ContentPanel reports={reports} alerts={alerts} consentEvents={consentEvents} onResolve={(id) => withNotice(resolveReport(id), 'Report resolved.')} onAck={(id) => withNotice(acknowledgeAlert(id), 'Alert acknowledged.')} />;
+    }
+    if (activeTab === 'dynamic-config') {
+      return <DynamicConfigPanel config={config} onSave={handleConfigSave} />;
+    }
+    if (['system', 'role-master', 'user-master', 'notifications', 'data-export', 'audit-logs', 'service-health', 'cms-management', 'settings', 'change-password'].includes(activeTab)) {
+      return <SystemPanel roles={roles} users={users} auditLogs={auditLogs} services={services} activeTab={activeTab} funnel={funnel} events={events} />;
+    }
+    return <DashboardHome stats={stats} profiles={profiles} advisors={advisors} payments={payments} alerts={alerts} auditLogs={auditLogs} onTab={setActiveTab} onMember={(profile) => setDrawer({ type: 'member', entity: profile })} onAgent={(agent) => setDrawer({ type: 'agent', entity: agent })} />;
   };
 
-  const logout = () => {
-    localStorage.removeItem('adminToken');
-    navigate('/login');
-  };
-
-  const activeLabel = visibleTabs.find((tab) => tab.id === activeTab)?.label || 'Dashboard';
-  const canManageAssistProgram = ['super_admin', 'admin'].includes(session.role);
-  const canManageAssistQueue = ['super_admin', 'admin', 'moderator'].includes(session.role);
+  const linkedProfiles = drawer?.type === 'agent'
+    ? profiles.filter((profile) => profile.created_by_advisor_id === drawer.entity?.advisor_id)
+    : [];
 
   return (
-    <div className="admin-page">
-      <TopBar brand={runtimeConfig.branding?.appTitle || 'SoulMatch'} role={session.role} email={session.email} live={live} onSync={loadAll} onLogout={logout} />
-      <div className="layout">
-        <Sidebar tabs={visibleTabs} activeTab={activeTab} setActiveTab={setActiveTab} />
-        <main className="main">
-          <div className="main-hero">
-            <div>
-              <span className="eyebrow">Control plane</span>
-              <h1>{activeLabel}</h1>
-              <p>Production-grade operations, configuration, moderation, and monitoring for the SoulMatch platform.</p>
-            </div>
-            <div className="hero-actions">
-              <StatusBadge tone={loading ? 'amber' : 'ok'}>{loading ? 'Syncing' : 'Live'}</StatusBadge>
-              <button className="secondary-btn" onClick={() => setActiveTab('health')} type="button">System health</button>
-            </div>
-          </div>
-          {message ? <div className="alert success">{message}</div> : null}
-          {error ? <div className="alert error">{error}</div> : null}
-          {moduleIssues.length && !error ? (
-            <div className="alert warning">
-              Optional modules unavailable: {moduleIssues.join(', ')}. Core dashboard controls remain usable.
-            </div>
-          ) : null}
-
-          {activeTab === 'overview' ? <OverviewPanel stats={stats} live={live} analyticsRows={events} alerts={alerts} setActiveTab={setActiveTab} /> : null}
-          {activeTab === 'profiles' ? <ProfilesPanel profiles={profiles} profileMeta={profileMeta} profileFilters={profileFilters} setProfileFilters={setProfileFilters} profileForm={profileForm} setProfileForm={setProfileForm} photoForm={photoForm} setPhotoForm={setPhotoForm} csvText={csvText} setCsvText={setCsvText} onCreate={handleCreateProfile} onAttachPhoto={handleAttachPhoto} onBulk={handleBulk} onStatus={handleStatus} onBulkStatus={handleBulkStatus} onDelete={handleDeleteProfile} /> : null}
-          {activeTab === 'verification' ? <VerificationPanel verifications={verifications} onApprove={async (id, note) => { await approveVerification(id, note); await loadAll(); }} onReject={async (id, note) => { await rejectVerification(id, note); await loadAll(); }} /> : null}
-          {activeTab === 'payments' ? <PaymentsPanel payments={payments} config={configState} patchConfig={patchConfig} onSave={saveConfig} onRefund={async (t) => { await createRefund({ transactionId: t.transaction_id, amount: t.amount }); setMessage('Refund request queued.'); }} /> : null}
-          {activeTab === 'cms' ? <CmsPanel config={configState} patchConfig={patchConfig} onSave={saveConfig} /> : null}
-          {activeTab === 'engagement' ? <EngagementPanel config={configState} patchConfig={patchConfig} onSave={saveConfig} campaign={campaign} setCampaign={setCampaign} onCampaign={handleCampaign} /> : null}
-          {activeTab === 'moderation' ? <ModerationPanel reports={reports} alerts={alerts} consentEvents={consentEvents} onResolve={async (id) => { await resolveReport(id); await loadAll(); }} onAck={async (id) => { await acknowledgeAlert(id); await loadAll(); }} /> : null}
-          {activeTab === 'assist' ? (
-            <AssistPanel
-              advisors={advisors}
-              assignments={assistedAssignments}
-              assistConfig={configState.assisted_matchmaking || DEFAULT_CONFIG.assisted_matchmaking}
-              onSaveConfig={handleSaveAssistConfig}
-              onCreateAdvisor={handleCreateAdvisor}
-              onUpdateAdvisor={handleUpdateAdvisor}
-              onUpdateAdvisorStatus={handleUpdateAdvisorStatus}
-              onUpdateAssignment={handleUpdateAssistedAssignment}
-              canManageAdvisors={canManageAssistProgram}
-              canManageAssignments={canManageAssistQueue}
-            />
-          ) : null}
-          {activeTab === 'config' ? <ConfigPanel config={configState} patchConfig={patchConfig} onSave={saveConfig} /> : null}
-          {activeTab === 'rbac' ? <RbacPanel roles={roles} session={session} /> : null}
-          {activeTab === 'analytics' ? <AnalyticsPanel funnel={funnel} events={events} auditLogs={auditLogs} /> : null}
-          {activeTab === 'health' ? <HealthPanel services={services} /> : null}
-        </main>
-      </div>
-    </div>
+    <AdminShell activeTab={activeTab} onTab={setActiveTab} session={session} search={search} onSearch={setSearch}>
+      {notice ? <div className="toast-notice">{notice}<button onClick={() => setNotice('')}>Dismiss</button></div> : null}
+      {renderContent()}
+      {drawer?.type === 'member' ? (
+        <MemberDrawer
+          profile={drawer.entity}
+          onClose={() => setDrawer(null)}
+          onSave={handleSaveProfile}
+          onStatus={handleProfileStatus}
+        />
+      ) : null}
+      {drawer?.type === 'agent' ? (
+        <AgentDrawer
+          agent={drawer.entity}
+          linkedProfiles={linkedProfiles}
+          onClose={() => setDrawer(null)}
+          onSave={handleSaveAdvisor}
+          onStatus={handleAdvisorStatus}
+        />
+      ) : null}
+    </AdminShell>
   );
 }
