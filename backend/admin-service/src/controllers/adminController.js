@@ -63,6 +63,114 @@ function normalizeDocumentReviewStatus(value) {
   return ['uploaded', 'under_review', 'verified', 'rejected'].includes(normalized) ? normalized : null;
 }
 
+function hasValue(value) {
+  return String(value || '').trim().length > 0;
+}
+
+function isVerifiedDocument(documents, documentType) {
+  return documents.some((document) =>
+    String(document.document_type || '').toLowerCase() === documentType &&
+    String(document.status || '').toLowerCase() === 'verified'
+  );
+}
+
+function hasVerifiedAadhaar(documents) {
+  const aadhaarDocs = documents.filter((document) =>
+    String(document.document_type || '').toLowerCase() === 'aadhaar' &&
+    String(document.status || '').toLowerCase() === 'verified'
+  );
+  if (!aadhaarDocs.length) return false;
+  const sides = new Set(aadhaarDocs.map((document) => String(document.document_side || 'single').toLowerCase()));
+  return sides.has('single') || (sides.has('front') && sides.has('back'));
+}
+
+function managedProfileDocumentReadiness(profile, documents) {
+  const required = [
+    { key: 'aadhaar', label: 'Aadhaar', ready: hasVerifiedAadhaar(documents) },
+    { key: 'pan_or_voter', label: 'PAN or Voter ID', ready: isVerifiedDocument(documents, 'pan') || isVerifiedDocument(documents, 'voter_id') }
+  ];
+  const hasEducationClaim = hasValue(profile.education_level) || hasValue(profile.occupation) || hasValue(profile.annual_income);
+  if (hasEducationClaim) {
+    required.push({
+      key: 'education_certificate',
+      label: 'Education certificate',
+      ready: isVerifiedDocument(documents, 'education_certificate')
+    });
+  }
+  if (String(profile.marital_status || '').toLowerCase().includes('divorce')) {
+    required.push({
+      key: 'divorce_decree',
+      label: 'Divorce decree',
+      ready: isVerifiedDocument(documents, 'divorce_decree')
+    });
+  }
+  const missing = required.filter((item) => !item.ready).map((item) => item.label);
+  return { complete: missing.length === 0, missing };
+}
+
+async function publishManagedProfileIfReady(db, profileId, reviewNote = null) {
+  const profileResult = await db.query(
+    `SELECT
+       p.profile_id,
+       p.created_by_advisor_id,
+       p.review_status,
+       p.submitted_at,
+       p.marital_status,
+       ec.education_level,
+       ec.occupation,
+       ec.annual_income
+     FROM profiles p
+     LEFT JOIN education_career ec ON ec.profile_id = p.profile_id
+     WHERE p.profile_id = $1
+     LIMIT 1`,
+    [profileId]
+  );
+  const profile = profileResult.rows[0];
+  if (!profile || !profile.created_by_advisor_id) return { published: false, reason: 'not_agent_managed' };
+  const reviewStatus = String(profile.review_status || 'draft').toLowerCase();
+  const agentRequestedVisibility = profile.submitted_at || ['submitted', 'under_review', 'verified'].includes(reviewStatus);
+  if (!agentRequestedVisibility) {
+    return { published: false, reason: 'agent_visibility_not_enabled' };
+  }
+
+  const documentsResult = await db.query(
+    `SELECT document_type, document_side, status
+     FROM profile_documents
+     WHERE profile_id = $1`,
+    [profileId]
+  );
+  const readiness = managedProfileDocumentReadiness(profile, documentsResult.rows);
+  if (!readiness.complete) {
+    await db.query(
+      `UPDATE profiles
+       SET review_status = CASE WHEN review_status IN ('draft', 'submitted', 'rejected') THEN 'under_review' ELSE review_status END,
+           reviewed_at = NOW(),
+           review_notes = COALESCE($2, review_notes),
+           updated_at = NOW()
+       WHERE profile_id = $1`,
+      [profileId, reviewNote]
+    );
+    return { published: false, reason: 'missing_required_documents', missing: readiness.missing };
+  }
+
+  const result = await db.query(
+    `UPDATE profiles
+     SET review_status = 'verified',
+         verification_status = 'verified',
+         is_published = TRUE,
+         admin_status = 'active',
+         reviewed_at = NOW(),
+         verified_at = COALESCE(verified_at, NOW()),
+         rejection_reason = NULL,
+         review_notes = COALESCE($2, review_notes),
+         updated_at = NOW()
+     WHERE profile_id = $1
+     RETURNING *`,
+    [profileId, reviewNote]
+  );
+  return { published: true, profile: result.rows[0] };
+}
+
 function normalizeAssistRequestStatus(value) {
   const normalized = String(value || '').trim().toLowerCase();
   return ['not_requested', 'waiting_assignment', 'assigned', 'paused'].includes(normalized) ? normalized : null;
@@ -1240,22 +1348,54 @@ exports.updateProfileStatus = async (req, res) => {
     const db = await getDB();
     const action = String(req.body?.action || '').toLowerCase();
     const profileId = req.params.id;
+    const reason = String(req.body?.reason || '').trim() || null;
     const updates = {
-      approve: { published: true, verification: 'verified', admin: 'active' },
-      reject: { published: false, verification: 'rejected', admin: 'rejected' },
-      suspend: { published: false, verification: 'pending', admin: 'suspended' },
-      restore: { published: true, verification: 'verified', admin: 'active' }
+      approve: { published: true, verification: 'verified', admin: 'active', review: 'verified' },
+      reject: { published: false, verification: 'rejected', admin: 'rejected', review: 'rejected' },
+      suspend: { published: false, verification: 'pending', admin: 'suspended', review: 'under_review' },
+      restore: { published: true, verification: 'verified', admin: 'active', review: 'verified' }
     }[action];
     if (!updates) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Unsupported profile action.' } });
+    const currentResult = await db.query(
+      `SELECT created_by_advisor_id, review_status, submitted_at
+       FROM profiles
+       WHERE profile_id = $1
+       LIMIT 1`,
+      [profileId]
+    );
+    const currentProfile = currentResult.rows[0];
+    if (!currentProfile) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found.' } });
+    const currentReviewStatus = String(currentProfile.review_status || 'draft').toLowerCase();
+    const agentRequestedVisibility = currentProfile.submitted_at || ['submitted', 'under_review', 'verified'].includes(currentReviewStatus);
+    if (currentProfile.created_by_advisor_id && ['approve', 'restore'].includes(action) && !agentRequestedVisibility) {
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: 'PROFILE_NOT_SUBMITTED',
+          message: 'Agent-created profile is saved as draft. Ask the agent to enable visibility and submit it before publishing.'
+        }
+      });
+    }
     const result = await db.query(
       `UPDATE profiles
-       SET is_published=$2, verification_status=$3, admin_status=$4, updated_at=NOW()
+       SET is_published=$2,
+           verification_status=$3,
+           admin_status=$4,
+           review_status = CASE WHEN created_by_advisor_id IS NOT NULL THEN $5 ELSE review_status END,
+           reviewed_at = CASE WHEN created_by_advisor_id IS NOT NULL THEN NOW() ELSE reviewed_at END,
+           verified_at = CASE WHEN created_by_advisor_id IS NOT NULL AND $5='verified' THEN COALESCE(verified_at, NOW()) ELSE verified_at END,
+           rejection_reason = CASE
+             WHEN created_by_advisor_id IS NOT NULL AND $5='rejected' THEN COALESCE($6, rejection_reason, 'Profile rejected by admin.')
+             WHEN created_by_advisor_id IS NOT NULL AND $5='verified' THEN NULL
+             ELSE rejection_reason
+           END,
+           updated_at=NOW()
        WHERE profile_id=$1
        RETURNING *`,
-      [profileId, updates.published, updates.verification, updates.admin]
+      [profileId, updates.published, updates.verification, updates.admin, updates.review, reason]
     );
     if (!result.rows[0]) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found.' } });
-    await auditLog(db, req, `profile.${action}`, 'profile', profileId, { reason: req.body?.reason || null });
+    await auditLog(db, req, `profile.${action}`, 'profile', profileId, { reason });
     broadcastAdminEvent('admin:profile_status', { action, profile: result.rows[0] });
     res.json({ success: true, data: result.rows[0] });
   } catch (err) {
@@ -1432,10 +1572,13 @@ exports.getPendingProfileDocuments = async (req, res) => {
 };
 
 exports.approveProfileDocument = async (req, res) => {
+  let client;
   try {
     const db = await getDB();
+    client = await db.connect();
     const note = String(req.body?.note || '').trim() || null;
-    const result = await db.query(
+    await client.query('BEGIN');
+    const result = await client.query(
       `UPDATE profile_documents
        SET status = 'verified',
            review_comment = $2,
@@ -1447,20 +1590,26 @@ exports.approveProfileDocument = async (req, res) => {
       [req.params.id, note, req.admin?.email || 'admin']
     );
     const document = result.rows[0];
-    if (!document) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile document not found.' } });
-    await db.query(
-      `UPDATE profiles
-       SET review_status = CASE WHEN review_status IN ('submitted', 'draft', 'rejected') THEN 'under_review' ELSE review_status END,
-           reviewed_at = NOW(),
-           review_notes = COALESCE($2, review_notes),
-           updated_at = NOW()
-       WHERE profile_id = $1`,
-      [document.profile_id, note]
-    );
-    await auditLog(db, req, 'profile_document.approve', 'profile_document', req.params.id, { note });
-    res.json({ success: true, data: document });
+    if (!document) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile document not found.' } });
+    }
+    const publishResult = await publishManagedProfileIfReady(client, document.profile_id, note);
+    await auditLog(client, req, 'profile_document.approve', 'profile_document', req.params.id, {
+      note,
+      managedProfilePublished: publishResult.published === true,
+      missingRequiredDocuments: publishResult.missing || []
+    });
+    await client.query('COMMIT');
+    if (publishResult.published) {
+      broadcastAdminEvent('admin:profile_status', { action: 'auto_publish', profile: publishResult.profile });
+    }
+    res.json({ success: true, data: document, profileReview: publishResult });
   } catch (err) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
     respondServerError(res, err, 'Unable to approve this profile document right now.');
+  } finally {
+    if (client) client.release();
   }
 };
 
