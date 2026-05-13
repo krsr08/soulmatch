@@ -124,6 +124,23 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun verifyFirebaseOTP(phone: String, otp: String, userType: String? = null) {
+        viewModelScope.launch {
+            _state.value = AuthUiState.Loading
+            val verificationId = prefs.pendingOtpVerificationId.firstOrNull()
+            if (verificationId.isNullOrBlank()) {
+                _state.value = AuthUiState.Error("OTP session expired. Please request a new code.")
+                return@launch
+            }
+            try {
+                val credential = PhoneAuthProvider.getCredential(verificationId, otp)
+                completeFirebasePhoneVerification(phone, credential, userType)
+            } catch (e: Exception) {
+                _state.value = AuthUiState.Error(e.message ?: "Phone verification failed.")
+            }
+        }
+    }
+
     fun googleLogin(googleIdToken: String?, userType: String? = null) {
         if (googleIdToken.isNullOrBlank()) {
             _state.value = AuthUiState.Error("Google sign-in did not return an ID token. Check OAuth client configuration and try again.")
