@@ -583,6 +583,15 @@ data class ProfileSummary(
     @SerializedName("trustFactors") val trustFactors: List<TrustFactorData> = emptyList(),
     val education: String = "",
     val community: String = "",
+    val religion: String = "",
+    val annualIncome: String = "",
+    val familyCity: String = "",
+    val familyState: String = "",
+    val maritalStatus: String = "",
+    val diet: String = "",
+    @SerializedName("isManglik") val isManglik: Boolean = false,
+    @SerializedName("createdAt") val createdAt: String = "",
+    @SerializedName("hideLastSeen") val hideLastSeen: Boolean = false,
     val lastActiveLabel: String = "Recently Active",
     val matchReasons: List<String> = emptyList(),
     val interestSent: Boolean = false,
@@ -640,6 +649,12 @@ data class SearchProfileItem(
     @SerializedName("annual_income") val annualIncome: String = "",
     @SerializedName("height_cm") val heightCm: Int? = null,
     val diet: String = "",
+    @SerializedName("family_city") val familyCity: String = "",
+    @SerializedName("family_state") val familyState: String = "",
+    @SerializedName("marital_status") val maritalStatus: String = "",
+    @SerializedName("is_manglik") val isManglik: Boolean = false,
+    @SerializedName("created_at") val createdAt: String = "",
+    @SerializedName("hide_last_seen") val hideLastSeen: Boolean = false,
     @SerializedName("profile_created_by") val profileCreatedBy: String = "self",
     @SerializedName("is_photo_private") val isPhotoPrivate: Boolean = false,
     @SerializedName("is_verified") val isVerified: Boolean = false,
@@ -863,11 +878,21 @@ data class PhoneEntryContentData(
 data class HomeBestMatchAdData(
     val id: String = "",
     val type: String = "marriage",
+    val badge: String = "",
     val title: String = "",
     val body: String = "",
+    val bullets: List<String> = emptyList(),
     val cta: String = "Explore",
+    @SerializedName("discountLabel") val discountLabel: String = "",
     @SerializedName("imageUrl") val imageUrl: String = "",
     val destination: String = "search"
+)
+
+data class HomeScamAwarenessCardData(
+    val id: String = "",
+    val title: String = "",
+    val body: String = "",
+    val illustration: String = ""
 )
 
 data class HomeContentData(
@@ -884,6 +909,7 @@ data class HomeContentData(
     val showBestMatchUpgradeCards: Boolean = true,
     val showBestMatchAdCards: Boolean = true,
     val bestMatchAdCards: List<HomeBestMatchAdData> = defaultHomeBestMatchAds(),
+    val scamAwarenessCards: List<HomeScamAwarenessCardData> = defaultScamAwarenessCards(),
     val emptyTitle: String = "Your profile needs a little more detail",
     val emptyBody: String = "Complete career, family, lifestyle, and privacy sections to unlock stronger recommendations.",
     val emptyCta: String = "Improve my profile",
@@ -895,28 +921,61 @@ data class HomeContentData(
 
 fun defaultHomeBestMatchAds(): List<HomeBestMatchAdData> = listOf(
     HomeBestMatchAdData(
-        id = "wedding-services",
-        type = "marriage",
-        title = "Wedding services nearby",
-        body = "Shortlist decorators, photographers, and venues once both families are ready.",
-        cta = "View ideas",
-        destination = "search"
+        id = "upgrade-benefits",
+        type = "upgrade",
+        badge = "Flat 73% off",
+        title = "You are missing out on premium benefits",
+        body = "Get more visibility, contact access, and stronger daily recommendations.",
+        bullets = listOf(
+            "Get up to 3X more matches daily",
+            "Access contact details of interested matches",
+            "Perform unlimited searches",
+            "Get spotlight credits with eligible plans"
+        ),
+        cta = "Upgrade now",
+        discountLabel = "FLAT 73% OFF",
+        destination = "membership"
     ),
     HomeBestMatchAdData(
-        id = "family-horoscope",
-        type = "astrology",
-        title = "Family horoscope support",
-        body = "Add horoscope details and compare compatibility before the first family call.",
-        cta = "Open astrology",
-        destination = "astrology_services"
+        id = "spotlight",
+        type = "spotlight",
+        badge = "Spotlight",
+        title = "Be the first profile others see for an entire day",
+        body = "Appear on top of recommendations and increase your chances of getting more interests.",
+        cta = "Get Spotlight",
+        destination = "membership"
     ),
     HomeBestMatchAdData(
-        id = "verified-profiles",
-        type = "profiles",
-        title = "Verified profiles first",
-        body = "Focus on members with stronger trust signals and active intent.",
-        cta = "Browse profiles",
-        destination = "search"
+        id = "safety-awareness",
+        type = "safety",
+        badge = "Scam awareness",
+        title = "Protect yourself from online frauds",
+        body = "Simple safety reminders for every serious matchmaking journey.",
+        cta = "Safety centre",
+        destination = "safety"
+    )
+)
+
+fun defaultScamAwarenessCards(): List<HomeScamAwarenessCardData> = listOf(
+    HomeScamAwarenessCardData(
+        id = "gift-cod",
+        title = "Never make payments for unsolicited gifts",
+        body = "Scammers may send gifts by cash-on-delivery and pressure you to pay."
+    ),
+    HomeScamAwarenessCardData(
+        id = "import-duty",
+        title = "Do not pay import duty or custom fees",
+        body = "Fraudsters may pose as officials and demand fees for gifts or parcels."
+    ),
+    HomeScamAwarenessCardData(
+        id = "video-call",
+        title = "Be cautious during video calls",
+        body = "Avoid explicit calls and report anyone who blackmails or asks for money."
+    ),
+    HomeScamAwarenessCardData(
+        id = "emergency-cash",
+        title = "Validate emergency cash requests",
+        body = "Never transfer money because of sudden medical, travel, or family emergencies."
     )
 )
 
@@ -1170,6 +1229,15 @@ fun SearchProfileItem.toProfileSummary(seed: ProfileSummary? = null): ProfileSum
             safeString(religion).isNotBlank() -> safeString(religion)
             else -> seed?.community.orEmpty()
         },
+        religion = if (safeString(religion).isNotBlank()) safeString(religion) else seed?.religion.orEmpty(),
+        annualIncome = if (safeString(annualIncome).isNotBlank()) safeString(annualIncome) else seed?.annualIncome.orEmpty(),
+        familyCity = if (safeString(familyCity).isNotBlank()) safeString(familyCity) else seed?.familyCity.orEmpty(),
+        familyState = if (safeString(familyState).isNotBlank()) safeString(familyState) else seed?.familyState.orEmpty(),
+        maritalStatus = if (safeString(maritalStatus).isNotBlank()) safeString(maritalStatus) else seed?.maritalStatus.orEmpty(),
+        diet = if (safeString(diet).isNotBlank()) safeString(diet) else seed?.diet.orEmpty(),
+        isManglik = isManglik || seed?.isManglik == true,
+        createdAt = if (safeString(createdAt).isNotBlank()) safeString(createdAt) else seed?.createdAt.orEmpty(),
+        hideLastSeen = hideLastSeen || seed?.hideLastSeen == true,
         lastActiveLabel = lastActiveLabelSnake.ifBlank { seed?.lastActiveLabel ?: "Recently Active" },
         matchReasons = if (matchReasons.isNotEmpty()) matchReasons else seed?.matchReasons ?: emptyList(),
         interestSent = seed?.interestSent ?: false,

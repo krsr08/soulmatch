@@ -141,28 +141,60 @@ const DEFAULT_CONFIG = {
       showBestMatchAdCards: true,
       bestMatchAdCards: [
         {
-          id: 'wedding-services',
-          type: 'marriage',
-          title: 'Wedding services nearby',
-          body: 'Shortlist decorators, photographers, and venues once both families are ready.',
-          cta: 'View ideas',
-          destination: 'search'
+          id: 'upgrade-benefits',
+          type: 'upgrade',
+          badge: 'Flat 73% off',
+          title: 'You are missing out on premium benefits',
+          body: 'Get more visibility, contact access, and stronger daily recommendations.',
+          bullets: [
+            'Get up to 3X more matches daily',
+            'Access contact details of interested matches',
+            'Perform unlimited searches',
+            'Get spotlight credits with eligible plans'
+          ],
+          cta: 'Upgrade now',
+          discountLabel: 'FLAT 73% OFF',
+          destination: 'membership'
         },
         {
-          id: 'family-horoscope',
-          type: 'astrology',
-          title: 'Family horoscope support',
-          body: 'Add horoscope details and compare compatibility before the first family call.',
-          cta: 'Open astrology',
-          destination: 'astrology_services'
+          id: 'spotlight',
+          type: 'spotlight',
+          badge: 'Spotlight',
+          title: 'Be the first profile others see for an entire day',
+          body: 'Appear on top of recommendations and increase your chances of getting more interests.',
+          cta: 'Get Spotlight',
+          destination: 'membership'
         },
         {
-          id: 'verified-profiles',
-          type: 'profiles',
-          title: 'Verified profiles first',
-          body: 'Focus on members with stronger trust signals and active intent.',
-          cta: 'Browse profiles',
-          destination: 'search'
+          id: 'safety-awareness',
+          type: 'safety',
+          badge: 'Scam awareness',
+          title: 'Protect yourself from online frauds',
+          body: 'Simple safety reminders for every serious matchmaking journey.',
+          cta: 'Safety centre',
+          destination: 'safety'
+        }
+      ],
+      scamAwarenessCards: [
+        {
+          id: 'gift-cod',
+          title: 'Never make payments for unsolicited gifts',
+          body: 'Scammers may send gifts by cash-on-delivery and pressure you to pay.'
+        },
+        {
+          id: 'import-duty',
+          title: 'Do not pay import duty or custom fees',
+          body: 'Fraudsters may pose as officials and demand fees for gifts or parcels.'
+        },
+        {
+          id: 'video-call',
+          title: 'Be cautious during video calls',
+          body: 'Avoid explicit calls and report anyone who blackmails or asks for money.'
+        },
+        {
+          id: 'emergency-cash',
+          title: 'Validate emergency cash requests',
+          body: 'Never transfer money because of sudden medical, travel, or family emergencies.'
         }
       ],
       emptyTitle: 'Your profile needs a little more detail',

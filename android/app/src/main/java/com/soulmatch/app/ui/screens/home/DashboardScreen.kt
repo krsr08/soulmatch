@@ -85,18 +85,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.HomeContentData
 import com.soulmatch.app.data.models.HomeBestMatchAdData
+import com.soulmatch.app.data.models.HomeScamAwarenessCardData
 import com.soulmatch.app.data.models.InterestListItem
 import com.soulmatch.app.data.models.ProfileSummary
 import com.soulmatch.app.data.models.SubscriptionData
 import com.soulmatch.app.data.models.defaultHomeBestMatchAds
 import com.soulmatch.app.data.models.fullName
-import com.soulmatch.app.data.local.ProfileInteractionStore
 import com.soulmatch.app.data.upgrade.UpgradePackage
 import com.soulmatch.app.data.upgrade.UpgradePackageGroup
 import com.soulmatch.app.ui.components.media.MemberPhoto
@@ -136,18 +138,50 @@ private data class HomeAdPalette(
 )
 
 private enum class HomeMatchFeedFilter(val label: String) {
-    Viewed("Viewed"),
+    Verified("Verified"),
     JustJoined("Just Joined"),
     Nearby("Nearby")
 }
 
 private data class HomeAdvancedFilters(
-    val ageBand: String = "Any",
+    val typeOfMatches: String = "All",
+    val religion: String = "All",
+    val onlineStatus: String = "All",
+    val familyBasedOutOf: String = "All",
+    val profilePostedBy: String = "All",
+    val activityOnSite: String = "All",
+    val country: String = "All",
+    val city: String = "All",
+    val income: String = "All",
+    val educationLevel: String = "All",
+    val employedIn: String = "All",
+    val occupation: String = "All",
+    val photo: String = "All",
+    val heightBand: String = "All",
+    val ageBand: String = "All",
+    val maritalStatus: String = "All",
+    val horoscope: String = "All",
+    val manglik: String = "All",
+    val diet: String = "All",
     val minimumMatch: Int = 0,
-    val minimumTrust: Int = 0,
-    val verifiedOnly: Boolean = false,
-    val educationLevel: String = "Any",
-    val managedBy: String = "Any"
+    val minimumTrust: Int = 0
+)
+
+private data class HomeFilterOptions(
+    val religions: List<String> = emptyList(),
+    val familyBases: List<String> = emptyList(),
+    val cities: List<String> = emptyList(),
+    val incomes: List<String> = emptyList(),
+    val educationLevels: List<String> = emptyList(),
+    val occupations: List<String> = emptyList(),
+    val diets: List<String> = emptyList()
+)
+
+private data class HomeFilterSectionSpec(
+    val title: String,
+    val options: List<String>,
+    val value: (HomeAdvancedFilters) -> String,
+    val update: (HomeAdvancedFilters, String) -> HomeAdvancedFilters
 )
 
 @Composable
@@ -176,7 +210,6 @@ fun DashboardScreen(
     val notifications by notificationsVm.notifications.collectAsStateWithLifecycle()
     val packageGroups by subscriptionVm.packageGroups.collectAsStateWithLifecycle()
     val subscription by subscriptionVm.subscription.collectAsStateWithLifecycle()
-    val interactionState by ProfileInteractionStore.state.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -208,14 +241,14 @@ fun DashboardScreen(
         compareByDescending<ProfileSummary> { it.compatibilityScore }
             .thenBy { it.name }
     )
+    val filterOptions = remember(rankedMatches) { buildHomeFilterOptions(rankedMatches) }
     var selectedFeedFilter by rememberSaveable { mutableStateOf<HomeMatchFeedFilter?>(null) }
     var showFilterDialog by rememberSaveable { mutableStateOf(false) }
     var advancedFilters by remember { mutableStateOf(HomeAdvancedFilters()) }
     val filteredRankedMatches = rankedMatches.filterForHomeFeed(
         filter = selectedFeedFilter,
         viewerProfile = myProfile,
-        advancedFilters = advancedFilters,
-        viewedProfileIds = interactionState.viewedProfileIds
+        advancedFilters = advancedFilters
     )
     val bestMatchProfileTarget = content.bestMatchMinimumProfiles.coerceAtLeast(5)
     val highCompatibilityThreshold = content.bestMatchHighCompatibilityThreshold
@@ -321,6 +354,7 @@ fun DashboardScreen(
                                     onInterest = { vm.sendInterest(it) },
                                     onShortlist = { vm.toggleShortlist(it) },
                                     onIgnore = { vm.hideProfile(it) },
+                                    onRequestPhoto = { vm.requestPhotoAccess(it) },
                                     onChat = { profileId, name -> onOpenChat(profileId, name) },
                                     onOpenSubscription = onOpenSubscription,
                                     onOpenSearch = onOpenSearch,
@@ -345,6 +379,7 @@ fun DashboardScreen(
     if (showFilterDialog) {
         HomeAdvancedFilterDialog(
             filters = advancedFilters,
+            options = filterOptions,
             onDismiss = { showFilterDialog = false },
             onApply = {
                 advancedFilters = it
@@ -511,7 +546,7 @@ private fun HomeMatchFilterStrip(
                 HomeFilterPill(
                     label = filter.label,
                     selected = selected == filter,
-                    modifier = Modifier.weight(if (filter == HomeMatchFeedFilter.JustJoined) 1.28f else 1f),
+                    modifier = Modifier.weight(if (filter == HomeMatchFeedFilter.JustJoined) 1.22f else 1f),
                     onClick = { onSelected(filter) }
                 )
             }
@@ -538,20 +573,24 @@ private fun HomeFilterPill(
         border = BorderStroke(1.4.dp, borderColor.copy(alpha = if (selected) 0.88f else 0.72f))
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (leadingIcon != null) {
                 androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides contentColor) {
                     leadingIcon()
                 }
+                Spacer(Modifier.width(4.dp))
             }
             Text(
                 label,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
                 color = contentColor,
                 fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -562,80 +601,277 @@ private fun HomeFilterPill(
 @Composable
 private fun HomeAdvancedFilterDialog(
     filters: HomeAdvancedFilters,
+    options: HomeFilterOptions,
     onDismiss: () -> Unit,
     onApply: (HomeAdvancedFilters) -> Unit,
     onReset: () -> Unit
 ) {
     var draft by remember(filters) { mutableStateOf(filters) }
-    var tab by rememberSaveable { mutableStateOf("Basics") }
-    val tabs = listOf("Basics", "Career", "Trust", "Source")
-    AlertDialog(
+    val sections = remember(options) { homeFilterSections(options) }
+    var selectedTab by rememberSaveable { mutableStateOf(sections.first().title) }
+    val activeSection = sections.firstOrNull { it.title == selectedTab } ?: sections.first()
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text("Filters", fontWeight = FontWeight.ExtraBold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(tabs, key = { it }) { item ->
-                        HomeFilterPill(
-                            label = item,
-                            selected = tab == item,
-                            onClick = { tab = item }
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = HomeBackground
+        ) {
+            Column(Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFFFFCFA))
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            "Refine matches",
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontFamily = FontFamily.Serif,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = Color(0xFF202A36)
+                        )
+                        Text(
+                            "Choose filters that matter to your family.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
                         )
                     }
-                }
-                when (tab) {
-                    "Basics" -> FilterChoiceSection(
-                        title = "Age range",
-                        options = listOf("Any", "21-30", "31-40", "41+"),
-                        selected = draft.ageBand,
-                        onSelect = { draft = draft.copy(ageBand = it) }
-                    )
-                    "Career" -> FilterChoiceSection(
-                        title = "Education",
-                        options = listOf("Any", "Graduate", "Post Graduate", "Doctorate", "Professional"),
-                        selected = draft.educationLevel,
-                        onSelect = { draft = draft.copy(educationLevel = it) }
-                    )
-                    "Trust" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        FilterChoiceSection(
-                            title = "Match",
-                            options = listOf("Any", "80%+", "90%+"),
-                            selected = if (draft.minimumMatch == 90) "90%+" else if (draft.minimumMatch == 80) "80%+" else "Any",
-                            onSelect = { draft = draft.copy(minimumMatch = it.filter(Char::isDigit).toIntOrNull() ?: 0) }
-                        )
-                        FilterChoiceSection(
-                            title = "Trust",
-                            options = listOf("Any", "50%+", "75%+"),
-                            selected = if (draft.minimumTrust == 75) "75%+" else if (draft.minimumTrust == 50) "50%+" else "Any",
-                            onSelect = { draft = draft.copy(minimumTrust = it.filter(Char::isDigit).toIntOrNull() ?: 0) }
-                        )
-                        FilterChoiceSection(
-                            title = "Verification",
-                            options = listOf("Any", "Verified"),
-                            selected = if (draft.verifiedOnly) "Verified" else "Any",
-                            onSelect = { draft = draft.copy(verifiedOnly = it == "Verified") }
-                        )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close filters", tint = PrimaryDark)
                     }
-                    else -> FilterChoiceSection(
-                        title = "Profile managed by",
-                        options = listOf("Any", "Self", "Agent"),
-                        selected = draft.managedBy,
-                        onSelect = { draft = draft.copy(managedBy = it) }
-                    )
                 }
-            }
-        },
-        confirmButton = {
-            Button(onClick = { onApply(draft) }) {
-                Text("Apply")
-            }
-        },
-        dismissButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onReset) { Text("Reset") }
-                OutlinedButton(onClick = onDismiss) { Text("Cancel") }
+                Row(Modifier.weight(1f)) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .width(132.dp)
+                            .fillMaxSize()
+                            .background(Color(0xFFFFF4F6)),
+                        contentPadding = PaddingValues(vertical = 10.dp)
+                    ) {
+                        items(sections, key = { it.title }) { section ->
+                            val selected = selectedTab == section.title
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .clickable { selectedTab = section.title },
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (selected) Color.White else Color.Transparent,
+                                border = if (selected) BorderStroke(1.dp, SoftBorder.copy(alpha = 0.55f)) else null
+                            ) {
+                                Text(
+                                    section.title,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (selected) HomePrimary else TextSecondary,
+                                    fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp)
+                    ) {
+                        item {
+                            FilterChoiceSection(
+                                title = activeSection.title,
+                                options = activeSection.options,
+                                selected = activeSection.value(draft),
+                                onSelect = { value -> draft = activeSection.update(draft, value) }
+                            )
+                        }
+                        if (activeSection.title == "Type of Matches") {
+                            item {
+                                FilterChoiceSection(
+                                    title = "Match compatibility",
+                                    options = listOf("All", "70%+", "80%+", "90%+"),
+                                    selected = when (draft.minimumMatch) {
+                                        90 -> "90%+"
+                                        80 -> "80%+"
+                                        70 -> "70%+"
+                                        else -> "All"
+                                    },
+                                    onSelect = { draft = draft.copy(minimumMatch = it.filter(Char::isDigit).toIntOrNull() ?: 0) }
+                                )
+                            }
+                            item {
+                                FilterChoiceSection(
+                                    title = "Trust score",
+                                    options = listOf("All", "50%+", "75%+", "90%+"),
+                                    selected = when (draft.minimumTrust) {
+                                        90 -> "90%+"
+                                        75 -> "75%+"
+                                        50 -> "50%+"
+                                        else -> "All"
+                                    },
+                                    onSelect = { draft = draft.copy(minimumTrust = it.filter(Char::isDigit).toIntOrNull() ?: 0) }
+                                )
+                            }
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFFFFCFA))
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            draft = HomeAdvancedFilters()
+                            onReset()
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Reset")
+                    }
+                    Button(
+                        onClick = { onApply(draft) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Apply filters")
+                    }
+                }
             }
         }
+    }
+}
+
+private fun homeFilterSections(options: HomeFilterOptions): List<HomeFilterSectionSpec> {
+    fun withAll(items: List<String>, fallbacks: List<String> = emptyList()): List<String> =
+        listOf("All") + (items + fallbacks)
+            .map { it.trim() }
+            .filter { it.isNotBlank() && !it.equals("All", ignoreCase = true) }
+            .distinctBy { it.lowercase(Locale.getDefault()) }
+
+    return listOf(
+        HomeFilterSectionSpec(
+            title = "Type of Matches",
+            options = listOf("All", "Verified", "Just Joined", "Nearby"),
+            value = { it.typeOfMatches },
+            update = { filters, value -> filters.copy(typeOfMatches = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Religion",
+            options = withAll(options.religions),
+            value = { it.religion },
+            update = { filters, value -> filters.copy(religion = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Online Status",
+            options = listOf("All", "Online", "Recently Active", "Inactive"),
+            value = { it.onlineStatus },
+            update = { filters, value -> filters.copy(onlineStatus = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Family Based Out Of",
+            options = withAll(options.familyBases),
+            value = { it.familyBasedOutOf },
+            update = { filters, value -> filters.copy(familyBasedOutOf = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Profile Posted By",
+            options = listOf("All", "Self", "Agent", "Admin"),
+            value = { it.profilePostedBy },
+            update = { filters, value -> filters.copy(profilePostedBy = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Activity on Site",
+            options = listOf("All", "Today", "This Week", "This Month"),
+            value = { it.activityOnSite },
+            update = { filters, value -> filters.copy(activityOnSite = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Country",
+            options = listOf("All", "India", "Abroad"),
+            value = { it.country },
+            update = { filters, value -> filters.copy(country = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "City",
+            options = withAll(options.cities),
+            value = { it.city },
+            update = { filters, value -> filters.copy(city = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Income",
+            options = withAll(options.incomes, listOf("< 3 Lpa", "3-5 Lpa", "5-10 Lpa", "10-20 Lpa", "20+ Lpa")),
+            value = { it.income },
+            update = { filters, value -> filters.copy(income = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Education",
+            options = withAll(options.educationLevels, listOf("Graduate", "Post Graduate", "Doctorate", "Professional")),
+            value = { it.educationLevel },
+            update = { filters, value -> filters.copy(educationLevel = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Employed In",
+            options = listOf("All", "Government", "Private", "Business", "Self-employed", "Not working"),
+            value = { it.employedIn },
+            update = { filters, value -> filters.copy(employedIn = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Occupation",
+            options = withAll(options.occupations),
+            value = { it.occupation },
+            update = { filters, value -> filters.copy(occupation = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Photo",
+            options = listOf("All", "Visible Photos", "Request Photo"),
+            value = { it.photo },
+            update = { filters, value -> filters.copy(photo = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Height",
+            options = listOf("All", "Below 5 ft", "5 ft - 5 ft 5 in", "5 ft 6 in - 6 ft", "Above 6 ft"),
+            value = { it.heightBand },
+            update = { filters, value -> filters.copy(heightBand = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Age",
+            options = listOf("All", "21-25", "26-30", "31-35", "36-40", "41+"),
+            value = { it.ageBand },
+            update = { filters, value -> filters.copy(ageBand = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Marital Status",
+            options = listOf("All", "Never Married", "Divorced", "Widowed"),
+            value = { it.maritalStatus },
+            update = { filters, value -> filters.copy(maritalStatus = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Horoscope",
+            options = listOf("All", "Available", "Not Available"),
+            value = { it.horoscope },
+            update = { filters, value -> filters.copy(horoscope = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Manglik",
+            options = listOf("All", "Manglik", "Non-Manglik"),
+            value = { it.manglik },
+            update = { filters, value -> filters.copy(manglik = value) }
+        ),
+        HomeFilterSectionSpec(
+            title = "Diet",
+            options = withAll(options.diets, listOf("Vegetarian", "Non vegetarian", "Eggetarian", "Vegan")),
+            value = { it.diet },
+            update = { filters, value -> filters.copy(diet = value) }
+        )
     )
 }
 
@@ -711,6 +947,11 @@ private fun ProfileStrengthCard(score: Int, detail: String, onClick: () -> Unit)
                 color = Color(0xFFB0004B),
                 trackColor = Color(0xFFE6E2DC)
             )
+            Text(
+                detail.ifBlank { "Complete profile and preference details to improve match quality." },
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary
+            )
             Button(
                 onClick = onClick,
                 modifier = Modifier
@@ -728,6 +969,7 @@ private fun ProfileStrengthCard(score: Int, detail: String, onClick: () -> Unit)
 private fun BestMatchInsertCard(
     slot: Int,
     adCards: List<HomeBestMatchAdData>,
+    scamCards: List<HomeScamAwarenessCardData>,
     showUpgrade: Boolean,
     showAds: Boolean,
     upgradeTitle: String,
@@ -738,7 +980,7 @@ private fun BestMatchInsertCard(
     onOpenAstrology: () -> Unit
 ) {
     val ad = adCards.getOrNull(slot % adCards.size.coerceAtLeast(1))
-    val preferUpgrade = showUpgrade && (slot % 2 == 0 || !showAds || ad == null)
+    val preferUpgrade = showUpgrade && (!showAds || ad == null)
     when {
         preferUpgrade -> HomeUpgradeInsertCard(
             title = upgradeTitle,
@@ -746,23 +988,292 @@ private fun BestMatchInsertCard(
             modifier = modifier,
             onOpenSubscription = onOpenSubscription
         )
-        showAds && ad != null -> HomeAdInsertCard(
-            ad = ad,
-            modifier = modifier,
-            onOpen = {
-                when (ad.destination.lowercase(Locale.getDefault())) {
-                    "membership", "subscription", "upgrade" -> onOpenSubscription()
-                    "astrology", "astrology_services" -> onOpenAstrology()
-                    else -> onOpenSearch()
-                }
+        showAds && ad != null -> {
+            when (ad.type.lowercase(Locale.getDefault())) {
+                "spotlight" -> HomeSpotlightInsertCard(ad = ad, modifier = modifier, onOpen = onOpenSubscription)
+                "safety", "scam", "fraud" -> HomeScamAwarenessInsertCard(
+                    ad = ad,
+                    cards = scamCards,
+                    modifier = modifier,
+                    onOpen = onOpenSearch
+                )
+                "upgrade", "membership", "subscription" -> HomeUpgradeBenefitsCard(
+                    ad = ad,
+                    modifier = modifier,
+                    onOpen = onOpenSubscription
+                )
+                else -> HomeAdInsertCard(
+                    ad = ad,
+                    modifier = modifier,
+                    onOpen = {
+                        when (ad.destination.lowercase(Locale.getDefault())) {
+                            "membership", "subscription", "upgrade" -> onOpenSubscription()
+                            "astrology", "astrology_services" -> onOpenAstrology()
+                            else -> onOpenSearch()
+                        }
+                    }
+                )
             }
-        )
+        }
         showUpgrade -> HomeUpgradeInsertCard(
             title = upgradeTitle,
             detail = upgradeDetail,
             modifier = modifier,
             onOpenSubscription = onOpenSubscription
         )
+    }
+}
+
+@Composable
+private fun HomeUpgradeBenefitsCard(
+    ad: HomeBestMatchAdData,
+    modifier: Modifier = Modifier,
+    onOpen: () -> Unit
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, Divider.copy(alpha = 0.58f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            val label = ad.discountLabel.ifBlank { ad.badge }
+            if (label.isNotBlank()) {
+                Surface(
+                    modifier = Modifier.align(Alignment.TopEnd),
+                    shape = RoundedCornerShape(bottomStart = 10.dp),
+                    color = Color(0xFF3495DD)
+                ) {
+                    Text(
+                        label.uppercase(Locale.getDefault()),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(26.dp),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Surface(
+                    modifier = Modifier.size(86.dp),
+                    shape = RoundedCornerShape(999.dp),
+                    color = Color(0xFFFFF2C1)
+                ) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Star, contentDescription = null, tint = Color(0xFFB8960C), modifier = Modifier.size(42.dp))
+                    }
+                }
+                Spacer(Modifier.height(26.dp))
+                Text(
+                    ad.title.ifBlank { "You are missing out on premium benefits" },
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontFamily = FontFamily.SansSerif,
+                        fontWeight = FontWeight.ExtraBold,
+                        lineHeight = 34.sp
+                    ),
+                    color = Color(0xFF304457)
+                )
+                Spacer(Modifier.height(20.dp))
+                val bullets = ad.bullets.ifEmpty {
+                    listOf("Get more matches daily", "View contact details", "Boost profile visibility")
+                }
+                bullets.take(4).forEach { item ->
+                    Row(
+                        modifier = Modifier.padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(modifier = Modifier.size(24.dp), shape = RoundedCornerShape(999.dp), color = Color(0xFFFFC02D)) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                            }
+                        }
+                        Text(item, style = MaterialTheme.typography.bodyLarge, color = Color(0xFF42566B))
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
+                Button(onClick = onOpen, shape = RoundedCornerShape(14.dp)) {
+                    Text(ad.cta.ifBlank { "Upgrade now" }, fontWeight = FontWeight.ExtraBold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeSpotlightInsertCard(
+    ad: HomeBestMatchAdData,
+    modifier: Modifier = Modifier,
+    onOpen: () -> Unit
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFAB48)),
+        border = BorderStroke(1.dp, Color(0xFFFF8B18)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(listOf(Color(0xFFFF8B1A), Color(0xFFFFF8EF)))
+                )
+                .padding(26.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Surface(modifier = Modifier.size(118.dp), shape = RoundedCornerShape(999.dp), color = Color(0xFF172534)) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Star, contentDescription = null, tint = Color.White, modifier = Modifier.size(54.dp))
+                }
+            }
+            Spacer(Modifier.height(38.dp))
+            Text(
+                ad.title.ifBlank { "Be the first profile others see for an entire day" },
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontFamily = FontFamily.SansSerif,
+                    fontWeight = FontWeight.ExtraBold,
+                    lineHeight = 31.sp
+                ),
+                color = Color(0xFF192637),
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(14.dp))
+            Text(
+                ad.body.ifBlank { "Appear on top of recommendations and increase your chances of getting more interests." },
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color(0xFF273849),
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(30.dp))
+            Button(
+                onClick = onOpen,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(ad.cta.ifBlank { "Get Spotlight" }, fontWeight = FontWeight.ExtraBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeScamAwarenessInsertCard(
+    ad: HomeBestMatchAdData,
+    cards: List<HomeScamAwarenessCardData>,
+    modifier: Modifier = Modifier,
+    onOpen: () -> Unit
+) {
+    val awarenessCards = cards.ifEmpty { com.soulmatch.app.data.models.defaultScamAwarenessCards() }
+    var selectedIndex by rememberSaveable(awarenessCards.size) { mutableStateOf(0) }
+    val active = awarenessCards[selectedIndex.coerceIn(0, awarenessCards.lastIndex)]
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF4D9)),
+        border = BorderStroke(1.dp, Color(0xFFF7E0AD)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    ad.badge.ifBlank { "Scam awareness" },
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Color(0xFF728091),
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    ad.title.ifBlank { "Protect yourself from online frauds" },
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontFamily = FontFamily.SansSerif,
+                        fontWeight = FontWeight.ExtraBold,
+                        lineHeight = 31.sp
+                    ),
+                    color = Color(0xFF304457)
+                )
+            }
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                shape = RoundedCornerShape(22.dp),
+                color = Color.White,
+                border = BorderStroke(1.dp, Divider.copy(alpha = 0.5f)),
+                shadowElevation = 3.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(132.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color(0xFFFFF1EF)
+                    ) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Filled.Verified, contentDescription = null, tint = HomePrimary, modifier = Modifier.size(54.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(18.dp))
+                    Text(
+                        active.title.ifBlank { "Stay alert before sending money" },
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color(0xFF304457),
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        active.body.ifBlank { "Verify every request through family and report suspicious activity." },
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color(0xFF42566B)
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                awarenessCards.forEachIndexed { index, _ ->
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp)
+                            .size(9.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(if (index == selectedIndex) Color(0xFF9AA6B2) else Color(0xFFE3E8ED))
+                            .clickable { selectedIndex = index }
+                    )
+                }
+            }
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpen),
+                color = Color.White.copy(alpha = 0.64f)
+            ) {
+                Text(
+                    "Visit our safety centre to learn how to stay safe",
+                    modifier = Modifier.padding(12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF5D6B7B),
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
     }
 }
 
@@ -1143,6 +1654,7 @@ private fun BestMatchesCarousel(
     onInterest: (String) -> Unit,
     onShortlist: (String) -> Unit,
     onIgnore: (String) -> Unit,
+    onRequestPhoto: (String) -> Unit,
     onChat: (String, String) -> Unit,
     onOpenSubscription: () -> Unit,
     onOpenSearch: () -> Unit,
@@ -1173,6 +1685,7 @@ private fun BestMatchesCarousel(
                     onInterest = { onInterest(slot.profile.profileId) },
                     onShortlist = { onShortlist(slot.profile.profileId) },
                     onIgnore = { onIgnore(slot.profile.profileId) },
+                    onRequestPhoto = { onRequestPhoto(slot.profile.profileId) },
                     onChat = {
                         if (slot.profile.userId.isNotBlank()) {
                             onChat(slot.profile.userId, slot.profile.name)
@@ -1183,6 +1696,7 @@ private fun BestMatchesCarousel(
                 BestMatchInsertCard(
                     slot = slot.insertSlot,
                     adCards = adCards,
+                    scamCards = content.scamAwarenessCards,
                     showUpgrade = showUpgrade,
                     showAds = showAds,
                     upgradeTitle = content.upgradeTitle,
@@ -1240,8 +1754,11 @@ private fun HomeMatchCard(
     onInterest: () -> Unit,
     onShortlist: () -> Unit,
     onIgnore: () -> Unit,
+    onRequestPhoto: () -> Unit,
     onChat: () -> Unit
 ) {
+    val photoIsPrivate = profile.isPhotoPrivate
+    val showActivity = !profile.hideLastSeen && profile.lastActiveLabel.isNotBlank()
     Card(
         modifier = modifier
             .aspectRatio(0.58f)
@@ -1251,12 +1768,19 @@ private fun HomeMatchCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            MemberPhoto(
-                photoUrl = profile.primaryPhoto,
-                contentDescription = "Photo of ${profile.name}",
-                modifier = Modifier.fillMaxSize(),
-                shape = RoundedCornerShape(26.dp)
-            )
+            if (photoIsPrivate) {
+                PrivatePhotoPlaceholder(
+                    name = profile.name,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                MemberPhoto(
+                    photoUrl = profile.primaryPhoto,
+                    contentDescription = "Photo of ${profile.name}",
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(26.dp)
+                )
+            }
             Box(
                 modifier = Modifier
                     .matchParentSize()
@@ -1270,37 +1794,41 @@ private fun HomeMatchCard(
                         )
                     )
             )
-            if (profile.isPhotoPrivate && profile.primaryPhoto.isNullOrBlank()) {
+            if (photoIsPrivate) {
                 Surface(
-                    modifier = Modifier.align(Alignment.Center),
-                    shape = RoundedCornerShape(999.dp),
-                    color = Color.White.copy(alpha = 0.86f),
-                    border = BorderStroke(1.dp, Divider.copy(alpha = 0.72f))
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .clickable(onClick = onRequestPhoto),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.White.copy(alpha = 0.08f),
+                    border = BorderStroke(1.3.dp, Color.White.copy(alpha = 0.88f))
                 ) {
                     Text(
                         "Request photo",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = PrimaryDark,
+                        modifier = Modifier.padding(horizontal = 28.dp, vertical = 12.dp),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.White,
                         fontWeight = FontWeight.ExtraBold
                     )
                 }
             }
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp),
-                shape = RoundedCornerShape(999.dp),
-                color = Color.Black.copy(alpha = 0.32f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.24f))
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            if (!photoIsPrivate) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp),
+                    shape = RoundedCornerShape(999.dp),
+                    color = Color.Black.copy(alpha = 0.32f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.24f))
                 ) {
-                    Icon(Icons.Filled.PhotoLibrary, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    Text("1", style = MaterialTheme.typography.labelLarge, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.PhotoLibrary, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Text("1", style = MaterialTheme.typography.labelLarge, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                    }
                 }
             }
             Column(
@@ -1310,14 +1838,16 @@ private fun HomeMatchCard(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text(
-                        profile.lastActiveLabel.ifBlank { "Recently Active" },
-                        style = MaterialTheme.typography.titleSmall,
-                        color = Color.White.copy(alpha = 0.9f),
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    if (showActivity) {
+                        Text(
+                            profile.lastActiveLabel,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             listOf(profile.name.removeSuffix("."), profile.age.takeIf { it > 0 }?.toString())
@@ -1420,6 +1950,36 @@ private fun HomeMatchCard(
 }
 
 @Composable
+private fun PrivatePhotoPlaceholder(
+    name: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(26.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFF15202B), Color(0xFF05080C))
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(210.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(Color.White.copy(alpha = 0.08f))
+        )
+        Text(
+            name.take(1).ifBlank { "S" },
+            style = MaterialTheme.typography.displayLarge.copy(fontFamily = FontFamily.Serif),
+            color = Color.White.copy(alpha = 0.11f),
+            fontWeight = FontWeight.Black
+        )
+    }
+}
+
+@Composable
 private fun MatchInfoRibbon(label: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -1497,8 +2057,7 @@ private fun educationOccupationLocation(profile: ProfileSummary): String {
 private fun List<ProfileSummary>.filterForHomeFeed(
     filter: HomeMatchFeedFilter?,
     viewerProfile: com.soulmatch.app.data.models.ProfileData,
-    advancedFilters: HomeAdvancedFilters,
-    viewedProfileIds: Set<String>
+    advancedFilters: HomeAdvancedFilters
 ): List<ProfileSummary> {
     val viewerCity = viewerProfile.workingCity
         .ifBlank { viewerProfile.familyCity }
@@ -1506,32 +2065,166 @@ private fun List<ProfileSummary>.filterForHomeFeed(
     return filter { profile ->
         val quickFilterMatch = when (filter) {
             null -> true
-            HomeMatchFeedFilter.Viewed -> profile.profileId in viewedProfileIds
-            HomeMatchFeedFilter.JustJoined -> {
-                val activity = profile.lastActiveLabel.lowercase(Locale.getDefault())
-                listOf("new", "joined", "today", "yesterday", "this week").any(activity::contains)
-            }
+            HomeMatchFeedFilter.Verified -> profile.isVerified
+            HomeMatchFeedFilter.JustJoined -> profile.joinedToday()
             HomeMatchFeedFilter.Nearby -> viewerCity.isNotBlank() &&
-                profile.location.contains(viewerCity, ignoreCase = true)
+                profile.matchesAnyText(viewerCity, profile.location, profile.familyCity)
         }
         quickFilterMatch &&
+            profile.matchesTypeFilter(advancedFilters.typeOfMatches, viewerCity) &&
+            profile.matchesTextFilter(advancedFilters.religion, profile.religion, profile.community) &&
+            profile.matchesOnlineStatus(advancedFilters.onlineStatus) &&
+            profile.matchesTextFilter(advancedFilters.familyBasedOutOf, profile.familyCity, profile.familyState) &&
+            profile.matchesProfilePostedBy(advancedFilters.profilePostedBy) &&
+            profile.matchesActivityFilter(advancedFilters.activityOnSite) &&
+            profile.matchesCountryFilter(advancedFilters.country) &&
+            profile.matchesTextFilter(advancedFilters.city, profile.location, profile.familyCity) &&
+            profile.matchesTextFilter(advancedFilters.income, profile.annualIncome) &&
+            profile.matchesTextFilter(advancedFilters.educationLevel, profile.education) &&
+            profile.matchesTextFilter(advancedFilters.employedIn, profile.occupation) &&
+            profile.matchesTextFilter(advancedFilters.occupation, profile.occupation) &&
+            profile.matchesPhotoFilter(advancedFilters.photo) &&
+            profile.matchesHeightBand(advancedFilters.heightBand) &&
             profile.matchesAgeBand(advancedFilters.ageBand) &&
+            profile.matchesTextFilter(advancedFilters.maritalStatus, profile.maritalStatus) &&
+            profile.matchesHoroscopeFilter(advancedFilters.horoscope) &&
+            profile.matchesManglikFilter(advancedFilters.manglik) &&
+            profile.matchesTextFilter(advancedFilters.diet, profile.diet) &&
             profile.compatibilityScore >= advancedFilters.minimumMatch &&
-            profile.trustScore >= advancedFilters.minimumTrust &&
-            (!advancedFilters.verifiedOnly || profile.isVerified) &&
-            (advancedFilters.educationLevel == "Any" || profile.education.contains(advancedFilters.educationLevel, ignoreCase = true)) &&
-            (advancedFilters.managedBy == "Any" || profileOwnerLabel(profile.profileCreatedBy).equals(advancedFilters.managedBy, ignoreCase = true))
+            profile.trustScore >= advancedFilters.minimumTrust
     }
 }
 
 private fun ProfileSummary.matchesAgeBand(ageBand: String): Boolean {
-    if (ageBand == "Any" || age <= 0) return true
+    if (ageBand == "All" || age <= 0) return true
     return when (ageBand) {
-        "21-30" -> age in 21..30
-        "31-40" -> age in 31..40
+        "21-25" -> age in 21..25
+        "26-30" -> age in 26..30
+        "31-35" -> age in 31..35
+        "36-40" -> age in 36..40
         "41+" -> age >= 41
         else -> true
     }
+}
+
+private fun buildHomeFilterOptions(profiles: List<ProfileSummary>): HomeFilterOptions {
+    fun unique(values: List<String>): List<String> = values
+        .flatMap { it.split(",", "|", "/", "·") }
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinctBy { it.lowercase(Locale.getDefault()) }
+        .sorted()
+    return HomeFilterOptions(
+        religions = unique(profiles.map { it.religion.ifBlank { it.community } }),
+        familyBases = unique(profiles.flatMap { listOf(it.familyCity, it.familyState) }),
+        cities = unique(profiles.flatMap { listOf(it.location, it.familyCity) }),
+        incomes = unique(profiles.map { it.annualIncome }),
+        educationLevels = unique(profiles.map { it.education }),
+        occupations = unique(profiles.map { it.occupation }),
+        diets = unique(profiles.map { it.diet })
+    )
+}
+
+private fun ProfileSummary.matchesTypeFilter(type: String, viewerCity: String): Boolean {
+    return when (type) {
+        "Verified" -> isVerified
+        "Just Joined" -> joinedToday()
+        "Nearby" -> viewerCity.isNotBlank() && matchesAnyText(viewerCity, location, familyCity)
+        else -> true
+    }
+}
+
+private fun ProfileSummary.matchesOnlineStatus(status: String): Boolean {
+    if (status == "All" || hideLastSeen) return true
+    val label = lastActiveLabel.lowercase(Locale.getDefault())
+    return when (status) {
+        "Online" -> label.contains("online") || label == "active"
+        "Recently Active" -> label.contains("recent") || label.contains("today") || label.contains("week") || label == "active"
+        "Inactive" -> label.contains("inactive") || label.contains("month") || label.contains("ago")
+        else -> true
+    }
+}
+
+private fun ProfileSummary.matchesActivityFilter(activity: String): Boolean {
+    if (activity == "All") return true
+    val label = listOf(lastActiveLabel, createdAt).joinToString(" ").lowercase(Locale.getDefault())
+    return when (activity) {
+        "Today" -> joinedToday() || label.contains("today") || label.contains("active")
+        "This Week" -> joinedToday() || label.contains("week") || label.contains("today") || label.contains("recent")
+        "This Month" -> label.contains("month") || label.contains("week") || label.contains("today") || label.contains("recent")
+        else -> true
+    }
+}
+
+private fun ProfileSummary.matchesCountryFilter(country: String): Boolean {
+    return when (country) {
+        "All" -> true
+        "India" -> true
+        "Abroad" -> location.contains("abroad", ignoreCase = true) || familyState.contains("abroad", ignoreCase = true)
+        else -> true
+    }
+}
+
+private fun ProfileSummary.matchesProfilePostedBy(value: String): Boolean {
+    if (value == "All") return true
+    return profileOwnerLabel(profileCreatedBy).equals(value, ignoreCase = true) ||
+        profileCreatedBy.equals(value, ignoreCase = true)
+}
+
+private fun ProfileSummary.matchesPhotoFilter(value: String): Boolean {
+    return when (value) {
+        "Visible Photos" -> !isPhotoPrivate && !primaryPhoto.isNullOrBlank()
+        "Request Photo" -> isPhotoPrivate
+        else -> true
+    }
+}
+
+private fun ProfileSummary.matchesHeightBand(heightBand: String): Boolean {
+    val cm = heightCm ?: return heightBand == "All"
+    val inches = (cm / 2.54).toInt()
+    return when (heightBand) {
+        "Below 5 ft" -> inches < 60
+        "5 ft - 5 ft 5 in" -> inches in 60..65
+        "5 ft 6 in - 6 ft" -> inches in 66..72
+        "Above 6 ft" -> inches > 72
+        else -> true
+    }
+}
+
+private fun ProfileSummary.matchesHoroscopeFilter(value: String): Boolean {
+    return when (value) {
+        "Available" -> isManglik || matchReasons.any { it.contains("horoscope", ignoreCase = true) }
+        "Not Available" -> !isManglik && matchReasons.none { it.contains("horoscope", ignoreCase = true) }
+        else -> true
+    }
+}
+
+private fun ProfileSummary.matchesManglikFilter(value: String): Boolean {
+    return when (value) {
+        "Manglik" -> isManglik
+        "Non-Manglik" -> !isManglik
+        else -> true
+    }
+}
+
+private fun ProfileSummary.matchesTextFilter(selected: String, vararg fields: String): Boolean {
+    if (selected == "All") return true
+    return matchesAnyText(selected, *fields)
+}
+
+private fun ProfileSummary.matchesAnyText(needle: String, vararg fields: String): Boolean {
+    val query = needle.trim()
+    if (query.isBlank()) return true
+    return fields.any { it.contains(query, ignoreCase = true) }
+}
+
+private fun ProfileSummary.joinedToday(): Boolean {
+    val value = createdAt.ifBlank { lastActiveLabel }.lowercase(Locale.getDefault())
+    val todayPrefix = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(java.util.Date())
+    return value.contains("today") ||
+        value.startsWith(todayPrefix) ||
+        lastActiveLabel.contains("just joined", ignoreCase = true) ||
+        lastActiveLabel.contains("new today", ignoreCase = true)
 }
 
 @Composable

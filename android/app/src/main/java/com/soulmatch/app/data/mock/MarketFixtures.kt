@@ -354,6 +354,14 @@ object MarketFixtures {
             isVerified = true,
             education = "Graduate",
             community = "Hindu, Vaishya",
+            religion = "Hindu",
+            annualIncome = "10-20 Lpa",
+            familyCity = "Mumbai",
+            familyState = "Maharashtra",
+            maritalStatus = "never_married",
+            diet = "vegetarian",
+            isManglik = false,
+            createdAt = "2026-05-13T07:30:00Z",
             matchReasons = listOf("Family values align", "Vegetarian", "Similar lifestyle")
         ),
         ProfileSummary(
@@ -371,6 +379,15 @@ object MarketFixtures {
             isPhotoPrivate = true,
             education = "Post Graduate",
             community = "Hindu, Iyer",
+            religion = "Hindu",
+            annualIncome = "20+ Lpa",
+            familyCity = "Chennai",
+            familyState = "Tamil Nadu",
+            maritalStatus = "never_married",
+            diet = "vegetarian",
+            isManglik = true,
+            createdAt = "2026-05-12T09:15:00Z",
+            hideLastSeen = true,
             matchReasons = listOf("Career fit", "City flexibility", "Profile complete")
         ),
         ProfileSummary(
@@ -387,6 +404,13 @@ object MarketFixtures {
             isVerified = true,
             education = "MBA",
             community = "Hindu, Gujarati",
+            religion = "Hindu",
+            annualIncome = "10-20 Lpa",
+            familyCity = "Ahmedabad",
+            familyState = "Gujarat",
+            maritalStatus = "never_married",
+            diet = "vegetarian",
+            createdAt = "2026-05-10T11:20:00Z",
             matchReasons = listOf("Entrepreneurial mindset", "Strong family roots")
         ),
         ProfileSummary(
@@ -402,6 +426,13 @@ object MarketFixtures {
             heightCm = 169,
             education = "Graduate",
             community = "Hindu, Reddy",
+            religion = "Hindu",
+            annualIncome = "5-10 Lpa",
+            familyCity = "Hyderabad",
+            familyState = "Telangana",
+            maritalStatus = "never_married",
+            diet = "vegetarian",
+            createdAt = "2026-05-08T14:00:00Z",
             matchReasons = listOf("Age preference", "Creative profession", "Recent activity")
         )
     )
@@ -785,6 +816,15 @@ object MarketFixtures {
             isPhotoPrivate = profile.photoPrivacy == "matches_only",
             education = profile.educationLevel,
             community = "${profile.religion}, ${profile.caste}",
+            religion = profile.religion,
+            annualIncome = profile.annualIncome,
+            familyCity = profile.familyCity,
+            familyState = profile.familyState,
+            maritalStatus = profile.maritalStatus,
+            diet = profile.diet,
+            isManglik = profile.isManglik,
+            createdAt = profile.updatedAt.orEmpty(),
+            hideLastSeen = profile.hideLastSeen,
             lastActiveLabel = when (index % 5) {
                 0 -> "Active today"
                 1 -> "Active this week"

@@ -13,6 +13,7 @@ import com.soulmatch.app.data.mock.MarketFixtures
 import com.soulmatch.app.data.models.InterestRequest
 import com.soulmatch.app.data.models.InterestListItem
 import com.soulmatch.app.data.models.PartnerPreferencesData
+import com.soulmatch.app.data.models.PhotoAccessRequestBody
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.ProfileSummary
 import com.soulmatch.app.data.models.RespondRequest
@@ -190,6 +191,18 @@ class DashboardViewModel @Inject constructor(
     fun markProfileViewed(profileId: String) {
         ProfileInteractionStore.markViewed(profileId)
         _matches.value = loadedMatches.applyLocalInteractionState().filterVisibleProfiles()
+    }
+
+    fun requestPhotoAccess(profileId: String) {
+        if (profileId.isBlank()) return
+        viewModelScope.launch {
+            val response = runCatching {
+                profileApi.requestPhotoAccess(profileId, PhotoAccessRequestBody("I would like to view your profile photo."))
+            }.getOrNull()
+            if (response?.isSuccessful == true && response.body()?.success == true) {
+                _headline.value = "Photo request sent"
+            }
+        }
     }
 
     fun blockProfile(profileId: String) {
