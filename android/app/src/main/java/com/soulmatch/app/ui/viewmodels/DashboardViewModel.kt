@@ -83,6 +83,7 @@ class DashboardViewModel @Inject constructor(
                 ?.takeIf { response.isSuccessful && it.success }
                 ?.data
             _myProfile.value = profile ?: if (canUseFallback) MarketFixtures.myProfile else ProfileData()
+            _matches.value = loadedMatches.applyLocalInteractionState().filterVisibleProfiles()
             val assistResponse = runCatching { profileApi.getAssistStatus() }.getOrNull()
             _assistEnabled.value = assistResponse
                 ?.body()
@@ -271,6 +272,14 @@ class DashboardViewModel @Inject constructor(
     private fun List<ProfileSummary>.filterVisibleProfiles(): List<ProfileSummary> {
         val interactions = ProfileInteractionStore.state.value
         return filterNot { it.profileId in interactions.hiddenProfileIds || it.profileId in interactions.blockedProfileIds }
+            .filterForViewerGender()
+    }
+
+    private fun List<ProfileSummary>.filterForViewerGender(): List<ProfileSummary> {
+        val targetGender = oppositeGender(_myProfile.value.gender) ?: return this
+        return filter { profile ->
+            profile.gender.isBlank() || profile.gender.equals(targetGender, ignoreCase = true)
+        }
     }
 
     private fun List<ProfileSummary>.applyLocalInteractionState(): List<ProfileSummary> {

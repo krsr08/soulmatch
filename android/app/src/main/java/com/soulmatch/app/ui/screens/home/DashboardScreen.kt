@@ -28,13 +28,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -128,6 +134,12 @@ private data class HomeAdPalette(
     val body: Color
 )
 
+private enum class HomeMatchFeedFilter(val label: String) {
+    Verified("Verified"),
+    JustJoined("Just Joined"),
+    Nearby("Nearby")
+}
+
 @Composable
 fun DashboardScreen(
     content: HomeContentData = HomeContentData(),
@@ -185,20 +197,17 @@ fun DashboardScreen(
         compareByDescending<ProfileSummary> { it.compatibilityScore }
             .thenBy { it.name }
     )
+    var selectedFeedFilter by rememberSaveable { mutableStateOf<HomeMatchFeedFilter?>(null) }
+    val filteredRankedMatches = rankedMatches.filterForHomeFeed(selectedFeedFilter, myProfile)
     val bestMatchProfileTarget = content.bestMatchMinimumProfiles.coerceAtLeast(5)
     val highCompatibilityThreshold = content.bestMatchHighCompatibilityThreshold
         .takeIf { it > 0 }
         ?.coerceIn(70, 95)
         ?: 80
-    val highCompatibilityCount = rankedMatches.count { it.compatibilityScore >= highCompatibilityThreshold }
+    val highCompatibilityCount = filteredRankedMatches.count { it.compatibilityScore >= highCompatibilityThreshold }
     val bestMatchProfileCount = maxOf(bestMatchProfileTarget, highCompatibilityCount)
-        .coerceAtMost(rankedMatches.size)
-    val bestMatches = rankedMatches.take(bestMatchProfileCount)
-    val bestMatchIds = bestMatches.map { it.profileId }.toSet()
-    val newProfiles = rankedMatches
-        .filterNot { it.profileId in bestMatchIds }
-        .take(8)
-        .ifEmpty { rankedMatches.take(6) }
+        .coerceAtMost(filteredRankedMatches.size)
+    val bestMatches = filteredRankedMatches.take(bestMatchProfileCount)
     val canShowUpgradeInsert = content.showBestMatchInsertCards &&
         content.showBestMatchUpgradeCards &&
         shouldShowHomeUpgrade(subscription, packageGroups)
@@ -220,9 +229,12 @@ fun DashboardScreen(
         Scaffold(
             topBar = {
                 HomeTopBar(
+                    profile = myProfile,
                     unreadCount = notificationBadgeCount,
                     onOpenProfile = { scope.launch { drawerState.open() } },
-                    onOpenNotifications = onOpenNotifications
+                    onOpenNotifications = onOpenNotifications,
+                    onOpenSearch = onOpenSearch,
+                    onOpenPartnerPreferences = onOpenPartnerPreferences
                 )
             },
             containerColor = HomeBackground
@@ -243,7 +255,15 @@ fun DashboardScreen(
                         contentPadding = PaddingValues(bottom = 24.dp)
                     ) {
                         item {
-                            WelcomeSection(firstName = myProfile.firstName.ifBlank { "Member" })
+                            HomeMatchFilterStrip(
+                                selected = selectedFeedFilter,
+                                onOpenFilters = onOpenSearch,
+                                onSelected = { filter ->
+                                    val nextFilter = if (selectedFeedFilter == filter) null else filter
+                                    selectedFeedFilter = nextFilter
+                                    vm.setVerifiedOnlyMode(nextFilter == HomeMatchFeedFilter.Verified)
+                                }
+                            )
                         }
                         if (profileStrengthScore < 100) {
                             item {
@@ -254,31 +274,21 @@ fun DashboardScreen(
                                 )
                             }
                         }
-                        if (myProfile.profileId.isNotBlank()) {
-                            item {
-                                PartnerPreferenceReminderBanner(
-                                    isConfigured = myProfile.isPartnerPrefSet,
-                                    onOpen = onOpenPartnerPreferences
-                                )
-                            }
-                        }
-                        item {
-                            HomeSectionHeader(
-                                title = content.bestMatchesTitle.ifBlank { "Best Matches" }.let {
-                                    if (it.equals("Best matches", ignoreCase = true)) "Best Matches" else it
-                                },
-                                modifier = Modifier.padding(top = 8.dp),
-                                actionText = "View All (${bestMatches.size})",
-                                onAction = onOpenBestMatches
-                            )
-                        }
                         if (bestMatches.isEmpty()) {
                             item {
                                 EmptyHomeCard(
-                                    title = content.emptyTitle.ifBlank { "Your profile needs a little more detail" },
-                                    body = content.emptyBody.ifBlank { "Complete family, lifestyle, and preference details to unlock stronger recommendations." },
-                                    action = content.emptyCta.ifBlank { "Improve my profile" },
-                                    onAction = onOpenProfile
+                                    title = if (selectedFeedFilter == null) {
+                                        content.emptyTitle.ifBlank { "Your profile needs a little more detail" }
+                                    } else {
+                                        "No ${selectedFeedFilter?.label.orEmpty().lowercase(Locale.getDefault())} matches yet"
+                                    },
+                                    body = if (selectedFeedFilter == null) {
+                                        content.emptyBody.ifBlank { "Complete family, lifestyle, and preference details to unlock stronger recommendations." }
+                                    } else {
+                                        "Try another filter or open the full search to continue browsing compatible profiles."
+                                    },
+                                    action = if (selectedFeedFilter == null) content.emptyCta.ifBlank { "Improve my profile" } else "Open filters",
+                                    onAction = if (selectedFeedFilter == null) onOpenProfile else onOpenSearch
                                 )
                             }
                         } else {
@@ -293,45 +303,10 @@ fun DashboardScreen(
                                     onInterest = { vm.sendInterest(it) },
                                     onShortlist = { vm.toggleShortlist(it) },
                                     onIgnore = { vm.hideProfile(it) },
+                                    onChat = { profileId, name -> onOpenChat(profileId, name) },
                                     onOpenSubscription = onOpenSubscription,
                                     onOpenSearch = onOpenSearch,
                                     onOpenAstrology = { onProfileMenuDestination("astrology_services") }
-                                )
-                            }
-                        }
-                        item {
-                            HomeSectionHeader(
-                                title = "New Profiles",
-                                modifier = Modifier.padding(top = 24.dp),
-                                actionText = "View All (${newProfiles.size})",
-                                onAction = onOpenSearch
-                            )
-                        }
-                        item {
-                            NewProfilesCarousel(
-                                profiles = newProfiles,
-                                onOpenProfile = onViewProfile
-                            )
-                        }
-                        item {
-                            HomeSectionHeader(
-                                title = "Interests Received",
-                                modifier = Modifier.padding(top = 24.dp),
-                                actionText = if (pendingInvitations.isEmpty()) null else "View All (${pendingInvitations.size})",
-                                onAction = if (pendingInvitations.isEmpty()) null else onOpenInterests
-                            )
-                        }
-                        if (pendingInvitations.isEmpty()) {
-                            item {
-                                NoPendingInvitationsCard(onBrowse = onOpenSearch)
-                            }
-                        } else {
-                            item {
-                                PendingInvitationsCarousel(
-                                    invitations = pendingInvitations,
-                                    onViewProfile = onViewProfile,
-                                    onAccept = { vm.respondToInvitation(it, "accepted") },
-                                    onDecline = { vm.respondToInvitation(it, "declined") }
                                 )
                             }
                         }
@@ -353,9 +328,12 @@ fun DashboardScreen(
 
 @Composable
 private fun HomeTopBar(
+    profile: com.soulmatch.app.data.models.ProfileData,
     unreadCount: Int,
     onOpenProfile: () -> Unit,
-    onOpenNotifications: () -> Unit
+    onOpenNotifications: () -> Unit,
+    onOpenSearch: () -> Unit,
+    onOpenPartnerPreferences: () -> Unit
 ) {
     Surface(
         color = Color(0xFFFFFCFA),
@@ -365,55 +343,185 @@ private fun HomeTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = 14.dp),
+                .height(88.dp)
+                .padding(horizontal = 18.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                IconButton(onClick = onOpenProfile, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Filled.Menu, contentDescription = "Open menu", tint = Color(0xFF1E1B18))
-                }
-                Text(
-                    "SoulMatch",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontFamily = FontFamily.Serif,
-                        fontStyle = FontStyle.Italic,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = Color(0xFF9B0044)
-                )
-            }
-            IconButton(onClick = onOpenNotifications) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
                 Box(
-                    modifier = Modifier.size(30.dp),
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier
+                        .size(58.dp)
+                        .clickable(onClick = onOpenProfile)
                 ) {
-                    Icon(Icons.Filled.Notifications, contentDescription = "Notifications", tint = Color(0xFF1E1B18))
-                    if (unreadCount > 0) {
-                        val badgeText = if (unreadCount > 99) "99+" else unreadCount.toString()
-                        Surface(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .defaultMinSize(minWidth = 14.dp)
-                                .height(14.dp),
-                            shape = RoundedCornerShape(999.dp),
-                            color = Color(0xFF9B0044),
-                            border = BorderStroke(1.dp, HomeBackground)
-                        ) {
-                            Text(
-                                badgeText,
-                                modifier = Modifier.padding(horizontal = 3.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White,
-                                fontWeight = FontWeight.ExtraBold,
-                                textAlign = TextAlign.Center,
-                                maxLines = 1
-                            )
+                    MemberPhoto(
+                        photoUrl = profile.primaryPhotoUrl,
+                        contentDescription = "Open profile menu",
+                        modifier = Modifier.fillMaxSize(),
+                        shape = RoundedCornerShape(999.dp)
+                    )
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(26.dp),
+                        shape = RoundedCornerShape(999.dp),
+                        color = Color(0xFFFFFCFA),
+                        shadowElevation = 1.dp,
+                        border = BorderStroke(1.dp, Divider.copy(alpha = 0.65f))
+                    ) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Filled.Menu, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        "My matches",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontFamily = FontFamily.SansSerif,
+                            fontWeight = FontWeight.ExtraBold,
+                            lineHeight = 29.sp
+                        ),
+                        color = Color(0xFF243244),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Row(
+                        modifier = Modifier.clickable(onClick = onOpenPartnerPreferences),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Text(
+                            "as per ",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color(0xFF667386)
+                        )
+                        Text(
+                            "partner preferences",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = HomePrimary,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Icon(Icons.Filled.Edit, contentDescription = "Edit partner preferences", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                    }
+                }
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onOpenNotifications) {
+                    Box(
+                        modifier = Modifier.size(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Filled.Notifications, contentDescription = "Notifications", tint = Color(0xFF748091))
+                        if (unreadCount > 0) {
+                            val badgeText = if (unreadCount > 99) "99+" else unreadCount.toString()
+                            Surface(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .defaultMinSize(minWidth = 14.dp)
+                                    .height(14.dp),
+                                shape = RoundedCornerShape(999.dp),
+                                color = Color(0xFF9B0044),
+                                border = BorderStroke(1.dp, HomeBackground)
+                            ) {
+                                Text(
+                                    badgeText,
+                                    modifier = Modifier.padding(horizontal = 3.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+                IconButton(onClick = onOpenSearch) {
+                    Icon(Icons.Filled.Search, contentDescription = "Search matches", tint = Color(0xFF748091), modifier = Modifier.size(31.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeMatchFilterStrip(
+    selected: HomeMatchFeedFilter?,
+    onOpenFilters: () -> Unit,
+    onSelected: (HomeMatchFeedFilter) -> Unit
+) {
+    Surface(
+        color = Color(0xFFFFFCFA),
+        border = BorderStroke(1.dp, Divider.copy(alpha = 0.55f))
+    ) {
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 14.dp),
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            item {
+                HomeFilterPill(
+                    label = "Filters",
+                    selected = false,
+                    leadingIcon = { Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                    onClick = onOpenFilters
+                )
+            }
+            items(HomeMatchFeedFilter.entries, key = { it.name }) { filter ->
+                HomeFilterPill(
+                    label = filter.label,
+                    selected = selected == filter,
+                    onClick = { onSelected(filter) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeFilterPill(
+    label: String,
+    selected: Boolean,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    onClick: () -> Unit
+) {
+    val borderColor = if (selected) HomePrimary else Color(0xFFA9B0BA)
+    val contentColor = if (selected) HomePrimary else Color(0xFF303947)
+    Surface(
+        modifier = Modifier
+            .height(44.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(999.dp),
+        color = if (selected) Color(0xFFFFEDF1) else Color.White,
+        border = BorderStroke(1.4.dp, borderColor.copy(alpha = if (selected) 0.88f else 0.72f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (leadingIcon != null) {
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides contentColor) {
+                    leadingIcon()
+                }
+            }
+            Text(
+                label,
+                style = MaterialTheme.typography.titleMedium,
+                color = contentColor,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
+            )
         }
     }
 }
@@ -903,6 +1011,7 @@ private fun BestMatchesCarousel(
     onInterest: (String) -> Unit,
     onShortlist: (String) -> Unit,
     onIgnore: (String) -> Unit,
+    onChat: (String, String) -> Unit,
     onOpenSubscription: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenAstrology: () -> Unit
@@ -928,7 +1037,8 @@ private fun BestMatchesCarousel(
                     onOpen = { onViewProfile(slot.profile.profileId) },
                     onInterest = { onInterest(slot.profile.profileId) },
                     onShortlist = { onShortlist(slot.profile.profileId) },
-                    onIgnore = { onIgnore(slot.profile.profileId) }
+                    onIgnore = { onIgnore(slot.profile.profileId) },
+                    onChat = { onChat(slot.profile.profileId, slot.profile.name) }
                 )
             } else {
                 BestMatchInsertCard(
@@ -991,13 +1101,14 @@ private fun HomeMatchCard(
     onOpen: () -> Unit,
     onInterest: () -> Unit,
     onShortlist: () -> Unit,
-    onIgnore: () -> Unit
+    onIgnore: () -> Unit,
+    onChat: () -> Unit
 ) {
     Card(
         modifier = modifier
-            .aspectRatio(4f / 5f)
+            .aspectRatio(0.58f)
             .clickable(onClick = onOpen),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
@@ -1006,7 +1117,7 @@ private fun HomeMatchCard(
                 photoUrl = profile.primaryPhoto,
                 contentDescription = "Photo of ${profile.name}",
                 modifier = Modifier.fillMaxSize(),
-                shape = RoundedCornerShape(24.dp)
+                shape = RoundedCornerShape(26.dp)
             )
             Box(
                 modifier = Modifier
@@ -1037,130 +1148,188 @@ private fun HomeMatchCard(
                     )
                 }
             }
-            Column(
+            Surface(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(999.dp),
+                color = Color.Black.copy(alpha = 0.32f),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.24f))
             ) {
-                RoundImageAction(
-                    selected = profile.interestSent,
-                    selectedContentDescription = "Interest sent",
-                    unselectedContentDescription = "Send interest",
-                    onClick = onInterest
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = if (profile.interestSent) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                RoundImageAction(
-                    selected = profile.shortlisted,
-                    selectedContentDescription = "Shortlisted",
-                    unselectedContentDescription = "Save profile",
-                    onClick = onShortlist
-                ) {
-                    Icon(
-                        imageVector = if (profile.shortlisted) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                RoundImageAction(
-                    selected = false,
-                    selectedContentDescription = "Profile hidden",
-                    unselectedContentDescription = "Ignore profile",
-                    onClick = onIgnore
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
+                    Icon(Icons.Filled.PhotoLibrary, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Text("1", style = MaterialTheme.typography.labelLarge, color = Color.White, fontWeight = FontWeight.ExtraBold)
                 }
             }
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(start = 18.dp, end = 18.dp, bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(
+                        profile.lastActiveLabel.ifBlank { "Recently active" },
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            profile.name.removeSuffix("."),
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontFamily = FontFamily.Serif,
-                                fontWeight = FontWeight.Bold
+                            listOf(profile.name.removeSuffix("."), profile.age.takeIf { it > 0 }?.toString())
+                                .filterNotNull()
+                                .joinToString(", "),
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontFamily = FontFamily.SansSerif,
+                                fontWeight = FontWeight.ExtraBold,
+                                lineHeight = 30.sp
                             ),
                             color = Color.White,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         if (profile.isVerified) {
-                            Spacer(Modifier.width(6.dp))
-                            Icon(Icons.Filled.Verified, contentDescription = "Verified", tint = Color.White, modifier = Modifier.size(17.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Icon(Icons.Filled.Verified, contentDescription = "Verified", tint = Color(0xFF3CA3FF), modifier = Modifier.size(27.dp))
                         }
                     }
                     Text(
-                        listOf(profile.heightCm?.let(::formatHeightLabel), profile.age.takeIf { it > 0 }?.let { "$it yrs" })
+                        listOf(profile.heightCm?.let(::formatHeightLabel), profile.location, profile.community)
                             .filterNotNull()
-                            .joinToString(" | ")
-                            .ifBlank { "Height and age in progress" },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.86f),
+                            .filter { it.isNotBlank() }
+                            .joinToString(" · ")
+                            .ifBlank { "Height, location, and community in progress" },
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White.copy(alpha = 0.94f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        educationOccupationLocation(profile),
-                        style = MaterialTheme.typography.labelMedium,
+                        listOf(profile.occupation, profile.education)
+                            .filter { it.isNotBlank() }
+                            .joinToString(" · ")
+                            .ifBlank { "Education and profession in progress" },
+                        style = MaterialTheme.typography.titleSmall,
                         color = Color.White.copy(alpha = 0.92f),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Surface(
-                        modifier = Modifier.size(32.dp),
-                        shape = RoundedCornerShape(999.dp),
-                        color = Color(0xFFB0004B),
-                        border = BorderStroke(2.dp, Color.White)
+                MatchInfoRibbon("Profile managed by ${profileOwnerLabel(profile.profileCreatedBy)}")
+                MatchInfoRibbon("${profile.compatibilityScore.coerceIn(0, 99)}% match compatibility")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MatchCardAction(
+                        label = if (profile.interestSent) "Sent" else "Interest",
+                        selected = profile.interestSent,
+                        selectedContentDescription = "Interest sent",
+                        unselectedContentDescription = "Send interest",
+                        onClick = onInterest
                     ) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(
-                                "${profile.compatibilityScore.coerceIn(0, 99)}%",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                        }
+                        Icon(Icons.Filled.Send, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
                     }
-                    Text(
-                        "${profile.compatibilityScore.coerceIn(0, 99)}% match compatibility",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.White.copy(alpha = 0.92f),
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    MatchCardAction(
+                        label = "Shortlist",
+                        selected = profile.shortlisted,
+                        selectedContentDescription = "Shortlisted",
+                        unselectedContentDescription = "Shortlist profile",
+                        onClick = onShortlist
+                    ) {
+                        Icon(
+                            imageVector = if (profile.shortlisted) Icons.Filled.Star else Icons.Outlined.BookmarkBorder,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                    MatchCardAction(
+                        label = "Ignore",
+                        selected = false,
+                        selectedContentDescription = "Profile hidden",
+                        unselectedContentDescription = "Ignore profile",
+                        onClick = onIgnore
+                    ) {
+                        Icon(Icons.Filled.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(30.dp))
+                    }
+                    MatchCardAction(
+                        label = "Chat",
+                        selected = false,
+                        selectedContentDescription = "Open chat",
+                        unselectedContentDescription = "Open chat",
+                        onClick = onChat
+                    ) {
+                        Icon(Icons.Filled.Chat, contentDescription = null, tint = Color.White, modifier = Modifier.size(27.dp))
+                    }
                 }
-                Text(
-                    profile.lastActiveLabel.ifBlank { "Recently active" },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.82f),
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    "Profile created by ${profileOwnerLabel(profile.profileCreatedBy)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.92f),
-                    fontWeight = FontWeight.SemiBold
-                )
             }
         }
+    }
+}
+
+@Composable
+private fun MatchInfoRibbon(label: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color.Black.copy(alpha = 0.28f),
+        shape = RoundedCornerShape(0.dp)
+    ) {
+        Text(
+            label,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+            style = MaterialTheme.typography.titleSmall.copy(fontStyle = FontStyle.Italic),
+            color = Color.White.copy(alpha = 0.92f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun MatchCardAction(
+    label: String,
+    selected: Boolean,
+    selectedContentDescription: String,
+    unselectedContentDescription: String,
+    onClick: () -> Unit,
+    icon: @Composable () -> Unit
+) {
+    Column(
+        modifier = Modifier.width(72.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Surface(
+            modifier = Modifier
+                .size(58.dp)
+                .semantics {
+                    contentDescription = if (selected) selectedContentDescription else unselectedContentDescription
+                }
+                .clickable(onClick = onClick),
+            shape = RoundedCornerShape(999.dp),
+            color = if (selected) HomePrimary else Color(0xFF4A4042).copy(alpha = 0.78f),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f))
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                icon()
+            }
+        }
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            color = Color.White,
+            fontWeight = FontWeight.ExtraBold,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
     }
 }
 
@@ -1179,6 +1348,27 @@ private fun educationOccupationLocation(profile: ProfileSummary): String {
         .filter { it.isNotBlank() }
         .joinToString(" | ")
         .ifBlank { "Education, occupation, and location in progress" }
+}
+
+private fun List<ProfileSummary>.filterForHomeFeed(
+    filter: HomeMatchFeedFilter?,
+    viewerProfile: com.soulmatch.app.data.models.ProfileData
+): List<ProfileSummary> {
+    if (filter == null) return this
+    val viewerCity = viewerProfile.workingCity
+        .ifBlank { viewerProfile.familyCity }
+        .trim()
+    return filter { profile ->
+        when (filter) {
+            HomeMatchFeedFilter.Verified -> profile.isVerified
+            HomeMatchFeedFilter.JustJoined -> {
+                val activity = profile.lastActiveLabel.lowercase(Locale.getDefault())
+                listOf("new", "joined", "today", "yesterday", "this week").any(activity::contains)
+            }
+            HomeMatchFeedFilter.Nearby -> viewerCity.isNotBlank() &&
+                profile.location.contains(viewerCity, ignoreCase = true)
+        }
+    }
 }
 
 @Composable

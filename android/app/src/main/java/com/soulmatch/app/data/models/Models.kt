@@ -568,6 +568,7 @@ data class ProfileSummary(
     @SerializedName("userId") val userId: String = "",
     val name: String = "",
     val age: Int = 0,
+    val gender: String = "",
     val location: String = "",
     val occupation: String = "",
     @SerializedName("primaryPhoto") val primaryPhoto: String? = null,
@@ -629,7 +630,9 @@ data class SearchProfileItem(
     @SerializedName("first_name") val firstName: String = "",
     @SerializedName("last_name") val lastName: String = "",
     val age: Int = 0,
+    val gender: String = "",
     val religion: String = "",
+    val caste: String = "",
     @SerializedName("primary_photo_url") val primaryPhotoUrl: String? = null,
     val occupation: String = "",
     @SerializedName("working_city") val workingCity: String = "",
@@ -1147,6 +1150,7 @@ fun SearchProfileItem.toProfileSummary(seed: ProfileSummary? = null): ProfileSum
         userId = if (safeString(userId).isNotBlank()) safeString(userId) else seed?.userId.orEmpty(),
         name = resolvedName,
         age = if (age > 0) age else seed?.age ?: 0,
+        gender = if (safeString(gender).isNotBlank()) safeString(gender) else seed?.gender.orEmpty(),
         location = if (safeString(workingCity).isNotBlank()) safeString(workingCity) else seed?.location.orEmpty(),
         occupation = if (safeString(occupation).isNotBlank()) safeString(occupation) else seed?.occupation.orEmpty(),
         primaryPhoto = primaryPhotoUrl ?: seed?.primaryPhoto,
@@ -1160,7 +1164,11 @@ fun SearchProfileItem.toProfileSummary(seed: ProfileSummary? = null): ProfileSum
         trustSignals = if (trustSignals.isNotEmpty()) trustSignals else seed?.trustSignals ?: emptyList(),
         trustFactors = if (trustFactors.isNotEmpty()) trustFactors else seed?.trustFactors ?: emptyList(),
         education = if (safeString(educationLevel).isNotBlank()) safeString(educationLevel) else seed?.education.orEmpty(),
-        community = if (safeString(religion).isNotBlank()) safeString(religion) else seed?.community.orEmpty(),
+        community = when {
+            safeString(caste).isNotBlank() -> safeString(caste)
+            safeString(religion).isNotBlank() -> safeString(religion)
+            else -> seed?.community.orEmpty()
+        },
         lastActiveLabel = seed?.lastActiveLabel ?: "Recently active",
         matchReasons = if (matchReasons.isNotEmpty()) matchReasons else seed?.matchReasons ?: emptyList(),
         interestSent = seed?.interestSent ?: false,

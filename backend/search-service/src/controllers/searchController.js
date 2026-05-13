@@ -204,6 +204,7 @@ const searchProfiles = async (filters, userId) => {
        p.first_name,
        p.last_name,
        EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
+       p.gender,
        p.religion,
        p.caste,
        p.mother_tongue,
