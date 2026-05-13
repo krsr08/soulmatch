@@ -483,6 +483,7 @@ exports.getDashboard = async (req, res) => {
       db.query(
         `SELECT
            p.profile_id,
+           CONCAT('SM-', UPPER(SUBSTRING(REPLACE(p.profile_id::text, '-', '') FROM 1 FOR 8))) AS profile_display_id,
            p.user_id,
            p.first_name,
            p.last_name,
@@ -761,6 +762,7 @@ exports.getProfiles = async (req, res) => {
     const result = await db.query(
       `SELECT
          p.profile_id,
+         CONCAT('SM-', UPPER(SUBSTRING(REPLACE(p.profile_id::text, '-', '') FROM 1 FOR 8))) AS profile_display_id,
          p.user_id,
          u.phone,
          u.email,

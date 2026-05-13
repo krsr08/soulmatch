@@ -583,7 +583,7 @@ data class ProfileSummary(
     @SerializedName("trustFactors") val trustFactors: List<TrustFactorData> = emptyList(),
     val education: String = "",
     val community: String = "",
-    val lastActiveLabel: String = "Recently active",
+    val lastActiveLabel: String = "Recently Active",
     val matchReasons: List<String> = emptyList(),
     val interestSent: Boolean = false,
     val shortlisted: Boolean = false,
@@ -647,7 +647,8 @@ data class SearchProfileItem(
     @SerializedName("trust_level") val trustLevel: String = "low",
     @SerializedName("trust_signals") val trustSignals: List<String> = emptyList(),
     @SerializedName("trust_factors") val trustFactors: List<TrustFactorData> = emptyList(),
-    @SerializedName("match_reasons") val matchReasons: List<String> = emptyList()
+    @SerializedName("match_reasons") val matchReasons: List<String> = emptyList(),
+    @SerializedName("last_active_label") val lastActiveLabelSnake: String = ""
 )
 
 data class FamilyDecisionRequest(
@@ -1169,7 +1170,7 @@ fun SearchProfileItem.toProfileSummary(seed: ProfileSummary? = null): ProfileSum
             safeString(religion).isNotBlank() -> safeString(religion)
             else -> seed?.community.orEmpty()
         },
-        lastActiveLabel = seed?.lastActiveLabel ?: "Recently active",
+        lastActiveLabel = lastActiveLabelSnake.ifBlank { seed?.lastActiveLabel ?: "Recently Active" },
         matchReasons = if (matchReasons.isNotEmpty()) matchReasons else seed?.matchReasons ?: emptyList(),
         interestSent = seed?.interestSent ?: false,
         shortlisted = seed?.shortlisted ?: false,

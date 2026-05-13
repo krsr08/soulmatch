@@ -275,7 +275,7 @@ fun ProfileDetailScreen(
                                     "Community" to data.caste,
                                     "Mother tongue" to data.motherTongue,
                                     "Marital status" to titleCase(data.maritalStatus),
-                                    "Height" to data.heightCm?.let { "$it cm" }.orEmpty(),
+                                    "Height" to data.heightCm?.let(::formatHeightLabel).orEmpty(),
                                     "Weight" to data.weightKg?.let { "$it kg" }.orEmpty(),
                                     "Complexion" to data.complexion,
                                     "Body type" to data.bodyType,
@@ -426,7 +426,7 @@ private fun ProfileHero(profile: ProfileData, compatibilityScore: Int, onRequest
                 }
                 Text(
                     listOfNotNull(
-                        profile.heightCm?.let { "$it cm" },
+                        profile.heightCm?.let(::formatHeightLabel),
                         profile.age.takeIf { it > 0 }?.let { "$it yrs" }
                     ).joinToString(" | "),
                     style = MaterialTheme.typography.bodyLarge,
@@ -571,6 +571,13 @@ private fun shareProfileWithFamily(context: Context, profile: ProfileData, compa
 
 private fun SubscriptionData.hasActivePaidMembership(): Boolean {
     return isActive && planId.isNotBlank() && !planId.equals("free", ignoreCase = true)
+}
+
+private fun formatHeightLabel(heightCm: Int): String {
+    val totalInches = (heightCm / 2.54).toInt()
+    val feet = totalInches / 12
+    val inches = totalInches % 12
+    return if (feet > 0) "$feet ft $inches in" else "$heightCm cm"
 }
 
 @Composable

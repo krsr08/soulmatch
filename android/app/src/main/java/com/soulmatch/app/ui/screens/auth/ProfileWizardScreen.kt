@@ -74,6 +74,7 @@ import com.soulmatch.app.ui.viewmodels.ProfileViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import kotlin.math.roundToInt
 
 private data class WizardStepCopy(
     val title: String,
@@ -430,29 +431,52 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
     }
 }
 
+private fun heightFeetFromCm(heightCm: Int?): String {
+    if (heightCm == null || heightCm <= 0) return ""
+    val totalInches = (heightCm / 2.54).roundToInt()
+    return (totalInches / 12).toString()
+}
+
+private fun heightInchesFromCm(heightCm: Int?): String {
+    if (heightCm == null || heightCm <= 0) return ""
+    val totalInches = (heightCm / 2.54).roundToInt()
+    return (totalInches % 12).toString()
+}
+
+private fun heightCmFromFeetInches(feet: String, inches: String): Int? {
+    val feetValue = feet.toIntOrNull() ?: return null
+    val inchesValue = inches.toIntOrNull() ?: return null
+    return ((feetValue * 12 + inchesValue) * 2.54).roundToInt()
+}
+
 @Composable
 private fun Step2Physical(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
-    var heightCm by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.heightCm?.toString().orEmpty()) }
+    var heightFeet by rememberSaveable(existing?.profileId) { mutableStateOf(heightFeetFromCm(existing?.heightCm)) }
+    var heightInches by rememberSaveable(existing?.profileId) { mutableStateOf(heightInchesFromCm(existing?.heightCm)) }
     var weightKg by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.weightKg?.toString().orEmpty()) }
     var complexion by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.complexion.orEmpty()) }
     var bodyType by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.bodyType.orEmpty()) }
     var bloodGroup by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.bloodGroup.orEmpty()) }
 
-    val heightValue = heightCm.toIntOrNull()
+    val feetValue = heightFeet.toIntOrNull()
+    val inchesValue = heightInches.toIntOrNull()
+    val heightValue = heightCmFromFeetInches(heightFeet, heightInches)
     val weightValue = weightKg.toIntOrNull()
-    val heightError = heightCm.isNotBlank() && (heightValue == null || heightValue !in 100..250)
+    val heightHasInput = heightFeet.isNotBlank() || heightInches.isNotBlank()
+    val heightError = heightHasInput &&
+        (feetValue == null || feetValue !in 3..8 || inchesValue == null || inchesValue !in 0..11 || heightValue == null || heightValue !in 100..250)
     val weightError = weightKg.isNotBlank() && (weightValue == null || weightValue !in 30..200)
     val isValid = !heightError &&
         !weightError &&
-        heightCm.isNotBlank() &&
+        heightValue != null &&
         weightKg.isNotBlank() &&
         complexion.isNotBlank() &&
         bodyType.isNotBlank() &&
         bloodGroup.isNotBlank()
-    LaunchedEffect(heightCm, weightKg, complexion, bodyType, bloodGroup) {
+    LaunchedEffect(heightFeet, heightInches, weightKg, complexion, bodyType, bloodGroup) {
         vm.updateStep2Data(
             mapOf(
-                "heightCm" to heightCm.toIntOrNull().orZero(),
+                "heightCm" to (heightValue ?: 0),
                 "weightKg" to weightKg.toIntOrNull().orZero(),
                 "complexion" to complexion,
                 "bodyType" to bodyType,
@@ -467,13 +491,23 @@ private fun Step2Physical(existing: ProfileData?, vm: ProfileViewModel, onValidi
             SectionLead("Visible traits", "Keep these easy to filter without making the user hunt through the profile.")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 NumberField(
-                    heightCm,
-                    { heightCm = it.filter(Char::isDigit).take(3) },
-                    "Height in cm",
+                    heightFeet,
+                    { heightFeet = it.filter(Char::isDigit).take(1) },
+                    "Height feet",
                     Modifier.weight(1f),
                     isError = heightError,
-                    supportingText = if (heightError) "Enter a value between 100 and 250." else null
+                    supportingText = if (heightError) "Use 3-8 ft." else null
                 )
+                NumberField(
+                    heightInches,
+                    { heightInches = it.filter(Char::isDigit).take(2) },
+                    "Inches",
+                    Modifier.weight(1f),
+                    isError = heightError,
+                    supportingText = if (heightError) "Use 0-11 in." else null
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 NumberField(
                     weightKg,
                     { weightKg = it.filter(Char::isDigit).take(3) },

@@ -187,6 +187,11 @@ class DashboardViewModel @Inject constructor(
         _headline.value = "Profile hidden from your feed"
     }
 
+    fun markProfileViewed(profileId: String) {
+        ProfileInteractionStore.markViewed(profileId)
+        _matches.value = loadedMatches.applyLocalInteractionState().filterVisibleProfiles()
+    }
+
     fun blockProfile(profileId: String) {
         viewModelScope.launch {
             val response = runCatching { profileApi.blockProfile(profileId) }.getOrNull()

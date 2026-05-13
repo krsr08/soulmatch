@@ -17,6 +17,7 @@ data class ProfileInteractionState(
     val reportedConcerns: Map<String, ReportedConcern> = emptyMap(),
     val acceptedInterestIds: Set<String> = emptySet(),
     val declinedInterestIds: Set<String> = emptySet(),
+    val viewedProfileIds: Set<String> = emptySet(),
     val sentInterestProfileIds: Set<String> = emptySet(),
     val shortlistedProfileIds: Set<String> = emptySet(),
     val unshortlistedProfileIds: Set<String> = emptySet()
@@ -68,6 +69,11 @@ object ProfileInteractionStore {
     fun clearSentInterest(profileId: String) {
         if (profileId.isBlank()) return
         _state.update { it.copy(sentInterestProfileIds = it.sentInterestProfileIds - profileId) }
+    }
+
+    fun markViewed(profileId: String) {
+        if (profileId.isBlank()) return
+        _state.update { it.copy(viewedProfileIds = it.viewedProfileIds + profileId) }
     }
 
     fun setShortlisted(profileId: String, shortlisted: Boolean) {

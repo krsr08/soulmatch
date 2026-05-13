@@ -2046,12 +2046,10 @@ private fun photoPrivacyLabel(value: String): String {
 
 private fun formatProfileId(profileId: String): String {
     val clean = profileId.trim()
-    if (clean.isBlank()) return "SM-0000"
+    if (clean.isBlank()) return "SM-00000000"
     if (clean.startsWith("SM-", ignoreCase = true)) return clean.uppercase(Locale.getDefault())
-    val digits = clean.filter { it.isDigit() }
-    if (digits.isNotBlank()) return "SM-${digits.takeLast(4).padStart(4, '0')}"
-    val hash = kotlin.math.abs(clean.hashCode()).toString().takeLast(4).padStart(4, '0')
-    return "SM-$hash"
+    val compact = clean.replace("-", "").uppercase(Locale.getDefault())
+    return "SM-${compact.take(8).padEnd(8, '0')}"
 }
 
 private fun TrustFactorData.isFirebaseTrustFactor(): Boolean {

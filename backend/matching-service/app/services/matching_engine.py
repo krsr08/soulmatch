@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import numpy as np
 from app.config.database import get_db_pool
 
@@ -27,6 +29,27 @@ def contains_any(values, *candidates):
     if not normalized:
         return True
     return any(str(candidate or "").strip().lower() in normalized for candidate in candidates if candidate)
+
+
+def last_active_label(value):
+    if not value:
+        return "Recently Active"
+    try:
+        if isinstance(value, str):
+            cleaned = value.replace("Z", "+00:00")
+            active_at = datetime.fromisoformat(cleaned)
+        else:
+            active_at = value
+        if active_at.tzinfo is None:
+            active_at = active_at.replace(tzinfo=timezone.utc)
+        minutes = (datetime.now(timezone.utc) - active_at.astimezone(timezone.utc)).total_seconds() / 60
+        if minutes <= 15:
+            return "Active"
+        if minutes <= 60 * 24 * 3:
+            return "Recently Active"
+        return "Active Recently"
+    except Exception:
+        return "Recently Active"
 
 
 def income_rank(value):
@@ -356,6 +379,7 @@ async def get_recommended_matches(user_id: str, page: int, limit: int, verified_
                     "isVerified": bool(cd.get("is_verified")),
                     "isPhotoPrivate": bool(cd.get("is_photo_private")),
                     "profileCreatedBy": cd.get("profile_created_by") or "self",
+                    "lastActiveLabel": last_active_label(cd.get("last_login")),
                     "trustScore": trust["trustScore"],
                     "trustLevel": trust["trustLevel"],
                     "trustSignals": trust["trustSignals"],

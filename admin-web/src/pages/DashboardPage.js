@@ -290,6 +290,15 @@ function fullName(row) {
   return [row?.first_name || row?.firstName, row?.last_name || row?.lastName].filter(Boolean).join(' ') || row?.full_name || 'Unnamed';
 }
 
+function formatMemberDisplayId(profileId) {
+  const compact = String(profileId || '').replace(/-/g, '').toUpperCase();
+  return compact ? `SM-${compact.slice(0, 8)}` : '-';
+}
+
+function memberDisplayId(profile) {
+  return profile?.profile_display_id || formatMemberDisplayId(profile?.profile_id);
+}
+
 function titleFromKey(value) {
   return String(value || '')
     .split(/[_\s-]+/)
@@ -867,9 +876,9 @@ function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs,
                     const source = memberSource(profile);
                     return (
                       <tr key={profile.profile_id || profile.user_id}>
-                        <td><code>{profile.profile_id?.slice(0, 8) || '-'}</code></td>
+                        <td><code>{memberDisplayId(profile)}</code></td>
                         <td><ProfileAvatar profile={profile} /></td>
-                        <td><strong>{fullName(profile)}</strong><small>{profile.user_id?.slice(0, 8) || profile.phone || profile.email}</small></td>
+                        <td><strong>{fullName(profile)}</strong><small>{profile.phone || profile.email || profile.user_id?.slice(0, 8)}</small></td>
                         <td><StatusPill status="neutral">{profile.gender || '-'}</StatusPill></td>
                         <td>{dateOnly(profile.created_at)}</td>
                         <td><StatusPill status={profile.plan_id === 'free' ? 'neutral' : 'approved'}>{profile.plan_id || 'free'}</StatusPill></td>
@@ -1042,12 +1051,12 @@ function MembersPanel({ profiles, search, onOpen, onCreate, onStatus, onBlock })
                 <td>
                   <div className="identity-cell">
                     <ProfileAvatar profile={profile} />
-                    <span><strong>{fullName(profile)}</strong><small>{profile.phone || profile.email || profile.profile_id}</small></span>
+                    <span><strong>{fullName(profile)}</strong><small>{memberDisplayId(profile)} | {profile.phone || profile.email || '-'}</small></span>
                   </div>
                 </td>
                 <td>{profile.gender || '-'}</td>
                 <td><StatusPill status={profile.plan_id === 'free' ? 'neutral' : 'success'}>{profile.plan_id || 'free'}</StatusPill></td>
-                <td>{profile.created_by_advisor_id ? `Agent · ${profile.advisor_name || 'Linked'}` : 'Self'}</td>
+                <td>{profile.created_by_advisor_id ? `Agent | ${profile.advisor_name || 'Linked'}` : 'Self'}</td>
                 <td><StatusPill status={profile.verification_status}>{profile.verification_status}</StatusPill></td>
                 <td><StatusPill status={profile.is_published ? 'active' : 'pending'}>{profile.is_published ? 'Visible' : 'Hidden'}</StatusPill></td>
                 <td>{dateOnly(profile.subscription_end_date)}</td>
@@ -1834,7 +1843,7 @@ function MemberDrawer({ profile, onClose, onSave, onStatus }) {
   return (
     <DrawerShell
       title={profile?.profile_id ? 'Member 360 View' : 'Create Member'}
-      subtitle={profile?.profile_id ? `${fullName(form)} · ${form.profile_id}` : 'Admin-created member profile'}
+      subtitle={profile?.profile_id ? `${fullName(form)} | ${memberDisplayId(form)}` : 'Admin-created member profile'}
       onClose={onClose}
       footer={(
         <>

@@ -216,6 +216,11 @@ const searchProfiles = async (filters, userId) => {
        u.is_verified AS is_phone_verified,
        (u.google_id IS NOT NULL) AS firebase_verified,
        u.last_login,
+       CASE
+         WHEN u.last_login >= NOW() - INTERVAL '15 minutes' THEN 'Active'
+         WHEN u.last_login >= NOW() - INTERVAL '3 days' THEN 'Recently Active'
+         ELSE 'Active Recently'
+       END AS last_active_label,
        pd.height_cm,
        ec.occupation,
        ec.working_city,

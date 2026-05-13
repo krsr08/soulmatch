@@ -55,6 +55,7 @@ class ProfileDetailViewModel @Inject constructor(
 
     fun load(profileId: String) {
         if (_isLoading.value) return
+        ProfileInteractionStore.markViewed(profileId)
         viewModelScope.launch {
             _isLoading.value = true
             val remoteProfile = runCatching { profileApi.getProfile(profileId) }

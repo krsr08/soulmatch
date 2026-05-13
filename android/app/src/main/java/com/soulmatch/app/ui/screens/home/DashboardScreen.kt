@@ -96,6 +96,7 @@ import com.soulmatch.app.data.models.ProfileSummary
 import com.soulmatch.app.data.models.SubscriptionData
 import com.soulmatch.app.data.models.defaultHomeBestMatchAds
 import com.soulmatch.app.data.models.fullName
+import com.soulmatch.app.data.local.ProfileInteractionStore
 import com.soulmatch.app.data.upgrade.UpgradePackage
 import com.soulmatch.app.data.upgrade.UpgradePackageGroup
 import com.soulmatch.app.ui.components.media.MemberPhoto
@@ -135,10 +136,19 @@ private data class HomeAdPalette(
 )
 
 private enum class HomeMatchFeedFilter(val label: String) {
-    Verified("Verified"),
+    Viewed("Viewed"),
     JustJoined("Just Joined"),
     Nearby("Nearby")
 }
+
+private data class HomeAdvancedFilters(
+    val ageBand: String = "Any",
+    val minimumMatch: Int = 0,
+    val minimumTrust: Int = 0,
+    val verifiedOnly: Boolean = false,
+    val educationLevel: String = "Any",
+    val managedBy: String = "Any"
+)
 
 @Composable
 fun DashboardScreen(
@@ -166,6 +176,7 @@ fun DashboardScreen(
     val notifications by notificationsVm.notifications.collectAsStateWithLifecycle()
     val packageGroups by subscriptionVm.packageGroups.collectAsStateWithLifecycle()
     val subscription by subscriptionVm.subscription.collectAsStateWithLifecycle()
+    val interactionState by ProfileInteractionStore.state.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -198,7 +209,14 @@ fun DashboardScreen(
             .thenBy { it.name }
     )
     var selectedFeedFilter by rememberSaveable { mutableStateOf<HomeMatchFeedFilter?>(null) }
-    val filteredRankedMatches = rankedMatches.filterForHomeFeed(selectedFeedFilter, myProfile)
+    var showFilterDialog by rememberSaveable { mutableStateOf(false) }
+    var advancedFilters by remember { mutableStateOf(HomeAdvancedFilters()) }
+    val filteredRankedMatches = rankedMatches.filterForHomeFeed(
+        filter = selectedFeedFilter,
+        viewerProfile = myProfile,
+        advancedFilters = advancedFilters,
+        viewedProfileIds = interactionState.viewedProfileIds
+    )
     val bestMatchProfileTarget = content.bestMatchMinimumProfiles.coerceAtLeast(5)
     val highCompatibilityThreshold = content.bestMatchHighCompatibilityThreshold
         .takeIf { it > 0 }
@@ -257,11 +275,10 @@ fun DashboardScreen(
                         item {
                             HomeMatchFilterStrip(
                                 selected = selectedFeedFilter,
-                                onOpenFilters = onOpenSearch,
+                                onOpenAdvancedFilters = { showFilterDialog = true },
                                 onSelected = { filter ->
                                     val nextFilter = if (selectedFeedFilter == filter) null else filter
                                     selectedFeedFilter = nextFilter
-                                    vm.setVerifiedOnlyMode(nextFilter == HomeMatchFeedFilter.Verified)
                                 }
                             )
                         }
@@ -300,6 +317,7 @@ fun DashboardScreen(
                                     showUpgrade = canShowUpgradeInsert,
                                     showAds = content.showBestMatchInsertCards && content.showBestMatchAdCards,
                                     onViewProfile = onViewProfile,
+                                    onMarkViewed = { vm.markProfileViewed(it) },
                                     onInterest = { vm.sendInterest(it) },
                                     onShortlist = { vm.toggleShortlist(it) },
                                     onIgnore = { vm.hideProfile(it) },
@@ -321,6 +339,20 @@ fun DashboardScreen(
             onOpenPreferences = {
                 partnerPromptSkipped = true
                 onOpenPartnerPreferences()
+            }
+        )
+    }
+    if (showFilterDialog) {
+        HomeAdvancedFilterDialog(
+            filters = advancedFilters,
+            onDismiss = { showFilterDialog = false },
+            onApply = {
+                advancedFilters = it
+                showFilterDialog = false
+            },
+            onReset = {
+                advancedFilters = HomeAdvancedFilters()
+                selectedFeedFilter = null
             }
         )
     }
@@ -355,7 +387,7 @@ private fun HomeTopBar(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(58.dp)
+                        .size(46.dp)
                         .clickable(onClick = onOpenProfile)
                 ) {
                     MemberPhoto(
@@ -367,14 +399,14 @@ private fun HomeTopBar(
                     Surface(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .size(26.dp),
+                            .size(21.dp),
                         shape = RoundedCornerShape(999.dp),
                         color = Color(0xFFFFFCFA),
                         shadowElevation = 1.dp,
                         border = BorderStroke(1.dp, Divider.copy(alpha = 0.65f))
                     ) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Filled.Menu, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Filled.Menu, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(13.dp))
                         }
                     }
                 }
@@ -397,12 +429,12 @@ private fun HomeTopBar(
                     ) {
                         Text(
                             "as per ",
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.labelLarge,
                             color = Color(0xFF667386)
                         )
                         Text(
-                            "partner preferences",
-                            style = MaterialTheme.typography.titleMedium,
+                            "partner preference",
+                            style = MaterialTheme.typography.labelLarge,
                             color = HomePrimary,
                             fontWeight = FontWeight.ExtraBold,
                             maxLines = 1,
@@ -454,33 +486,32 @@ private fun HomeTopBar(
 @Composable
 private fun HomeMatchFilterStrip(
     selected: HomeMatchFeedFilter?,
-    onOpenFilters: () -> Unit,
+    onOpenAdvancedFilters: () -> Unit,
     onSelected: (HomeMatchFeedFilter) -> Unit
 ) {
     Surface(
         color = Color(0xFFFFFCFA),
         border = BorderStroke(1.dp, Divider.copy(alpha = 0.55f))
     ) {
-        LazyRow(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 14.dp),
-            contentPadding = PaddingValues(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = 10.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            item {
-                HomeFilterPill(
-                    label = "Filters",
-                    selected = false,
-                    leadingIcon = { Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                    onClick = onOpenFilters
-                )
-            }
-            items(HomeMatchFeedFilter.entries, key = { it.name }) { filter ->
+            HomeFilterPill(
+                label = "Filter",
+                selected = false,
+                leadingIcon = { Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(15.dp)) },
+                modifier = Modifier.weight(0.92f),
+                onClick = onOpenAdvancedFilters
+            )
+            HomeMatchFeedFilter.entries.forEach { filter ->
                 HomeFilterPill(
                     label = filter.label,
                     selected = selected == filter,
+                    modifier = Modifier.weight(if (filter == HomeMatchFeedFilter.JustJoined) 1.28f else 1f),
                     onClick = { onSelected(filter) }
                 )
             }
@@ -492,22 +523,23 @@ private fun HomeMatchFilterStrip(
 private fun HomeFilterPill(
     label: String,
     selected: Boolean,
+    modifier: Modifier = Modifier,
     leadingIcon: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
     val borderColor = if (selected) HomePrimary else Color(0xFFA9B0BA)
     val contentColor = if (selected) HomePrimary else Color(0xFF303947)
     Surface(
-        modifier = Modifier
-            .height(44.dp)
+        modifier = modifier
+            .height(38.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(999.dp),
         color = if (selected) Color(0xFFFFEDF1) else Color.White,
         border = BorderStroke(1.4.dp, borderColor.copy(alpha = if (selected) 0.88f else 0.72f))
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            modifier = Modifier.padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (leadingIcon != null) {
@@ -517,11 +549,110 @@ private fun HomeFilterPill(
             }
             Text(
                 label,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.labelLarge,
                 color = contentColor,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
+        }
+    }
+}
+
+@Composable
+private fun HomeAdvancedFilterDialog(
+    filters: HomeAdvancedFilters,
+    onDismiss: () -> Unit,
+    onApply: (HomeAdvancedFilters) -> Unit,
+    onReset: () -> Unit
+) {
+    var draft by remember(filters) { mutableStateOf(filters) }
+    var tab by rememberSaveable { mutableStateOf("Basics") }
+    val tabs = listOf("Basics", "Career", "Trust", "Source")
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Filters", fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(tabs, key = { it }) { item ->
+                        HomeFilterPill(
+                            label = item,
+                            selected = tab == item,
+                            onClick = { tab = item }
+                        )
+                    }
+                }
+                when (tab) {
+                    "Basics" -> FilterChoiceSection(
+                        title = "Age range",
+                        options = listOf("Any", "21-30", "31-40", "41+"),
+                        selected = draft.ageBand,
+                        onSelect = { draft = draft.copy(ageBand = it) }
+                    )
+                    "Career" -> FilterChoiceSection(
+                        title = "Education",
+                        options = listOf("Any", "Graduate", "Post Graduate", "Doctorate", "Professional"),
+                        selected = draft.educationLevel,
+                        onSelect = { draft = draft.copy(educationLevel = it) }
+                    )
+                    "Trust" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        FilterChoiceSection(
+                            title = "Match",
+                            options = listOf("Any", "80%+", "90%+"),
+                            selected = if (draft.minimumMatch == 90) "90%+" else if (draft.minimumMatch == 80) "80%+" else "Any",
+                            onSelect = { draft = draft.copy(minimumMatch = it.filter(Char::isDigit).toIntOrNull() ?: 0) }
+                        )
+                        FilterChoiceSection(
+                            title = "Trust",
+                            options = listOf("Any", "50%+", "75%+"),
+                            selected = if (draft.minimumTrust == 75) "75%+" else if (draft.minimumTrust == 50) "50%+" else "Any",
+                            onSelect = { draft = draft.copy(minimumTrust = it.filter(Char::isDigit).toIntOrNull() ?: 0) }
+                        )
+                        FilterChoiceSection(
+                            title = "Verification",
+                            options = listOf("Any", "Verified"),
+                            selected = if (draft.verifiedOnly) "Verified" else "Any",
+                            onSelect = { draft = draft.copy(verifiedOnly = it == "Verified") }
+                        )
+                    }
+                    else -> FilterChoiceSection(
+                        title = "Profile managed by",
+                        options = listOf("Any", "Self", "Agent"),
+                        selected = draft.managedBy,
+                        onSelect = { draft = draft.copy(managedBy = it) }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onApply(draft) }) {
+                Text("Apply")
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onReset) { Text("Reset") }
+                OutlinedButton(onClick = onDismiss) { Text("Cancel") }
+            }
+        }
+    )
+}
+
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun FilterChoiceSection(
+    title: String,
+    options: List<String>,
+    selected: String,
+    onSelect: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(title, style = MaterialTheme.typography.titleSmall, color = PrimaryDark, fontWeight = FontWeight.ExtraBold)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            options.forEach { option ->
+                HomeFilterPill(label = option, selected = selected == option, onClick = { onSelect(option) })
+            }
         }
     }
 }
@@ -1008,6 +1139,7 @@ private fun BestMatchesCarousel(
     showUpgrade: Boolean,
     showAds: Boolean,
     onViewProfile: (String) -> Unit,
+    onMarkViewed: (String) -> Unit,
     onInterest: (String) -> Unit,
     onShortlist: (String) -> Unit,
     onIgnore: (String) -> Unit,
@@ -1023,22 +1155,29 @@ private fun BestMatchesCarousel(
             hasInsertContent = showUpgrade || (showAds && adCards.isNotEmpty())
         )
     }
-    val state = rememberLazyListState()
-    LazyRow(
-        state = state,
-        contentPadding = PaddingValues(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        items(slots, key = { it.key }) { slot ->
+        slots.forEach { slot ->
             if (slot.profile != null) {
                 HomeMatchCard(
                     profile = slot.profile,
-                    modifier = Modifier.fillParentMaxWidth(0.88f),
-                    onOpen = { onViewProfile(slot.profile.profileId) },
+                    modifier = Modifier.fillMaxWidth(),
+                    onOpen = {
+                        onMarkViewed(slot.profile.profileId)
+                        onViewProfile(slot.profile.profileId)
+                    },
                     onInterest = { onInterest(slot.profile.profileId) },
                     onShortlist = { onShortlist(slot.profile.profileId) },
                     onIgnore = { onIgnore(slot.profile.profileId) },
-                    onChat = { onChat(slot.profile.profileId, slot.profile.name) }
+                    onChat = {
+                        if (slot.profile.userId.isNotBlank()) {
+                            onChat(slot.profile.userId, slot.profile.name)
+                        }
+                    }
                 )
             } else {
                 BestMatchInsertCard(
@@ -1049,7 +1188,7 @@ private fun BestMatchesCarousel(
                     upgradeTitle = content.upgradeTitle,
                     upgradeDetail = content.upgradeDetail,
                     modifier = Modifier
-                        .fillParentMaxWidth(0.88f)
+                        .fillMaxWidth()
                         .aspectRatio(4f / 5f),
                     onOpenSubscription = onOpenSubscription,
                     onOpenSearch = onOpenSearch,
@@ -1058,7 +1197,6 @@ private fun BestMatchesCarousel(
             }
         }
     }
-    BestMatchDots(state = state, slots = slots, profileCount = profiles.size)
 }
 
 @Composable
@@ -1173,7 +1311,7 @@ private fun HomeMatchCard(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text(
-                        profile.lastActiveLabel.ifBlank { "Recently active" },
+                        profile.lastActiveLabel.ifBlank { "Recently Active" },
                         style = MaterialTheme.typography.titleSmall,
                         color = Color.White.copy(alpha = 0.9f),
                         fontWeight = FontWeight.SemiBold,
@@ -1203,7 +1341,7 @@ private fun HomeMatchCard(
                         listOf(profile.heightCm?.let(::formatHeightLabel), profile.location, profile.community)
                             .filterNotNull()
                             .filter { it.isNotBlank() }
-                            .joinToString(" · ")
+                            .joinToString(" | ")
                             .ifBlank { "Height, location, and community in progress" },
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.White.copy(alpha = 0.94f),
@@ -1213,7 +1351,7 @@ private fun HomeMatchCard(
                     Text(
                         listOf(profile.occupation, profile.education)
                             .filter { it.isNotBlank() }
-                            .joinToString(" · ")
+                            .joinToString(" | ")
                             .ifBlank { "Education and profession in progress" },
                         style = MaterialTheme.typography.titleSmall,
                         color = Color.White.copy(alpha = 0.92f),
@@ -1221,8 +1359,14 @@ private fun HomeMatchCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                MatchInfoRibbon("Profile managed by ${profileOwnerLabel(profile.profileCreatedBy)}")
-                MatchInfoRibbon("${profile.compatibilityScore.coerceIn(0, 99)}% match compatibility")
+                MatchInfoRibbon("${profile.compatibilityScore.coerceIn(0, 99)}% Match | ${profile.trustScore.coerceIn(0, 100)}% Trust")
+                Text(
+                    "Profile managed by ${profileOwnerLabel(profile.profileCreatedBy)}",
+                    style = MaterialTheme.typography.titleSmall.copy(fontStyle = FontStyle.Italic),
+                    color = Color.White.copy(alpha = 0.92f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1340,7 +1484,7 @@ private fun formatHeightLabel(heightCm: Int): String {
     val totalInches = (heightCm / 2.54).toInt()
     val feet = totalInches / 12
     val inches = totalInches % 12
-    return if (feet > 0) "$feet'$inches\"" else "$heightCm cm"
+    return if (feet > 0) "$feet ft $inches in" else "$heightCm cm"
 }
 
 private fun educationOccupationLocation(profile: ProfileSummary): String {
@@ -1352,15 +1496,17 @@ private fun educationOccupationLocation(profile: ProfileSummary): String {
 
 private fun List<ProfileSummary>.filterForHomeFeed(
     filter: HomeMatchFeedFilter?,
-    viewerProfile: com.soulmatch.app.data.models.ProfileData
+    viewerProfile: com.soulmatch.app.data.models.ProfileData,
+    advancedFilters: HomeAdvancedFilters,
+    viewedProfileIds: Set<String>
 ): List<ProfileSummary> {
-    if (filter == null) return this
     val viewerCity = viewerProfile.workingCity
         .ifBlank { viewerProfile.familyCity }
         .trim()
     return filter { profile ->
-        when (filter) {
-            HomeMatchFeedFilter.Verified -> profile.isVerified
+        val quickFilterMatch = when (filter) {
+            null -> true
+            HomeMatchFeedFilter.Viewed -> profile.profileId in viewedProfileIds
             HomeMatchFeedFilter.JustJoined -> {
                 val activity = profile.lastActiveLabel.lowercase(Locale.getDefault())
                 listOf("new", "joined", "today", "yesterday", "this week").any(activity::contains)
@@ -1368,6 +1514,23 @@ private fun List<ProfileSummary>.filterForHomeFeed(
             HomeMatchFeedFilter.Nearby -> viewerCity.isNotBlank() &&
                 profile.location.contains(viewerCity, ignoreCase = true)
         }
+        quickFilterMatch &&
+            profile.matchesAgeBand(advancedFilters.ageBand) &&
+            profile.compatibilityScore >= advancedFilters.minimumMatch &&
+            profile.trustScore >= advancedFilters.minimumTrust &&
+            (!advancedFilters.verifiedOnly || profile.isVerified) &&
+            (advancedFilters.educationLevel == "Any" || profile.education.contains(advancedFilters.educationLevel, ignoreCase = true)) &&
+            (advancedFilters.managedBy == "Any" || profileOwnerLabel(profile.profileCreatedBy).equals(advancedFilters.managedBy, ignoreCase = true))
+    }
+}
+
+private fun ProfileSummary.matchesAgeBand(ageBand: String): Boolean {
+    if (ageBand == "Any" || age <= 0) return true
+    return when (ageBand) {
+        "21-30" -> age in 21..30
+        "31-40" -> age in 31..40
+        "41+" -> age >= 41
+        else -> true
     }
 }
 

@@ -375,5 +375,5 @@ private fun formatHeight(heightCm: Int): String {
     val totalInches = (heightCm / 2.54f).toInt()
     val feet = totalInches / 12
     val inches = totalInches % 12
-    return "$feet' $inches\""
+    return "$feet ft $inches in"
 }
