@@ -1063,7 +1063,12 @@ function MembersPanel({ profiles, search, onOpen, onCreate, onStatus, onBlock })
                 <td>
                   <div className="row-actions">
                     <button onClick={() => onOpen(profile)} title="360 view"><Icon name="eye" /></button>
-                    <button onClick={() => onStatus(profile, 'approve')} title="Verify"><Icon name="check" /></button>
+                    <button
+                      onClick={() => onStatus(profile, String(profile.verification_status || '').toLowerCase() === 'verified' ? 'unverify' : 'approve')}
+                      title={String(profile.verification_status || '').toLowerCase() === 'verified' ? 'Make unverified' : 'Verify'}
+                    >
+                      <Icon name={String(profile.verification_status || '').toLowerCase() === 'verified' ? 'close' : 'check'} />
+                    </button>
                     <button onClick={() => onStatus(profile, profile.is_published ? 'suspend' : 'restore')} title="Visibility"><Icon name="sliders" /></button>
                     <button onClick={() => onBlock(profile)} title="Block / unblock"><Icon name="ban" /></button>
                   </div>
@@ -1161,49 +1166,64 @@ function VerificationPanel({ verifications, advisors, profiles, onApprove, onRej
     <div className="admin-content">
       <SectionHeader title="Verification Command Center" description="Review member KYC, agent onboarding, documents and profile visibility before they go live." />
       <div className="verification-grid">
-        <div className="admin-card">
-          <h3>Member Verification Queue</h3>
-          <div className="review-list">
-            {verifications.map((item) => (
-              <article key={item.verification_id}>
-                <span><strong>{fullName(item)}</strong><small>{item.type || 'Document'} · Trust {item.trust_score || 0}%</small></span>
-                <div>
-                  <AdminButton variant="secondary" onClick={() => onReject(item.verification_id)}>Reject</AdminButton>
-                  <AdminButton variant="primary" onClick={() => onApprove(item.verification_id)}>Approve</AdminButton>
-                </div>
-              </article>
-            ))}
-            {!verifications.length ? <EmptyState title="No verification records" body="There are no member KYC records pending review." /> : null}
+        <div className="verification-section">
+          <div className="verification-section-heading">
+            <h3>Member Verification Queue</h3>
+            <p>KYC and trust records waiting for admin review.</p>
+          </div>
+          <div className="admin-card">
+            <div className="review-list">
+              {verifications.map((item) => (
+                <article key={item.verification_id}>
+                  <span><strong>{fullName(item)}</strong><small>{item.type || 'Document'} · Trust {item.trust_score || 0}%</small></span>
+                  <div>
+                    <AdminButton variant="secondary" onClick={() => onReject(item.verification_id)}>Reject</AdminButton>
+                    <AdminButton variant="primary" onClick={() => onApprove(item.verification_id)}>Approve</AdminButton>
+                  </div>
+                </article>
+              ))}
+              {!verifications.length ? <EmptyState title="No verification records" body="There are no member KYC records pending review." /> : null}
+            </div>
           </div>
         </div>
-        <div className="admin-card">
-          <h3>Agent Verification Queue</h3>
-          <div className="review-list">
-            {pendingAgents.map((agent) => (
-              <article key={agent.advisor_id}>
-                <span><strong>{agent.full_name}</strong><small>{agent.city} · Bank {agent.bank_verification_status || 'not started'} · T&C {agent.terms_accepted_at ? 'signed' : 'pending'}</small></span>
-                <div>
-                  <AdminButton variant="secondary" onClick={() => onAgentStatus(agent, { kycStatus: 'rejected' })}>Reject</AdminButton>
-                  <AdminButton variant="primary" onClick={() => onAgentStatus(agent, { kycStatus: 'approved', status: 'active' })}>Approve</AdminButton>
-                </div>
-              </article>
-            ))}
-            {!pendingAgents.length ? <EmptyState title="No agent onboarding pending" body="All registered agents are currently reviewed." /> : null}
+        <div className="verification-section">
+          <div className="verification-section-heading">
+            <h3>Agent Verification Queue</h3>
+            <p>Onboarding, bank checks, and signed terms.</p>
+          </div>
+          <div className="admin-card">
+            <div className="review-list">
+              {pendingAgents.map((agent) => (
+                <article key={agent.advisor_id}>
+                  <span><strong>{agent.full_name}</strong><small>{agent.city} · Bank {agent.bank_verification_status || 'not started'} · T&C {agent.terms_accepted_at ? 'signed' : 'pending'}</small></span>
+                  <div>
+                    <AdminButton variant="secondary" onClick={() => onAgentStatus(agent, { kycStatus: 'rejected' })}>Reject</AdminButton>
+                    <AdminButton variant="primary" onClick={() => onAgentStatus(agent, { kycStatus: 'approved', status: 'active' })}>Approve</AdminButton>
+                  </div>
+                </article>
+              ))}
+              {!pendingAgents.length ? <EmptyState title="No agent onboarding pending" body="All registered agents are currently reviewed." /> : null}
+            </div>
           </div>
         </div>
-        <div className="admin-card full">
-          <h3>Agent-created Member Profiles</h3>
-          <div className="review-list">
-            {pendingProfiles.filter((profile) => profile.created_by_advisor_id).map((profile) => (
-              <article key={profile.profile_id}>
-                <span><strong>{fullName(profile)}</strong><small>Added by {profile.advisor_name || 'agent'} · {profile.review_status || profile.verification_status}</small></span>
-                <div>
-                  <AdminButton variant="secondary" onClick={() => onProfileStatus(profile, 'reject')}>Reject</AdminButton>
-                  <AdminButton variant="primary" onClick={() => onProfileStatus(profile, 'approve')}>Publish</AdminButton>
-                </div>
-              </article>
-            ))}
-            {!pendingProfiles.filter((profile) => profile.created_by_advisor_id).length ? <EmptyState title="No agent-created profiles pending" body="Published profiles will move into managed profiles after verification." /> : null}
+        <div className="verification-section full">
+          <div className="verification-section-heading">
+            <h3>Agent-created Member Profiles</h3>
+            <p>Profiles submitted by agents before they become visible to members.</p>
+          </div>
+          <div className="admin-card">
+            <div className="review-list">
+              {pendingProfiles.filter((profile) => profile.created_by_advisor_id).map((profile) => (
+                <article key={profile.profile_id}>
+                  <span><strong>{fullName(profile)}</strong><small>Added by {profile.advisor_name || 'agent'} · {profile.review_status || profile.verification_status}</small></span>
+                  <div>
+                    <AdminButton variant="secondary" onClick={() => onProfileStatus(profile, 'reject')}>Reject</AdminButton>
+                    <AdminButton variant="primary" onClick={() => onProfileStatus(profile, 'approve')}>Publish</AdminButton>
+                  </div>
+                </article>
+              ))}
+              {!pendingProfiles.filter((profile) => profile.created_by_advisor_id).length ? <EmptyState title="No agent-created profiles pending" body="Published profiles will move into managed profiles after verification." /> : null}
+            </div>
           </div>
         </div>
       </div>
@@ -2069,6 +2089,12 @@ export default function DashboardPage() {
   const [notice, setNotice] = useState('');
   const session = useMemo(decodeSession, []);
 
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = window.setTimeout(() => setNotice(''), 5000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
   const reload = useCallback(async () => {
     const [
       dashboardRes,
@@ -2161,7 +2187,14 @@ export default function DashboardPage() {
   };
 
   const handleProfileStatus = async (profile, action) => {
-    await withNotice(updateProfileStatus(profile.profile_id, action, `Admin ${action} from console`), `Member ${action} completed.`);
+    const labels = {
+      approve: 'Member verified and published.',
+      unverify: 'Member marked unverified.',
+      reject: 'Member rejected.',
+      suspend: 'Member hidden from discovery.',
+      restore: 'Member visibility restored.'
+    };
+    await withNotice(updateProfileStatus(profile.profile_id, action, `Admin ${action} from console`), labels[action] || `Member ${action} completed.`);
   };
 
   const handleBlockProfile = async (profile) => {
@@ -2229,7 +2262,7 @@ export default function DashboardPage() {
 
   return (
     <AdminShell activeTab={activeTab} onTab={setActiveTab} session={session} search={search} onSearch={setSearch} onHelp={() => setDrawer({ type: 'help' })}>
-      {notice ? <div className="toast-notice">{notice}<button onClick={() => setNotice('')}>Dismiss</button></div> : null}
+      {notice ? <div className="toast-notice" role="status" aria-live="polite"><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss notification"><Icon name="close" /></button></div> : null}
       {renderContent()}
       {drawer?.type === 'member' ? (
         <MemberDrawer

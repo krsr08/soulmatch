@@ -1013,7 +1013,7 @@ private fun ProfileStrengthCard(score: Int, detail: String, onClick: () -> Unit)
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = 20.dp, vertical = 12.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBF8)),
@@ -1031,7 +1031,7 @@ private fun ProfileStrengthCard(score: Int, detail: String, onClick: () -> Unit)
                 Icon(Icons.Filled.Verified, contentDescription = null, tint = Color(0xFF9B0044), modifier = Modifier.size(21.dp))
             }
             LinearProgressIndicator(
-                progress = score / 100f,
+                progress = score.coerceIn(0, 100) / 100f,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp)
@@ -1762,7 +1762,7 @@ private fun BestMatchesCarousel(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp),
+            .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         slots.forEach { slot ->
@@ -1771,13 +1771,15 @@ private fun BestMatchesCarousel(
                     profile = slot.profile,
                     modifier = Modifier.fillMaxWidth(),
                     onOpen = {
-                        onMarkViewed(slot.profile.profileId)
-                        onViewProfile(slot.profile.profileId)
+                        if (slot.profile.profileId.isNotBlank()) {
+                            onMarkViewed(slot.profile.profileId)
+                            onViewProfile(slot.profile.profileId)
+                        }
                     },
-                    onInterest = { onInterest(slot.profile.profileId) },
-                    onShortlist = { onShortlist(slot.profile.profileId) },
-                    onIgnore = { onIgnore(slot.profile.profileId) },
-                    onRequestPhoto = { onRequestPhoto(slot.profile.profileId) },
+                    onInterest = { if (slot.profile.profileId.isNotBlank()) onInterest(slot.profile.profileId) },
+                    onShortlist = { if (slot.profile.profileId.isNotBlank()) onShortlist(slot.profile.profileId) },
+                    onIgnore = { if (slot.profile.profileId.isNotBlank()) onIgnore(slot.profile.profileId) },
+                    onRequestPhoto = { if (slot.profile.profileId.isNotBlank()) onRequestPhoto(slot.profile.profileId) },
                     onChat = {
                         if (slot.profile.userId.isNotBlank()) {
                             onChat(slot.profile.userId, slot.profile.name)

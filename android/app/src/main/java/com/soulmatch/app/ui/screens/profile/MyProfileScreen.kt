@@ -1607,6 +1607,7 @@ private fun PhotoGalleryCard(
 ) {
     val primaryLocal = localPhotoUris.firstOrNull()
     val primaryPhoto = photos.firstOrNull { it.isPrimary } ?: photos.firstOrNull()
+    var previewPhoto by remember { mutableStateOf<Any?>(null) }
     Column(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1628,7 +1629,10 @@ private fun PhotoGalleryCard(
                 modifier = Modifier
                     .weight(1f)
                     .aspectRatio(1f),
-                onClick = onUpload
+                onClick = {
+                    val preview = primaryLocal ?: primaryPhoto?.photoUrl
+                    if (preview?.toString().isNullOrBlank()) onUpload() else previewPhoto = preview
+                }
             )
             AddMorePhotoSquare(
                 uploadingPhotos = uploadingPhotos,
@@ -1641,13 +1645,28 @@ private fun PhotoGalleryCard(
         if (photos.size + localPhotoUris.size > 1) {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(localPhotoUris.drop(1), key = { "local-${it}" }) { uri ->
-                    LocalPhotoTile(uri = uri, onDelete = onDeleteLocal)
+                    LocalPhotoTile(uri = uri, onDelete = onDeleteLocal, onPreview = { previewPhoto = uri })
                 }
                 items(photos.filter { it.photoId != primaryPhoto?.photoId }, key = { it.photoId }) { photo ->
-                    PhotoTile(photo = photo, onDelete = onDelete, onSetPrimary = onSetPrimary)
+                    PhotoTile(photo = photo, onDelete = onDelete, onSetPrimary = onSetPrimary, onPreview = { previewPhoto = photo.photoUrl })
                 }
             }
         }
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = SurfaceWarm,
+            border = BorderStroke(1.dp, Divider.copy(alpha = 0.7f))
+        ) {
+            Text(
+                "Tap a photo to view it. Use the badge icon to make a photo primary, or X to delete.",
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary
+            )
+        }
+    }
+    previewPhoto?.let { model ->
+        PhotoPreviewDialog(model = model, onDismiss = { previewPhoto = null })
     }
 }
 
@@ -1968,7 +1987,11 @@ private fun PhotoAccessRequestRow(
 }
 
 @Composable
-private fun LocalPhotoTile(uri: Uri, onDelete: (Uri) -> Unit) {
+private fun LocalPhotoTile(
+    uri: Uri,
+    onDelete: (Uri) -> Unit,
+    onPreview: () -> Unit
+) {
     PremiumCard(
         modifier = Modifier.size(width = 132.dp, height = 168.dp),
         contentPadding = PaddingValues(0.dp),
@@ -1980,7 +2003,8 @@ private fun LocalPhotoTile(uri: Uri, onDelete: (Uri) -> Unit) {
                 contentDescription = "Selected profile photo",
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(8.dp)),
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onPreview),
                 contentScale = ContentScale.Crop
             )
             PhotoActionIcon(
@@ -2024,7 +2048,8 @@ private fun PhotoActionIcon(
 private fun PhotoTile(
     photo: ProfilePhoto,
     onDelete: (String) -> Unit,
-    onSetPrimary: (String) -> Unit
+    onSetPrimary: (String) -> Unit,
+    onPreview: () -> Unit
 ) {
     PremiumCard(
         modifier = Modifier.size(width = 132.dp, height = 168.dp),
@@ -2035,7 +2060,9 @@ private fun PhotoTile(
             MemberPhoto(
                 photoUrl = photo.photoUrl,
                 contentDescription = if (photo.isPrimary) "Primary photo" else "Profile photo",
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(onClick = onPreview),
                 shape = RoundedCornerShape(8.dp)
             )
             if (photo.isPrimary) {
@@ -2060,6 +2087,42 @@ private fun PhotoTile(
             )
         }
     }
+}
+
+@Composable
+private fun PhotoPreviewDialog(
+    model: Any,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        },
+        title = {
+            Text("Profile photo", fontWeight = FontWeight.ExtraBold)
+        },
+        text = {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(3f / 4f),
+                shape = RoundedCornerShape(18.dp),
+                color = SurfaceSoft,
+                border = BorderStroke(1.dp, Divider)
+            ) {
+                AsyncImage(
+                    model = model,
+                    contentDescription = "Profile photo preview",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+        },
+        shape = RoundedCornerShape(24.dp)
+    )
 }
 
 @Composable

@@ -83,7 +83,7 @@ class DashboardViewModel @Inject constructor(
                 ?.body()
                 ?.takeIf { response.isSuccessful && it.success }
                 ?.data
-            _myProfile.value = profile ?: if (canUseFallback) MarketFixtures.myProfile else ProfileData()
+            _myProfile.value = (profile ?: if (canUseFallback) MarketFixtures.myProfile else ProfileData()).safeDashboardProfile()
             _matches.value = loadedMatches.applyLocalInteractionState().filterVisibleProfiles()
             val assistResponse = runCatching { profileApi.getAssistStatus() }.getOrNull()
             _assistEnabled.value = assistResponse
@@ -99,31 +99,35 @@ class DashboardViewModel @Inject constructor(
         if (_isLoading.value) return
         viewModelScope.launch {
             _isLoading.value = true
-            val canUseFallback = canUseDemoFallback()
-            val verifiedOnly = _verifiedOnlyMode.value
-            val remoteResponse = runCatching { matchingApi.getRecommended(page = 1, limit = 25, verifiedOnly = verifiedOnly) }.getOrNull()
-            val remoteBody = remoteResponse?.body()
-            val baseMatches = if (remoteResponse?.isSuccessful == true && remoteBody?.success == true) {
-                remoteBody.data?.matches.orEmpty()
-            } else {
-                emptyList()
-            }.ifEmpty { if (canUseFallback) MarketFixtures.matches else emptyList() }
-                .let { list -> if (verifiedOnly) list.filter { it.isVerified } else list }
-            val expandedMatches = if (baseMatches.size >= MIN_DISCOVERY_PROFILES) {
-                baseMatches
-            } else {
-                mergeDiscoveryProfiles(baseMatches, fetchSearchTopUp(baseMatches, verifiedOnly))
+            try {
+                val canUseFallback = canUseDemoFallback()
+                val verifiedOnly = _verifiedOnlyMode.value
+                val remoteResponse = runCatching { matchingApi.getRecommended(page = 1, limit = 25, verifiedOnly = verifiedOnly) }.getOrNull()
+                val remoteBody = remoteResponse?.body()
+                val baseMatches = if (remoteResponse?.isSuccessful == true && remoteBody?.success == true) {
+                    remoteBody.data?.matches.orEmpty()
+                } else {
+                    emptyList()
+                }.ifEmpty { if (canUseFallback) MarketFixtures.matches else emptyList() }
+                    .map { it.safeDashboardSummary() }
+                    .let { list -> if (verifiedOnly) list.filter { it.isVerified } else list }
+                val expandedMatches = if (baseMatches.size >= MIN_DISCOVERY_PROFILES) {
+                    baseMatches
+                } else {
+                    mergeDiscoveryProfiles(baseMatches, fetchSearchTopUp(baseMatches, verifiedOnly))
+                }
+                loadedMatches = applyInteractionState(expandedMatches.map { it.safeDashboardSummary() })
+                _matches.value = loadedMatches.applyLocalInteractionState().filterVisibleProfiles()
+                _headline.value = when {
+                    verifiedOnly && _matches.value.isEmpty() -> "No verified profiles available yet"
+                    _matches.value.any { it.compatibilityScore >= 90 } -> "High-compatibility matches this week"
+                    _matches.value.isEmpty() -> "Complete your profile for more visibility"
+                    else -> "Profiles aligned to your preferences"
+                }
+                loadPendingInvitations()
+            } finally {
+                _isLoading.value = false
             }
-            loadedMatches = applyInteractionState(expandedMatches)
-            _matches.value = loadedMatches.applyLocalInteractionState().filterVisibleProfiles()
-            _headline.value = when {
-                verifiedOnly && _matches.value.isEmpty() -> "No verified profiles available yet"
-                _matches.value.any { it.compatibilityScore >= 90 } -> "High-compatibility matches this week"
-                _matches.value.isEmpty() -> "Complete your profile for more visibility"
-                else -> "Profiles aligned to your preferences"
-            }
-            loadPendingInvitations()
-            _isLoading.value = false
         }
     }
 
@@ -274,22 +278,24 @@ class DashboardViewModel @Inject constructor(
             .map { it.profileId }
             .toSet()
         return matches.map { profile ->
-            profile.copy(
-                interestSent = when (profile.profileId) {
+            val safeProfile = profile.safeDashboardSummary()
+            safeProfile.copy(
+                interestSent = when (safeProfile.profileId) {
                     in declinedSentIds -> false
-                    else -> profile.interestSent || profile.profileId in activeSentIds || profile.profileId in ProfileInteractionStore.state.value.sentInterestProfileIds
+                    else -> safeProfile.interestSent || safeProfile.profileId in activeSentIds || safeProfile.profileId in ProfileInteractionStore.state.value.sentInterestProfileIds
                 },
-                shortlisted = when (profile.profileId) {
+                shortlisted = when (safeProfile.profileId) {
                     in ProfileInteractionStore.state.value.unshortlistedProfileIds -> false
-                    else -> profile.shortlisted || profile.profileId in shortlistedIds || profile.profileId in ProfileInteractionStore.state.value.shortlistedProfileIds
+                    else -> safeProfile.shortlisted || safeProfile.profileId in shortlistedIds || safeProfile.profileId in ProfileInteractionStore.state.value.shortlistedProfileIds
                 }
-            )
+            ).safeDashboardSummary()
         }
     }
 
     private fun List<ProfileSummary>.filterVisibleProfiles(): List<ProfileSummary> {
         val interactions = ProfileInteractionStore.state.value
-        return filterNot { it.profileId in interactions.hiddenProfileIds || it.profileId in interactions.blockedProfileIds }
+        return map { it.safeDashboardSummary() }
+            .filterNot { it.profileId in interactions.hiddenProfileIds || it.profileId in interactions.blockedProfileIds }
             .filterForViewerGender()
     }
 
@@ -303,13 +309,14 @@ class DashboardViewModel @Inject constructor(
     private fun List<ProfileSummary>.applyLocalInteractionState(): List<ProfileSummary> {
         val interactions = ProfileInteractionStore.state.value
         return map { profile ->
-            profile.copy(
-                interestSent = profile.interestSent || profile.profileId in interactions.sentInterestProfileIds,
-                shortlisted = when (profile.profileId) {
+            val safeProfile = profile.safeDashboardSummary()
+            safeProfile.copy(
+                interestSent = safeProfile.interestSent || safeProfile.profileId in interactions.sentInterestProfileIds,
+                shortlisted = when (safeProfile.profileId) {
                     in interactions.unshortlistedProfileIds -> false
-                    else -> profile.shortlisted || profile.profileId in interactions.shortlistedProfileIds
+                    else -> safeProfile.shortlisted || safeProfile.profileId in interactions.shortlistedProfileIds
                 }
-            )
+            ).safeDashboardSummary()
         }
     }
 
@@ -337,7 +344,8 @@ class DashboardViewModel @Inject constructor(
             ?.map { result -> result.toProfileSummary(seedMap[result.profileId]) }
             .orEmpty()
         return topUpProfiles.map { profile ->
-            if (profile.profileId in seedMap) profile else profile.withLiveCompatibility()
+            val safeProfile = profile.safeDashboardSummary()
+            if (safeProfile.profileId in seedMap) safeProfile else safeProfile.withLiveCompatibility()
         }
     }
 
@@ -353,26 +361,112 @@ class DashboardViewModel @Inject constructor(
     }
 
     private suspend fun ProfileSummary.withLiveCompatibility(): ProfileSummary {
-        if (profileId.isBlank()) return this
-        val response = runCatching { matchingApi.getCompatibility(profileId) }.getOrNull()
+        val safeProfile = safeDashboardSummary()
+        if (safeProfile.profileId.isBlank()) return safeProfile
+        val response = runCatching { matchingApi.getCompatibility(safeProfile.profileId) }.getOrNull()
         val compatibility = response
             ?.body()
             ?.takeIf { response.isSuccessful && it.success }
             ?.data
-            ?: return this
-        return copy(
+            ?: return safeProfile
+        return safeProfile.copy(
             compatibilityScore = compatibility.overallScore.coerceIn(0, 99),
-            compatibilityBreakdown = compatibility.breakdown ?: compatibilityBreakdown
+            compatibilityBreakdown = compatibility.breakdown ?: safeProfile.compatibilityBreakdown
         )
     }
 
-    private fun oppositeGender(gender: String): String? {
-        return when (gender.trim().lowercase()) {
+    private fun oppositeGender(gender: String?): String? {
+        return when (safeText(gender).trim().lowercase()) {
             "male" -> "female"
             "female" -> "male"
             else -> null
         }
     }
+
+    private fun ProfileData.safeDashboardProfile(): ProfileData = copy(
+        profileId = safeText(profileId),
+        userId = safeText(userId),
+        firstName = safeText(firstName),
+        lastName = safeText(lastName),
+        dob = safeText(dob).ifBlank { null },
+        gender = safeText(gender),
+        phone = safeText(phone),
+        email = safeText(email),
+        religion = safeText(religion),
+        caste = safeText(caste),
+        motherTongue = safeText(motherTongue),
+        maritalStatus = safeText(maritalStatus),
+        profileStatus = safeText(profileStatus).ifBlank { "active" },
+        profileCreatedBy = safeText(profileCreatedBy).ifBlank { "self" },
+        verificationStatus = safeText(verificationStatus).ifBlank { "pending" },
+        trustLevel = safeText(trustLevel).ifBlank { "low" },
+        trustSignals = safeList(trustSignals),
+        trustWarnings = safeList(trustWarnings),
+        trustFactors = safeList(trustFactors),
+        seriousnessLevel = safeText(seriousnessLevel).ifBlank { "low" },
+        seriousnessSignals = safeList(seriousnessSignals),
+        seriousnessWarnings = safeList(seriousnessWarnings),
+        primaryPhotoUrl = safeText(primaryPhotoUrl).ifBlank { null },
+        photoPrivacy = safeText(photoPrivacy).ifBlank { "all" },
+        photoAccessStatus = safeText(photoAccessStatus).ifBlank { "visible" },
+        photoAccessRequestId = safeText(photoAccessRequestId).ifBlank { null },
+        profileVisibility = safeText(profileVisibility).ifBlank { "all" },
+        lastLogin = safeText(lastLogin).ifBlank { null },
+        updatedAt = safeText(updatedAt).ifBlank { null },
+        educationLevel = safeText(educationLevel),
+        occupation = safeText(occupation),
+        annualIncome = safeText(annualIncome),
+        workingCity = safeText(workingCity),
+        workingState = safeText(workingState),
+        workingPincode = safeText(workingPincode),
+        complexion = safeText(complexion),
+        bodyType = safeText(bodyType),
+        bloodGroup = safeText(bloodGroup),
+        fatherOccupation = safeText(fatherOccupation),
+        motherOccupation = safeText(motherOccupation),
+        familyType = safeText(familyType),
+        familyCity = safeText(familyCity),
+        familyState = safeText(familyState),
+        familyLocality = safeText(familyLocality),
+        familyPincode = safeText(familyPincode),
+        diet = safeText(diet),
+        smoking = safeText(smoking),
+        drinking = safeText(drinking),
+        aboutMe = safeText(aboutMe),
+        rashi = safeText(rashi),
+        nakshatra = safeText(nakshatra),
+        birthCity = safeText(birthCity),
+        gotra = safeText(gotra)
+    )
+
+    private fun ProfileSummary.safeDashboardSummary(): ProfileSummary = copy(
+        profileId = safeText(profileId),
+        userId = safeText(userId),
+        name = safeText(name).ifBlank { "SoulMatch member" },
+        gender = safeText(gender),
+        location = safeText(location),
+        occupation = safeText(occupation),
+        primaryPhoto = safeText(primaryPhoto).ifBlank { null },
+        trustLevel = safeText(trustLevel).ifBlank { "low" },
+        trustSignals = safeList(trustSignals),
+        trustFactors = safeList(trustFactors),
+        education = safeText(education),
+        community = safeText(community),
+        religion = safeText(religion),
+        annualIncome = safeText(annualIncome),
+        familyCity = safeText(familyCity),
+        familyState = safeText(familyState),
+        maritalStatus = safeText(maritalStatus),
+        diet = safeText(diet),
+        createdAt = safeText(createdAt),
+        lastActiveLabel = safeText(lastActiveLabel).ifBlank { "Recently Active" },
+        matchReasons = safeList(matchReasons),
+        profileCreatedBy = safeText(profileCreatedBy).ifBlank { "self" }
+    )
+
+    private fun safeText(value: String?): String = value.orEmpty()
+
+    private fun <T> safeList(value: List<T>?): List<T> = value ?: emptyList()
 
     private companion object {
         const val MIN_DISCOVERY_PROFILES = 15

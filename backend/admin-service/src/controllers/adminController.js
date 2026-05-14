@@ -1817,6 +1817,7 @@ exports.updateProfileStatus = async (req, res) => {
     const reason = String(req.body?.reason || '').trim() || null;
     const updates = {
       approve: { published: true, verification: 'verified', admin: 'active', review: 'verified' },
+      unverify: { published: true, verification: 'unverified', admin: 'active', review: 'under_review' },
       reject: { published: false, verification: 'rejected', admin: 'rejected', review: 'rejected' },
       suspend: { published: false, verification: 'pending', admin: 'suspended', review: 'under_review' },
       restore: { published: true, verification: 'verified', admin: 'active', review: 'verified' }
