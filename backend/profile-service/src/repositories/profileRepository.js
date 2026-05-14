@@ -176,6 +176,7 @@ function buildTrustSummary(signals = {}) {
   const pendingVerifications = Number(signals.pending_verifications ?? signals.pendingVerifications ?? 0);
   const reportCount = Number(signals.report_count ?? signals.reportCount ?? 0);
   const isPhoneVerified = toBoolean(signals.is_verified) || toBoolean(signals.isPhoneVerified);
+  const hasEmail = Boolean(String(signals.email || '').trim());
   const isFirebaseVerified = toBoolean(signals.firebase_verified) || toBoolean(signals.firebaseVerified) || Boolean(signals.google_id || signals.googleId);
   const hasFamilyLocation = Boolean(signals.family_city || signals.familyCity || signals.family_pincode || signals.familyPincode);
   const profileStatus = String(signals.profile_status || signals.profileStatus || 'active').toLowerCase();
@@ -206,6 +207,15 @@ function buildTrustSummary(signals = {}) {
     addFactor('phone_verified', 'Phone verification', 0, 'missing', 'Mobile number is not marked verified yet.');
     warnings.push('Phone is not verified');
   }
+
+  addFactor(
+    'email_verification',
+    'Email verification',
+    hasEmail ? 5 : 0,
+    hasEmail ? 'positive' : 'missing',
+    hasEmail ? 'Email is linked to this account.' : 'No email is linked to this account.'
+  );
+  if (hasEmail) trustSignals.push('Email linked');
 
   if (isFirebaseVerified) {
     addFactor('firebase_verified', 'Firebase / Google verified', 8, 'positive', 'Firebase or Google identity is linked.');
@@ -493,6 +503,7 @@ exports.getTrustSummary = async (profileId) => {
        p.verification_status,
        p.profile_status,
        p.primary_photo_url,
+       u.email,
        u.is_verified,
        u.google_id,
        (u.google_id IS NOT NULL) AS firebase_verified,
@@ -1729,6 +1740,9 @@ exports.findFullByUserId = async (userId) => {
   const r = await db.query(
     `SELECT
        p.*,
+       u.phone,
+       u.email,
+       u.is_verified AS is_phone_verified,
        u.last_login,
        EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
        pd.height_cm,
@@ -1779,6 +1793,9 @@ exports.findFullById = async (profileId) => {
   const r = await db.query(
     `SELECT
        p.*,
+       u.phone,
+       u.email,
+       u.is_verified AS is_phone_verified,
        u.last_login,
        EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
        pd.height_cm,

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
@@ -67,11 +68,11 @@ private data class DrawerAction(
 )
 
 private val primaryActions = listOf(
-    DrawerAction("Edit Profile", ProfileDrawerRoutes.EditProfile, Icons.Filled.Edit),
+    DrawerAction("My Profile", ProfileDrawerRoutes.EditProfile, Icons.Filled.Edit),
     DrawerAction("Partner Preference", ProfileDrawerRoutes.PartnerPreference, Icons.Filled.Favorite),
     DrawerAction("SoulMatch Assist", ProfileDrawerRoutes.SoulMatchAssist, Icons.Filled.SupportAgent),
     DrawerAction("Spotlight", ProfileDrawerRoutes.Spotlight, Icons.Filled.Star),
-    DrawerAction("Astrology Services", ProfileDrawerRoutes.AstrologyServices, Icons.Filled.Star),
+    DrawerAction("Astrology Services", ProfileDrawerRoutes.AstrologyServices, Icons.Filled.AutoAwesome),
     DrawerAction("Account & Settings", ProfileDrawerRoutes.AccountSettings, Icons.Filled.Settings),
     DrawerAction("Safety Center", ProfileDrawerRoutes.SafetyCenter, Icons.Filled.Lock),
     DrawerAction("Subscription History", ProfileDrawerRoutes.SubscriptionHistory, Icons.Filled.List),

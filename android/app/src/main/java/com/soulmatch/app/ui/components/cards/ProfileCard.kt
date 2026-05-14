@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.BookmarkBorder
@@ -127,7 +126,10 @@ fun ProfileCard(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
-                    ProfileMatchSignal(score = profile.compatibilityScore)
+                    MatchTrustTagRow(
+                        matchScore = profile.compatibilityScore,
+                        trustScore = profile.trustScore
+                    )
                     Text(
                         text = resolveRecentActivity(profile.lastActiveLabel),
                         style = MaterialTheme.typography.labelMedium,
@@ -169,6 +171,23 @@ fun ProfileCard(
                             )
                         }
                     }
+                    if (profile.shortlisted) {
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(8.dp),
+                            shape = RoundedCornerShape(topStart = 10.dp, bottomEnd = 10.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.92f)
+                        ) {
+                            Text(
+                                "Saved",
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                    }
                     Row(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
@@ -194,7 +213,7 @@ fun ProfileCard(
                             onClick = { onShortlist(profile.profileId) }
                         ) {
                             Icon(
-                                imageVector = if (profile.shortlisted) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                imageVector = Icons.Outlined.BookmarkBorder,
                                 contentDescription = null,
                                 modifier = Modifier.size(17.dp)
                             )
@@ -203,6 +222,36 @@ fun ProfileCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MatchTrustTagRow(matchScore: Int, trustScore: Int) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        ProfileMetricTag("${matchScore.coerceIn(0, 99)}% Match")
+        ProfileMetricTag("${trustScore.coerceIn(0, 100)}% Trust")
+    }
+}
+
+@Composable
+private fun ProfileMetricTag(label: String) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = PrimaryDark,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

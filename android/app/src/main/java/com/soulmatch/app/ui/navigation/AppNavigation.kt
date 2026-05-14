@@ -18,7 +18,6 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -409,7 +408,10 @@ fun AppNavigation(
             PartnerPreferencesScreen(onBack = { nav.popBackStack() })
         }
         composable("trust_details") {
-            TrustDetailsScreen(onBack = { nav.popBackStack() })
+            TrustDetailsScreen(
+                onBack = { nav.popBackStack() },
+                onEditProfileStep = { step -> nav.navigate("profile_wizard/$step?returnToProfile=true") }
+            )
         }
         composable("family_decisions") {
             FamilyDecisionBoardScreen(
@@ -556,7 +558,6 @@ private data class BottomNavItem(
 
 private val bottomNavItems = listOf(
     BottomNavItem("home", "dashboard", listOf("dashboard", "best_matches"), Icons.Filled.Home),
-    BottomNavItem("search", "search", listOf("search"), Icons.Filled.Search),
     BottomNavItem("activity", "interests", listOf("interests"), Icons.Filled.AccessTime),
     BottomNavItem("chat", "chat_list", listOf("chat_list", "chat/"), Icons.Filled.Chat),
     BottomNavItem(
@@ -583,8 +584,8 @@ private fun AppBottomNavigation(
         NavigationBar(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(82.dp)
-                .padding(horizontal = 8.dp),
+                .height(78.dp)
+                .padding(horizontal = 14.dp),
             containerColor = Color.Transparent,
             tonalElevation = 0.dp
         ) {

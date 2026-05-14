@@ -36,7 +36,6 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
@@ -287,7 +286,6 @@ fun DashboardScreen(
                     unreadCount = notificationBadgeCount,
                     onOpenProfile = { scope.launch { drawerState.open() } },
                     onOpenNotifications = onOpenNotifications,
-                    onOpenSearch = onOpenSearch,
                     onOpenPartnerPreferences = onOpenPartnerPreferences
                 )
             },
@@ -339,10 +337,12 @@ fun DashboardScreen(
                                     body = if (selectedFeedFilter == null) {
                                         content.emptyBody.ifBlank { "Complete family, lifestyle, and preference details to unlock stronger recommendations." }
                                     } else {
-                                        "Try another filter or open the full search to continue browsing compatible profiles."
+                                        "Try another filter or refine your preferences to continue browsing compatible profiles."
                                     },
                                     action = if (selectedFeedFilter == null) content.emptyCta.ifBlank { "Improve my profile" } else "Open filters",
-                                    onAction = if (selectedFeedFilter == null) onOpenProfile else onOpenSearch
+                                    onAction = {
+                                        if (selectedFeedFilter == null) onOpenProfile() else showFilterDialog = true
+                                    }
                                 )
                             }
                         } else {
@@ -404,7 +404,6 @@ private fun HomeTopBar(
     unreadCount: Int,
     onOpenProfile: () -> Unit,
     onOpenNotifications: () -> Unit,
-    onOpenSearch: () -> Unit,
     onOpenPartnerPreferences: () -> Unit
 ) {
     Surface(
@@ -514,9 +513,6 @@ private fun HomeTopBar(
                             }
                         }
                     }
-                }
-                IconButton(onClick = onOpenSearch) {
-                    Icon(Icons.Filled.Search, contentDescription = "Search matches", tint = Color(0xFF748091), modifier = Modifier.size(31.dp))
                 }
             }
         }
@@ -1927,6 +1923,13 @@ private fun HomeMatchCard(
                     }
                 }
             }
+            if (profile.shortlisted) {
+                ShortlistedRibbonBadge(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(16.dp)
+                )
+            }
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -1985,7 +1988,10 @@ private fun HomeMatchCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                MatchInfoRibbon("${profile.compatibilityScore.coerceIn(0, 99)}% Match | ${profile.trustScore.coerceIn(0, 100)}% Trust")
+                MatchInfoTags(
+                    matchScore = profile.compatibilityScore.coerceIn(0, 99),
+                    trustScore = profile.trustScore.coerceIn(0, 100)
+                )
                 Text(
                     "Profile managed by ${profileOwnerLabel(profile.profileCreatedBy)}",
                     style = MaterialTheme.typography.titleSmall.copy(fontStyle = FontStyle.Italic),
@@ -2015,7 +2021,7 @@ private fun HomeMatchCard(
                         onClick = onShortlist
                     ) {
                         Icon(
-                            imageVector = if (profile.shortlisted) Icons.Filled.Star else Icons.Outlined.BookmarkBorder,
+                            imageVector = Icons.Outlined.BookmarkBorder,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(28.dp)
@@ -2076,19 +2082,50 @@ private fun PrivatePhotoPlaceholder(
 }
 
 @Composable
-private fun MatchInfoRibbon(label: String) {
+private fun ShortlistedRibbonBadge(modifier: Modifier = Modifier) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Color.Black.copy(alpha = 0.28f),
-        shape = RoundedCornerShape(0.dp)
+        modifier = modifier,
+        shape = RoundedCornerShape(topStart = 14.dp, bottomEnd = 14.dp),
+        color = HomePrimary.copy(alpha = 0.92f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f))
+    ) {
+        Text(
+            "SHORTLISTED",
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White,
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun MatchInfoTags(matchScore: Int, trustScore: Int) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        MatchMetricTag("$matchScore% Match")
+        MatchMetricTag("$trustScore% Trust")
+    }
+}
+
+@Composable
+private fun MatchMetricTag(label: String) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = Color.Black.copy(alpha = 0.42f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f))
     ) {
         Text(
             label,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-            style = MaterialTheme.typography.titleSmall.copy(fontStyle = FontStyle.Italic),
-            color = Color.White.copy(alpha = 0.92f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelLarge.copy(fontStyle = FontStyle.Italic),
+            color = Color.White.copy(alpha = 0.94f),
+            fontWeight = FontWeight.ExtraBold,
+            maxLines = 1
         )
     }
 }

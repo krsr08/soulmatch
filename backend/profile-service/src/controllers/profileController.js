@@ -876,10 +876,12 @@ exports.submitVerification = async (req, res, next) => {
     if (!type) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Verification type must be profile, identity, photo, education, income, or family.'));
     const documentUrl = normalizeDocumentUrl(req.body);
     if (documentUrl === false) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Document URL must be an HTTPS URL or a SoulMatch upload path.'));
-    const photoCount = await repo.getPhotoCount(req.params.profileId);
-    if (photoCount < 1) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Add at least one profile photo before requesting verification.'));
-    const completionScore = await repo.calcCompletion(req.params.profileId);
-    if (completionScore < 60) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Complete your profile to at least 60% before requesting verification.'));
+    if (type === 'profile') {
+      const photoCount = await repo.getPhotoCount(req.params.profileId);
+      if (photoCount < 1) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Add at least one profile photo before requesting verification.'));
+      const completionScore = await repo.calcCompletion(req.params.profileId);
+      if (completionScore < 60) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Complete your profile to at least 60% before requesting verification.'));
+    }
 
     const result = await repo.createVerificationRequest(profile, { type, documentUrl, audit: auditMeta(req) });
     if (result.status === 'already_verified') {
@@ -889,6 +891,33 @@ exports.submitVerification = async (req, res, next) => {
       return res.json({ success: true, data: result.verification, message: 'Your verification request is already in review.' });
     }
     res.json({ success: true, data: result.verification, message: 'Verification request submitted for admin review.' });
+  } catch (err) { next(err); }
+};
+
+exports.submitVerificationUpload = async (req, res, next) => {
+  try {
+    const profile = await requireOwnedProfile(req.params.profileId, req.user.userId);
+    const type = normalizeVerificationType(req.body?.type);
+    if (!type) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Verification type must be profile, identity, photo, education, income, or family.'));
+    const uploadedUrl = resolveUploadUrls(req.file ? [req.file] : [])[0] || null;
+    const documentUrl = uploadedUrl || normalizeDocumentUrl(req.body);
+    if (documentUrl === false) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Document URL must be an HTTPS URL or a SoulMatch upload path.'));
+    if (!documentUrl) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Upload a verification document before submitting.'));
+    if (type === 'profile') {
+      const photoCount = await repo.getPhotoCount(req.params.profileId);
+      if (photoCount < 1) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Add at least one profile photo before requesting verification.'));
+      const completionScore = await repo.calcCompletion(req.params.profileId);
+      if (completionScore < 60) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Complete your profile to at least 60% before requesting verification.'));
+    }
+
+    const result = await repo.createVerificationRequest(profile, { type, documentUrl, audit: auditMeta(req) });
+    if (result.status === 'already_verified') {
+      return res.json({ success: true, data: null, message: 'Your profile is already verified.' });
+    }
+    if (result.status === 'already_pending') {
+      return res.json({ success: true, data: result.verification, message: 'Your verification request is already in review.' });
+    }
+    res.json({ success: true, data: result.verification, message: 'Verification document submitted for admin review.' });
   } catch (err) { next(err); }
 };
 

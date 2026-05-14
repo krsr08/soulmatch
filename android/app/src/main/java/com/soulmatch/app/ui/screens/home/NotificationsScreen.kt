@@ -277,10 +277,10 @@ private fun NotificationsTopBar(
                 modifier = Modifier
                     .weight(1f)
                     .padding(start = 12.dp),
-                style = MaterialTheme.typography.headlineMedium.copy(
+                style = MaterialTheme.typography.headlineSmall.copy(
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.ExtraBold,
-                    lineHeight = 34.sp
+                    lineHeight = 30.sp
                 ),
                 color = NotificationsText
             )
@@ -288,7 +288,7 @@ private fun NotificationsTopBar(
                 TextButton(onClick = onMarkAllRead) {
                     Text(
                         "Mark all read",
-                        style = MaterialTheme.typography.titleMedium.copy(
+                        style = MaterialTheme.typography.labelLarge.copy(
                             fontFamily = FontFamily.Serif,
                             fontWeight = FontWeight.ExtraBold
                         ),
@@ -305,7 +305,7 @@ private fun SectionHeader(title: String) {
     Text(
         title,
         modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 6.dp),
-        style = MaterialTheme.typography.titleMedium.copy(
+        style = MaterialTheme.typography.labelLarge.copy(
             fontFamily = FontFamily.Serif,
             fontWeight = FontWeight.ExtraBold,
             letterSpacing = 0.8.sp
@@ -326,22 +326,22 @@ private fun NotificationCard(item: NotificationUiItem) {
         shadowElevation = if (item.isUnread) 2.dp else 0.dp
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
                 shape = RoundedCornerShape(999.dp),
                 color = item.iconBackground,
                 shadowElevation = if (item.isUnread) 1.dp else 0.dp,
-                modifier = Modifier.size(58.dp)
+                modifier = Modifier.size(48.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = item.icon,
                         contentDescription = null,
                         tint = item.iconTint,
-                        modifier = Modifier.size(31.dp)
+                        modifier = Modifier.size(25.dp)
                     )
                 }
             }
@@ -351,10 +351,10 @@ private fun NotificationCard(item: NotificationUiItem) {
             ) {
                 Text(
                     item.title,
-                    style = MaterialTheme.typography.titleLarge.copy(
+                    style = MaterialTheme.typography.titleSmall.copy(
                         fontFamily = FontFamily.Serif,
                         fontWeight = FontWeight.ExtraBold,
-                        lineHeight = 27.sp
+                        lineHeight = 21.sp
                     ),
                     color = NotificationsText,
                     maxLines = 2,
@@ -362,9 +362,9 @@ private fun NotificationCard(item: NotificationUiItem) {
                 )
                 Text(
                     item.body,
-                    style = MaterialTheme.typography.bodyLarge.copy(
+                    style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = FontFamily.Serif,
-                        lineHeight = 27.sp
+                        lineHeight = 20.sp
                     ),
                     color = NotificationsMuted,
                     maxLines = 2,
@@ -373,7 +373,7 @@ private fun NotificationCard(item: NotificationUiItem) {
             }
             Text(
                 item.action.uppercase(Locale.getDefault()),
-                style = MaterialTheme.typography.titleSmall.copy(
+                style = MaterialTheme.typography.labelSmall.copy(
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.ExtraBold
                 ),

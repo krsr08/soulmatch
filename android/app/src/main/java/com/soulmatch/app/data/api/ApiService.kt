@@ -57,6 +57,13 @@ interface ProfileApiService {
     @GET("profile/photo-access/requests") suspend fun getPhotoAccessRequests(): Response<GenericResponse<List<PhotoAccessRequestData>>>
     @PUT("profile/photo-access/requests/{requestId}") suspend fun respondPhotoAccessRequest(@Path("requestId") id: String, @Body req: PhotoAccessActionRequest): Response<GenericResponse<PhotoAccessResponseData>>
     @GET("profile/{profileId}/verifications") suspend fun getVerifications(@Path("profileId") id: String): Response<GenericResponse<List<VerificationRequestData>>>
+    @Multipart
+    @POST("profile/{profileId}/verifications/upload")
+    suspend fun submitVerificationUpload(
+        @Path("profileId") id: String,
+        @Part("type") type: RequestBody,
+        @Part document: MultipartBody.Part
+    ): Response<GenericResponse<VerificationRequestData>>
     @POST("profile/{profileId}/verifications") suspend fun submitVerification(@Path("profileId") id: String, @Body req: VerificationSubmitRequest): Response<GenericResponse<VerificationRequestData>>
     @GET("profile/{profileId}/viewers") suspend fun getViewers(@Path("profileId") id: String): Response<GenericResponse<List<ViewerData>>>
     @POST("profile/{profileId}/block") suspend fun blockProfile(@Path("profileId") id: String): Response<GenericResponse<Any>>

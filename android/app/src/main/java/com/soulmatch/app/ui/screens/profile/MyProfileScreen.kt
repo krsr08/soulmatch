@@ -25,20 +25,28 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.FamilyRestroom
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -66,6 +74,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -446,10 +455,54 @@ fun PartnerPreferencesScreen(
 @Composable
 fun TrustDetailsScreen(
     onBack: () -> Unit,
+    onEditProfileStep: (Int) -> Unit = {},
     vm: MyProfileViewModel = hiltViewModel()
 ) {
     val profile by vm.profile.collectAsStateWithLifecycle()
-    val visibleFactors = profile?.trustFactors.orEmpty().filterNot { it.isFirebaseTrustFactor() }
+    val photos by vm.photos.collectAsStateWithLifecycle()
+    val verifications by vm.verifications.collectAsStateWithLifecycle()
+    val isSubmitting by vm.isSubmittingVerification.collectAsStateWithLifecycle()
+    val uploadingPhotos by vm.isUploadingPhotos.collectAsStateWithLifecycle()
+    val status by vm.status.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    var selectedEntry by remember { mutableStateOf<TrustActionType?>(null) }
+    var pendingVerificationType by remember { mutableStateOf<String?>(null) }
+    var contactDraft by remember(profile?.profileId, profile?.phone, profile?.email) {
+        mutableStateOf(TrustContactDraft(phone = profile?.phone.orEmpty(), email = profile?.email.orEmpty()))
+    }
+    var familyDraft by remember(profile?.profileId) { mutableStateOf(TrustFamilyDraft()) }
+    var isEducated by remember(profile?.profileId, profile?.educationLevel) {
+        mutableStateOf(profile?.educationLevel.orEmpty().isNotBlank())
+    }
+    var incomeType by remember(profile?.profileId, profile?.isEmployed) {
+        mutableStateOf(if (profile?.isEmployed == true) "Private" else "Not employed")
+    }
+    val documentPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        val type = pendingVerificationType
+        pendingVerificationType = null
+        if (uri != null && type != null) {
+            context.toVerificationDocumentPart(uri)?.let { part ->
+                vm.submitTrustVerification(type, part)
+            }
+        }
+    }
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            context.toPhotoPart(uri, 0)?.let { part -> vm.uploadPhotos(listOf(part)) }
+        }
+    }
+    val trustEntries = remember(profile, photos, verifications, contactDraft, familyDraft, isEducated, incomeType) {
+        buildTrustChecklist(
+            profile = profile,
+            photos = photos,
+            verifications = verifications,
+            contactDraft = contactDraft,
+            familyDraft = familyDraft,
+            isEducated = isEducated,
+            incomeType = incomeType
+        )
+    }
+    val calculatedScore = remember(trustEntries) { calculateTrustScore(trustEntries) }
 
     Scaffold(
         topBar = {
@@ -473,6 +526,11 @@ fun TrustDetailsScreen(
                 contentPadding = PaddingValues(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (!status.isNullOrBlank()) {
+                    item {
+                        StatusCard(status = status.orEmpty())
+                    }
+                }
                 item {
                     PremiumCard(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -481,33 +539,59 @@ fun TrustDetailsScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             TrustMetricTile(
                                 label = "Trust Score",
-                                value = "${profile?.trustScore?.coerceIn(0, 100) ?: 0}%",
+                                value = "$calculatedScore%",
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Text(
-                                "Each item below shows the member-visible verification and profile quality signals used for this score.",
+                                "Tap any trust item to add details, upload proof, or review the current verification status. The score updates as items are completed.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary
                             )
+                            if ((profile?.trustScore ?: 0) > 0) {
+                                Text(
+                                    "Backend trust engine: ${profile?.trustScore?.coerceIn(0, 100)}%",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
                 }
-                if (visibleFactors.isEmpty()) {
-                    item {
-                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), containerColor = SurfaceSoft) {
-                            Text("Trust details will appear after verification signals are available.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                        }
-                    }
-                } else {
-                    items(visibleFactors, key = { "${it.key}-${it.label}" }) { factor ->
-                        TrustFactorStatusRow(
-                            label = factor.label,
-                            detail = factor.detail,
-                            status = factor.status
-                        )
-                    }
+                items(trustEntries, key = { it.type.name }) { entry ->
+                    TrustChecklistStatusRow(
+                        entry = entry,
+                        onClick = { selectedEntry = entry.type }
+                    )
                 }
             }
+        }
+    }
+    selectedEntry?.let { type ->
+        val entry = trustEntries.firstOrNull { it.type == type }
+        if (entry != null) {
+            TrustActionDialog(
+                entry = entry,
+                profile = profile,
+                contactDraft = contactDraft,
+                onContactDraftChange = { contactDraft = it },
+                familyDraft = familyDraft,
+                onFamilyDraftChange = { familyDraft = it },
+                isEducated = isEducated,
+                onEducatedChange = { isEducated = it },
+                incomeType = incomeType,
+                onIncomeTypeChange = { incomeType = it },
+                isSubmitting = isSubmitting,
+                uploadingPhotos = uploadingPhotos,
+                onDismiss = { selectedEntry = null },
+                onEditStep = onEditProfileStep,
+                onUploadDocument = { verificationType ->
+                    pendingVerificationType = verificationType
+                    documentPicker.launch("*/*")
+                },
+                onUploadPhoto = { photoPicker.launch("image/*") },
+                onSubmitVerification = { verificationType -> vm.submitTrustVerification(verificationType) }
+            )
         }
     }
 }
@@ -854,6 +938,559 @@ private enum class ProfileVerificationState {
     NotRequested
 }
 
+private enum class TrustActionType {
+    PhoneVerification,
+    EmailVerification,
+    ProfileCompletion,
+    AdminVerification,
+    DocumentVerification,
+    EducationVerification,
+    IncomeVerification,
+    FamilyVerification,
+    PhotoUploaded,
+    ProfileActive,
+    SafetyReports
+}
+
+private enum class TrustEntryState {
+    Verified,
+    Pending,
+    Missing,
+    Warning
+}
+
+private data class TrustContactDraft(
+    val phone: String = "",
+    val email: String = ""
+)
+
+private data class TrustFamilyDraft(
+    val fatherName: String = "",
+    val motherName: String = "",
+    val hasSiblings: Boolean = false,
+    val siblingCount: String = "",
+    val alternatePhone: String = ""
+)
+
+private data class TrustChecklistEntry(
+    val type: TrustActionType,
+    val title: String,
+    val detail: String,
+    val statusLabel: String,
+    val state: TrustEntryState,
+    val icon: ImageVector
+)
+
+private fun buildTrustChecklist(
+    profile: ProfileData?,
+    photos: List<ProfilePhoto>,
+    verifications: List<VerificationRequestData>,
+    contactDraft: TrustContactDraft,
+    familyDraft: TrustFamilyDraft,
+    isEducated: Boolean,
+    incomeType: String
+): List<TrustChecklistEntry> {
+    val completionScore = profile?.completionScore?.coerceIn(0, 100) ?: 0
+    val hasPhoto = photos.isNotEmpty() || !profile?.primaryPhotoUrl.isNullOrBlank()
+    val hasPhone = contactDraft.phone.isNotBlank() || profile?.phone.orEmpty().isNotBlank()
+    val hasEmail = contactDraft.email.isNotBlank() || profile?.email.orEmpty().isNotBlank()
+    val identity = latestVerification(verifications, "identity", "document", "aadhaar", "pan")
+    val education = latestVerification(verifications, "education")
+    val income = latestVerification(verifications, "income")
+    val family = latestVerification(verifications, "family")
+    val profileVerification = latestVerification(verifications, "profile", "identity")
+    val adminStatus = profileVerification?.status ?: profile?.verificationStatus.orEmpty()
+    val isEmployed = incomeType != "Not employed" || profile?.isEmployed == true
+    val hasIncomeDetail = !profile?.occupation.orEmpty().isBlank() || !profile?.annualIncome.orEmpty().isBlank() || incomeType != "Not employed"
+    val hasFamilyDetail = familyDraft.fatherName.isNotBlank() ||
+        familyDraft.motherName.isNotBlank() ||
+        familyDraft.alternatePhone.isNotBlank() ||
+        profile?.fatherOccupation.orEmpty().isNotBlank() ||
+        profile?.motherOccupation.orEmpty().isNotBlank() ||
+        profile?.familyCity.orEmpty().isNotBlank() ||
+        profile?.numBrothers != null ||
+        profile?.numSisters != null
+
+    return listOf(
+        TrustChecklistEntry(
+            type = TrustActionType.PhoneVerification,
+            title = "Phone Verification",
+            detail = when {
+                profile?.isPhoneVerified == true -> "Mobile number is OTP verified."
+                hasPhone -> "Phone added. OTP verification is pending."
+                else -> "Add a mobile number for profile trust."
+            },
+            statusLabel = when {
+                profile?.isPhoneVerified == true -> "Verified"
+                hasPhone -> "Added"
+                else -> "Missing"
+            },
+            state = when {
+                profile?.isPhoneVerified == true -> TrustEntryState.Verified
+                hasPhone -> TrustEntryState.Pending
+                else -> TrustEntryState.Missing
+            },
+            icon = Icons.Filled.Call
+        ),
+        TrustChecklistEntry(
+            type = TrustActionType.EmailVerification,
+            title = "Email Verification",
+            detail = if (hasEmail) "Email is linked to this profile." else "Add an email address for notifications and recovery.",
+            statusLabel = if (hasEmail) "Linked" else "Missing",
+            state = if (hasEmail) TrustEntryState.Verified else TrustEntryState.Missing,
+            icon = Icons.Filled.Email
+        ),
+        TrustChecklistEntry(
+            type = TrustActionType.ProfileCompletion,
+            title = "Profile Completion",
+            detail = "Current profile strength is $completionScore%.",
+            statusLabel = if (completionScore >= 100) "Complete" else "$completionScore%",
+            state = if (completionScore >= 100) TrustEntryState.Verified else TrustEntryState.Pending,
+            icon = Icons.Filled.Badge
+        ),
+        TrustChecklistEntry(
+            type = TrustActionType.AdminVerification,
+            title = "Admin Verification",
+            detail = adminVerificationDetail(adminStatus),
+            statusLabel = statusLabelForVerification(adminStatus),
+            state = stateForVerification(adminStatus, hasFallback = false),
+            icon = Icons.Filled.Verified
+        ),
+        TrustChecklistEntry(
+            type = TrustActionType.DocumentVerification,
+            title = "Document Verification",
+            detail = verificationDetail(identity, "Upload Aadhaar or PAN for document review."),
+            statusLabel = statusLabelForVerification(identity?.status.orEmpty()),
+            state = stateForVerification(identity?.status.orEmpty(), hasFallback = false),
+            icon = Icons.Filled.Description
+        ),
+        TrustChecklistEntry(
+            type = TrustActionType.EducationVerification,
+            title = "Education Verification",
+            detail = when {
+                !isEducated -> "Marked as not applicable."
+                education != null -> verificationDetail(education, "Education proof submitted.")
+                profile?.educationLevel.orEmpty().isNotBlank() -> "Education details added. Upload proof for stronger trust."
+                else -> "Add education details or mark not applicable."
+            },
+            statusLabel = when {
+                !isEducated -> "Not applicable"
+                education != null -> statusLabelForVerification(education.status)
+                profile?.educationLevel.orEmpty().isNotBlank() -> "Details added"
+                else -> "Missing"
+            },
+            state = when {
+                !isEducated -> TrustEntryState.Verified
+                education != null -> stateForVerification(education.status, hasFallback = false)
+                profile?.educationLevel.orEmpty().isNotBlank() -> TrustEntryState.Pending
+                else -> TrustEntryState.Missing
+            },
+            icon = Icons.Filled.School
+        ),
+        TrustChecklistEntry(
+            type = TrustActionType.IncomeVerification,
+            title = "Income Verification",
+            detail = when {
+                !isEmployed -> "Marked as not employed."
+                income != null -> verificationDetail(income, "Income proof submitted.")
+                hasIncomeDetail -> "Employment details added. Upload proof if you want income verification."
+                else -> "Add employment type and proof when applicable."
+            },
+            statusLabel = when {
+                !isEmployed -> "Not applicable"
+                income != null -> statusLabelForVerification(income.status)
+                hasIncomeDetail -> "Details added"
+                else -> "Missing"
+            },
+            state = when {
+                !isEmployed -> TrustEntryState.Verified
+                income != null -> stateForVerification(income.status, hasFallback = false)
+                hasIncomeDetail -> TrustEntryState.Pending
+                else -> TrustEntryState.Missing
+            },
+            icon = Icons.Filled.Work
+        ),
+        TrustChecklistEntry(
+            type = TrustActionType.FamilyVerification,
+            title = "Family Verification",
+            detail = when {
+                family != null -> verificationDetail(family, "Family details submitted.")
+                hasFamilyDetail -> "Family details are available for trust review."
+                else -> "Add parent, sibling, and alternate family contact details."
+            },
+            statusLabel = when {
+                family != null -> statusLabelForVerification(family.status)
+                hasFamilyDetail -> "Details added"
+                else -> "Missing"
+            },
+            state = when {
+                family != null -> stateForVerification(family.status, hasFallback = false)
+                hasFamilyDetail -> TrustEntryState.Pending
+                else -> TrustEntryState.Missing
+            },
+            icon = Icons.Filled.FamilyRestroom
+        ),
+        TrustChecklistEntry(
+            type = TrustActionType.PhotoUploaded,
+            title = "Photo Uploaded",
+            detail = if (hasPhoto) "At least one profile photo is available." else "Upload a clear profile photo.",
+            statusLabel = if (hasPhoto) "Complete" else "Missing",
+            state = if (hasPhoto) TrustEntryState.Verified else TrustEntryState.Missing,
+            icon = Icons.Filled.PhotoLibrary
+        ),
+        TrustChecklistEntry(
+            type = TrustActionType.ProfileActive,
+            title = "Profile Active",
+            detail = if (profile?.profileStatus.equals("active", ignoreCase = true)) {
+                "Your profile is active and eligible for discovery."
+            } else {
+                "Profile is not active right now."
+            },
+            statusLabel = titleCase(profile?.profileStatus?.replace('_', ' ').orEmpty().ifBlank { "Pending" }),
+            state = if (profile?.profileStatus.equals("active", ignoreCase = true)) TrustEntryState.Verified else TrustEntryState.Warning,
+            icon = Icons.Filled.Shield
+        ),
+        TrustChecklistEntry(
+            type = TrustActionType.SafetyReports,
+            title = "Safety Reports",
+            detail = if (profile?.trustWarnings.orEmpty().isEmpty()) {
+                "No active safety reports are linked to this profile."
+            } else {
+                profile?.trustWarnings.orEmpty().joinToString(", ")
+            },
+            statusLabel = if (profile?.trustWarnings.orEmpty().isEmpty()) "Clear" else "Review",
+            state = if (profile?.trustWarnings.orEmpty().isEmpty()) TrustEntryState.Verified else TrustEntryState.Warning,
+            icon = Icons.Filled.ReportProblem
+        )
+    )
+}
+
+private fun latestVerification(verifications: List<VerificationRequestData>, vararg types: String): VerificationRequestData? {
+    val normalized = types.map { it.lowercase(Locale.getDefault()) }.toSet()
+    return verifications
+        .filter { it.type.lowercase(Locale.getDefault()) in normalized }
+        .maxByOrNull { it.createdAt }
+}
+
+private fun calculateTrustScore(entries: List<TrustChecklistEntry>): Int {
+    if (entries.isEmpty()) return 0
+    val score = entries.map { entry ->
+        when (entry.state) {
+            TrustEntryState.Verified -> 100
+            TrustEntryState.Pending -> 70
+            TrustEntryState.Warning -> 35
+            TrustEntryState.Missing -> 0
+        }
+    }.sum() / entries.size
+    return score.coerceIn(0, 100)
+}
+
+private fun stateForVerification(status: String, hasFallback: Boolean): TrustEntryState {
+    val normalized = status.lowercase(Locale.getDefault())
+    return when {
+        normalized in listOf("approved", "verified", "complete", "passed") -> TrustEntryState.Verified
+        normalized in listOf("pending", "review", "in_review", "under_review") -> TrustEntryState.Pending
+        normalized in listOf("rejected", "declined", "failed") -> TrustEntryState.Warning
+        hasFallback -> TrustEntryState.Pending
+        else -> TrustEntryState.Missing
+    }
+}
+
+private fun statusLabelForVerification(status: String): String {
+    val normalized = status.lowercase(Locale.getDefault())
+    return when {
+        normalized in listOf("approved", "verified", "complete", "passed") -> "Approved"
+        normalized in listOf("pending", "review", "in_review", "under_review") -> "In progress"
+        normalized in listOf("rejected", "declined", "failed") -> "Rejected"
+        else -> "Not submitted"
+    }
+}
+
+private fun verificationDetail(request: VerificationRequestData?, fallback: String): String {
+    if (request == null) return fallback
+    val reviewed = request.reviewedAt?.takeIf { it.isNotBlank() }?.let { "Reviewed ${formatDate(it)}" }
+    val created = request.createdAt.takeIf { it.isNotBlank() }?.let { "Submitted ${formatDate(it)}" }
+    val note = request.reviewNote?.takeIf { it.isNotBlank() }?.let { "Admin note: $it" }
+    return listOfNotNull(statusLabelForVerification(request.status), reviewed ?: created, note)
+        .joinToString(" · ")
+}
+
+private fun adminVerificationDetail(status: String): String {
+    return when (stateForVerification(status, hasFallback = false)) {
+        TrustEntryState.Verified -> "Admin verification is approved."
+        TrustEntryState.Pending -> "Admin review is in progress."
+        TrustEntryState.Warning -> "Admin rejected the verification. Review comments and resubmit."
+        TrustEntryState.Missing -> "Request admin review once profile details and photos are ready."
+    }
+}
+
+@Composable
+private fun TrustChecklistStatusRow(
+    entry: TrustChecklistEntry,
+    onClick: () -> Unit
+) {
+    val color = when (entry.state) {
+        TrustEntryState.Verified -> Success
+        TrustEntryState.Pending -> MaterialTheme.colorScheme.primary
+        TrustEntryState.Warning -> Error
+        TrustEntryState.Missing -> TextSecondary
+    }
+    val background = when (entry.state) {
+        TrustEntryState.Verified -> SuccessSoft
+        TrustEntryState.Pending -> SurfaceWarm
+        TrustEntryState.Warning -> ErrorSoft
+        TrustEntryState.Missing -> SurfaceSoft
+    }
+    PremiumCard(
+        modifier = Modifier
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clickable(onClick = onClick),
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = RoundedCornerShape(16.dp), color = background, modifier = Modifier.size(46.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(entry.icon, contentDescription = null, tint = color, modifier = Modifier.size(21.dp))
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(entry.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+                Text(entry.detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(entry.statusLabel, style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.ExtraBold)
+                Icon(Icons.Filled.ChevronRight, contentDescription = "Open ${entry.title}", tint = TextSecondary, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrustActionDialog(
+    entry: TrustChecklistEntry,
+    profile: ProfileData?,
+    contactDraft: TrustContactDraft,
+    onContactDraftChange: (TrustContactDraft) -> Unit,
+    familyDraft: TrustFamilyDraft,
+    onFamilyDraftChange: (TrustFamilyDraft) -> Unit,
+    isEducated: Boolean,
+    onEducatedChange: (Boolean) -> Unit,
+    incomeType: String,
+    onIncomeTypeChange: (String) -> Unit,
+    isSubmitting: Boolean,
+    uploadingPhotos: Boolean,
+    onDismiss: () -> Unit,
+    onEditStep: (Int) -> Unit,
+    onUploadDocument: (String) -> Unit,
+    onUploadPhoto: () -> Unit,
+    onSubmitVerification: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(entry.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                Text(entry.statusLabel, style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                Text(entry.detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                when (entry.type) {
+                    TrustActionType.PhoneVerification -> {
+                        OutlinedTextField(
+                            value = contactDraft.phone.ifBlank { profile?.phone.orEmpty() },
+                            onValueChange = { value ->
+                                onContactDraftChange(contactDraft.copy(phone = value.filter { it.isDigit() }.take(10)))
+                            },
+                            label = { Text("Phone number") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        Text(
+                            "OTP login marks the phone as verified. New phone numbers stay added until OTP verification is completed.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                    TrustActionType.EmailVerification -> {
+                        OutlinedTextField(
+                            value = contactDraft.email.ifBlank { profile?.email.orEmpty() },
+                            onValueChange = { value -> onContactDraftChange(contactDraft.copy(email = value.take(80))) },
+                            label = { Text("Email address") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                    TrustActionType.ProfileCompletion -> {
+                        LabeledProgress(
+                            label = "Profile completion",
+                            value = (profile?.completionScore ?: 0).coerceIn(0, 100)
+                        )
+                        Button(
+                            onClick = {
+                                onDismiss()
+                                onEditStep(1)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Open profile steps")
+                        }
+                    }
+                    TrustActionType.AdminVerification -> {
+                        Button(
+                            onClick = { onSubmitVerification("profile") },
+                            enabled = !isSubmitting,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (isSubmitting) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
+                            } else {
+                                Icon(Icons.Filled.Verified, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                            Text(if (isSubmitting) "Submitting" else "Request admin verification")
+                        }
+                    }
+                    TrustActionType.DocumentVerification -> {
+                        Text("Upload Aadhaar or PAN. The document is sent to admin review and is not shown publicly.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(onClick = { onUploadDocument("identity") }, modifier = Modifier.weight(1f)) {
+                                Text("Aadhaar")
+                            }
+                            Button(onClick = { onUploadDocument("identity") }, modifier = Modifier.weight(1f)) {
+                                Text("PAN")
+                            }
+                        }
+                    }
+                    TrustActionType.EducationVerification -> {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            FilterChoiceChip("Educated", isEducated, onClick = { onEducatedChange(true) })
+                            FilterChoiceChip("Not educated", !isEducated, onClick = { onEducatedChange(false) })
+                        }
+                        if (isEducated) {
+                            Button(onClick = { onUploadDocument("education") }, modifier = Modifier.fillMaxWidth()) {
+                                Text("Upload education proof")
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                onDismiss()
+                                onEditStep(3)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Update education details")
+                        }
+                    }
+                    TrustActionType.IncomeVerification -> {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(listOf("Not employed", "Self", "Gov", "Private")) { option ->
+                                FilterChoiceChip(option, incomeType == option, onClick = { onIncomeTypeChange(option) })
+                            }
+                        }
+                        if (incomeType != "Not employed") {
+                            Button(onClick = { onUploadDocument("income") }, modifier = Modifier.fillMaxWidth()) {
+                                Text("Upload income proof")
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                onDismiss()
+                                onEditStep(3)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Update career details")
+                        }
+                    }
+                    TrustActionType.FamilyVerification -> {
+                        OutlinedTextField(
+                            value = familyDraft.fatherName,
+                            onValueChange = { onFamilyDraftChange(familyDraft.copy(fatherName = it.take(80))) },
+                            label = { Text("Father name") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = familyDraft.motherName,
+                            onValueChange = { onFamilyDraftChange(familyDraft.copy(motherName = it.take(80))) },
+                            label = { Text("Mother name") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            FilterChoiceChip("Siblings: Yes", familyDraft.hasSiblings, onClick = { onFamilyDraftChange(familyDraft.copy(hasSiblings = true)) })
+                            FilterChoiceChip("No", !familyDraft.hasSiblings, onClick = { onFamilyDraftChange(familyDraft.copy(hasSiblings = false, siblingCount = "")) })
+                        }
+                        if (familyDraft.hasSiblings) {
+                            OutlinedTextField(
+                                value = familyDraft.siblingCount,
+                                onValueChange = { onFamilyDraftChange(familyDraft.copy(siblingCount = it.filter { char -> char.isDigit() }.take(2))) },
+                                label = { Text("Sibling count") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                        }
+                        OutlinedTextField(
+                            value = familyDraft.alternatePhone,
+                            onValueChange = { onFamilyDraftChange(familyDraft.copy(alternatePhone = it.filter { char -> char.isDigit() }.take(10))) },
+                            label = { Text("Alternate family contact") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = {
+                                    onDismiss()
+                                    onEditStep(4)
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Edit family")
+                            }
+                            Button(onClick = { onSubmitVerification("family") }, enabled = !isSubmitting, modifier = Modifier.weight(1f)) {
+                                Text("Submit")
+                            }
+                        }
+                    }
+                    TrustActionType.PhotoUploaded -> {
+                        Button(onClick = onUploadPhoto, enabled = !uploadingPhotos, modifier = Modifier.fillMaxWidth()) {
+                            if (uploadingPhotos) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
+                            } else {
+                                Icon(Icons.Filled.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                            }
+                            Text(if (uploadingPhotos) "Uploading" else "Upload photo")
+                        }
+                    }
+                    TrustActionType.ProfileActive -> {
+                        Text(
+                            "Active profiles are eligible for Best Matches and profile views. Use profile settings if you want to pause visibility.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                    TrustActionType.SafetyReports -> {
+                        val warnings = profile?.trustWarnings.orEmpty()
+                        if (warnings.isEmpty()) {
+                            SignalChips(labels = listOf("No active safety reports"), tone = ChipTone.Success)
+                        } else {
+                            warnings.forEach { warning ->
+                                Text("• $warning", style = MaterialTheme.typography.bodySmall, color = Error)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Done")
+            }
+        }
+    )
+}
+
 @Composable
 private fun VerificationStatusCard(
     profile: ProfileData,
@@ -980,8 +1617,8 @@ private fun PhotoGalleryCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Photos", style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Serif), fontWeight = FontWeight.ExtraBold)
-            TextButton(onClick = onUpload, enabled = !uploadingPhotos) {
-                Text("Manage Photos", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+            IconButton(onClick = onUpload, enabled = !uploadingPhotos) {
+                Icon(Icons.Filled.PhotoCamera, contentDescription = "Add photos", tint = MaterialTheme.colorScheme.primary)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
@@ -1333,27 +1970,52 @@ private fun PhotoAccessRequestRow(
 @Composable
 private fun LocalPhotoTile(uri: Uri, onDelete: (Uri) -> Unit) {
     PremiumCard(
-        modifier = Modifier.size(width = 160.dp, height = 292.dp),
+        modifier = Modifier.size(width = 132.dp, height = 168.dp),
         contentPadding = PaddingValues(0.dp),
         fillWidth = false
     ) {
-        Column {
+        Box {
             AsyncImage(
                 model = uri,
                 contentDescription = "Selected profile photo",
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(150.dp)
-                    .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)),
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(8.dp)),
                 contentScale = ContentScale.Crop
             )
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("New photo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text("Visible here while upload completes.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                TextButton(onClick = { onDelete(uri) }, modifier = Modifier.fillMaxWidth().height(38.dp)) {
-                    Text("Delete")
-                }
-            }
+            PhotoActionIcon(
+                icon = Icons.Filled.Close,
+                contentDescription = "Remove selected photo",
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                onClick = { onDelete(uri) }
+            )
+            SignalChip(
+                label = "Uploading",
+                tone = ChipTone.Neutral,
+                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun PhotoActionIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier
+            .size(34.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(999.dp),
+        color = Color.White.copy(alpha = 0.92f),
+        border = BorderStroke(1.dp, Divider.copy(alpha = 0.7f)),
+        shadowElevation = 2.dp
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = contentDescription, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -1365,39 +2027,37 @@ private fun PhotoTile(
     onSetPrimary: (String) -> Unit
 ) {
     PremiumCard(
-        modifier = Modifier.size(width = 160.dp, height = 292.dp),
+        modifier = Modifier.size(width = 132.dp, height = 168.dp),
         contentPadding = PaddingValues(0.dp),
         fillWidth = false
     ) {
-        Column {
-            Box {
-                MemberPhoto(
-                    photoUrl = photo.photoUrl,
-                    contentDescription = if (photo.isPrimary) "Primary photo" else "Profile photo",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(150.dp),
-                    shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)
+        Box {
+            MemberPhoto(
+                photoUrl = photo.photoUrl,
+                contentDescription = if (photo.isPrimary) "Primary photo" else "Profile photo",
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(8.dp)
+            )
+            if (photo.isPrimary) {
+                SignalChip(
+                    label = "Primary",
+                    tone = ChipTone.Success,
+                    modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)
                 )
-                if (photo.isPrimary) {
-                    SignalChip(
-                        label = "Primary",
-                        tone = ChipTone.Success,
-                        modifier = Modifier.padding(8.dp)
-                    )
-                }
+            } else {
+                PhotoActionIcon(
+                    icon = Icons.Filled.WorkspacePremium,
+                    contentDescription = "Make primary photo",
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                    onClick = { onSetPrimary(photo.photoId) }
+                )
             }
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (photo.isPrimary) "Primary photo" else "Gallery photo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                if (!photo.isPrimary) {
-                    TextButton(onClick = { onSetPrimary(photo.photoId) }, modifier = Modifier.fillMaxWidth().height(34.dp)) {
-                        Text("Make primary")
-                    }
-                }
-                TextButton(onClick = { onDelete(photo.photoId) }, modifier = Modifier.fillMaxWidth().height(38.dp)) {
-                    Text("Delete")
-                }
-            }
+            PhotoActionIcon(
+                icon = Icons.Filled.Close,
+                contentDescription = "Delete photo",
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                onClick = { onDelete(photo.photoId) }
+            )
         }
     }
 }
@@ -2032,6 +2692,16 @@ private fun Context.toPhotoPart(uri: Uri, index: Int): MultipartBody.Part? {
     val fileName = "profile-photo-${System.currentTimeMillis()}-$index.$extension"
     val body = bytes.toRequestBody(contentType.toMediaTypeOrNull())
     return MultipartBody.Part.createFormData("photos", fileName, body)
+}
+
+private fun Context.toVerificationDocumentPart(uri: Uri): MultipartBody.Part? {
+    val contentType = contentResolver.getType(uri) ?: "application/octet-stream"
+    val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+    val extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(contentType)?.lowercase(Locale.US)
+        ?: if (contentType.contains("pdf", ignoreCase = true)) "pdf" else "jpg"
+    val fileName = "trust-document-${System.currentTimeMillis()}.$extension"
+    val body = bytes.toRequestBody(contentType.toMediaTypeOrNull())
+    return MultipartBody.Part.createFormData("document", fileName, body)
 }
 
 private fun photoPrivacyLabel(value: String): String {

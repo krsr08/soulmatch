@@ -42,6 +42,7 @@ router.post('/:profileId/ai/bio-suggestions', authenticate, ctrl.suggestProfileB
 router.post('/:profileId/ai/icebreakers', authenticate, ctrl.generateIcebreakers);
 router.put('/:profileId', authenticate, ctrl.updateProfile);
 router.get('/:profileId/verifications', authenticate, ctrl.getVerifications);
+router.post('/:profileId/verifications/upload', authenticate, documentUpload.single('document'), ctrl.submitVerificationUpload);
 router.post('/:profileId/verifications', authenticate, ctrl.submitVerification);
 router.get('/:profileId/photos', authenticate, ctrl.getPhotos);
 router.post('/:profileId/photos', authenticate, photoUpload.array('photos', 10), ctrl.uploadPhotos);

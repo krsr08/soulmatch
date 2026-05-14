@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import okhttp3.MultipartBody
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 
 data class ProfileChecklistItem(
@@ -446,12 +448,24 @@ class MyProfileViewModel @Inject constructor(
     }
 
     fun submitProfileVerification() {
+        submitTrustVerification("profile")
+    }
+
+    fun submitTrustVerification(type: String, document: MultipartBody.Part? = null) {
         val profileId = _profile.value?.profileId ?: return
         viewModelScope.launch {
             _isSubmittingVerification.value = true
             _status.value = null
             try {
-                val response = profileApi.submitVerification(profileId, VerificationSubmitRequest(type = "profile"))
+                val response = if (document != null) {
+                    profileApi.submitVerificationUpload(
+                        profileId,
+                        type.toRequestBody("text/plain".toMediaTypeOrNull()),
+                        document
+                    )
+                } else {
+                    profileApi.submitVerification(profileId, VerificationSubmitRequest(type = type))
+                }
                 val body = response.body()
                 if (response.isSuccessful && body?.success == true) {
                     body.data?.let { verification ->
