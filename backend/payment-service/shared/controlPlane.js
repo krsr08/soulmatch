@@ -73,6 +73,28 @@ const DEFAULT_UPGRADE_PACKAGE_GROUPS = [
   }
 ];
 
+const DEFAULT_MEMBERSHIP_FEATURE_MATRIX = [
+  { featureKey: 'visible_matches', label: 'Visible Matches', description: 'Number of recommended profiles visible in discovery.', bronze: '10', silver: '50', gold: 'Unlimited', platinum: 'Unlimited' },
+  { featureKey: 'contact_views', label: 'Contact Views', description: 'Eligible verified contact views per month.', bronze: '0', silver: '20', gold: '100', platinum: 'Unlimited' },
+  { featureKey: 'daily_interests', label: 'Daily Interests', description: 'Interest requests a member can send each day.', bronze: '5', silver: '20', gold: 'Unlimited', platinum: 'Unlimited' },
+  { featureKey: 'advanced_filters', label: 'Advanced Filters', description: 'Filter by work, family, activity, horoscope, trust and privacy attributes.', bronze: false, silver: true, gold: true, platinum: true },
+  { featureKey: 'chat_after_match', label: 'Chat After Match', description: 'Message after mutual interest acceptance.', bronze: true, silver: true, gold: true, platinum: true },
+  { featureKey: 'photo_request', label: 'Private Photo Requests', description: 'Request access to private photos.', bronze: true, silver: true, gold: true, platinum: true },
+  { featureKey: 'spotlight', label: 'Spotlight Boosts', description: 'Profile appears higher in compatible recommendations.', bronze: false, silver: 'Paid add-on', gold: '3 / month', platinum: 'Unlimited' },
+  { featureKey: 'anonymous_browsing', label: 'Anonymous Browsing', description: 'Browse profiles without showing visitor identity.', bronze: false, silver: false, gold: true, platinum: true },
+  { featureKey: 'soulmatch_assist', label: 'SoulMatch Assist', description: 'Share profile with selected registered agents for offline support.', bronze: false, silver: true, gold: true, platinum: true },
+  { featureKey: 'priority_listing', label: 'Priority Listing', description: 'Higher visibility in best-match and recently active feeds.', bronze: false, silver: false, gold: true, platinum: true },
+  { featureKey: 'concierge_support', label: 'Concierge Support', description: 'Dedicated help for high-intent families.', bronze: false, silver: false, gold: false, platinum: true },
+  { featureKey: 'trust_badge_boost', label: 'Trust Badge Boost', description: 'Trust-complete profiles receive visual priority and better response prompts.', bronze: true, silver: true, gold: true, platinum: true }
+];
+
+const DEFAULT_MEMBER_PLANS = [
+  { planId: 'free', name: 'Bronze', displayName: 'Bronze (Free)', price: 0, duration: 'lifetime', durationDays: 0, tierRank: 0, features: ['10 visible matches', '5 interests/day', 'Basic discovery', 'Private photo requests'] },
+  { planId: 'silver', name: 'Silver', displayName: 'Silver', price: 999, duration: 'monthly', durationDays: 30, tierRank: 1, features: ['50 visible matches', '20 contact views', 'Advanced filters', 'SoulMatch Assist opt-in'] },
+  { planId: 'gold', name: 'Gold', displayName: 'Gold', price: 2499, duration: 'monthly', durationDays: 30, tierRank: 2, features: ['Unlimited visible matches', '100 contact views', 'Priority listing', 'Spotlight credits'] },
+  { planId: 'platinum', name: 'Platinum', displayName: 'Platinum', price: 4999, duration: 'monthly', durationDays: 30, tierRank: 3, features: ['Unlimited contacts', 'Featured placement', 'Concierge support', 'Unlimited boosts'] }
+];
+
 const DEFAULT_CONFIG = {
   branding: {
     appTitle: 'SoulMatch',
@@ -257,12 +279,8 @@ const DEFAULT_CONFIG = {
       dailyInterests: { free: 5, silver: 20, gold: 999, platinum: 999 },
       videoCallsPerMonth: { free: 0, silver: 1, gold: 8, platinum: 30 }
     },
-    plans: [
-      { planId: 'free', name: 'Free', price: 0, duration: 'lifetime', durationDays: 0, features: ['5 interests/day', 'Basic search', 'View profiles'] },
-      { planId: 'silver', name: 'Silver', price: 499, duration: 'monthly', durationDays: 30, features: ['20 interests/day', 'Advanced search', 'See viewers'] },
-      { planId: 'gold', name: 'Gold', price: 999, duration: 'quarterly', durationDays: 90, features: ['Unlimited interests', 'Video calling', 'Priority search'] },
-      { planId: 'platinum', name: 'Platinum', price: 1499, duration: 'yearly', durationDays: 365, features: ['All Gold features', 'Anonymous browsing', 'Unlimited boosts'] }
-    ],
+    plans: DEFAULT_MEMBER_PLANS,
+    membershipFeatureMatrix: DEFAULT_MEMBERSHIP_FEATURE_MATRIX,
     upgradePackageGroups: DEFAULT_UPGRADE_PACKAGE_GROUPS
   },
   notification_templates: {
@@ -393,6 +411,7 @@ function getPublicRuntimeConfig(configMap) {
     monetization: {
       currency: configMap.monetization.currency,
       premiumLimits: configMap.monetization.premiumLimits,
+      membershipFeatureMatrix: configMap.monetization.membershipFeatureMatrix || [],
       upgradePackageGroups: configMap.monetization.upgradePackageGroups || [],
       plans: configMap.monetization.plans.map((plan) => ({
         planId: plan.planId,

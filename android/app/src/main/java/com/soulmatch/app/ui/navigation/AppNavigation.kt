@@ -17,7 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -356,6 +356,7 @@ fun AppNavigation(
                         ProfileDrawerRoutes.SubscriptionHistory -> nav.navigate("subscription_history")
                         ProfileDrawerRoutes.HelpSupport -> nav.navigate("help_support")
                         ProfileDrawerRoutes.SuccessStories -> nav.navigate("success_stories/overview")
+                        else -> nav.navigate(destination)
                     }
                 },
                 onOpenSubscription = { nav.navigate("subscription") }
@@ -561,10 +562,10 @@ private val bottomNavItems = listOf(
     BottomNavItem("activity", "interests", listOf("interests"), Icons.Filled.AccessTime),
     BottomNavItem("chat", "chat_list", listOf("chat_list", "chat/"), Icons.Filled.Chat),
     BottomNavItem(
-        "profile",
-        "my_profile",
-        listOf("my_profile", "partner_preferences", "trust_details", "settings", "profile/", "family_decisions", "soulmatch_assist", "spotlight", "astrology_services", "safety_center", "subscription", "subscription_history", "help_support", "success_stories/"),
-        Icons.Filled.Person
+        "upgrade",
+        "subscription",
+        listOf("subscription", "subscription_history", "spotlight"),
+        Icons.Filled.WorkspacePremium
     )
 )
 
@@ -596,6 +597,7 @@ private fun AppBottomNavigation(
                     "activity" -> labels.activity
                     "chat" -> labels.chat
                     "profile" -> labels.profile
+                    "upgrade" -> labels.upgrade
                     else -> item.label
                 }
                 val selected = item.routePrefixes.any { prefix ->

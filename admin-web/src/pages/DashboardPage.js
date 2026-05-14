@@ -64,7 +64,7 @@ const EMPTY_STATS = {
 };
 
 const DEFAULT_CONFIG = {
-  monetization: { currency: 'INR', plans: [], premiumLimits: {}, upgradePackageGroups: [] },
+  monetization: { currency: 'INR', plans: [], premiumLimits: {}, upgradePackageGroups: [], membershipFeatureMatrix: [] },
   assisted_matchmaking: { enabled: true, advisorPlans: [], memberModes: [] },
   admin_roles: { roles: [] },
   notification_templates: {},
@@ -162,7 +162,7 @@ const MENU_GROUPS = [
 ];
 
 const MEMBER_PLAN_FALLBACK = [
-  { id: 'free', name: 'Free', price: 0, durationDays: 30, contactViews: 0, visibleMatches: 10, profileBoost: false },
+  { planId: 'free', name: 'Bronze', displayName: 'Bronze (Free)', price: 0, durationDays: 0, contactViews: 0, visibleMatches: 10, profileBoost: false },
   { id: 'silver', name: 'Silver', price: 999, durationDays: 30, contactViews: 20, visibleMatches: 50, profileBoost: true },
   { id: 'gold', name: 'Gold', price: 2499, durationDays: 30, contactViews: 100, visibleMatches: -1, profileBoost: true },
   { id: 'platinum', name: 'Platinum', price: 4999, durationDays: 30, contactViews: -1, visibleMatches: -1, profileBoost: true }
@@ -207,6 +207,8 @@ const RBAC_MODULES = [
     permissions: { view: 'campaigns:read', add: 'campaigns:write', edit: 'campaigns:write', delete: 'campaigns:delete', export: 'campaigns:export' }
   }
 ];
+
+const MEMBER_TIER_COLUMNS = ['bronze', 'silver', 'gold', 'platinum'];
 
 const ROLE_COPY = {
   super_admin: { description: 'Full access to every admin console module, finance control, configuration and audit data.', scope: 'unrestricted' },
@@ -1292,6 +1294,242 @@ function SubscriptionPanel({ config, payments, type, onSave }) {
   );
 }
 
+function tryParseJson(value, fallback) {
+  try {
+    return JSON.parse(value);
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function CmsManagementPanel({ config, onSave }) {
+  const content = config.content || {};
+  const home = content.home || {};
+  const monetization = config.monetization || {};
+  const [cardsText, setCardsText] = useState(JSON.stringify(home.bestMatchAdCards || [], null, 2));
+  const [scamText, setScamText] = useState(JSON.stringify(home.scamAwarenessCards || [], null, 2));
+  const [matrixText, setMatrixText] = useState(JSON.stringify(monetization.membershipFeatureMatrix || [], null, 2));
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setCardsText(JSON.stringify(home.bestMatchAdCards || [], null, 2));
+    setScamText(JSON.stringify(home.scamAwarenessCards || [], null, 2));
+    setMatrixText(JSON.stringify(monetization.membershipFeatureMatrix || [], null, 2));
+  }, [home.bestMatchAdCards, home.scamAwarenessCards, monetization.membershipFeatureMatrix]);
+
+  const adCards = tryParseJson(cardsText, []);
+  const scamCards = tryParseJson(scamText, []);
+  const featureMatrix = tryParseJson(matrixText, []);
+
+  const saveHomeCms = () => {
+    try {
+      const parsedCards = JSON.parse(cardsText);
+      const parsedScam = JSON.parse(scamText);
+      if (!Array.isArray(parsedCards) || !Array.isArray(parsedScam)) {
+        throw new Error('Best match cards and scam awareness cards must be JSON arrays.');
+      }
+      setError('');
+      onSave('content', {
+        ...content,
+        home: {
+          ...home,
+          bestMatchAdCards: parsedCards,
+          scamAwarenessCards: parsedScam,
+          showBestMatchInsertCards: true,
+          showBestMatchAdCards: true
+        }
+      });
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const saveFeatureMatrix = () => {
+    try {
+      const parsed = JSON.parse(matrixText);
+      if (!Array.isArray(parsed)) throw new Error('Membership feature matrix must be a JSON array.');
+      setError('');
+      onSave('monetization', { ...monetization, membershipFeatureMatrix: parsed });
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const updateFeatureMatrixCell = (rowIndex, key, value) => {
+    const source = Array.isArray(featureMatrix) ? featureMatrix : [];
+    const next = source.map((feature, index) => (
+      index === rowIndex ? { ...feature, [key]: MEMBER_TIER_COLUMNS.includes(key) ? parseFeatureMatrixValue(value) : value } : feature
+    ));
+    setMatrixText(JSON.stringify(next, null, 2));
+  };
+
+  const addFeatureMatrixRow = () => {
+    const source = Array.isArray(featureMatrix) ? featureMatrix : [];
+    const next = [
+      ...source,
+      {
+        featureKey: `new_feature_${Date.now()}`,
+        label: 'New feature',
+        description: 'Describe this membership capability.',
+        bronze: false,
+        silver: false,
+        gold: true,
+        platinum: true
+      }
+    ];
+    setMatrixText(JSON.stringify(next, null, 2));
+  };
+
+  const removeFeatureMatrixRow = (rowIndex) => {
+    const source = Array.isArray(featureMatrix) ? featureMatrix : [];
+    setMatrixText(JSON.stringify(source.filter((_, index) => index !== rowIndex), null, 2));
+  };
+
+  return (
+    <div className="admin-content cms-management-page">
+      <SectionHeader
+        eyebrow="CMS Management"
+        title="Best Matches Merchandising"
+        description="Configure upgrade cards, service cards, scam-awareness carousel content, and tier-based feature gates without an app release."
+        actions={<AdminButton variant="primary" onClick={saveHomeCms}>Save CMS Cards</AdminButton>}
+      />
+      {error ? <p className="form-error cms-error">{error}</p> : null}
+      <div className="cms-grid">
+        <section className="admin-card cms-editor-card">
+          <div className="card-title-row">
+            <h3>Best Matches Insert Cards</h3>
+            <StatusPill status="neutral">{Array.isArray(adCards) ? adCards.length : 0} cards</StatusPill>
+          </div>
+          <p className="muted">Use <code>enabled</code>, <code>targetPlans</code>, <code>minPlan</code>, and <code>maxPlan</code> to control which membership tier sees each card.</p>
+          <textarea className="json-editor large cms-json" value={cardsText} onChange={(event) => setCardsText(event.target.value)} />
+        </section>
+        <section className="admin-card cms-preview-card">
+          <div className="card-title-row">
+            <h3>Card Preview</h3>
+            <StatusPill status="active">Runtime</StatusPill>
+          </div>
+          <div className="cms-card-list">
+            {(Array.isArray(adCards) ? adCards : []).slice(0, 12).map((card) => (
+              <article key={card.id || card.title} className={`cms-preview-item ${card.enabled === false ? 'disabled' : ''}`}>
+                <div>
+                  <strong>{card.title || card.id}</strong>
+                  <span>{card.badge || card.type || 'card'} | {(card.targetPlans || []).join(', ') || 'all tiers'}</span>
+                  <small>{card.body || 'No body configured'}</small>
+                </div>
+                <StatusPill status={card.enabled === false ? 'inactive' : 'active'}>{card.enabled === false ? 'Hidden' : 'Live'}</StatusPill>
+              </article>
+            ))}
+          </div>
+        </section>
+        <section className="admin-card cms-editor-card">
+          <div className="card-title-row">
+            <h3>Scam Awareness Carousel</h3>
+            <StatusPill status="warning">{Array.isArray(scamCards) ? scamCards.filter((item) => item.enabled !== false).length : 0} live</StatusPill>
+          </div>
+          <p className="muted">These safety cards are inserted between best matches and can be updated as fraud patterns change.</p>
+          <textarea className="json-editor large cms-json" value={scamText} onChange={(event) => setScamText(event.target.value)} />
+        </section>
+        <section className="admin-card cms-preview-card">
+          <div className="card-title-row">
+            <h3>Safety Card Preview</h3>
+            <StatusPill status="neutral">Carousel</StatusPill>
+          </div>
+          <div className="cms-safety-strip">
+            {(Array.isArray(scamCards) ? scamCards : []).map((card) => (
+              <article key={card.id || card.title}>
+                <span>{card.enabled === false ? 'Hidden' : 'Live'}</span>
+                <strong>{card.title || card.id}</strong>
+                <small>{card.body || 'No body configured'}</small>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+      <SectionHeader
+        eyebrow="Membership Control"
+        title="Feature Access Matrix"
+        description="Every current or future paid capability should be registered here so Bronze, Silver, Gold and Platinum access stays auditable."
+        actions={<AdminButton variant="primary" onClick={saveFeatureMatrix}>Save Feature Matrix</AdminButton>}
+      />
+      <div className="cms-grid matrix-grid">
+        <section className="admin-card cms-editor-card">
+          <h3>Feature Matrix JSON</h3>
+          <textarea className="json-editor large cms-json" value={matrixText} onChange={(event) => setMatrixText(event.target.value)} />
+        </section>
+        <section className="admin-card feature-matrix-card">
+          <div className="card-title-row">
+            <h3>Tier Controls</h3>
+            <AdminButton variant="secondary" onClick={addFeatureMatrixRow}>Add Feature</AdminButton>
+          </div>
+          <div className="feature-matrix-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Feature</th>
+                  {MEMBER_TIER_COLUMNS.map((tier) => <th key={tier}>{tier}</th>)}
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(Array.isArray(featureMatrix) ? featureMatrix : []).map((feature, index) => (
+                  <tr key={`${feature.featureKey || feature.label}-${index}`}>
+                    <td>
+                      <input
+                        className="matrix-key-input"
+                        value={feature.featureKey || ''}
+                        onChange={(event) => updateFeatureMatrixCell(index, 'featureKey', event.target.value)}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="matrix-label-input"
+                        value={feature.label || ''}
+                        onChange={(event) => updateFeatureMatrixCell(index, 'label', event.target.value)}
+                      />
+                      <input
+                        className="matrix-description-input"
+                        value={feature.description || ''}
+                        onChange={(event) => updateFeatureMatrixCell(index, 'description', event.target.value)}
+                      />
+                    </td>
+                    {MEMBER_TIER_COLUMNS.map((tier) => (
+                      <td key={tier}>
+                        <input
+                          className="matrix-value-input"
+                          value={formatFeatureValue(feature[tier])}
+                          onChange={(event) => updateFeatureMatrixCell(index, tier, event.target.value)}
+                        />
+                      </td>
+                    ))}
+                    <td>
+                      <button className="icon-action danger" type="button" onClick={() => removeFeatureMatrixRow(index)}>Remove</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function parseFeatureMatrixValue(value) {
+  const trimmed = String(value ?? '').trim();
+  if (/^(yes|true|enabled)$/i.test(trimmed)) return true;
+  if (/^(no|false|disabled)$/i.test(trimmed)) return false;
+  return trimmed;
+}
+
+function formatFeatureValue(value) {
+  if (value === true) return 'Yes';
+  if (value === false) return 'No';
+  if (value === null || value === undefined || value === '') return '-';
+  return String(value);
+}
+
 function PaymentsTable({ payments }) {
   const rows = payments.transactions || [];
   return (
@@ -2250,7 +2488,10 @@ export default function DashboardPage() {
     if (activeTab === 'dynamic-config') {
       return <DynamicConfigPanel config={config} onSave={handleConfigSave} />;
     }
-    if (['system', 'role-master', 'user-master', 'notifications', 'data-export', 'audit-logs', 'service-health', 'cms-management', 'settings', 'change-password'].includes(activeTab)) {
+    if (activeTab === 'cms-management') {
+      return <CmsManagementPanel config={config} onSave={handleConfigSave} />;
+    }
+    if (['system', 'role-master', 'user-master', 'notifications', 'data-export', 'audit-logs', 'service-health', 'settings', 'change-password'].includes(activeTab)) {
       return <SystemPanel roles={roles} users={users} auditLogs={auditLogs} services={services} activeTab={activeTab} search={search} onSearch={setSearch} session={session} onSaveRoles={handleSaveRoles} onTab={setActiveTab} funnel={funnel} events={events} />;
     }
     return <DashboardHome stats={stats} profiles={profiles} advisors={advisors} payments={payments} alerts={alerts} auditLogs={auditLogs} search={search} onTab={setActiveTab} onMember={(profile) => setDrawer({ type: 'member', entity: profile })} onAgent={(agent) => setDrawer({ type: 'agent', entity: agent })} onCreateMember={() => setDrawer({ type: 'member', entity: null })} />;

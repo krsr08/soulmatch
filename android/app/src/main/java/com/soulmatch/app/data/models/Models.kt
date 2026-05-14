@@ -778,9 +778,11 @@ data class ActionResult(val action: String = "")
 data class PlanData(
     val planId: String = "",
     val name: String = "",
+    val displayName: String = "",
     val price: Int = 0,
     val duration: String = "",
     val durationDays: Int = 0,
+    val tierRank: Int = 0,
     val features: List<String> = emptyList()
 )
 
@@ -884,6 +886,11 @@ data class PhoneEntryContentData(
 data class HomeBestMatchAdData(
     val id: String = "",
     val type: String = "marriage",
+    val enabled: Boolean = true,
+    val targetPlans: List<String> = emptyList(),
+    val minPlan: String = "",
+    val maxPlan: String = "",
+    val theme: String = "",
     val badge: String = "",
     val title: String = "",
     val body: String = "",
@@ -896,6 +903,7 @@ data class HomeBestMatchAdData(
 
 data class HomeScamAwarenessCardData(
     val id: String = "",
+    val enabled: Boolean = true,
     val title: String = "",
     val body: String = "",
     val illustration: String = ""
@@ -927,33 +935,168 @@ data class HomeContentData(
 
 fun defaultHomeBestMatchAds(): List<HomeBestMatchAdData> = listOf(
     HomeBestMatchAdData(
-        id = "upgrade-benefits",
+        id = "upgrade-bronze-to-silver",
         type = "upgrade",
-        badge = "Flat 73% off",
-        title = "You are missing out on premium benefits",
-        body = "Get more visibility, contact access, and stronger daily recommendations.",
+        targetPlans = listOf("free", "bronze"),
+        minPlan = "free",
+        maxPlan = "free",
+        theme = "rose",
+        badge = "Starter upgrade",
+        title = "Move from Bronze to Silver",
+        body = "Unlock more daily interests, better visibility, and contact access for serious conversations.",
         bullets = listOf(
-            "Get up to 3X more matches daily",
-            "Access contact details of interested matches",
-            "Perform unlimited searches",
-            "Get spotlight credits with eligible plans"
+            "20 contact views",
+            "More visible matches",
+            "Profile visitor insights",
+            "Priority support"
         ),
-        cta = "Upgrade now",
-        discountLabel = "FLAT 73% OFF",
+        cta = "Upgrade to Silver",
+        discountLabel = "SILVER BENEFITS",
         destination = "membership"
     ),
     HomeBestMatchAdData(
-        id = "spotlight",
+        id = "upgrade-silver-to-gold",
+        type = "upgrade",
+        targetPlans = listOf("free", "bronze", "silver"),
+        minPlan = "free",
+        maxPlan = "silver",
+        theme = "gold",
+        badge = "Recommended",
+        title = "The Gold Tier Experience",
+        body = "Get stronger reach, unlimited discovery, and richer match actions for your family shortlist.",
+        bullets = listOf("Priority reach", "More contact views", "Profile boost tools", "Advanced filters"),
+        cta = "Explore Gold",
+        discountLabel = "MOST CHOSEN",
+        destination = "membership"
+    ),
+    HomeBestMatchAdData(
+        id = "upgrade-gold-to-platinum",
+        type = "upgrade",
+        targetPlans = listOf("free", "bronze", "silver", "gold"),
+        minPlan = "free",
+        maxPlan = "gold",
+        theme = "dark",
+        badge = "Elite access",
+        title = "Platinum for families who want full access",
+        body = "Unlock unlimited contact discovery, premium visibility, and high-touch assisted benefits.",
+        bullets = listOf("Unlimited contacts", "Featured placement", "Concierge support", "Deep match insights"),
+        cta = "Go Platinum",
+        discountLabel = "PLATINUM",
+        destination = "membership"
+    ),
+    HomeBestMatchAdData(
+        id = "spotlight-day-pass",
         type = "spotlight",
+        targetPlans = listOf("free", "bronze", "silver", "gold"),
+        minPlan = "free",
+        maxPlan = "gold",
+        theme = "sunrise",
         badge = "Spotlight",
         title = "Be the first profile others see for an entire day",
-        body = "Appear on top of recommendations and increase your chances of getting more interests.",
+        body = "Appear on top of recommendations and increase your chances of receiving more interests.",
         cta = "Get Spotlight",
         destination = "membership"
     ),
     HomeBestMatchAdData(
+        id = "contact-unlock",
+        type = "membership",
+        targetPlans = listOf("free", "bronze", "silver"),
+        minPlan = "free",
+        maxPlan = "silver",
+        theme = "blue",
+        badge = "Contact access",
+        title = "Ready to speak with the right family?",
+        body = "Upgrade to unlock eligible contact views after privacy and trust checks.",
+        bullets = listOf("Verified phone access", "Privacy-first contact rules", "Safer introductions"),
+        cta = "Unlock contacts",
+        destination = "membership"
+    ),
+    HomeBestMatchAdData(
+        id = "profile-boost",
+        type = "membership",
+        targetPlans = listOf("free", "bronze", "silver"),
+        minPlan = "free",
+        maxPlan = "silver",
+        theme = "rose",
+        badge = "Boost",
+        title = "Get noticed by more compatible families",
+        body = "Boosted profiles receive higher placement in compatible recommendations.",
+        bullets = listOf("Higher listing priority", "More profile views", "Better response chances"),
+        cta = "Boost my profile",
+        destination = "membership"
+    ),
+    HomeBestMatchAdData(
+        id = "horoscope-family-match",
+        type = "astrology",
+        targetPlans = listOf("free", "bronze", "silver", "gold", "platinum"),
+        theme = "purple",
+        badge = "Horoscope",
+        title = "Add horoscope details for family compatibility",
+        body = "Help families compare birth details, rashi, nakshatra, and kundli expectations.",
+        cta = "Open astrology",
+        destination = "astrology_services"
+    ),
+    HomeBestMatchAdData(
+        id = "verified-trust-profile",
+        type = "trust",
+        targetPlans = listOf("free", "bronze", "silver", "gold", "platinum"),
+        theme = "green",
+        badge = "Trust profile",
+        title = "Verified profiles receive more confident responses",
+        body = "Complete phone, email, photo, document, education, income, and family trust checks.",
+        cta = "Improve trust",
+        destination = "my_profile"
+    ),
+    HomeBestMatchAdData(
+        id = "private-photo-control",
+        type = "privacy",
+        targetPlans = listOf("free", "bronze", "silver", "gold", "platinum"),
+        theme = "ivory",
+        badge = "Privacy",
+        title = "Keep photos private until you are ready",
+        body = "Use request-based photo access so families can review visibility safely.",
+        cta = "Manage photos",
+        destination = "my_profile"
+    ),
+    HomeBestMatchAdData(
+        id = "assisted-discovery",
+        type = "assist",
+        targetPlans = listOf("silver", "gold", "platinum"),
+        minPlan = "silver",
+        theme = "peach",
+        badge = "SoulMatch Assist",
+        title = "Need offline help from a local agent?",
+        body = "Share your profile with selected registered agents for offline introductions.",
+        cta = "Open Assist",
+        destination = "soulmatch_assist"
+    ),
+    HomeBestMatchAdData(
+        id = "wedding-readiness",
+        type = "marriage",
+        targetPlans = listOf("free", "bronze", "silver", "gold", "platinum"),
+        theme = "maroon",
+        badge = "Family planning",
+        title = "Shortlist services after both families connect",
+        body = "Keep venues, photography, and ceremony planning separate from discovery until you are ready.",
+        cta = "View ideas",
+        destination = "search"
+    ),
+    HomeBestMatchAdData(
+        id = "success-stories",
+        type = "story",
+        targetPlans = listOf("free", "bronze", "silver", "gold", "platinum"),
+        theme = "cream",
+        badge = "Success stories",
+        title = "See how families used SoulMatch safely",
+        body = "Browse real journey patterns and learn what details create better responses.",
+        cta = "View stories",
+        destination = "success_stories"
+    ),
+    HomeBestMatchAdData(
         id = "safety-awareness",
         type = "safety",
+        targetPlans = listOf("free", "bronze", "silver", "gold", "platinum"),
+        theme = "cream",
         badge = "Scam awareness",
         title = "Protect yourself from online frauds",
         body = "Simple safety reminders for every serious matchmaking journey.",
@@ -982,6 +1125,16 @@ fun defaultScamAwarenessCards(): List<HomeScamAwarenessCardData> = listOf(
         id = "emergency-cash",
         title = "Validate emergency cash requests",
         body = "Never transfer money because of sudden medical, travel, or family emergencies."
+    ),
+    HomeScamAwarenessCardData(
+        id = "advance-fee",
+        title = "Agents must not demand advance fees",
+        body = "Use SoulMatch-listed agents carefully and report anyone asking for unofficial payments."
+    ),
+    HomeScamAwarenessCardData(
+        id = "bank-transfer",
+        title = "Avoid direct bank transfers to new contacts",
+        body = "Do not send money for visas, tickets, gifts, loans, medical stories, or emergencies."
     )
 )
 
@@ -990,7 +1143,8 @@ data class NavigationContentData(
     val search: String = "Search",
     val activity: String = "Activity",
     val chat: String = "Chat",
-    val profile: String = "Profile"
+    val profile: String = "Profile",
+    val upgrade: String = "Upgrade"
 )
 
 data class SupportContentData(
@@ -1027,7 +1181,8 @@ data class RuntimeConfigData(
 data class MonetizationRuntimeData(
     val currency: String = "INR",
     val premiumLimits: Map<String, Map<String, Int>> = emptyMap(),
-    val plans: List<PlanData> = emptyList()
+    val plans: List<PlanData> = emptyList(),
+    val membershipFeatureMatrix: List<Map<String, Any>> = emptyList()
 )
 
 fun defaultSoulMatchTerms(): LegalDocumentData = LegalDocumentData(

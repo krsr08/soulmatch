@@ -512,10 +512,46 @@ object MarketFixtures {
     )
 
     val plans = listOf(
-        PlanData("free", "SoulMatch Free", 0, "lifetime", 0, listOf("View at least 25 profiles", "Send limited interests", "View basic details")),
-        PlanData("starter", "SoulMatch Starter", 499, "monthly", 30, listOf("35 interests a day", "Advanced search", "See recent viewers")),
-        PlanData("plus", "SoulMatch Plus", 999, "quarterly", 90, listOf("Unlimited interests", "Priority search placement", "Chat with mutual matches")),
-        PlanData("assisted", "SoulMatch Assisted", 1499, "yearly", 365, listOf("Everything in Plus", "Incognito browsing", "Dedicated relationship advisor"))
+        PlanData(
+            planId = "free",
+            name = "Bronze",
+            displayName = "Bronze (Free)",
+            price = 0,
+            duration = "lifetime",
+            durationDays = 0,
+            tierRank = 0,
+            features = listOf("10 visible matches", "2 daily interests", "Basic profile discovery")
+        ),
+        PlanData(
+            planId = "silver",
+            name = "Silver",
+            displayName = "Silver",
+            price = 999,
+            duration = "monthly",
+            durationDays = 30,
+            tierRank = 1,
+            features = listOf("50 visible matches", "15 contact views", "Advanced filters")
+        ),
+        PlanData(
+            planId = "gold",
+            name = "Gold",
+            displayName = "Gold",
+            price = 2499,
+            duration = "monthly",
+            durationDays = 30,
+            tierRank = 2,
+            features = listOf("Unlimited visible matches", "Priority listing", "Monthly insights")
+        ),
+        PlanData(
+            planId = "platinum",
+            name = "Platinum",
+            displayName = "Platinum",
+            price = 4999,
+            duration = "monthly",
+            durationDays = 30,
+            tierRank = 3,
+            features = listOf("Unlimited contacts", "Concierge support", "Featured placement")
+        )
     )
 
     val currentSubscription = SubscriptionData(

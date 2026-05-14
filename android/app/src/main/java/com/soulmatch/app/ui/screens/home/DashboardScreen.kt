@@ -264,7 +264,8 @@ fun DashboardScreen(
     val canShowUpgradeInsert = content.showBestMatchInsertCards &&
         content.showBestMatchUpgradeCards &&
         shouldShowHomeUpgrade(subscription, packageGroups)
-    val adCards = homeBestMatchAdCards(content)
+    val adCards = homeBestMatchAdCards(content, subscription)
+        .filter { canShowUpgradeInsert || !it.isUpgradeType() }
 
     ProfileSideDrawer(
         drawerState = drawerState,
@@ -362,7 +363,8 @@ fun DashboardScreen(
                                     onChat = { profileId, name -> onOpenChat(profileId, name) },
                                     onOpenSubscription = onOpenSubscription,
                                     onOpenSearch = onOpenSearch,
-                                    onOpenAstrology = { onProfileMenuDestination("astrology_services") }
+                                    onOpenAstrology = { onProfileMenuDestination("astrology_services") },
+                                    onOpenDestination = onProfileMenuDestination
                                 )
                             }
                         }
@@ -1069,7 +1071,8 @@ private fun BestMatchInsertCard(
     modifier: Modifier = Modifier,
     onOpenSubscription: () -> Unit,
     onOpenSearch: () -> Unit,
-    onOpenAstrology: () -> Unit
+    onOpenAstrology: () -> Unit,
+    onOpenDestination: (String) -> Unit
 ) {
     val ad = adCards.getOrNull(slot % adCards.size.coerceAtLeast(1))
     val preferUpgrade = showUpgrade && (!showAds || ad == null)
@@ -1087,7 +1090,7 @@ private fun BestMatchInsertCard(
                     ad = ad,
                     cards = scamCards,
                     modifier = modifier,
-                    onOpen = onOpenSearch
+                    onOpen = { openHomeAdDestination(ad.destination, onOpenSubscription, onOpenSearch, onOpenAstrology, onOpenDestination) }
                 )
                 "upgrade", "membership", "subscription" -> HomeUpgradeBenefitsCard(
                     ad = ad,
@@ -1098,11 +1101,7 @@ private fun BestMatchInsertCard(
                     ad = ad,
                     modifier = modifier,
                     onOpen = {
-                        when (ad.destination.lowercase(Locale.getDefault())) {
-                            "membership", "subscription", "upgrade" -> onOpenSubscription()
-                            "astrology", "astrology_services" -> onOpenAstrology()
-                            else -> onOpenSearch()
-                        }
+                        openHomeAdDestination(ad.destination, onOpenSubscription, onOpenSearch, onOpenAstrology, onOpenDestination)
                     }
                 )
             }
@@ -1113,6 +1112,23 @@ private fun BestMatchInsertCard(
             modifier = modifier,
             onOpenSubscription = onOpenSubscription
         )
+    }
+}
+
+private fun openHomeAdDestination(
+    destination: String,
+    onOpenSubscription: () -> Unit,
+    onOpenSearch: () -> Unit,
+    onOpenAstrology: () -> Unit,
+    onOpenDestination: (String) -> Unit
+) {
+    when (destination.lowercase(Locale.getDefault())) {
+        "membership", "subscription", "upgrade" -> onOpenSubscription()
+        "astrology", "astrology_services" -> onOpenAstrology()
+        "search", "discover" -> onOpenSearch()
+        "safety" -> onOpenDestination("safety_center")
+        "success_stories" -> onOpenDestination("success_stories/overview")
+        else -> onOpenDestination(destination)
     }
 }
 
@@ -1264,7 +1280,10 @@ private fun HomeScamAwarenessInsertCard(
     modifier: Modifier = Modifier,
     onOpen: () -> Unit
 ) {
-    val awarenessCards = cards.ifEmpty { com.soulmatch.app.data.models.defaultScamAwarenessCards() }
+    val awarenessCards = cards
+        .ifEmpty { com.soulmatch.app.data.models.defaultScamAwarenessCards() }
+        .filter { it.enabled }
+        .ifEmpty { com.soulmatch.app.data.models.defaultScamAwarenessCards() }
     var selectedIndex by rememberSaveable(awarenessCards.size) { mutableStateOf(0) }
     val active = awarenessCards[selectedIndex.coerceIn(0, awarenessCards.lastIndex)]
     Card(
@@ -1419,7 +1438,7 @@ private fun HomeUpgradeInsertCard(
 
 @Composable
 private fun HomeAdInsertCard(ad: HomeBestMatchAdData, modifier: Modifier = Modifier, onOpen: () -> Unit) {
-    val palette = homeAdPalette(ad.type)
+    val palette = homeAdPalette(ad.type, ad.theme)
     PremiumCard(
         modifier = modifier,
         containerColor = palette.container,
@@ -1482,8 +1501,9 @@ private fun shouldInsertBestMatchCard(content: HomeContentData, index: Int, last
     return (index + 1) % frequency == 0
 }
 
-private fun homeAdPalette(type: String): HomeAdPalette {
-    return when (type.lowercase(Locale.getDefault())) {
+private fun homeAdPalette(type: String, theme: String = ""): HomeAdPalette {
+    val key = theme.ifBlank { type }.lowercase(Locale.getDefault())
+    return when (key) {
         "astrology" -> HomeAdPalette(
             container = Color(0xFFF9F0FF),
             border = Color(0xFFD8B2FF),
@@ -1499,6 +1519,38 @@ private fun homeAdPalette(type: String): HomeAdPalette {
             accent = Color(0xFF047857),
             title = Color(0xFF114B3A),
             body = Color(0xFF45695D)
+        )
+        "gold", "sunrise" -> HomeAdPalette(
+            container = Color(0xFFFFF3D6),
+            border = Color(0xFFE7C45A),
+            chip = Color(0xFFFFE69A),
+            accent = Color(0xFF8B6500),
+            title = Color(0xFF6A3600),
+            body = Color(0xFF725A24)
+        )
+        "dark", "maroon" -> HomeAdPalette(
+            container = Color(0xFF7A0026),
+            border = Color(0xFFFFD77A),
+            chip = Color(0x33FFFFFF),
+            accent = Color(0xFFFFE39A),
+            title = Color.White,
+            body = Color(0xFFFFE4EA)
+        )
+        "blue" -> HomeAdPalette(
+            container = Color(0xFFEAF4FF),
+            border = Color(0xFFB9D6F5),
+            chip = Color(0xFFDCEEFF),
+            accent = Color(0xFF2563A8),
+            title = Color(0xFF183B66),
+            body = Color(0xFF3E5873)
+        )
+        "peach", "cream", "ivory" -> HomeAdPalette(
+            container = Color(0xFFFFF6EC),
+            border = Color(0xFFEAC9B7),
+            chip = Color(0xFFFFE8D9),
+            accent = Color(0xFF9B4A34),
+            title = Color(0xFF6D2418),
+            body = Color(0xFF704C43)
         )
         else -> HomeAdPalette(
             container = Color(0xFFFFF1F4),
@@ -1528,10 +1580,14 @@ private fun buildBestMatchSlots(
     }
 }
 
-private fun homeBestMatchAdCards(content: HomeContentData): List<HomeBestMatchAdData> {
+private fun homeBestMatchAdCards(
+    content: HomeContentData,
+    subscription: SubscriptionData
+): List<HomeBestMatchAdData> {
     return content.bestMatchAdCards
         .ifEmpty { defaultHomeBestMatchAds() }
-        .filter { it.title.isNotBlank() || it.body.isNotBlank() }
+        .filter { it.enabled && (it.title.isNotBlank() || it.body.isNotBlank()) }
+        .filter { it.isEligibleForPlan(subscription) }
 }
 
 private fun shouldShowHomeUpgrade(
@@ -1591,11 +1647,37 @@ private fun upgradePackageRank(packageInfo: UpgradePackage): Int {
 
 private fun canonicalPlanRank(planId: String): Int {
     return when (planId.lowercase(Locale.getDefault())) {
+        "free", "bronze" -> 0
         "silver" -> 1_000
         "gold" -> 2_000
         "platinum" -> CANONICAL_PLATINUM_RANK
         else -> 0
     }
+}
+
+private fun HomeBestMatchAdData.isUpgradeType(): Boolean {
+    val normalizedType = type.lowercase(Locale.getDefault())
+    return normalizedType in setOf("upgrade", "membership", "subscription")
+}
+
+private fun HomeBestMatchAdData.isEligibleForPlan(subscription: SubscriptionData): Boolean {
+    val currentPlan = normalizedMemberPlan(subscription.planId)
+    val currentRank = canonicalPlanRank(currentPlan)
+    val explicitTargets = targetPlans.map { normalizedMemberPlan(it) }.filter { it.isNotBlank() }
+    if (explicitTargets.isNotEmpty() && currentPlan !in explicitTargets) return false
+
+    val minRank = minPlan.takeIf { it.isNotBlank() }?.let { canonicalPlanRank(it) }
+    val maxRank = maxPlan.takeIf { it.isNotBlank() }?.let { canonicalPlanRank(it) }
+    if (minRank != null && currentRank < minRank) return false
+    if (maxRank != null && currentRank > maxRank) return false
+    return true
+}
+
+private fun normalizedMemberPlan(planId: String): String {
+    val normalized = planId.ifBlank { "free" }
+        .lowercase(Locale.getDefault())
+        .replace("bronze", "free")
+    return normalized.ifBlank { "free" }
 }
 
 @Composable
@@ -1750,7 +1832,8 @@ private fun BestMatchesCarousel(
     onChat: (String, String) -> Unit,
     onOpenSubscription: () -> Unit,
     onOpenSearch: () -> Unit,
-    onOpenAstrology: () -> Unit
+    onOpenAstrology: () -> Unit,
+    onOpenDestination: (String) -> Unit
 ) {
     val slots = remember(profiles, content, showUpgrade, showAds, adCards) {
         buildBestMatchSlots(
@@ -1800,7 +1883,8 @@ private fun BestMatchesCarousel(
                         .aspectRatio(4f / 5f),
                     onOpenSubscription = onOpenSubscription,
                     onOpenSearch = onOpenSearch,
-                    onOpenAstrology = onOpenAstrology
+                    onOpenAstrology = onOpenAstrology,
+                    onOpenDestination = onOpenDestination
                 )
             }
         }

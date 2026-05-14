@@ -21,11 +21,12 @@ test('getPlanById resolves package ids to canonical subscription plans', () => {
 test('getPlanById resolves canonical plan ids directly', () => {
   const plan = getPlanById(DEFAULT_CONFIG.monetization, 'gold');
   assert.equal(plan.planId, 'gold');
-  assert.equal(plan.price, 999);
+  assert.equal(plan.price, 2499);
 });
 
 test('runtime config includes upgrade packages for Android checkout', () => {
   const config = getPublicRuntimeConfig(DEFAULT_CONFIG);
   assert.ok(config.monetization.upgradePackageGroups.length >= 3);
   assert.equal(config.monetization.upgradePackageGroups[0].packages[0].planId, 'silver');
+  assert.ok(config.monetization.membershipFeatureMatrix.length >= 4);
 });

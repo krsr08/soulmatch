@@ -1,5 +1,13 @@
 # SoulMatch Release Notes
 
+## 1.0.3 - 2026-05-14
+
+- Added configurable Best Matches insert cards for membership upgrades, paid services, trust nudges, and safety content.
+- Added configurable scam-awareness carousel cards that can be managed from Admin CMS.
+- Added membership tier controls for Bronze, Silver, Gold, and Platinum with a backend-configurable feature matrix.
+- Replaced the member bottom Account/Profile tab with an Upgrade tab linked to subscription flows.
+- Added Admin CMS management for feed cards, scam cards, and membership feature permissions.
+
 ## 1.0.2 - 2026-05-14
 
 - Fixed My Profile crash when backend partner preference list fields such as deal breakers, education, locations, or occupations are returned as null.
