@@ -640,7 +640,7 @@ private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValid
                 }
             }
             PremiumCard(containerColor = SurfaceWarm, contentPadding = PaddingValues(14.dp)) {
-                Text("This section syncs with Smart Search and ranking, so it should be specific instead of generic.", style = MaterialTheme.typography.bodySmall, color = PrimaryDark)
+                Text("This section syncs with Discover and ranking, so it should be specific instead of generic.", style = MaterialTheme.typography.bodySmall, color = PrimaryDark)
             }
         }
     }

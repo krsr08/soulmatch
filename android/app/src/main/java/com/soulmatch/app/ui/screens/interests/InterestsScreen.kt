@@ -74,6 +74,7 @@ import com.soulmatch.app.ui.theme.SurfaceSoft
 import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.formatDate
+import com.soulmatch.app.ui.formatDateMillis
 import com.soulmatch.app.ui.titleCase
 import com.soulmatch.app.ui.viewmodels.InterestsViewModel
 
@@ -205,7 +206,7 @@ fun InterestsScreen(
                                     items(accepted, key = { "${it.directionLabel}-${it.item.interestId}" }) { activity ->
                                         InterestRow(
                                             title = activity.item.fullName(),
-                                            subtitle = "${activity.directionLabel} interest accepted",
+                                            subtitle = "${activity.directionLabel} ${formatDate(activity.item.sentAt)} | Accepted",
                                             status = "Mutual path ready",
                                             photoUrl = activity.item.primaryPhotoUrl,
                                             primaryLabel = "Chat",
@@ -224,7 +225,7 @@ fun InterestsScreen(
                                     items(declined, key = { "${it.directionLabel}-${it.item.interestId}" }) { activity ->
                                         InterestRow(
                                             title = activity.item.fullName(),
-                                            subtitle = "${activity.directionLabel} interest declined",
+                                            subtitle = "${activity.directionLabel} ${formatDate(activity.item.sentAt)} | Declined",
                                             status = "Closed",
                                             photoUrl = activity.item.primaryPhotoUrl,
                                             primaryLabel = null,
@@ -260,7 +261,12 @@ fun InterestsScreen(
                                 } else {
                                     Column {
                                         hiddenProfiles.forEach { profile ->
-                                            ManagementProfileRow(profile = profile, icon = Icons.Filled.Visibility, label = "Hidden")
+                                            ManagementProfileRow(
+                                                profile = profile,
+                                                icon = Icons.Filled.Visibility,
+                                                label = "Hidden",
+                                                dateLabel = "Profile added ${formatDate(profile.createdAt)}"
+                                            )
                                         }
                                     }
                                 }
@@ -271,7 +277,13 @@ fun InterestsScreen(
                                 } else {
                                     Column {
                                         blockedProfiles.forEach { profile ->
-                                            ManagementProfileRow(profile = profile, icon = Icons.Filled.Block, label = "Blocked", danger = true)
+                                            ManagementProfileRow(
+                                                profile = profile,
+                                                icon = Icons.Filled.Block,
+                                                label = "Blocked",
+                                                dateLabel = "Profile added ${formatDate(profile.createdAt)}",
+                                                danger = true
+                                            )
                                         }
                                     }
                                 }
@@ -311,7 +323,7 @@ private fun ActivitySummary(
                 Text("Tap a count to open that activity tab", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                ActivityStatTile("Waiting received", received.toString(), modifier = Modifier.weight(1f), background = SurfaceWarm, onClick = { onOpenTab(0) })
+                ActivityStatTile("Received", received.toString(), modifier = Modifier.weight(1f), background = SurfaceWarm, onClick = { onOpenTab(0) })
                 ActivityStatTile("Sent interests", sent.toString(), modifier = Modifier.weight(1f), background = SurfaceSoft, onClick = { onOpenTab(1) })
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
@@ -500,6 +512,7 @@ private fun ManagementProfileRow(
     profile: ProfileSummary,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
+    dateLabel: String,
     danger: Boolean = false
 ) {
     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), containerColor = if (danger) ErrorSoft else SurfaceWarm, contentPadding = PaddingValues(8.dp)) {
@@ -522,6 +535,7 @@ private fun ManagementProfileRow(
                     SignalChip(label, tone = if (danger) ChipTone.Warm else ChipTone.Info)
                 }
                 Text("${profile.location} | ${profile.community}", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                Text(dateLabel, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
             }
         }
     }
@@ -550,6 +564,7 @@ private fun ReportedActivityRow(concern: ReportedConcern) {
                     SignalChip("Reported", tone = ChipTone.Warm)
                 }
                 Text(profile?.let { "${it.location} | ${it.community}" } ?: concern.profileId, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                Text("Reported ${formatDateMillis(concern.updatedMillis)}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                 Text(concern.concern, style = MaterialTheme.typography.bodyMedium)
             }
         }

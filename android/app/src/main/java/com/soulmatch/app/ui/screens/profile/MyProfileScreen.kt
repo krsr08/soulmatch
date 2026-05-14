@@ -1430,7 +1430,7 @@ private fun PartnerPreferencesCard(
 
     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionTitle("Partner preferences", "These inputs now power Smart Search, match ranking, and future AI recommendations")
+            SectionTitle("Partner preferences", "These inputs now power Discover, match ranking, and future AI recommendations")
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 items(listOf("Basics", "Career", "Lifestyle", "Family", "Horoscope")) { tab ->
                     FilterChoiceChip(

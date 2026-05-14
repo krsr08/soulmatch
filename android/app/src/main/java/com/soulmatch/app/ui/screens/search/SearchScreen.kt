@@ -52,7 +52,6 @@ import com.soulmatch.app.ui.components.premium.ChipTone
 import com.soulmatch.app.ui.components.premium.FilterChoiceChip
 import com.soulmatch.app.ui.components.premium.MetricPill
 import com.soulmatch.app.ui.components.premium.PremiumCard
-import com.soulmatch.app.ui.components.premium.PremiumHeader
 import com.soulmatch.app.ui.components.premium.PremiumScreen
 import com.soulmatch.app.ui.components.cards.ProfileCard
 import com.soulmatch.app.ui.components.premium.SectionTitle
@@ -109,7 +108,7 @@ fun SearchScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Smart Search", fontWeight = FontWeight.Bold)
+                        Text("Discover", fontWeight = FontWeight.Bold)
                         Text("Filter by family, lifestyle, activity, and compatibility", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                     }
                 },
@@ -130,13 +129,6 @@ fun SearchScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
-                item {
-                    PremiumHeader(
-                        eyebrow = "Discovery",
-                        title = "Find serious matches faster",
-                        subtitle = "Use saved bundles for speed, then refine with details that matter in matrimony."
-                    )
-                }
                 item {
                     SearchSummaryPanel(
                         filters = filters,

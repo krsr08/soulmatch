@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -46,6 +45,7 @@ import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.MailOutline
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.AlertDialog
@@ -91,6 +91,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.soulmatch.app.data.local.ProfileInteractionStore
 import com.soulmatch.app.data.models.HomeContentData
 import com.soulmatch.app.data.models.HomeBestMatchAdData
 import com.soulmatch.app.data.models.HomeScamAwarenessCardData
@@ -138,7 +139,7 @@ private data class HomeAdPalette(
 )
 
 private enum class HomeMatchFeedFilter(val label: String) {
-    Verified("Verified"),
+    Viewed("Viewed"),
     JustJoined("Just Joined"),
     Nearby("Nearby")
 }
@@ -210,6 +211,7 @@ fun DashboardScreen(
     val notifications by notificationsVm.notifications.collectAsStateWithLifecycle()
     val packageGroups by subscriptionVm.packageGroups.collectAsStateWithLifecycle()
     val subscription by subscriptionVm.subscription.collectAsStateWithLifecycle()
+    val interactionState by ProfileInteractionStore.state.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -248,6 +250,7 @@ fun DashboardScreen(
     val filteredRankedMatches = rankedMatches.filterForHomeFeed(
         filter = selectedFeedFilter,
         viewerProfile = myProfile,
+        viewedProfileIds = interactionState.viewedProfileIds,
         advancedFilters = advancedFilters
     )
     val bestMatchProfileTarget = content.bestMatchMinimumProfiles.coerceAtLeast(5)
@@ -312,6 +315,7 @@ fun DashboardScreen(
                                 onSelected = { filter ->
                                     val nextFilter = if (selectedFeedFilter == filter) null else filter
                                     selectedFeedFilter = nextFilter
+                                    advancedFilters = advancedFilters.copy(typeOfMatches = nextFilter?.label ?: "All")
                                 }
                             )
                         }
@@ -383,6 +387,7 @@ fun DashboardScreen(
             onDismiss = { showFilterDialog = false },
             onApply = {
                 advancedFilters = it
+                selectedFeedFilter = quickFilterForType(it.typeOfMatches)
                 showFilterDialog = false
             },
             onReset = {
@@ -524,6 +529,7 @@ private fun HomeMatchFilterStrip(
     onOpenAdvancedFilters: () -> Unit,
     onSelected: (HomeMatchFeedFilter) -> Unit
 ) {
+    val visibleFilters = selected?.let(::listOf) ?: HomeMatchFeedFilter.entries
     Surface(
         color = Color(0xFFFFFCFA),
         border = BorderStroke(1.dp, Divider.copy(alpha = 0.55f))
@@ -542,7 +548,13 @@ private fun HomeMatchFilterStrip(
                 modifier = Modifier.weight(0.92f),
                 onClick = onOpenAdvancedFilters
             )
-            HomeMatchFeedFilter.entries.forEach { filter ->
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(28.dp)
+                    .background(Color(0xFFD7DDE5))
+            )
+            visibleFilters.forEach { filter ->
                 HomeFilterPill(
                     label = filter.label,
                     selected = selected == filter,
@@ -616,61 +628,80 @@ private fun HomeAdvancedFilterDialog(
     ) {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = HomeBackground
+            color = Color.White
         ) {
             Column(Modifier.fillMaxSize()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFFFFCFA))
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                        .height(112.dp)
+                        .background(Color.White)
+                        .padding(start = 22.dp, end = 18.dp, top = 22.dp, bottom = 14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.Top
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Text(
                             "Refine matches",
-                            style = MaterialTheme.typography.headlineSmall.copy(
+                            style = MaterialTheme.typography.headlineMedium.copy(
                                 fontFamily = FontFamily.Serif,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.ExtraBold,
+                                lineHeight = 34.sp
                             ),
                             color = Color(0xFF202A36)
                         )
                         Text(
                             "Choose filters that matter to your family.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color(0xFF6E7785),
+                            maxLines = 2
                         )
                     }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close filters", tint = PrimaryDark)
+                    IconButton(
+                        onClick = onDismiss,
+                            modifier = Modifier.size(44.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "Close filters",
+                            tint = Color(0xFF9AA1AB),
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
                 }
                 Row(Modifier.weight(1f)) {
                     LazyColumn(
                         modifier = Modifier
-                            .width(132.dp)
+                            .width(146.dp)
                             .fillMaxSize()
-                            .background(Color(0xFFFFF4F6)),
-                        contentPadding = PaddingValues(vertical = 10.dp)
+                            .background(Color(0xFFF4F2EF)),
+                        contentPadding = PaddingValues(top = 40.dp, bottom = 24.dp)
                     ) {
                         items(sections, key = { it.title }) { section ->
                             val selected = selectedTab == section.title
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .padding(end = if (selected) 0.dp else 10.dp, top = 6.dp, bottom = 6.dp)
+                                    .defaultMinSize(minHeight = 52.dp)
                                     .clickable { selectedTab = section.title },
-                                shape = RoundedCornerShape(14.dp),
+                                shape = if (selected) {
+                                    RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp)
+                                } else {
+                                    RoundedCornerShape(0.dp)
+                                },
                                 color = if (selected) Color.White else Color.Transparent,
-                                border = if (selected) BorderStroke(1.dp, SoftBorder.copy(alpha = 0.55f)) else null
+                                shadowElevation = if (selected) 3.dp else 0.dp
                             ) {
                                 Text(
                                     section.title,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = if (selected) HomePrimary else TextSecondary,
-                                    fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                    modifier = Modifier.padding(start = 28.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+                                    style = MaterialTheme.typography.titleMedium.copy(lineHeight = 22.sp),
+                                    color = if (selected) Color(0xFF8A001F) else Color(0xFF3B4655),
+                                    fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -681,8 +712,8 @@ private fun HomeAdvancedFilterDialog(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(18.dp)
+                        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 42.dp, bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
                         item {
                             FilterChoiceSection(
@@ -725,24 +756,42 @@ private fun HomeAdvancedFilterDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFFFFCFA))
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        .height(96.dp)
+                        .background(Color.White)
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     OutlinedButton(
                         onClick = {
                             draft = HomeAdvancedFilters()
                             onReset()
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(0.92f)
+                            .height(56.dp),
+                        shape = RoundedCornerShape(999.dp),
+                        border = BorderStroke(1.2.dp, Color(0xFFD0D6DE)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFF8A001F),
+                            containerColor = Color.White
+                        )
                     ) {
-                        Text("Reset")
+                        Text("Reset", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
                     }
                     Button(
                         onClick = { onApply(draft) },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1.22f)
+                            .height(56.dp),
+                        shape = RoundedCornerShape(999.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF99002B),
+                            contentColor = Color.White
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 5.dp)
                     ) {
-                        Text("Apply filters")
+                        Text("Apply filters", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
                     }
                 }
             }
@@ -760,7 +809,7 @@ private fun homeFilterSections(options: HomeFilterOptions): List<HomeFilterSecti
     return listOf(
         HomeFilterSectionSpec(
             title = "Type of Matches",
-            options = listOf("All", "Verified", "Just Joined", "Nearby"),
+            options = listOf("All", "Viewed", "Verified", "Just Joined", "Nearby"),
             value = { it.typeOfMatches },
             update = { filters, value -> filters.copy(typeOfMatches = value) }
         ),
@@ -883,12 +932,59 @@ private fun FilterChoiceSection(
     selected: String,
     onSelect: (String) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(title, style = MaterialTheme.typography.titleSmall, color = PrimaryDark, fontWeight = FontWeight.ExtraBold)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        Text(
+            title,
+            style = MaterialTheme.typography.headlineSmall.copy(
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.ExtraBold,
+                lineHeight = 30.sp
+            ),
+            color = Color(0xFF8A001F),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             options.forEach { option ->
-                HomeFilterPill(label = option, selected = selected == option, onClick = { onSelect(option) })
+                RefineFilterOptionButton(
+                    label = option,
+                    selected = selected == option,
+                    onClick = { onSelect(option) }
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun RefineFilterOptionButton(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(58.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(999.dp),
+        color = Color.White,
+        border = BorderStroke(
+            width = if (selected) 1.6.dp else 1.dp,
+            color = if (selected) Color(0xFF8A001F) else Color(0xFFD0D6DE)
+        )
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                label,
+                modifier = Modifier.padding(horizontal = 14.dp),
+                style = MaterialTheme.typography.titleMedium,
+                color = if (selected) Color(0xFF8A001F) else Color(0xFF202A36),
+                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -2057,6 +2153,7 @@ private fun educationOccupationLocation(profile: ProfileSummary): String {
 private fun List<ProfileSummary>.filterForHomeFeed(
     filter: HomeMatchFeedFilter?,
     viewerProfile: com.soulmatch.app.data.models.ProfileData,
+    viewedProfileIds: Set<String>,
     advancedFilters: HomeAdvancedFilters
 ): List<ProfileSummary> {
     val viewerCity = viewerProfile.workingCity
@@ -2065,13 +2162,13 @@ private fun List<ProfileSummary>.filterForHomeFeed(
     return filter { profile ->
         val quickFilterMatch = when (filter) {
             null -> true
-            HomeMatchFeedFilter.Verified -> profile.isVerified
+            HomeMatchFeedFilter.Viewed -> profile.profileId in viewedProfileIds
             HomeMatchFeedFilter.JustJoined -> profile.joinedToday()
             HomeMatchFeedFilter.Nearby -> viewerCity.isNotBlank() &&
                 profile.matchesAnyText(viewerCity, profile.location, profile.familyCity)
         }
         quickFilterMatch &&
-            profile.matchesTypeFilter(advancedFilters.typeOfMatches, viewerCity) &&
+            profile.matchesTypeFilter(advancedFilters.typeOfMatches, viewerCity, viewedProfileIds) &&
             profile.matchesTextFilter(advancedFilters.religion, profile.religion, profile.community) &&
             profile.matchesOnlineStatus(advancedFilters.onlineStatus) &&
             profile.matchesTextFilter(advancedFilters.familyBasedOutOf, profile.familyCity, profile.familyState) &&
@@ -2125,12 +2222,22 @@ private fun buildHomeFilterOptions(profiles: List<ProfileSummary>): HomeFilterOp
     )
 }
 
-private fun ProfileSummary.matchesTypeFilter(type: String, viewerCity: String): Boolean {
+private fun ProfileSummary.matchesTypeFilter(type: String, viewerCity: String, viewedProfileIds: Set<String>): Boolean {
     return when (type) {
+        "Viewed" -> profileId in viewedProfileIds
         "Verified" -> isVerified
         "Just Joined" -> joinedToday()
         "Nearby" -> viewerCity.isNotBlank() && matchesAnyText(viewerCity, location, familyCity)
         else -> true
+    }
+}
+
+private fun quickFilterForType(type: String): HomeMatchFeedFilter? {
+    return when (type) {
+        HomeMatchFeedFilter.Viewed.label -> HomeMatchFeedFilter.Viewed
+        HomeMatchFeedFilter.JustJoined.label -> HomeMatchFeedFilter.JustJoined
+        HomeMatchFeedFilter.Nearby.label -> HomeMatchFeedFilter.Nearby
+        else -> null
     }
 }
 

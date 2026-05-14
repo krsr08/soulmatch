@@ -14,8 +14,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
@@ -557,7 +557,7 @@ private data class BottomNavItem(
 private val bottomNavItems = listOf(
     BottomNavItem("home", "dashboard", listOf("dashboard", "best_matches"), Icons.Filled.Home),
     BottomNavItem("search", "search", listOf("search"), Icons.Filled.Search),
-    BottomNavItem("activity", "interests", listOf("interests"), Icons.Filled.Favorite),
+    BottomNavItem("activity", "interests", listOf("interests"), Icons.Filled.AccessTime),
     BottomNavItem("chat", "chat_list", listOf("chat_list", "chat/"), Icons.Filled.Chat),
     BottomNavItem(
         "profile",
