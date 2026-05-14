@@ -106,7 +106,7 @@ class MyProfileViewModel @Inject constructor(
                     return@launch
                 }
 
-                val resolvedProfile = profileBody.data
+                val resolvedProfile = profileBody.data?.safeProfileData()
                 _profile.value = resolvedProfile
                 _checklist.value = buildChecklist(resolvedProfile)
 
@@ -129,7 +129,7 @@ class MyProfileViewModel @Inject constructor(
                     ?.takeIf { it.success }
                     ?.data
                     ?: if (canUseFallback) MarketFixtures.currentSubscription else SubscriptionData(planId = "free", isActive = false)
-                _preferences.value = runCatching { profileApi.getPreferences(resolvedProfile.profileId) }
+                _preferences.value = (runCatching { profileApi.getPreferences(resolvedProfile.profileId) }
                     .getOrNull()
                     ?.body()
                     ?.takeIf { it.success }
@@ -145,7 +145,7 @@ class MyProfileViewModel @Inject constructor(
                         dietPrefs = listOf(resolvedProfile.diet).filter { it.isNotBlank() },
                         maritalStatuses = listOf(resolvedProfile.maritalStatus).filter { it.isNotBlank() },
                         familyTypes = listOf(resolvedProfile.familyType).filter { it.isNotBlank() }
-                    )
+                    )).safePreferences()
                 _assistStatus.value = runCatching { profileApi.getAssistStatus() }
                     .getOrNull()
                     ?.body()
@@ -217,7 +217,7 @@ class MyProfileViewModel @Inject constructor(
 
     private fun applyMockProfileFallback(message: String) {
         if (!AppEnvironment.allowDemoFallback) return
-        val fallback = MarketFixtures.myProfile
+        val fallback = MarketFixtures.myProfile.safeProfileData()
         _profile.value = fallback
         _subscription.value = MarketFixtures.currentSubscription
         _preferences.value = PartnerPreferencesData(
@@ -229,7 +229,7 @@ class MyProfileViewModel @Inject constructor(
             dietPrefs = listOf(fallback.diet).filter { it.isNotBlank() },
             maritalStatuses = listOf(fallback.maritalStatus).filter { it.isNotBlank() },
             familyTypes = listOf(fallback.familyType).filter { it.isNotBlank() }
-        )
+        ).safePreferences()
         _assistStatus.value = AssistStatusData(
             profileId = fallback.profileId,
             location = com.soulmatch.app.data.models.AssistLocationData(
@@ -318,10 +318,11 @@ class MyProfileViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             _status.value = null
+            val sanitizedRequest = request.safePreferences()
             try {
-                val response = profileApi.updatePreferences(profileId, request)
+                val response = profileApi.updatePreferences(profileId, sanitizedRequest)
                 if (response.isSuccessful && response.body()?.success == true) {
-                    _preferences.value = request
+                    _preferences.value = sanitizedRequest
                     _profile.value = _profile.value?.copy(isPartnerPrefSet = true)
                     _status.value = "Partner preferences updated."
                     load()
@@ -514,25 +515,25 @@ class MyProfileViewModel @Inject constructor(
     }
 
     private fun buildChecklist(profile: ProfileData?): List<ProfileChecklistItem> {
-        val resolved = profile ?: ProfileData()
-        val hasHoroscopeDetails = resolved.rashi.isNotBlank() ||
-            resolved.nakshatra.isNotBlank() ||
-            resolved.birthCity.isNotBlank() ||
-            resolved.gotra.isNotBlank() ||
+        val resolved = profile?.safeProfileData() ?: ProfileData()
+        val hasHoroscopeDetails = safeText(resolved.rashi).isNotBlank() ||
+            safeText(resolved.nakshatra).isNotBlank() ||
+            safeText(resolved.birthCity).isNotBlank() ||
+            safeText(resolved.gotra).isNotBlank() ||
             resolved.isManglik
 
         return listOf(
             ProfileChecklistItem(
                 title = "Basic details",
                 description = "Name, DOB, gender, religion, community, language, and marital status",
-                isComplete = resolved.firstName.isNotBlank() &&
-                    resolved.lastName.isNotBlank() &&
-                    !resolved.dob.isNullOrBlank() &&
-                    resolved.gender.isNotBlank() &&
-                    resolved.religion.isNotBlank() &&
-                    resolved.caste.isNotBlank() &&
-                    resolved.maritalStatus.isNotBlank() &&
-                    resolved.motherTongue.isNotBlank(),
+                isComplete = safeText(resolved.firstName).isNotBlank() &&
+                    safeText(resolved.lastName).isNotBlank() &&
+                    safeText(resolved.dob).isNotBlank() &&
+                    safeText(resolved.gender).isNotBlank() &&
+                    safeText(resolved.religion).isNotBlank() &&
+                    safeText(resolved.caste).isNotBlank() &&
+                    safeText(resolved.maritalStatus).isNotBlank() &&
+                    safeText(resolved.motherTongue).isNotBlank(),
                 editStep = 1
             ),
             ProfileChecklistItem(
@@ -540,42 +541,42 @@ class MyProfileViewModel @Inject constructor(
                 description = "Height, weight, complexion, body type, and blood group",
                 isComplete = (resolved.heightCm ?: 0) > 0 &&
                     (resolved.weightKg ?: 0) > 0 &&
-                    resolved.complexion.isNotBlank() &&
-                    resolved.bodyType.isNotBlank() &&
-                    resolved.bloodGroup.isNotBlank(),
+                    safeText(resolved.complexion).isNotBlank() &&
+                    safeText(resolved.bodyType).isNotBlank() &&
+                    safeText(resolved.bloodGroup).isNotBlank(),
                 editStep = 2
             ),
             ProfileChecklistItem(
                 title = "Work and education",
                 description = "Education level, occupation, annual income, and working city",
-                isComplete = resolved.educationLevel.isNotBlank() &&
+                isComplete = safeText(resolved.educationLevel).isNotBlank() &&
                     (!resolved.isEmployed || (
-                        resolved.occupation.isNotBlank() &&
-                            resolved.annualIncome.isNotBlank() &&
-                            resolved.workingCity.isNotBlank() &&
-                            resolved.workingState.isNotBlank() &&
-                            resolved.workingPincode.length == 6
+                        safeText(resolved.occupation).isNotBlank() &&
+                            safeText(resolved.annualIncome).isNotBlank() &&
+                            safeText(resolved.workingCity).isNotBlank() &&
+                            safeText(resolved.workingState).isNotBlank() &&
+                            safeText(resolved.workingPincode).length == 6
                         )),
                 editStep = 3
             ),
             ProfileChecklistItem(
                 title = "Family details",
                 description = "Parent occupations, siblings, family type, and family city",
-                isComplete = resolved.fatherOccupation.isNotBlank() &&
-                    resolved.motherOccupation.isNotBlank() &&
+                isComplete = safeText(resolved.fatherOccupation).isNotBlank() &&
+                    safeText(resolved.motherOccupation).isNotBlank() &&
                     resolved.numBrothers != null &&
                     resolved.numSisters != null &&
-                    resolved.familyType.isNotBlank() &&
-                    resolved.familyCity.isNotBlank(),
+                    safeText(resolved.familyType).isNotBlank() &&
+                    safeText(resolved.familyCity).isNotBlank(),
                 editStep = 4
             ),
             ProfileChecklistItem(
                 title = "Lifestyle",
                 description = "Diet, smoking, drinking, and an about section with at least 30 characters",
-                isComplete = resolved.diet.isNotBlank() &&
-                    resolved.smoking.isNotBlank() &&
-                    resolved.drinking.isNotBlank() &&
-                    resolved.aboutMe.trim().length >= 30,
+                isComplete = safeText(resolved.diet).isNotBlank() &&
+                    safeText(resolved.smoking).isNotBlank() &&
+                    safeText(resolved.drinking).isNotBlank() &&
+                    safeText(resolved.aboutMe).trim().length >= 30,
                 editStep = 5
             ),
             ProfileChecklistItem(
@@ -587,4 +588,83 @@ class MyProfileViewModel @Inject constructor(
             )
         )
     }
+
+    private fun ProfileData.safeProfileData(): ProfileData = copy(
+        profileId = safeText(profileId),
+        userId = safeText(userId),
+        firstName = safeText(firstName),
+        lastName = safeText(lastName),
+        dob = safeText(dob).ifBlank { null },
+        gender = safeText(gender),
+        phone = safeText(phone),
+        email = safeText(email),
+        religion = safeText(religion),
+        caste = safeText(caste),
+        motherTongue = safeText(motherTongue),
+        maritalStatus = safeText(maritalStatus),
+        profileStatus = safeText(profileStatus).ifBlank { "active" },
+        profileCreatedBy = safeText(profileCreatedBy).ifBlank { "self" },
+        verificationStatus = safeText(verificationStatus).ifBlank { "pending" },
+        trustLevel = safeText(trustLevel).ifBlank { "low" },
+        trustSignals = safeList(trustSignals),
+        trustWarnings = safeList(trustWarnings),
+        trustFactors = safeList(trustFactors),
+        seriousnessLevel = safeText(seriousnessLevel).ifBlank { "low" },
+        seriousnessSignals = safeList(seriousnessSignals),
+        seriousnessWarnings = safeList(seriousnessWarnings),
+        primaryPhotoUrl = safeText(primaryPhotoUrl).ifBlank { null },
+        photoPrivacy = safeText(photoPrivacy).ifBlank { "all" },
+        photoAccessStatus = safeText(photoAccessStatus).ifBlank { "visible" },
+        photoAccessRequestId = safeText(photoAccessRequestId).ifBlank { null },
+        profileVisibility = safeText(profileVisibility).ifBlank { "all" },
+        lastLogin = safeText(lastLogin).ifBlank { null },
+        updatedAt = safeText(updatedAt).ifBlank { null },
+        educationLevel = safeText(educationLevel),
+        occupation = safeText(occupation),
+        annualIncome = safeText(annualIncome),
+        workingCity = safeText(workingCity),
+        workingState = safeText(workingState),
+        workingPincode = safeText(workingPincode),
+        complexion = safeText(complexion),
+        bodyType = safeText(bodyType),
+        bloodGroup = safeText(bloodGroup),
+        fatherOccupation = safeText(fatherOccupation),
+        motherOccupation = safeText(motherOccupation),
+        familyType = safeText(familyType),
+        familyCity = safeText(familyCity),
+        familyState = safeText(familyState),
+        familyLocality = safeText(familyLocality),
+        familyPincode = safeText(familyPincode),
+        diet = safeText(diet),
+        smoking = safeText(smoking),
+        drinking = safeText(drinking),
+        aboutMe = safeText(aboutMe),
+        rashi = safeText(rashi),
+        nakshatra = safeText(nakshatra),
+        birthCity = safeText(birthCity),
+        gotra = safeText(gotra)
+    )
+
+    private fun PartnerPreferencesData.safePreferences(): PartnerPreferencesData = copy(
+        religion = safeText(religion).ifBlank { null },
+        manglikPref = safeText(manglikPref).ifBlank { "any" },
+        educationLevels = safeStringList(educationLevels),
+        occupations = safeStringList(occupations),
+        locations = safeStringList(locations),
+        dietPrefs = safeStringList(dietPrefs),
+        maritalStatuses = safeStringList(maritalStatuses),
+        familyTypes = safeStringList(familyTypes),
+        timeline = safeText(timeline).ifBlank { null },
+        dealBreakers = safeStringList(dealBreakers),
+        goodToHave = safeStringList(goodToHave)
+    )
+
+    private fun safeStringList(value: List<String>?): List<String> =
+        value.orEmpty()
+            .mapNotNull { item -> (item as? String)?.trim()?.takeIf { it.isNotBlank() } }
+            .distinct()
+
+    private fun safeText(value: String?): String = value.orEmpty()
+
+    private fun <T> safeList(value: List<T>?): List<T> = value ?: emptyList()
 }

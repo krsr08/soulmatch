@@ -2134,20 +2134,20 @@ private fun PartnerPreferencesCard(
     var ageMax by remember(preferences.ageMax) { mutableIntStateOf(preferences.ageMax) }
     var religion by remember(preferences.religion) { mutableStateOf(preferences.religion.orEmpty()) }
     var manglikPref by remember(preferences.manglikPref) { mutableStateOf(preferences.manglikPref) }
-    var educationText by remember(preferences.educationLevels) { mutableStateOf(preferences.educationLevels.joinToString(", ")) }
-    var occupationsText by remember(preferences.occupations) { mutableStateOf(preferences.occupations.joinToString(", ")) }
+    var educationText by remember(preferences.educationLevels) { mutableStateOf(preferenceText(preferences.educationLevels)) }
+    var occupationsText by remember(preferences.occupations) { mutableStateOf(preferenceText(preferences.occupations)) }
     var incomeMinText by remember(preferences.annualIncomeMin) { mutableStateOf(preferences.annualIncomeMin?.toString().orEmpty()) }
     var incomeMaxText by remember(preferences.annualIncomeMax) { mutableStateOf(preferences.annualIncomeMax?.toString().orEmpty()) }
     var heightMinText by remember(preferences.heightMinCm) { mutableStateOf(preferences.heightMinCm?.toString().orEmpty()) }
     var heightMaxText by remember(preferences.heightMaxCm) { mutableStateOf(preferences.heightMaxCm?.toString().orEmpty()) }
-    var locationsText by remember(preferences.locations) { mutableStateOf(preferences.locations.joinToString(", ")) }
+    var locationsText by remember(preferences.locations) { mutableStateOf(preferenceText(preferences.locations)) }
     var radiusText by remember(preferences.locationRadiusKm) { mutableStateOf(preferences.locationRadiusKm.toString()) }
-    var dietText by remember(preferences.dietPrefs) { mutableStateOf(preferences.dietPrefs.joinToString(", ")) }
-    var maritalText by remember(preferences.maritalStatuses) { mutableStateOf(preferences.maritalStatuses.joinToString(", ")) }
-    var familyTypeText by remember(preferences.familyTypes) { mutableStateOf(preferences.familyTypes.joinToString(", ")) }
+    var dietText by remember(preferences.dietPrefs) { mutableStateOf(preferenceText(preferences.dietPrefs)) }
+    var maritalText by remember(preferences.maritalStatuses) { mutableStateOf(preferenceText(preferences.maritalStatuses)) }
+    var familyTypeText by remember(preferences.familyTypes) { mutableStateOf(preferenceText(preferences.familyTypes)) }
     var timeline by remember(preferences.timeline) { mutableStateOf(preferences.timeline.orEmpty()) }
-    var dealBreakersText by remember(preferences.dealBreakers) { mutableStateOf(preferences.dealBreakers.joinToString(", ")) }
-    var goodToHaveText by remember(preferences.goodToHave) { mutableStateOf(preferences.goodToHave.joinToString(", ")) }
+    var dealBreakersText by remember(preferences.dealBreakers) { mutableStateOf(preferenceText(preferences.dealBreakers)) }
+    var goodToHaveText by remember(preferences.goodToHave) { mutableStateOf(preferenceText(preferences.goodToHave)) }
     var relocationOpen by remember(preferences.relocationOpen) { mutableStateOf(preferences.relocationOpen) }
     var selectedTab by remember { mutableStateOf("Basics") }
 
@@ -2361,6 +2361,14 @@ private fun PartnerPreferencesCard(
 private fun csvToList(value: String): List<String> =
     value.split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct()
 
+private fun preferenceItems(values: List<String>?): List<String> =
+    values.orEmpty()
+        .mapNotNull { value -> (value as? String)?.trim()?.takeIf { it.isNotBlank() } }
+        .distinct()
+
+private fun preferenceText(values: List<String>?): String =
+    preferenceItems(values).joinToString(", ")
+
 private fun preferenceLabel(value: String): String {
     val items = csvToList(value)
     return when {
@@ -2437,9 +2445,9 @@ private fun PartnerPreferencesSummaryCard(
     preferences: PartnerPreferencesData,
     onEdit: () -> Unit
 ) {
-    val education = preferences.educationLevels.joinToString(", ").ifBlank { "Any education" }
-    val location = preferences.locations.joinToString(", ").ifBlank { "Any city" }
-    val career = preferences.occupations.joinToString(", ").ifBlank {
+    val education = preferenceText(preferences.educationLevels).ifBlank { "Any education" }
+    val location = preferenceText(preferences.locations).ifBlank { "Any city" }
+    val career = preferenceText(preferences.occupations).ifBlank {
         when {
             preferences.annualIncomeMin != null || preferences.annualIncomeMax != null -> "Income-led matching"
             else -> "Any profession"
@@ -2450,6 +2458,7 @@ private fun PartnerPreferencesSummaryCard(
         preferences.heightMaxCm?.let { "up to ${it}cm" }
     ).joinToString(" ").ifBlank { "Open" }
     val religion = preferences.religion?.takeIf { it.isNotBlank() } ?: "Any religion"
+    val dealBreakers = preferenceItems(preferences.dealBreakers)
 
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -2477,8 +2486,8 @@ private fun PartnerPreferencesSummaryCard(
             ProfileInfoLine(Icons.Filled.Work, "Career", career)
             ProfileInfoLine(Icons.Filled.Person, "Location", location)
             ProfileInfoLine(Icons.Filled.AutoAwesome, "Height", height)
-            if (preferences.dealBreakers.isNotEmpty()) {
-                ProfileInfoLine(Icons.Filled.Lock, "Deal breakers", preferences.dealBreakers.joinToString(", "))
+            if (dealBreakers.isNotEmpty()) {
+                ProfileInfoLine(Icons.Filled.Lock, "Deal breakers", dealBreakers.joinToString(", "))
             }
         }
     }

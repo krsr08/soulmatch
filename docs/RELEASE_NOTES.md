@@ -1,5 +1,11 @@
 # SoulMatch Release Notes
 
+## 1.0.2 - 2026-05-14
+
+- Fixed My Profile crash when backend partner preference list fields such as deal breakers, education, locations, or occupations are returned as null.
+- Normalized partner preference data in the My Profile view model before saving or rendering it.
+- Hardened My Profile readiness checks against legacy records with null text fields.
+
 ## 1.0.1 - 2026-05-14
 
 - Hardened member dashboard profile and match data handling against null values returned by older or incomplete records.
