@@ -1,5 +1,4 @@
 package com.soulmatch.app.ui.screens.auth
-import android.app.Activity
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,7 +12,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -32,8 +30,6 @@ fun OTPVerificationScreen(phone: String, userType: String? = null, onVerified: (
     val boxes = remember { mutableStateListOf("","","","","","") }
     val focusers = remember { List(6) { FocusRequester() } }
     val state by vm.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    val activity = context as? Activity
     var countdown by remember { mutableIntStateOf(30) }
     var canResend by remember { mutableStateOf(false) }
     var resendCycle by remember { mutableIntStateOf(0) }
@@ -49,17 +45,13 @@ fun OTPVerificationScreen(phone: String, userType: String? = null, onVerified: (
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 boxes.forEachIndexed { i, v ->
                     val borderColor = when { state is AuthUiState.Error -> MaterialTheme.colorScheme.error; v.isNotEmpty() -> Primary; else -> MaterialTheme.colorScheme.outline }
-                    BasicTextField(value = v, onValueChange = { nv -> if (nv.length <= 1 && nv.all(Char::isDigit)) { boxes[i] = nv; if (nv.isNotEmpty() && i < 5) focusers[i+1].requestFocus(); if (boxes.joinToString("").length == 6) vm.verifyFirebaseOTP(phone, boxes.joinToString(""), userType) } }, modifier = Modifier.size(48.dp).border(2.dp, borderColor, RoundedCornerShape(8.dp)).focusRequester(focusers[i]), textStyle = TextStyle(fontSize=20.sp, fontWeight=FontWeight.Bold, textAlign=TextAlign.Center, color=MaterialTheme.colorScheme.onSurface), keyboardOptions = KeyboardOptions(keyboardType=KeyboardType.NumberPassword), singleLine = true, decorationBox = { inner -> Box(Modifier.fillMaxSize(), contentAlignment=Alignment.Center) { inner() } })
+                    BasicTextField(value = v, onValueChange = { nv -> if (nv.length <= 1 && nv.all(Char::isDigit)) { boxes[i] = nv; if (nv.isNotEmpty() && i < 5) focusers[i+1].requestFocus(); if (boxes.joinToString("").length == 6) vm.verifyOTP(phone, boxes.joinToString(""), userType) } }, modifier = Modifier.size(48.dp).border(2.dp, borderColor, RoundedCornerShape(8.dp)).focusRequester(focusers[i]), textStyle = TextStyle(fontSize=20.sp, fontWeight=FontWeight.Bold, textAlign=TextAlign.Center, color=MaterialTheme.colorScheme.onSurface), keyboardOptions = KeyboardOptions(keyboardType=KeyboardType.NumberPassword), singleLine = true, decorationBox = { inner -> Box(Modifier.fillMaxSize(), contentAlignment=Alignment.Center) { inner() } })
                 }
             }
             if (state is AuthUiState.Error) Text((state as AuthUiState.Error).message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top=8.dp))
             Spacer(Modifier.height(32.dp))
             if (canResend) TextButton(onClick = {
-                if (activity == null) {
-                    vm.reportError("Phone verification needs an active app screen. Please reopen SoulMatch and try again.")
-                } else {
-                    vm.sendFirebaseOTP(activity, phone, userType)
-                }
+                vm.sendOTP(phone, userType)
                 countdown=30
                 canResend=false
                 resendCycle++

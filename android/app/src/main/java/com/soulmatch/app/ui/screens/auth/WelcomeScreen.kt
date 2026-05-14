@@ -1,6 +1,5 @@
 package com.soulmatch.app.ui.screens.auth
 
-import android.app.Activity
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -186,13 +185,8 @@ fun WelcomeScreen(
                             if (normalized == null) {
                                 vm.reportError("Enter a valid 10 digit mobile number.")
                             } else {
-                                val activity = context as? Activity
-                                if (activity == null) {
-                                    vm.reportError("Phone verification needs an active app screen. Please reopen SoulMatch and try again.")
-                                } else {
-                                    vm.clearError()
-                                    vm.sendFirebaseOTP(activity, normalized, null)
-                                }
+                                vm.clearError()
+                                vm.sendOTP(normalized, null)
                             }
                         },
                         enabled = state !is AuthUiState.Loading,
