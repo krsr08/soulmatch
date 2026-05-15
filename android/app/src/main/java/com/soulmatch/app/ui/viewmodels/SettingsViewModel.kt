@@ -122,6 +122,9 @@ class SettingsViewModel @Inject constructor(
     fun setPushNotifications(enabled: Boolean) {
         viewModelScope.launch {
             prefs.savePushNotifications(enabled)
+            if (!enabled) {
+                prefs.saveNotificationPromptDismissed(false)
+            }
             _status.value = "Push notification preference updated."
         }
     }

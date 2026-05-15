@@ -9,12 +9,46 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.lifecycleScope
 import com.razorpay.Checkout
 import com.razorpay.PaymentData
@@ -28,6 +62,7 @@ import com.soulmatch.app.data.auth.resolvePostLoginRoute
 import com.soulmatch.app.data.auth.resolveWizardStep
 import com.soulmatch.app.data.local.UserPreferences
 import com.soulmatch.app.data.models.FcmTokenRequest
+import com.soulmatch.app.data.models.NotificationPromptContentData
 import com.soulmatch.app.data.models.RuntimeConfigData
 import com.soulmatch.app.data.payments.PaymentCoordinator
 import com.soulmatch.app.ui.navigation.AppNavigation
@@ -74,6 +109,8 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
         Checkout.preload(applicationContext)
         setContent {
             val token by userPreferences.authToken.collectAsState(initial = null)
+            val pushEnabled by userPreferences.pushNotifications.collectAsState(initial = true)
+            val notificationPromptDismissed by userPreferences.notificationPromptDismissed.collectAsState(initial = false)
             var runtimeConfig by remember { mutableStateOf(RuntimeConfigData()) }
             var startDestination by remember(token) { mutableStateOf<String?>(null) }
 
@@ -198,6 +235,28 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                             legal = runtimeConfig.legal,
                             clientIntegrations = runtimeConfig.clientIntegrations
                         )
+                        if (
+                            !token.isNullOrEmpty() &&
+                            runtimeConfig.content.notificationPrompt.enabled &&
+                            !pushEnabled &&
+                            !notificationPromptDismissed
+                        ) {
+                            NotificationOptInPrompt(
+                                content = runtimeConfig.content.notificationPrompt,
+                                onAllow = {
+                                    lifecycleScope.launch {
+                                        userPreferences.savePushNotifications(true)
+                                        userPreferences.saveNotificationPromptDismissed(true)
+                                        ensurePushTokenRegistered()
+                                    }
+                                },
+                                onDismiss = {
+                                    lifecycleScope.launch {
+                                        userPreferences.saveNotificationPromptDismissed(true)
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -250,13 +309,16 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
     }
 
     private fun ensurePushTokenRegistered() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            return
+        lifecycleScope.launch {
+            if (!userPreferences.pushNotifications.first()) return@launch
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                return@launch
+            }
+            registerCurrentFcmToken()
         }
-        registerCurrentFcmToken()
     }
 
     private fun registerCurrentFcmToken() {
@@ -268,6 +330,107 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                 if (authToken.isNullOrBlank() || !enabled) return@launch
                 runCatching { notificationApi.registerFcmToken(FcmTokenRequest(fcmToken)) }
                     .onFailure { CrashReporter.recordNonFatal(it, "fcm_token_registration") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationOptInPrompt(
+    content: NotificationPromptContentData,
+    onAllow: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 18.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(92.dp)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+                                )
+                            ),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.Notifications,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(42.dp)
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        content.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                    )
+                    if (content.subtitle.isNotBlank()) {
+                        Text(
+                            content.subtitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    content.bullets.take(4).forEach { bullet ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Icon(
+                                Icons.Filled.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                bullet,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(2.dp))
+                Button(
+                    onClick = onAllow,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text(content.allowCta, fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(content.laterCta, color = Color(0xFF6B7280), fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     }

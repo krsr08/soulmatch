@@ -1308,25 +1308,39 @@ function CmsManagementPanel({ config, onSave }) {
   const monetization = config.monetization || {};
   const [cardsText, setCardsText] = useState(JSON.stringify(home.bestMatchAdCards || [], null, 2));
   const [scamText, setScamText] = useState(JSON.stringify(home.scamAwarenessCards || [], null, 2));
+  const [promptText, setPromptText] = useState(JSON.stringify(content.notificationPrompt || {}, null, 2));
+  const [safetyText, setSafetyText] = useState(JSON.stringify(content.safetyCenter || {}, null, 2));
   const [matrixText, setMatrixText] = useState(JSON.stringify(monetization.membershipFeatureMatrix || [], null, 2));
   const [error, setError] = useState('');
 
   useEffect(() => {
     setCardsText(JSON.stringify(home.bestMatchAdCards || [], null, 2));
     setScamText(JSON.stringify(home.scamAwarenessCards || [], null, 2));
+    setPromptText(JSON.stringify(content.notificationPrompt || {}, null, 2));
+    setSafetyText(JSON.stringify(content.safetyCenter || {}, null, 2));
     setMatrixText(JSON.stringify(monetization.membershipFeatureMatrix || [], null, 2));
-  }, [home.bestMatchAdCards, home.scamAwarenessCards, monetization.membershipFeatureMatrix]);
+  }, [home.bestMatchAdCards, home.scamAwarenessCards, content.notificationPrompt, content.safetyCenter, monetization.membershipFeatureMatrix]);
 
   const adCards = tryParseJson(cardsText, []);
   const scamCards = tryParseJson(scamText, []);
+  const notificationPrompt = tryParseJson(promptText, {});
+  const safetyCenter = tryParseJson(safetyText, {});
   const featureMatrix = tryParseJson(matrixText, []);
 
   const saveHomeCms = () => {
     try {
       const parsedCards = JSON.parse(cardsText);
       const parsedScam = JSON.parse(scamText);
+      const parsedPrompt = JSON.parse(promptText);
+      const parsedSafety = JSON.parse(safetyText);
       if (!Array.isArray(parsedCards) || !Array.isArray(parsedScam)) {
         throw new Error('Best match cards and scam awareness cards must be JSON arrays.');
+      }
+      if (!parsedPrompt || Array.isArray(parsedPrompt) || typeof parsedPrompt !== 'object') {
+        throw new Error('Notification prompt must be a JSON object.');
+      }
+      if (!parsedSafety || Array.isArray(parsedSafety) || typeof parsedSafety !== 'object') {
+        throw new Error('Safety Center must be a JSON object.');
       }
       setError('');
       onSave('content', {
@@ -1337,7 +1351,9 @@ function CmsManagementPanel({ config, onSave }) {
           scamAwarenessCards: parsedScam,
           showBestMatchInsertCards: true,
           showBestMatchAdCards: true
-        }
+        },
+        notificationPrompt: parsedPrompt,
+        safetyCenter: parsedSafety
       });
     } catch (err) {
       setError(err.message);
@@ -1440,6 +1456,65 @@ function CmsManagementPanel({ config, onSave }) {
                 <span>{card.enabled === false ? 'Hidden' : 'Live'}</span>
                 <strong>{card.title || card.id}</strong>
                 <small>{card.body || 'No body configured'}</small>
+              </article>
+            ))}
+          </div>
+        </section>
+        <section className="admin-card cms-editor-card">
+          <div className="card-title-row">
+            <h3>Notification Opt-In Prompt</h3>
+            <StatusPill status={notificationPrompt.enabled === false ? 'inactive' : 'active'}>
+              {notificationPrompt.enabled === false ? 'Disabled' : 'Enabled'}
+            </StatusPill>
+          </div>
+          <p className="muted">Shown once after login/app launch when a member has push notifications turned off.</p>
+          <textarea className="json-editor large cms-json" value={promptText} onChange={(event) => setPromptText(event.target.value)} />
+        </section>
+        <section className="admin-card cms-preview-card">
+          <div className="card-title-row">
+            <h3>Prompt Preview</h3>
+            <StatusPill status="neutral">{Array.isArray(notificationPrompt.bullets) ? notificationPrompt.bullets.length : 0} bullets</StatusPill>
+          </div>
+          <div className="cms-prompt-preview">
+            <span>{notificationPrompt.enabled === false ? 'Hidden' : 'Live prompt'}</span>
+            <strong>{notificationPrompt.title || 'Notification prompt title'}</strong>
+            <small>{notificationPrompt.subtitle || 'Prompt subtitle'}</small>
+            <ul>
+              {(Array.isArray(notificationPrompt.bullets) ? notificationPrompt.bullets : []).slice(0, 4).map((item) => <li key={item}>{item}</li>)}
+            </ul>
+            <button type="button" disabled>{notificationPrompt.allowCta || 'Allow notifications'}</button>
+          </div>
+        </section>
+        <section className="admin-card cms-editor-card">
+          <div className="card-title-row">
+            <h3>Safety Center Content</h3>
+            <StatusPill status="active">{Array.isArray(safetyCenter.tiles) ? safetyCenter.tiles.length : 0} tiles</StatusPill>
+          </div>
+          <p className="muted">Controls Safety Center title, four topic cards, verification card, resource rows, and article pages.</p>
+          <textarea className="json-editor large cms-json" value={safetyText} onChange={(event) => setSafetyText(event.target.value)} />
+        </section>
+        <section className="admin-card cms-preview-card">
+          <div className="card-title-row">
+            <h3>Safety Center Preview</h3>
+            <StatusPill status="neutral">{Array.isArray(safetyCenter.articles) ? safetyCenter.articles.length : 0} articles</StatusPill>
+          </div>
+          <div className="cms-card-list">
+            <article className="cms-preview-item">
+              <div>
+                <strong>{safetyCenter.title || 'Safety Center'}</strong>
+                <span>{safetyCenter.resourcesTitle || 'Resources'}</span>
+                <small>{safetyCenter.subtitle || 'No subtitle configured'}</small>
+              </div>
+              <StatusPill status="active">Mobile</StatusPill>
+            </article>
+            {(Array.isArray(safetyCenter.tiles) ? safetyCenter.tiles : []).slice(0, 4).map((tile) => (
+              <article key={tile.id || tile.title} className="cms-preview-item">
+                <div>
+                  <strong>{tile.title || tile.id}</strong>
+                  <span>{tile.icon || 'icon'} | {tile.destination || 'no destination'}</span>
+                  <small>{tile.subtitle || 'No subtitle configured'}</small>
+                </div>
+                <StatusPill status="active">{tile.tone || 'tone'}</StatusPill>
               </article>
             ))}
           </div>

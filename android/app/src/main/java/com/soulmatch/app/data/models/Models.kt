@@ -1153,6 +1153,164 @@ data class SupportContentData(
     val email: String = "support@soulmatch.app"
 )
 
+data class NotificationPromptContentData(
+    val enabled: Boolean = true,
+    val title: String = "Don't miss important match updates",
+    val subtitle: String = "Turn on alerts for interests, acceptances, and family messages.",
+    val bullets: List<String> = listOf(
+        "Get alerts when a new interest or recommendation arrives",
+        "Know when a family accepts your interest",
+        "Be notified when a profile sends you a message"
+    ),
+    val allowCta: String = "Allow notifications",
+    val laterCta: String = "Maybe later"
+)
+
+data class SafetyCenterTileData(
+    val id: String = "",
+    val title: String = "",
+    val subtitle: String = "",
+    val icon: String = "shield",
+    val tone: String = "gold",
+    val destination: String = ""
+)
+
+data class SafetyCenterContactData(
+    val label: String = "",
+    val value: String = "",
+    val type: String = "text"
+)
+
+data class SafetyCenterArticleData(
+    val id: String = "",
+    val title: String = "",
+    val subtitle: String = "",
+    val body: String = "",
+    val bullets: List<String> = emptyList(),
+    val contacts: List<SafetyCenterContactData> = emptyList(),
+    val primaryCta: String = "",
+    val destination: String = ""
+)
+
+data class SafetyCenterResourceData(
+    val id: String = "",
+    val title: String = "",
+    val subtitle: String = "",
+    val icon: String = "help",
+    val destination: String = ""
+)
+
+data class SafetyCenterVerificationCardData(
+    val title: String = "Help us make SoulMatch safe and authentic",
+    val body: String = "Verified profiles help families move forward with more confidence. Complete your trust details when you are ready.",
+    val cta: String = "Verify yourself",
+    val destination: String = "my_profile"
+)
+
+data class SafetyCenterContentData(
+    val title: String = "Safety Center",
+    val subtitle: String = "Explore practical tools and guidance that help you stay safe while matching.",
+    val tiles: List<SafetyCenterTileData> = listOf(
+        SafetyCenterTileData(
+            id = "online_personal_tips",
+            title = "Online / Personal Tips",
+            subtitle = "Safe habits before sharing personal details.",
+            icon = "tips",
+            tone = "gold",
+            destination = "article:online_personal_tips"
+        ),
+        SafetyCenterTileData(
+            id = "privacy_settings",
+            title = "Privacy Settings",
+            subtitle = "Control photos, alerts, and visibility.",
+            icon = "shield",
+            tone = "green",
+            destination = "article:privacy_settings"
+        ),
+        SafetyCenterTileData(
+            id = "report_block",
+            title = "Report / Block Profile",
+            subtitle = "Act quickly on suspicious behavior.",
+            icon = "report",
+            tone = "rose",
+            destination = "article:report_block"
+        ),
+        SafetyCenterTileData(
+            id = "mental_wellbeing",
+            title = "Mental Wellbeing",
+            subtitle = "Move at a pace that feels right.",
+            icon = "heart",
+            tone = "purple",
+            destination = "article:mental_wellbeing"
+        )
+    ),
+    val verificationCard: SafetyCenterVerificationCardData = SafetyCenterVerificationCardData(),
+    val resourcesTitle: String = "We're here for you",
+    val resources: List<SafetyCenterResourceData> = listOf(
+        SafetyCenterResourceData(
+            id = "cyber_crime",
+            title = "Other resources",
+            subtitle = "Cyber cell contacts to help you take action.",
+            icon = "help",
+            destination = "article:cyber_crime"
+        )
+    ),
+    val articles: List<SafetyCenterArticleData> = listOf(
+        SafetyCenterArticleData(
+            id = "online_personal_tips",
+            title = "Online / Personal Tips",
+            subtitle = "Use simple checks before sharing contact details or meeting offline.",
+            bullets = listOf(
+                "Keep early conversations inside SoulMatch until both families are comfortable.",
+                "Do not send money, gifts, documents, or OTPs to a new contact.",
+                "Speak with family members before moving to private calls or meetings."
+            )
+        ),
+        SafetyCenterArticleData(
+            id = "privacy_settings",
+            title = "Privacy Settings",
+            subtitle = "Choose how much of your profile is visible while you are still deciding.",
+            bullets = listOf(
+                "Use private photos when you want matches to request access first.",
+                "Pause push notifications when you do not want alerts on this device.",
+                "Hide or block profiles when you do not want further interaction."
+            ),
+            primaryCta = "Open privacy settings",
+            destination = "settings"
+        ),
+        SafetyCenterArticleData(
+            id = "report_block",
+            title = "Report / Block Profile",
+            subtitle = "Report suspicious requests, abusive messages, fake profiles, or money demands.",
+            bullets = listOf(
+                "Block a member immediately when the interaction feels unsafe.",
+                "Report profiles that ask for payments, gifts, loans, visas, or emergency help.",
+                "SoulMatch reviews safety reports and may restrict accounts."
+            )
+        ),
+        SafetyCenterArticleData(
+            id = "mental_wellbeing",
+            title = "Mental Wellbeing",
+            subtitle = "Matchmaking can be emotional. Keep the process steady and family-supported.",
+            bullets = listOf(
+                "Take breaks from discovery when conversations feel overwhelming.",
+                "Avoid pressure to decide quickly or share details before you are ready.",
+                "Use trusted family support for important decisions."
+            )
+        ),
+        SafetyCenterArticleData(
+            id = "cyber_crime",
+            title = "Take action against cyber crime",
+            subtitle = "Use official channels to report illegal online activity.",
+            body = "If a profile threatens, blackmails, impersonates, or asks for money, preserve screenshots and report through official cyber crime channels.",
+            contacts = listOf(
+                SafetyCenterContactData("National cyber crime helpline", "1930", "phone"),
+                SafetyCenterContactData("Cyber crime website", "https://cybercrime.gov.in/", "url")
+            )
+        )
+    )
+)
+
 data class ClientIntegrationsData(
     val googleWebClientId: String = "",
     val razorpayKeyId: String = "",
@@ -1164,7 +1322,9 @@ data class AppContentData(
     val phoneEntry: PhoneEntryContentData = PhoneEntryContentData(),
     val home: HomeContentData = HomeContentData(),
     val navigation: NavigationContentData = NavigationContentData(),
-    val support: SupportContentData = SupportContentData()
+    val support: SupportContentData = SupportContentData(),
+    val notificationPrompt: NotificationPromptContentData = NotificationPromptContentData(),
+    val safetyCenter: SafetyCenterContentData = SafetyCenterContentData()
 )
 
 data class RuntimeConfigData(

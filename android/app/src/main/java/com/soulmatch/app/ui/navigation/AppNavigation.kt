@@ -64,6 +64,7 @@ import com.soulmatch.app.ui.screens.profile.PartnerPreferencesScreen
 import com.soulmatch.app.ui.screens.profile.TrustDetailsScreen
 import com.soulmatch.app.ui.screens.profile.FamilyDecisionBoardScreen
 import com.soulmatch.app.ui.screens.profile.SafetyCenterScreen
+import com.soulmatch.app.ui.screens.profile.SafetyCenterDetailScreen
 import com.soulmatch.app.ui.screens.profile.HelpSupportScreen
 import com.soulmatch.app.ui.screens.profile.AstrologyServicesScreen
 import com.soulmatch.app.ui.screens.profile.ProfileDetailScreen
@@ -525,7 +526,27 @@ fun AppNavigation(
                 onBack = { nav.popBackStack() },
                 onOpenSettings = { nav.navigate("settings") },
                 onOpenVerification = { nav.navigate("my_profile") },
-                onOpenHelp = { nav.navigate("help_support") }
+                onOpenHelp = { nav.navigate("help_support") },
+                onOpenSafetyDestination = { destination ->
+                    nav.navigate(resolveSafetyDestination(destination))
+                },
+                content = content.safetyCenter
+            )
+        }
+        composable(
+            "safety_center/article/{articleId}",
+            arguments = listOf(navArgument("articleId") { type = NavType.StringType })
+        ) { backStack ->
+            SafetyCenterDetailScreen(
+                articleId = Uri.decode(backStack.arguments?.getString("articleId") ?: ""),
+                onBack = { nav.popBackStack() },
+                onOpenSettings = { nav.navigate("settings") },
+                onOpenVerification = { nav.navigate("my_profile") },
+                onOpenHelp = { nav.navigate("help_support") },
+                onOpenSafetyDestination = { destination ->
+                    nav.navigate(resolveSafetyDestination(destination))
+                },
+                content = content.safetyCenter
             )
         }
         composable("help_support") {
@@ -646,5 +667,23 @@ private fun buildOtpRoute(phone: String, userType: String? = null): String {
         "otp/$encodedPhone"
     } else {
         "otp/$encodedPhone?userType=${Uri.encode(userType)}"
+    }
+}
+
+private fun resolveSafetyDestination(destination: String): String {
+    val normalized = destination.trim()
+    return when {
+        normalized.equals("settings", ignoreCase = true) -> "settings"
+        normalized.equals("my_profile", ignoreCase = true) ||
+            normalized.equals("verification", ignoreCase = true) ||
+            normalized.equals("trust_details", ignoreCase = true) -> "my_profile"
+        normalized.equals("help", ignoreCase = true) ||
+            normalized.equals("help_support", ignoreCase = true) ||
+            normalized.equals("support", ignoreCase = true) -> "help_support"
+        normalized.startsWith("article:", ignoreCase = true) ->
+            "safety_center/article/${Uri.encode(normalized.substringAfter(':'))}"
+        normalized.startsWith("safety_center/article/") -> normalized
+        normalized.isBlank() -> "safety_center"
+        else -> "safety_center/article/${Uri.encode(normalized)}"
     }
 }

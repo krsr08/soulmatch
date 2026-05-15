@@ -104,6 +104,25 @@ const fallback = {
       title: 'Need help?',
       body: 'Contact SoulMatch support from settings for account, safety, payment, or privacy help.',
       email: 'support@soulmatch.app'
+    },
+    notificationPrompt: {
+      enabled: true,
+      title: "Don't miss important match updates",
+      subtitle: 'Turn on alerts for interests, acceptances, and family messages.',
+      bullets: [
+        'Get alerts when a new interest or recommendation arrives',
+        'Know when a family accepts your interest',
+        'Be notified when a profile sends you a message'
+      ],
+      allowCta: 'Allow notifications',
+      laterCta: 'Maybe later'
+    },
+    safetyCenter: {
+      title: 'Safety Center',
+      subtitle: 'Explore practical tools and guidance that help you stay safe while matching.',
+      tiles: [],
+      resources: [],
+      articles: []
     }
   }
 };

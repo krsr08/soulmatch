@@ -1,5 +1,13 @@
 # SoulMatch Release Notes
 
+## 1.0.4 - 2026-05-15
+
+- Added a SoulMatch-themed notification opt-in prompt that appears after login/app launch when push notifications are off.
+- Prevented FCM registration from requesting Android notification permission while the in-app push setting is disabled.
+- Rebuilt Safety Center with configurable topic tiles, verification card, official resources, and article detail pages.
+- Added Admin CMS controls for notification prompt copy and Safety Center content.
+- Added database migration `026_safety_center_cms.sql` to seed configurable notification and Safety Center content.
+
 ## 1.0.3 - 2026-05-14
 
 - Added configurable Best Matches insert cards for membership upgrades, paid services, trust nudges, and safety content.

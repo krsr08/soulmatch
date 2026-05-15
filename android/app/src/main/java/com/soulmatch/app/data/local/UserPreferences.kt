@@ -24,6 +24,7 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
         val PENDING_AUTH_ROUTE = stringPreferencesKey("pending_auth_route")
         val WIZARD_STEP = intPreferencesKey("wizard_step")
         val PUSH_NOTIFICATIONS = booleanPreferencesKey("push_notifications")
+        val NOTIFICATION_PROMPT_DISMISSED = booleanPreferencesKey("notification_prompt_dismissed")
         val CONTACT_FILTERS = booleanPreferencesKey("contact_filters")
         val PHOTO_PRIVACY = stringPreferencesKey("photo_privacy")
         val PROFILE_VISIBILITY = stringPreferencesKey("profile_visibility")
@@ -41,6 +42,7 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
     val pendingAuthRoute: Flow<String?> = store.data.map { it[PENDING_AUTH_ROUTE] }
     val wizardStep: Flow<Int> = store.data.map { it[WIZARD_STEP] ?: 1 }
     val pushNotifications: Flow<Boolean> = store.data.map { it[PUSH_NOTIFICATIONS] ?: true }
+    val notificationPromptDismissed: Flow<Boolean> = store.data.map { it[NOTIFICATION_PROMPT_DISMISSED] ?: false }
     val contactFilters: Flow<Boolean> = store.data.map { it[CONTACT_FILTERS] ?: false }
     val photoPrivacy: Flow<String> = store.data.map { it[PHOTO_PRIVACY] ?: "matches_only" }
     val profileVisibility: Flow<String> = store.data.map { it[PROFILE_VISIBILITY] ?: "all" }
@@ -62,6 +64,7 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
     suspend fun clearPendingAuthRoute() { store.edit { it.remove(PENDING_AUTH_ROUTE) } }
     suspend fun saveWizardStep(s: Int) { store.edit { it[WIZARD_STEP] = s } }
     suspend fun savePushNotifications(enabled: Boolean) { store.edit { it[PUSH_NOTIFICATIONS] = enabled } }
+    suspend fun saveNotificationPromptDismissed(dismissed: Boolean) { store.edit { it[NOTIFICATION_PROMPT_DISMISSED] = dismissed } }
     suspend fun saveContactFilters(enabled: Boolean) { store.edit { it[CONTACT_FILTERS] = enabled } }
     suspend fun savePhotoPrivacy(value: String) { store.edit { it[PHOTO_PRIVACY] = value } }
     suspend fun saveProfileVisibility(value: String) { store.edit { it[PROFILE_VISIBILITY] = value } }
