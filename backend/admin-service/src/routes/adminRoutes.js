@@ -51,6 +51,11 @@ router.get('/consent-events', authenticateAdmin, authorizeAdminRoles('super_admi
 router.post('/campaigns', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'marketing_manager'), controller.createCampaign);
 router.get('/audit-logs', authenticateAdmin, controller.getAuditLogs);
 router.get('/roles', authenticateAdmin, controller.getRoles);
+router.get('/admin-users', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin'), controller.getAdminUsers);
+router.post('/admin-users', authenticateAdmin, authorizeAdminRoles('super_admin'), controller.createAdminUser);
+router.put('/admin-users/:id', authenticateAdmin, authorizeAdminRoles('super_admin'), controller.updateAdminUser);
+router.delete('/admin-users/:id', authenticateAdmin, authorizeAdminRoles('super_admin'), controller.deleteAdminUser);
+router.get('/system/inventory', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin'), controller.getSystemInventory);
 
 router.get('/stories', authenticateAdmin, controller.getPendingStories);
 router.put('/stories/:id/approve', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.approveStory);

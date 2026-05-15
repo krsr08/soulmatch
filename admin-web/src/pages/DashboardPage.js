@@ -4,11 +4,15 @@ import { io } from 'socket.io-client';
 import {
   ADMIN_SOCKET_URL,
   acknowledgeAlert,
+  approveProfileDocument,
   approveVerification,
   banUser,
+  createAdminUser,
   createAdvisor,
   createProfile,
+  deleteAdminUser,
   getAdvisors,
+  getAdminUsers,
   getAlerts,
   getAnalyticsEvents,
   getAnalyticsFunnel,
@@ -18,15 +22,19 @@ import {
   getDashboard,
   getPayments,
   getProfiles,
+  getProfileDocuments,
   getRealtimeSnapshot,
   getReports,
   getRoles,
   getServiceHealth,
+  getSystemInventory,
   getUsers,
   getVerifications,
+  rejectProfileDocument,
   rejectVerification,
   resolveReport,
   unbanUser,
+  updateAdminUser,
   updateAdvisor,
   updateAdvisorStatus,
   updateConfig,
@@ -59,6 +67,7 @@ const EMPTY_STATS = {
     recentMembers: [],
     membershipBreakdown: [],
     agentLeaderboard: [],
+    recentAgents: [],
     recentAudit: []
   }
 };
@@ -208,6 +217,28 @@ const RBAC_MODULES = [
   }
 ];
 
+const RBAC_ACTIONS = ['view', 'add', 'edit', 'delete', 'export'];
+
+function buildRbacModules() {
+  const modules = [];
+  MENU_GROUPS.forEach((group) => {
+    group.items.forEach((item) => {
+      if (item.id === 'logout') return;
+      const key = item.id;
+      modules.push({
+        key,
+        label: `${group.label}: ${item.label}`,
+        section: group.label,
+        permissions: RBAC_ACTIONS.reduce((acc, action) => {
+          acc[action] = `${key}:${action}`;
+          return acc;
+        }, {})
+      });
+    });
+  });
+  return modules;
+}
+
 const MEMBER_TIER_COLUMNS = ['bronze', 'silver', 'gold', 'platinum'];
 
 const ROLE_COPY = {
@@ -314,7 +345,7 @@ function getRoleLabel(role) {
 }
 
 function allPermissionTokens() {
-  return Array.from(new Set(RBAC_MODULES.flatMap((module) => Object.values(module.permissions))));
+  return Array.from(new Set(buildRbacModules().flatMap((module) => Object.values(module.permissions))));
 }
 
 function normalizeRoleForUi(role) {
@@ -325,6 +356,7 @@ function normalizeRoleForUi(role) {
     label: getRoleLabel({ ...role, role: key }),
     description: role?.description || copy.description || 'Custom admin role configured for the SoulMatch console.',
     scope: role?.scope || copy.scope || 'custom',
+    status: role?.status || 'active',
     permissions: Array.isArray(role?.permissions) ? role.permissions : []
   };
 }
@@ -805,10 +837,22 @@ function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs,
       if (memberSort === 'name') return fullName(a).localeCompare(fullName(b));
       return new Date(b.created_at) - new Date(a.created_at);
     })
-    .slice(0, 7);
+    .slice(0, 12);
   const leaderboard = admin.agentLeaderboard?.length
     ? admin.agentLeaderboard
     : advisors.slice(0, 5).map((agent) => ({ ...agent, members_added: agent.active_assignments || 0 }));
+  const newlyRegisteredAgents = (admin.recentAgents?.length ? admin.recentAgents : advisors)
+    .filter((agent) => {
+      const q = search.trim().toLowerCase();
+      if (!q) return true;
+      return [agent.full_name, agent.agent_code, agent.phone, agent.email, agent.business_name, agent.city, agent.state]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(q);
+    })
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    .slice(0, 10);
   const quickPending = numberValue(queues.member_kyc || stats.pendingApprovals);
   const activeAgents = numberValue(agents.active || advisors.filter((agent) => agent.status === 'active').length);
   const paidAgentCount = advisors.filter((agent) => !['', 'free', 'starter'].includes(String(agent.membership_plan || '').toLowerCase())).length;
@@ -840,8 +884,8 @@ function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs,
         <StatCard tone="steel" label="Active Agents" value={compactNumber(activeAgents)} sub={`Verified: ${numberValue(agents.verified)} | Pending: ${numberValue(agents.pending)} | Suspended: ${numberValue(agents.suspended)}`} onClick={() => onTab('agents-all')} />
       </div>
 
-      <div className="workspace-columns">
-        <section className="workspace-left">
+      <div className="workspace-columns members-first">
+        <section className="workspace-left wide">
           <div className="admin-card">
             <div className="card-title-row">
               <h3>New Registered Members</h3>
@@ -904,75 +948,42 @@ function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs,
 
           <div className="admin-card">
             <div className="card-title-row">
-              <h3>Revenue - Last 6 Months</h3>
-              <StatusPill status="approved">Growth {stats.conversionRate || 0}%</StatusPill>
+              <h3>Newly Registered Agents</h3>
+              <button type="button" onClick={() => onTab('agents-all')}>View all agents</button>
             </div>
-            <SimpleLineChart rows={revenueTrend} />
-            <div className="mini-stat-row as-tags">
-              <span>Highest month <strong>{money(Math.max(...revenueTrend.map((row) => numberValue(row.revenue)), 0))}</strong></span>
-              <span>Average <strong>{money(revenueTrend.reduce((sum, row) => sum + numberValue(row.revenue), 0) / Math.max(revenueTrend.length, 1))}</strong></span>
-              <span>30d revenue <strong>{money(stats.revenue30d)}</strong></span>
+            <div className="data-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Agent</th>
+                    <th>Business</th>
+                    <th>City</th>
+                    <th>KYC</th>
+                    <th>Plan</th>
+                    <th>Joined</th>
+                    <th>Profiles</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {newlyRegisteredAgents.map((agent) => (
+                    <tr key={agent.advisor_id || agent.agent_code}>
+                      <td><strong>{agent.full_name}</strong><small>{agent.agent_code || agent.phone || agent.email}</small></td>
+                      <td>{agent.business_name || '-'}</td>
+                      <td>{[agent.city, agent.state].filter(Boolean).join(', ') || '-'}</td>
+                      <td><StatusPill status={agent.kyc_status}>{agent.kyc_status || 'pending'}</StatusPill></td>
+                      <td>{agent.membership_plan || 'free'}</td>
+                      <td>{dateOnly(agent.created_at)}</td>
+                      <td>{agent.profiles_added || agent.active_assignments || 0}</td>
+                      <td><button type="button" onClick={() => onAgent(agent)}>View</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!newlyRegisteredAgents.length ? <EmptyState title="No agents yet" body="New agent registrations will appear here." /> : null}
             </div>
           </div>
-
-          <MembersAddedChart profiles={profiles} />
         </section>
-
-        <aside className="workspace-right">
-          <div className="admin-card alerts-card">
-            <h3>Alerts & Actions Required</h3>
-            {[
-              { tone: 'danger', count: numberValue(queues.member_kyc || stats.pendingApprovals), title: 'Member KYC pending', action: 'Verify now', tab: 'member-verify' },
-              { tone: 'warning', count: numberValue(queues.agent_kyc), title: 'Agent approvals pending', action: 'Review agents', tab: 'agent-verification' },
-              { tone: 'danger', count: numberValue(queues.photos), title: 'Photos flagged', action: 'Moderate', tab: 'photo-moderation' },
-              { tone: 'warning', count: numberValue(queues.upgrades), title: 'Plan upgrades pending', action: 'Review', tab: 'member-upgrades' },
-              { tone: 'info', count: numberValue(queues.alerts || alerts.length), title: 'Open platform alerts', action: 'View alerts', tab: 'notifications' }
-            ].map((alert) => (
-              <button key={alert.title} className={`alert-row ${alert.tone}`} onClick={() => onTab(alert.tab)}>
-                <b>{alert.count}</b>
-                <span>{alert.title}</span>
-                <strong>{alert.action}</strong>
-              </button>
-            ))}
-          </div>
-
-          <div className="admin-card membership-card">
-            <h3>Membership Breakdown</h3>
-            <div className="triple-pie-grid">
-              <PieChart
-                title="Free / Paid Members"
-                total={totalMembers}
-                segments={[{ label: 'Paid', value: paidMembers }, { label: 'Free', value: freeMembers }]}
-              />
-              <PieChart
-                title="Bride / Groom"
-                total={numberValue(members.brides) + numberValue(members.grooms)}
-                segments={[{ label: 'Bride', value: numberValue(members.brides) }, { label: 'Groom', value: numberValue(members.grooms) }]}
-              />
-              <PieChart
-                title="Free / Paid Agents"
-                total={freeAgentCount + paidAgentCount}
-                segments={[{ label: 'Paid', value: paidAgentCount }, { label: 'Free', value: freeAgentCount }]}
-              />
-            </div>
-          </div>
-
-          <div className="admin-card">
-            <div className="card-title-row">
-              <h3>Top Agents this Month</h3>
-              <button type="button" onClick={() => onTab('agents-all')}>View all</button>
-            </div>
-            <div className="leaderboard">
-              {leaderboard.map((agent, index) => (
-                <button key={agent.advisor_id || agent.full_name} onClick={() => onAgent(agent)}>
-                  <b>{index + 1}</b>
-                  <span>{agent.full_name}<small>{agent.city || '-'} | {agent.members_added || agent.active_assignments || 0} members</small></span>
-                  <em>{Number(agent.average_rating || 0).toFixed(1)}</em>
-                </button>
-              ))}
-            </div>
-          </div>
-        </aside>
       </div>
 
       <div className="admin-card full">
@@ -1084,6 +1095,111 @@ function MembersPanel({ profiles, search, onOpen, onCreate, onStatus, onBlock })
   );
 }
 
+function MembersDirectoryPanel({ profiles, search, onOpen, onCreate }) {
+  const [viewMode, setViewMode] = useState('cards');
+  const [sourceFilter, setSourceFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return profiles.filter((profile) => {
+      const source = profile.created_by_advisor_id ? 'agent' : (profile.profile_created_by === 'admin' ? 'admin' : 'self');
+      if (sourceFilter !== 'all' && source !== sourceFilter) return false;
+      if (statusFilter !== 'all' && String(profile.verification_status || profile.review_status || '').toLowerCase() !== statusFilter) return false;
+      if (!q) return true;
+      return [
+        memberDisplayId(profile),
+        fullName(profile),
+        profile.phone,
+        profile.email,
+        profile.religion,
+        profile.caste,
+        profile.occupation,
+        profile.working_city,
+        profile.family_city,
+        profile.advisor_name
+      ].filter(Boolean).join(' ').toLowerCase().includes(q);
+    });
+  }, [profiles, search, sourceFilter, statusFilter]);
+
+  return (
+    <div className="admin-content members-directory-page">
+      <ManagementToolbar
+        title="Members Directory"
+        subtitle={`${rows.length} profiles | open any row or card for complete 360-degree details`}
+        onCreate={onCreate}
+        createLabel="Add Member"
+      >
+        <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
+          <option value="all">All sources</option>
+          <option value="self">Self</option>
+          <option value="agent">Agent</option>
+          <option value="admin">Admin</option>
+        </select>
+        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <option value="all">All verification</option>
+          <option value="verified">Verified</option>
+          <option value="pending">Pending</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <div className="view-switcher">
+          <button type="button" className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')}>List</button>
+          <button type="button" className={viewMode === 'cards' ? 'active' : ''} onClick={() => setViewMode('cards')}>Cards</button>
+        </div>
+      </ManagementToolbar>
+
+      {viewMode === 'cards' ? (
+        <div className="member-card-grid">
+          {rows.map((profile) => (
+            <article key={profile.profile_id} className="member-directory-card" onClick={() => onOpen(profile)}>
+              <div className="member-card-top">
+                <ProfileAvatar profile={profile} />
+                <div>
+                  <strong>{fullName(profile)}</strong>
+                  <small>{memberDisplayId(profile)} | {profile.gender || '-'} | {profile.plan_id || 'free'}</small>
+                </div>
+                <StatusPill status={profile.verification_status}>{profile.verification_status || 'pending'}</StatusPill>
+              </div>
+              <div className="member-card-facts">
+                <span>{profile.occupation || 'Occupation not set'}</span>
+                <span>{profile.working_city || profile.family_city || 'City not set'}</span>
+                <span>{profile.education_level || 'Education not set'}</span>
+              </div>
+              <div className="member-card-footer">
+                <span>{profile.created_by_advisor_id ? `Agent: ${profile.advisor_name || 'Linked'}` : (profile.profile_created_by === 'admin' ? 'Created by Admin' : 'Created by Self')}</span>
+                <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(profile); }}>360 View</button>
+              </div>
+            </article>
+          ))}
+          {!rows.length ? <EmptyState title="No members found" body="Try changing the search or filters." /> : null}
+        </div>
+      ) : (
+        <div className="admin-card data-table tall">
+          <table>
+            <thead>
+              <tr><th>Profile ID</th><th>Name</th><th>Gender</th><th>Plan</th><th>Source</th><th>Verification</th><th>Created</th><th>Action</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((profile) => (
+                <tr key={profile.profile_id} onClick={() => onOpen(profile)}>
+                  <td><code>{memberDisplayId(profile)}</code></td>
+                  <td><div className="identity-cell"><ProfileAvatar profile={profile} /><span><strong>{fullName(profile)}</strong><small>{profile.phone || profile.email || '-'}</small></span></div></td>
+                  <td>{profile.gender || '-'}</td>
+                  <td>{profile.plan_id || 'free'}</td>
+                  <td>{profile.created_by_advisor_id ? `Agent | ${profile.advisor_name || 'Linked'}` : (profile.profile_created_by === 'admin' ? 'Admin' : 'Self')}</td>
+                  <td><StatusPill status={profile.verification_status}>{profile.verification_status || 'pending'}</StatusPill></td>
+                  <td>{dateOnly(profile.created_at)}</td>
+                  <td><button type="button" onClick={(event) => { event.stopPropagation(); onOpen(profile); }}>360 View</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!rows.length ? <EmptyState title="No members found" body="Try changing the search or filters." /> : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AgentsPanel({ advisors, profiles, search, onOpen, onCreate, onStatus }) {
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -1158,7 +1274,7 @@ function AgentsPanel({ advisors, profiles, search, onOpen, onCreate, onStatus })
   );
 }
 
-function VerificationPanel({ verifications, advisors, profiles, onApprove, onReject, onAgentStatus, onProfileStatus }) {
+function VerificationPanel({ verifications, profileDocuments = [], advisors, profiles, onApprove, onReject, onApproveDocument, onRejectDocument, onAgentStatus, onProfileStatus }) {
   const pendingProfiles = profiles.filter((profile) =>
     ['pending', 'submitted', 'under_review'].includes(String(profile.verification_status || profile.review_status || '').toLowerCase())
   );
@@ -1185,6 +1301,27 @@ function VerificationPanel({ verifications, advisors, profiles, onApprove, onRej
                 </article>
               ))}
               {!verifications.length ? <EmptyState title="No verification records" body="There are no member KYC records pending review." /> : null}
+            </div>
+          </div>
+        </div>
+        <div className="verification-section">
+          <div className="verification-section-heading">
+            <h3>Member Uploaded Documents</h3>
+            <p>Approve the document or re-request a corrected copy with a notification.</p>
+          </div>
+          <div className="admin-card">
+            <div className="review-list">
+              {profileDocuments.map((document) => (
+                <article key={document.profile_document_id}>
+                  <span><strong>{fullName(document)}</strong><small>{titleFromKey(document.document_type)} | {document.status} | {document.review_comment || 'No comment'}</small></span>
+                  <div>
+                    <a href={document.file_url} target="_blank" rel="noreferrer">View</a>
+                    <AdminButton variant="secondary" onClick={() => onRejectDocument(document.profile_document_id)}>Re-request</AdminButton>
+                    <AdminButton variant="primary" onClick={() => onApproveDocument(document.profile_document_id)}>Approve</AdminButton>
+                  </div>
+                </article>
+              ))}
+              {!profileDocuments.length ? <EmptyState title="No member documents" body="Uploaded PAN, Aadhaar, education and other profile documents appear here for review." /> : null}
             </div>
           </div>
         </div>
@@ -1289,6 +1426,116 @@ function SubscriptionPanel({ config, payments, type, onSave }) {
           <h3>Payments & Invoices</h3>
           <PaymentsTable payments={payments} />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PendingUpgradesPanel({ payments, type }) {
+  const rows = (payments.pendingOrders || []).filter((order) => (type === 'agent') === (order.owner_type === 'agent'));
+  return (
+    <div className="admin-content">
+      <SectionHeader title={`${titleFromKey(type)} Pending Upgrades`} description="Members or agents who selected a plan but did not complete payment." />
+      <div className="admin-card data-table tall">
+        <table>
+          <thead><tr><th>Profile ID</th><th>Name</th><th>Email</th><th>Phone Number</th><th>Issue Details</th><th>Issue Timestamp</th><th>Support Contacted</th><th>Support Comments</th></tr></thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.payment_order_id}>
+                <td><code>{row.profile_display_id || row.agent_code || row.user_id?.slice(0, 8)}</code></td>
+                <td>{row.display_name || '-'}</td>
+                <td>{row.email || '-'}</td>
+                <td>{row.phone || '-'}</td>
+                <td>{row.status} | {row.plan_id} | {money(row.amount)}</td>
+                <td>{dateTime(row.updated_at || row.created_at)}</td>
+                <td><StatusPill status={row.support_contacted ? 'active' : 'pending'}>{row.support_contacted ? 'True' : 'False'}</StatusPill></td>
+                <td>{row.support_comments || 'No comments added'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!rows.length ? <EmptyState title="No pending upgrades" body="Failed or abandoned payment attempts will appear here." /> : null}
+      </div>
+    </div>
+  );
+}
+
+function RevenuePaymentsPanel({ payments, type }) {
+  const [planFilter, setPlanFilter] = useState('all');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const rows = (payments.transactions || []).filter((tx) => {
+    if ((type === 'agent') !== (tx.owner_type === 'agent')) return false;
+    if (planFilter !== 'all' && tx.plan_id !== planFilter) return false;
+    const created = new Date(tx.created_at);
+    if (from && created < new Date(from)) return false;
+    if (to && created > new Date(to)) return false;
+    return ['paid', 'success', 'captured'].includes(String(tx.status || '').toLowerCase());
+  });
+  const planOptions = Array.from(new Set((payments.transactions || []).map((tx) => tx.plan_id).filter(Boolean)));
+  const total = rows.reduce((sum, tx) => sum + numberValue(tx.amount), 0);
+  return (
+    <div className="admin-content">
+      <SectionHeader title={`${titleFromKey(type)} Revenue & Payments`} description="Subscription payments with sales team follow-up fields." />
+      <div className="admin-card revenue-filter-card">
+        <div className="mini-stat-row as-tags">
+          <span>Revenue <strong>{money(total)}</strong></span>
+          <span>Transactions <strong>{rows.length}</strong></span>
+          <span>Average <strong>{money(total / Math.max(rows.length, 1))}</strong></span>
+        </div>
+        <div className="table-controls">
+          <select value={planFilter} onChange={(event) => setPlanFilter(event.target.value)}><option value="all">All plans</option>{planOptions.map((plan) => <option key={plan} value={plan}>{plan}</option>)}</select>
+          <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+          <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+        </div>
+      </div>
+      <div className="admin-card data-table tall">
+        <table>
+          <thead><tr><th>Profile ID</th><th>Name</th><th>Email</th><th>Phone Number</th><th>Subscription</th><th>Paid Amount</th><th>Status</th><th>Transaction Number</th><th>Timestamp</th><th>Sales Connected</th><th>Sales Comments</th><th>Contacted Date</th></tr></thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.transaction_id}>
+                <td><code>{row.profile_display_id || row.agent_code || row.user_id?.slice(0, 8)}</code></td>
+                <td>{row.display_name || fullName(row)}</td>
+                <td>{row.email || '-'}</td>
+                <td>{row.phone || '-'}</td>
+                <td>{row.plan_id || '-'}</td>
+                <td>{money(row.amount)}</td>
+                <td><StatusPill status={row.status}>{row.status}</StatusPill></td>
+                <td><code>{row.razorpay_payment_id || row.razorpay_order_id || row.transaction_id?.slice(0, 10)}</code></td>
+                <td>{dateTime(row.created_at)}</td>
+                <td>False</td>
+                <td>Not updated</td>
+                <td>-</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!rows.length ? <EmptyState title="No paid subscriptions" body="Successful subscription payments will appear here." /> : null}
+      </div>
+    </div>
+  );
+}
+
+function InvoicesPanel({ payments, type }) {
+  const rows = (payments.invoices || []).filter((invoice) => (type === 'agent') === (invoice.owner_type === 'agent'));
+  return (
+    <div className="admin-content">
+      <SectionHeader title={`${titleFromKey(type)} Invoices`} description="Invoices are attached to paid member and agent profiles for each subscription cycle." />
+      <div className="invoice-grid">
+        {rows.map((invoice) => (
+          <article className="invoice-card" key={invoice.invoice_id}>
+            <div><strong>{invoice.invoice_number}</strong><StatusPill status={invoice.status}>{invoice.status}</StatusPill></div>
+            <h3>{invoice.display_name || '-'}</h3>
+            <p>{invoice.plan_id || 'Subscription'} | {money(invoice.amount)} | {invoice.payment_method || 'payment gateway'}</p>
+            <dl>
+              <dt>Transaction</dt><dd>{invoice.transaction_ref || '-'}</dd>
+              <dt>Paid on</dt><dd>{dateTime(invoice.issued_at)}</dd>
+              <dt>Validity</dt><dd>{dateOnly(invoice.valid_from)} to {dateOnly(invoice.valid_to)}</dd>
+            </dl>
+          </article>
+        ))}
+        {!rows.length ? <EmptyState title="No invoices" body="Invoices will be generated from successful subscription transactions." /> : null}
       </div>
     </div>
   );
@@ -1685,15 +1932,15 @@ function ContentPanel({ reports, alerts, consentEvents, onResolve, onAck }) {
 function getAssignedAdminUsers(users, auditLogs, session) {
   const map = new Map();
   users
-    .filter((user) => String(user.user_type || '').toLowerCase() === 'admin')
+    .filter((user) => user.admin_user_id || String(user.user_type || '').toLowerCase() === 'admin')
     .forEach((user) => {
       const email = user.email || user.phone || user.user_id;
       map.set(email, {
-        id: user.user_id,
-        name: fullName(user) === 'Unnamed' ? email : fullName(user),
+        id: user.admin_user_id || user.user_id,
+        name: user.display_name || (fullName(user) === 'Unnamed' ? email : fullName(user)),
         email,
-        role: user.admin_role || 'admin',
-        status: user.is_active === false || user.is_banned ? 'inactive' : 'active',
+        role: user.role || user.admin_role || 'admin',
+        status: user.status || (user.is_active === false || user.is_banned ? 'inactive' : 'active'),
         joinedAt: user.created_at,
         lastActive: user.last_login || user.created_at,
         avatar: user.primary_photo_url
@@ -1746,6 +1993,7 @@ function RoleMasterView({ roles, users, auditLogs, search, onSearch, session, on
 
   const q = search.trim().toLowerCase();
   const selectedRole = draftRoles.find((role) => role.role === selectedRoleId) || draftRoles[0] || normalizeRoleForUi({ role: 'admin', label: 'Admin', permissions: [] });
+  const permissionModules = useMemo(buildRbacModules, []);
   const assignedUsers = useMemo(() => getAssignedAdminUsers(users, auditLogs, session), [auditLogs, session, users]);
   const filteredRoles = draftRoles.filter((role) => {
     if (!q) return true;
@@ -1769,13 +2017,26 @@ function RoleMasterView({ roles, users, auditLogs, search, onSearch, session, on
     const nextRole = normalizeRoleForUi({
       ...form,
       role: form.role || form.label,
-      permissions: ['dashboard:read']
+      permissions: ['dashboard:view']
     });
     if (!nextRole.role || draftRoles.some((role) => role.role === nextRole.role)) return;
     setDraftRoles((current) => [...current, nextRole]);
     setSelectedRoleId(nextRole.role);
     setForm({ role: '', label: '', description: '', scope: 'custom' });
     setShowCreate(false);
+  };
+
+  const deleteRole = () => {
+    if (['super_admin', 'admin'].includes(selectedRole.role)) return;
+    setDraftRoles((current) => current.filter((role) => role.role !== selectedRole.role));
+    setSelectedRoleId(draftRoles.find((role) => role.role !== selectedRole.role)?.role || 'super_admin');
+  };
+
+  const toggleSuspendRole = () => {
+    if (selectedRole.role === 'super_admin') return;
+    setDraftRoles((current) => current.map((role) => (
+      role.role === selectedRole.role ? { ...role, status: role.status === 'suspended' ? 'active' : 'suspended' } : role
+    )));
   };
 
   const saveRoles = async () => {
@@ -1835,6 +2096,7 @@ function RoleMasterView({ roles, users, auditLogs, search, onSearch, session, on
                 <span className="role-card-meta">
                   <small><Icon name="users" /> {roleUserCount(role.role)} users</small>
                   <small className={`scope-${role.scope}`}>{titleFromKey(role.scope)}</small>
+                  <small>{titleFromKey(role.status)}</small>
                 </span>
               </button>
             ))}
@@ -1863,9 +2125,9 @@ function RoleMasterView({ roles, users, auditLogs, search, onSearch, session, on
                   </tr>
                 </thead>
                 <tbody>
-                  {RBAC_MODULES.map((module) => (
+                  {permissionModules.map((module) => (
                     <tr key={module.key}>
-                      <td>{module.label}</td>
+                      <td><strong>{module.label}</strong><small>{module.section}</small></td>
                       {['view', 'add', 'edit', 'delete', 'export'].map((action) => {
                         const token = module.permissions[action];
                         return (
@@ -1887,6 +2149,8 @@ function RoleMasterView({ roles, users, auditLogs, search, onSearch, session, on
             <div className="permission-footer">
               <span>{propagate ? 'Changes apply to this role the next time assigned admins sign in.' : 'Role definition will be saved without propagation note.'}</span>
               <div>
+                <AdminButton variant="secondary" onClick={toggleSuspendRole} disabled={selectedRole.role === 'super_admin'}>{selectedRole.status === 'suspended' ? 'Reactivate' : 'Suspend'} Role</AdminButton>
+                <AdminButton variant="secondary" onClick={deleteRole} disabled={['super_admin', 'admin'].includes(selectedRole.role)}>Delete Role</AdminButton>
                 <AdminButton variant="secondary" onClick={() => setDraftRoles(normalizedRoles)}>Reset</AdminButton>
                 <AdminButton variant="primary" onClick={saveRoles} disabled={saving}>{saving ? 'Saving...' : 'Save Role Changes'}</AdminButton>
               </div>
@@ -1942,10 +2206,10 @@ function RoleMasterView({ roles, users, auditLogs, search, onSearch, session, on
               <button type="button" onClick={() => onTab('audit-logs')}>View Full Logs</button>
             </div>
             <div className="permission-audit-list">
-              {auditLogs.filter((log) => /role|permission|config|user|password/i.test(`${log.action || ''} ${log.entity_type || ''}`)).slice(0, 4).map((log) => (
-                <article key={log.audit_id || `${log.created_at}-${log.action}`}>
+              {auditLogs.filter((log) => /role|permission|config|user|password/i.test(`${log.action || ''} ${log.entity_type || ''} ${log.change_description || ''}`)).slice(0, 4).map((log) => (
+                <article key={log.audit_id || log.role_change_log_id || `${log.created_at}-${log.action || log.change_description}`}>
                   <time>{dateTime(log.created_at)}</time>
-                  <span><strong>{log.admin_email || 'System'}</strong> {log.action} <em>{log.entity_type || 'record'}</em></span>
+                  <span><strong>{log.admin_email || 'System'}</strong> {log.change_description || log.action} <em>{log.entity_type || 'role master'}</em></span>
                 </article>
               ))}
               {!auditLogs.length ? <EmptyState title="No permission audit logs" body="Role and user changes will appear here after admins make updates." /> : null}
@@ -1957,10 +2221,20 @@ function RoleMasterView({ roles, users, auditLogs, search, onSearch, session, on
   );
 }
 
-function SystemPanel({ roles, users, auditLogs, services, activeTab, search, onSearch, session, onSaveRoles, onTab }) {
+function SystemPanel({ roles, users, adminUsers, auditLogs, services, activeTab, search, onSearch, session, onSaveRoles, onTab, systemInventory, onSaveAdminUser, onDeleteAdminUser }) {
   const deploymentLogs = auditLogs
     .filter((log) => /deploy|deployment|version|service health|release/i.test(`${log.action || ''} ${log.entity_type || ''}`))
     .slice(0, 20);
+  const deploymentAudit = systemInventory?.deploymentAudit?.length ? systemInventory.deploymentAudit : deploymentLogs;
+  if (activeTab === 'role-master') {
+    return <RoleMasterView roles={roles} users={adminUsers?.length ? adminUsers : users} auditLogs={[...(systemInventory?.roleChangeLogs || []), ...auditLogs]} search={search} onSearch={onSearch} session={session} onSaveRoles={onSaveRoles} onTab={onTab} />;
+  }
+  if (activeTab === 'user-master' || activeTab === 'change-password') {
+    return <AdminUsersPanel adminUsers={adminUsers || []} roles={roles} search={search} onSave={onSaveAdminUser} onDelete={onDeleteAdminUser} />;
+  }
+  if (['system', 'data-export', 'settings'].includes(activeTab)) {
+    return <SystemOverviewPanel services={services} inventory={systemInventory} deploymentAudit={deploymentAudit} onTab={onTab} />;
+  }
   if (activeTab === 'service-health') {
     return (
       <div className="admin-content">
@@ -2024,6 +2298,145 @@ function SystemPanel({ roles, users, auditLogs, services, activeTab, search, onS
         <div className="admin-card full">
           <h3>Operational Notes</h3>
           <p className="muted">Password reset, admin-user creation, granular RBAC persistence and one-click exports need dedicated backend endpoints before they can be made destructive. The redesigned console exposes the control surface and keeps existing live APIs wired safely.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeploymentAuditTable({ rows }) {
+  return (
+    <div className="data-table compact-table">
+      <table>
+        <thead><tr><th>Timestamp</th><th>Admin/Agent</th><th>Release Description</th><th>Details of Changes</th><th>Release Version</th><th>Status</th><th>Change Type</th></tr></thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={row.deployment_audit_id || row.audit_id || index}>
+              <td><code>{dateTime(row.timestamp || row.created_at)}</code></td>
+              <td>{row.admin_actor || row.admin_email || 'system'}</td>
+              <td>{row.release_description || row.action || 'Deployment activity'}</td>
+              <td>{row.change_details || row.entity_type || row.source_commit || '-'}</td>
+              <td>{row.release_version || row.source_commit?.slice(0, 8) || '-'}</td>
+              <td><StatusPill status={row.deployment_status || 'neutral'}>{row.deployment_status || 'recorded'}</StatusPill></td>
+              <td>{row.change_type || 'Both'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {!rows.length ? <EmptyState title="No deployment audit records" body="New production deploys will write release/version records here." /> : null}
+    </div>
+  );
+}
+
+function SystemOverviewPanel({ services, inventory, deploymentAudit, compact = false, onTab }) {
+  const exportSystemReport = () => window.print();
+  return (
+    <div className="admin-content system-overview-page">
+      <SectionHeader
+        title="System Management"
+        description="Service health, deployment/version audit, configuration inventory and secure admin controls."
+        actions={<AdminButton variant="secondary" onClick={exportSystemReport}><Icon name="export" /> Export PDF</AdminButton>}
+      />
+      <div className="admin-card full">
+        <div className="card-title-row">
+          <h3>Service Health</h3>
+          <StatusPill status="neutral">{services.length} services</StatusPill>
+        </div>
+        <div className="service-grid embedded">
+          {services.map((service) => (
+            <div className="service-card compact" key={service.name || service.service}>
+              <StatusPill status={service.status || service.ok ? 'active' : 'failed'}>{service.status || (service.ok ? 'healthy' : 'down')}</StatusPill>
+              <h3>{service.name || service.service}</h3>
+              <p>{service.url || service.message || 'No endpoint reported'}</p>
+            </div>
+          ))}
+          {!services.length ? <EmptyState title="No service telemetry" body="Service health appears when the monitor endpoint is reachable." /> : null}
+        </div>
+      </div>
+      <div className="admin-card full">
+        <div className="card-title-row">
+          <h3>Deployment / Version Audit Details</h3>
+          <StatusPill status="neutral">{deploymentAudit.length} records</StatusPill>
+        </div>
+        <DeploymentAuditTable rows={deploymentAudit} />
+      </div>
+      {!compact ? (
+        <div className="admin-card full">
+          <div className="card-title-row">
+            <h3>Systems Configuration & Secrets Inventory</h3>
+            {onTab ? <button type="button" onClick={() => onTab('dynamic-config')}>Open Dynamic Configuration</button> : null}
+          </div>
+          <div className="inventory-grid">
+            {(inventory?.inventory || []).map((section) => (
+              <section key={section.section} className="inventory-section">
+                <h4>{section.section}</h4>
+                <p>{section.description}</p>
+                <div className="inventory-list">
+                  {section.items.map((item) => (
+                    <article key={`${section.section}-${item.name}`}>
+                      <span><strong>{item.name}</strong><small>{item.purpose}</small></span>
+                      <StatusPill status={item.configured ? 'active' : 'pending'}>{item.configured ? 'Configured' : 'Missing'}</StatusPill>
+                      <button type="button" title={`${item.howGenerated} ${item.rotationProcedure}`}><Icon name="help" /></button>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AdminUsersPanel({ adminUsers, roles, search, onSave, onDelete }) {
+  const [form, setForm] = useState({ email: '', password: '', displayName: '', role: roles[0]?.role || 'admin', status: 'active' });
+  const [editingId, setEditingId] = useState(null);
+  const q = search.trim().toLowerCase();
+  const rows = adminUsers.filter((user) => !q || [user.email, user.display_name, user.role, user.status].filter(Boolean).join(' ').toLowerCase().includes(q));
+  const save = async (event) => {
+    event.preventDefault();
+    await onSave({ ...form, admin_user_id: editingId || undefined });
+    setEditingId(null);
+    setForm({ email: '', password: '', displayName: '', role: roles[0]?.role || 'admin', status: 'active' });
+  };
+  const edit = (user) => {
+    setEditingId(user.admin_user_id);
+    setForm({ email: user.email, password: '', displayName: user.display_name || '', role: user.role || 'admin', status: user.status || 'active' });
+  };
+  return (
+    <div className="admin-content admin-users-page">
+      <SectionHeader title="User Master" description="Create dashboard login emails, assign RBAC roles, suspend access, or reset passwords." />
+      <div className="workspace-columns even">
+        <form className="admin-card admin-user-form" onSubmit={save}>
+          <h3>{editingId ? 'Edit Admin Login' : 'Create Admin Login'}</h3>
+          <Field label="Email"><Input type="email" value={form.email} onChange={(value) => setForm((current) => ({ ...current, email: value }))} required /></Field>
+          <Field label={editingId ? 'New password (optional)' : 'Password'}><Input type="password" value={form.password} onChange={(value) => setForm((current) => ({ ...current, password: value }))} required={!editingId} minLength={8} /></Field>
+          <Field label="Display name"><Input value={form.displayName} onChange={(value) => setForm((current) => ({ ...current, displayName: value }))} /></Field>
+          <Field label="Role">
+            <Select value={form.role} onChange={(value) => setForm((current) => ({ ...current, role: value }))}>
+              {(roles.length ? roles : DEFAULT_CONFIG.admin_roles.roles).map((role) => <option key={role.role} value={role.role}>{role.label || titleFromKey(role.role)}</option>)}
+            </Select>
+          </Field>
+          <Field label="Status"><Select value={form.status} onChange={(value) => setForm((current) => ({ ...current, status: value }))}><option>active</option><option>suspended</option></Select></Field>
+          <AdminButton variant="primary" type="submit">{editingId ? 'Save Admin User' : 'Create Admin User'}</AdminButton>
+        </form>
+        <div className="admin-card data-table">
+          <table>
+            <thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Last login</th><th>Actions</th></tr></thead>
+            <tbody>
+              {rows.map((user) => (
+                <tr key={user.admin_user_id}>
+                  <td><strong>{user.display_name || user.email}</strong><small>{user.email}</small></td>
+                  <td>{titleFromKey(user.role)}</td>
+                  <td><StatusPill status={user.status}>{user.status}</StatusPill></td>
+                  <td>{dateTime(user.last_login)}</td>
+                  <td><div className="row-actions"><button onClick={() => edit(user)}><Icon name="edit" /></button><button onClick={() => onDelete(user)}><Icon name="ban" /></button></div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!rows.length ? <EmptyState title="No admin users" body="Create an admin login to manage RBAC assignments from the console." /> : null}
         </div>
       </div>
     </div>
@@ -2240,6 +2653,57 @@ function MemberDrawer({ profile, onClose, onSave, onStatus }) {
         <Field label="About me"><textarea value={form.about_me || ''} onChange={(event) => set('about_me', event.target.value)} /></Field>
         <Field label="Admin review notes"><textarea value={form.review_notes || ''} onChange={(event) => set('review_notes', event.target.value)} /></Field>
       </div>
+      <div className="drawer-section">
+        <h4>Photos, Documents & Actions</h4>
+        <div className="profile-360-grid">
+          <div>
+            <strong>Photos</strong>
+            <div className="document-list">
+              {(Array.isArray(form.photos) ? form.photos : []).map((photo) => (
+                <article key={photo.photo_id || photo.photo_url}>
+                  <span>{photo.is_primary ? 'Primary photo' : 'Gallery photo'}<small>{photo.is_approved ? 'Approved' : 'Needs moderation'} | {dateOnly(photo.uploaded_at)}</small></span>
+                  <a href={photo.photo_url} target="_blank" rel="noreferrer">Open</a>
+                </article>
+              ))}
+              {!Array.isArray(form.photos) || !form.photos.length ? <small className="muted">No photos uploaded.</small> : null}
+            </div>
+          </div>
+          <div>
+            <strong>Documents</strong>
+            <div className="document-list">
+              {(Array.isArray(form.documents) ? form.documents : []).map((document) => (
+                <article key={document.profile_document_id || document.file_url}>
+                  <span>{titleFromKey(document.document_type)}<small>{document.status} | {document.review_comment || 'No admin comment'}</small></span>
+                  <a href={document.file_url} target="_blank" rel="noreferrer">Open</a>
+                </article>
+              ))}
+              {!Array.isArray(form.documents) || !form.documents.length ? <small className="muted">No documents uploaded.</small> : null}
+            </div>
+          </div>
+          <div>
+            <strong>Interest activity</strong>
+            <div className="mini-stat-row as-tags">
+              <span>Sent <strong>{form.interests_sent_count || 0}</strong></span>
+              <span>Received <strong>{form.interests_received_count || 0}</strong></span>
+              <span>Shortlists <strong>{form.shortlist_count || 0}</strong></span>
+              <span>Views <strong>{form.view_count || 0}</strong></span>
+              <span>Reports <strong>{form.report_count || 0}</strong></span>
+            </div>
+          </div>
+          <div>
+            <strong>Recent interactions</strong>
+            <div className="document-list">
+              {(Array.isArray(form.interests) ? form.interests : []).slice(0, 5).map((interest) => (
+                <article key={interest.interest_id}>
+                  <span>{titleFromKey(interest.direction)} interest<small>{interest.status} | {dateOnly(interest.sent_at)}</small></span>
+                  <code>{String(interest.other_profile_id || '').slice(0, 8)}</code>
+                </article>
+              ))}
+              {!Array.isArray(form.interests) || !form.interests.length ? <small className="muted">No interests recorded yet.</small> : null}
+            </div>
+          </div>
+        </div>
+      </div>
     </DrawerShell>
   );
 }
@@ -2387,16 +2851,19 @@ export default function DashboardPage() {
   const [profiles, setProfiles] = useState([]);
   const [advisors, setAdvisors] = useState([]);
   const [verifications, setVerifications] = useState([]);
-  const [payments, setPayments] = useState({ transactions: [], plans: [], coupons: [] });
+  const [profileDocuments, setProfileDocuments] = useState([]);
+  const [payments, setPayments] = useState({ transactions: [], plans: [], coupons: [], pendingOrders: [], invoices: [], revenueSummary: [] });
   const [alerts, setAlerts] = useState([]);
   const [reports, setReports] = useState([]);
   const [consentEvents, setConsentEvents] = useState([]);
   const [roles, setRoles] = useState([]);
   const [users, setUsers] = useState([]);
+  const [adminUsers, setAdminUsers] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [funnel, setFunnel] = useState([]);
   const [events, setEvents] = useState([]);
   const [services, setServices] = useState([]);
+  const [systemInventory, setSystemInventory] = useState({ inventory: [], deploymentAudit: [], roleChangeLogs: [] });
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [drawer, setDrawer] = useState(null);
   const [notice, setNotice] = useState('');
@@ -2415,16 +2882,19 @@ export default function DashboardPage() {
       profilesRes,
       advisorsRes,
       verificationsRes,
+      profileDocumentsRes,
       paymentsRes,
       alertsRes,
       reportsRes,
       consentRes,
       rolesRes,
+      adminUsersRes,
       usersRes,
       auditRes,
       funnelRes,
       eventsRes,
       serviceRes,
+      inventoryRes,
       configRes
     ] = await Promise.all([
       getDashboard().catch(() => ({ data: { data: EMPTY_STATS } })),
@@ -2432,16 +2902,19 @@ export default function DashboardPage() {
       getProfiles({ page: 1, limit: 100, search: '' }).catch(() => ({ data: { data: [] } })),
       getAdvisors().catch(() => ({ data: { data: [] } })),
       getVerifications().catch(() => ({ data: { data: [] } })),
-      getPayments().catch(() => ({ data: { data: { transactions: [], plans: [], coupons: [] } } })),
+      getProfileDocuments().catch(() => ({ data: { data: [] } })),
+      getPayments().catch(() => ({ data: { data: { transactions: [], plans: [], coupons: [], pendingOrders: [], invoices: [], revenueSummary: [] } } })),
       getAlerts().catch(() => ({ data: { data: [] } })),
       getReports().catch(() => ({ data: { data: [] } })),
       getConsentEvents().catch(() => ({ data: { data: [] } })),
       getRoles().catch(() => ({ data: { data: [] } })),
+      getAdminUsers().catch(() => ({ data: { data: [] } })),
       getUsers(1, '').catch(() => ({ data: { data: [] } })),
       getAuditLogs(200).catch(() => ({ data: { data: [] } })),
       getAnalyticsFunnel().catch(() => ({ data: { data: [] } })),
       getAnalyticsEvents(100).catch(() => ({ data: { data: [] } })),
       getServiceHealth().catch(() => ({ data: { data: [] } })),
+      getSystemInventory().catch(() => ({ data: { data: { inventory: [], deploymentAudit: [], roleChangeLogs: [] } } })),
       getConfig().catch(() => ({ data: { data: { config: DEFAULT_CONFIG } } }))
     ]);
     const baseStats = { ...EMPTY_STATS, ...(dashboardRes.data?.data || {}) };
@@ -2449,16 +2922,19 @@ export default function DashboardPage() {
     setProfiles(profilesRes.data?.data || []);
     setAdvisors(advisorsRes.data?.data || []);
     setVerifications(verificationsRes.data?.data || []);
-    setPayments(paymentsRes.data?.data || { transactions: [], plans: [], coupons: [] });
+    setProfileDocuments(profileDocumentsRes.data?.data || []);
+    setPayments(paymentsRes.data?.data || { transactions: [], plans: [], coupons: [], pendingOrders: [], invoices: [], revenueSummary: [] });
     setAlerts(alertsRes.data?.data || []);
     setReports(reportsRes.data?.data || []);
     setConsentEvents(consentRes.data?.data || []);
     setRoles(rolesRes.data?.data || []);
+    setAdminUsers(adminUsersRes.data?.data || []);
     setUsers(usersRes.data?.data || []);
     setAuditLogs(auditRes.data?.data || []);
     setFunnel(funnelRes.data?.data || []);
     setEvents(eventsRes.data?.data || []);
     setServices(serviceRes.data?.data || []);
+    setSystemInventory(inventoryRes.data?.data || { inventory: [], deploymentAudit: [], roleChangeLogs: [] });
     setConfig(normalizeConfig(configRes.data?.data?.config || DEFAULT_CONFIG));
   }, []);
 
@@ -2538,23 +3014,58 @@ export default function DashboardPage() {
     await withNotice(updateConfig('admin_roles', payload), 'Role permissions saved.');
   };
 
+  const handleSaveAdminUser = async (payload) => {
+    if (payload.admin_user_id) {
+      const { admin_user_id: id, ...rest } = payload;
+      await withNotice(updateAdminUser(id, rest), 'Admin user updated.');
+    } else {
+      await withNotice(createAdminUser(payload), 'Admin user created.');
+    }
+  };
+
+  const handleDeleteAdminUser = async (user) => {
+    if (!user?.admin_user_id) return;
+    await withNotice(deleteAdminUser(user.admin_user_id), 'Admin user removed.');
+  };
+
   const renderContent = () => {
     if (['dashboard', 'overview'].includes(activeTab)) {
       return <DashboardHome stats={stats} profiles={profiles} advisors={advisors} payments={payments} alerts={alerts} auditLogs={auditLogs} search={search} onTab={setActiveTab} onMember={(profile) => setDrawer({ type: 'member', entity: profile })} onAgent={(agent) => setDrawer({ type: 'agent', entity: agent })} onCreateMember={() => setDrawer({ type: 'member', entity: null })} />;
     }
-    if (['members', 'members-all', 'member-profile', 'member-signup', 'member-password', 'member-block', 'member-validity'].includes(activeTab)) {
+    if (activeTab === 'members') {
+      return <MembersDirectoryPanel profiles={profiles} search={search} onOpen={(profile) => setDrawer({ type: 'member', entity: profile })} onCreate={() => setDrawer({ type: 'member', entity: null })} />;
+    }
+    if (['members-all', 'member-profile', 'member-signup', 'member-password', 'member-block', 'member-validity'].includes(activeTab)) {
       return <MembersPanel profiles={profiles} search={search} onOpen={(profile) => setDrawer({ type: 'member', entity: profile })} onCreate={() => setDrawer({ type: 'member', entity: null })} onStatus={handleProfileStatus} onBlock={handleBlockProfile} />;
     }
     if (['agents', 'agents-all', 'agent-ratings', 'agent-performance', 'agent-profiles'].includes(activeTab)) {
       return <AgentsPanel advisors={advisors} profiles={profiles} search={search} onOpen={(agent) => setDrawer({ type: 'agent', entity: agent })} onCreate={() => setDrawer({ type: 'agent', entity: null })} onStatus={handleAdvisorStatus} />;
     }
     if (['member-verify', 'agent-verification'].includes(activeTab)) {
-      return <VerificationPanel verifications={verifications} advisors={advisors} profiles={profiles} onApprove={(id) => withNotice(approveVerification(id, 'Approved from admin console'), 'Verification approved.')} onReject={(id) => withNotice(rejectVerification(id, 'Rejected from admin console'), 'Verification rejected.')} onAgentStatus={handleAdvisorStatus} onProfileStatus={handleProfileStatus} />;
+      return <VerificationPanel verifications={verifications} profileDocuments={profileDocuments} advisors={advisors} profiles={profiles} onApprove={(id) => withNotice(approveVerification(id, 'Approved from admin console'), 'Verification approved.')} onReject={(id) => withNotice(rejectVerification(id, 'Rejected from admin console'), 'Verification rejected.')} onApproveDocument={(id) => withNotice(approveProfileDocument(id, 'Approved from admin console'), 'Document approved.')} onRejectDocument={(id) => withNotice(rejectProfileDocument(id, 'Please upload a clearer/correct document.'), 'Document re-requested.')} onAgentStatus={handleAdvisorStatus} onProfileStatus={handleProfileStatus} />;
     }
-    if (['subscriptions', 'member-plans', 'member-upgrades', 'member-payments', 'member-invoices'].includes(activeTab)) {
+    if (activeTab === 'member-upgrades') {
+      return <PendingUpgradesPanel payments={payments} type="member" />;
+    }
+    if (activeTab === 'member-payments') {
+      return <RevenuePaymentsPanel payments={payments} type="member" />;
+    }
+    if (activeTab === 'member-invoices') {
+      return <InvoicesPanel payments={payments} type="member" />;
+    }
+    if (['subscriptions', 'member-plans'].includes(activeTab)) {
       return <SubscriptionPanel config={config} payments={payments} type="member" onSave={handleConfigSave} />;
     }
-    if (['agent-plans', 'agent-upgrades', 'agent-payments', 'agent-invoices'].includes(activeTab)) {
+    if (activeTab === 'agent-upgrades') {
+      return <PendingUpgradesPanel payments={payments} type="agent" />;
+    }
+    if (activeTab === 'agent-payments') {
+      return <RevenuePaymentsPanel payments={payments} type="agent" />;
+    }
+    if (activeTab === 'agent-invoices') {
+      return <InvoicesPanel payments={payments} type="agent" />;
+    }
+    if (activeTab === 'agent-plans') {
       return <SubscriptionPanel config={config} payments={payments} type="agent" onSave={handleConfigSave} />;
     }
     if (['content', 'photo-moderation', 'chat-moderation', 'flagged-content', 'visitor-enquiry', 'lead-management', 'notifications'].includes(activeTab)) {
@@ -2567,7 +3078,7 @@ export default function DashboardPage() {
       return <CmsManagementPanel config={config} onSave={handleConfigSave} />;
     }
     if (['system', 'role-master', 'user-master', 'notifications', 'data-export', 'audit-logs', 'service-health', 'settings', 'change-password'].includes(activeTab)) {
-      return <SystemPanel roles={roles} users={users} auditLogs={auditLogs} services={services} activeTab={activeTab} search={search} onSearch={setSearch} session={session} onSaveRoles={handleSaveRoles} onTab={setActiveTab} funnel={funnel} events={events} />;
+      return <SystemPanel roles={roles} users={users} adminUsers={adminUsers} auditLogs={auditLogs} services={services} activeTab={activeTab} search={search} onSearch={setSearch} session={session} onSaveRoles={handleSaveRoles} onTab={setActiveTab} funnel={funnel} events={events} systemInventory={systemInventory} onSaveAdminUser={handleSaveAdminUser} onDeleteAdminUser={handleDeleteAdminUser} />;
     }
     return <DashboardHome stats={stats} profiles={profiles} advisors={advisors} payments={payments} alerts={alerts} auditLogs={auditLogs} search={search} onTab={setActiveTab} onMember={(profile) => setDrawer({ type: 'member', entity: profile })} onAgent={(agent) => setDrawer({ type: 'agent', entity: agent })} onCreateMember={() => setDrawer({ type: 'member', entity: null })} />;
   };

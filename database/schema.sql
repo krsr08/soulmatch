@@ -12,9 +12,12 @@ CREATE TABLE IF NOT EXISTS users (
     referred_by_code VARCHAR(32),
     acquisition_source VARCHAR(80),
     referred_at TIMESTAMP,
+    user_type VARCHAR(16) DEFAULT 'member',
+    role_selected_at TIMESTAMP,
     last_login TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT users_user_type_check CHECK (user_type IN ('member', 'agent', 'admin'))
 );
 
 CREATE TABLE IF NOT EXISTS profiles (
@@ -232,6 +235,9 @@ CREATE TABLE IF NOT EXISTS payment_orders (
     provider_payment_id VARCHAR(255),
     signature TEXT,
     status VARCHAR(24) NOT NULL DEFAULT 'created',
+    support_contacted BOOLEAN DEFAULT FALSE,
+    support_comments VARCHAR(2000),
+    support_contacted_at TIMESTAMP,
     metadata JSONB DEFAULT '{}'::JSONB,
     webhook_payload JSONB DEFAULT '{}'::JSONB,
     created_at TIMESTAMP DEFAULT NOW(),
@@ -354,6 +360,43 @@ CREATE TABLE IF NOT EXISTS advisor_service_areas (
     priority INTEGER DEFAULT 0,
     is_primary BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS advisor_kyc_documents (
+    advisor_kyc_document_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    advisor_id UUID NOT NULL REFERENCES advisors(advisor_id) ON DELETE CASCADE,
+    document_type VARCHAR(40) NOT NULL,
+    document_side VARCHAR(16) DEFAULT 'single',
+    file_url TEXT NOT NULL,
+    status VARCHAR(24) NOT NULL DEFAULT 'uploaded',
+    review_comment TEXT,
+    uploaded_at TIMESTAMP DEFAULT NOW(),
+    reviewed_at TIMESTAMP,
+    reviewed_by VARCHAR(255),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT advisor_kyc_document_type_check CHECK (document_type IN ('aadhaar', 'pan', 'voter_id')),
+    CONSTRAINT advisor_kyc_document_side_check CHECK (document_side IN ('front', 'back', 'single')),
+    CONSTRAINT advisor_kyc_document_status_check CHECK (status IN ('not_uploaded', 'uploaded', 'under_review', 'verified', 'rejected'))
+);
+
+CREATE TABLE IF NOT EXISTS profile_documents (
+    profile_document_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id UUID NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+    advisor_id UUID REFERENCES advisors(advisor_id) ON DELETE SET NULL,
+    document_type VARCHAR(40) NOT NULL,
+    document_side VARCHAR(16) DEFAULT 'single',
+    file_url TEXT NOT NULL,
+    status VARCHAR(24) NOT NULL DEFAULT 'uploaded',
+    review_comment TEXT,
+    uploaded_at TIMESTAMP DEFAULT NOW(),
+    reviewed_at TIMESTAMP,
+    reviewed_by VARCHAR(255),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT profile_document_type_check CHECK (document_type IN ('aadhaar', 'pan', 'voter_id', 'education_certificate', 'horoscope_pdf', 'divorce_decree')),
+    CONSTRAINT profile_document_side_check CHECK (document_side IN ('front', 'back', 'single')),
+    CONSTRAINT profile_document_status_check CHECK (status IN ('not_uploaded', 'uploaded', 'under_review', 'verified', 'rejected'))
 );
 
 CREATE TABLE IF NOT EXISTS assisted_match_profiles (
@@ -571,6 +614,63 @@ CREATE TABLE IF NOT EXISTS admin_campaigns (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS admin_console_users (
+    admin_user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    display_name VARCHAR(160),
+    role VARCHAR(80) NOT NULL DEFAULT 'admin',
+    status VARCHAR(24) NOT NULL DEFAULT 'active',
+    created_by VARCHAR(255),
+    last_login TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT admin_console_users_status_check CHECK (status IN ('active', 'suspended', 'deleted'))
+);
+
+CREATE TABLE IF NOT EXISTS admin_role_change_logs (
+    role_change_log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    admin_email VARCHAR(255),
+    change_description TEXT NOT NULL,
+    modification_details JSONB DEFAULT '{}'::JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS deployment_audit_logs (
+    deployment_audit_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    admin_actor VARCHAR(255) DEFAULT 'system',
+    release_description TEXT NOT NULL DEFAULT 'Automated production deployment',
+    change_details TEXT,
+    release_version VARCHAR(80),
+    deployment_status VARCHAR(40) NOT NULL DEFAULT 'unknown',
+    change_type VARCHAR(20) NOT NULL DEFAULT 'Both',
+    source_commit VARCHAR(80),
+    source_branch VARCHAR(120),
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT deployment_audit_status_check CHECK (deployment_status IN ('success', 'failed', 'in_progress', 'unknown')),
+    CONSTRAINT deployment_audit_change_type_check CHECK (change_type IN ('FE', 'BE', 'Both', 'Infra'))
+);
+
+CREATE TABLE IF NOT EXISTS subscription_invoices (
+    invoice_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_number VARCHAR(80) UNIQUE NOT NULL,
+    user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
+    profile_id UUID REFERENCES profiles(profile_id) ON DELETE SET NULL,
+    advisor_id UUID REFERENCES advisors(advisor_id) ON DELETE SET NULL,
+    subscription_id UUID REFERENCES subscriptions(subscription_id) ON DELETE SET NULL,
+    transaction_id UUID REFERENCES transactions(transaction_id) ON DELETE SET NULL,
+    plan_id VARCHAR(40),
+    amount DECIMAL(10, 2) DEFAULT 0,
+    currency VARCHAR(5) DEFAULT 'INR',
+    status VARCHAR(24) DEFAULT 'issued',
+    payment_method VARCHAR(40),
+    transaction_ref VARCHAR(255),
+    valid_from TIMESTAMP,
+    valid_to TIMESTAMP,
+    issued_at TIMESTAMP DEFAULT NOW(),
+    invoice_payload JSONB DEFAULT '{}'::JSONB
+);
+
 CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON profiles(user_id);
 CREATE INDEX IF NOT EXISTS idx_profiles_gender ON profiles(gender);
 CREATE INDEX IF NOT EXISTS idx_profiles_religion ON profiles(religion);
@@ -609,11 +709,18 @@ CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit_logs(created_a
 CREATE INDEX IF NOT EXISTS idx_user_change_audit_profile_created ON user_change_audit_logs(profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_change_audit_user_created ON user_change_audit_logs(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_admin_alerts_status ON admin_alerts(status, severity);
+CREATE INDEX IF NOT EXISTS idx_admin_console_users_role_status ON admin_console_users(role, status);
+CREATE INDEX IF NOT EXISTS idx_admin_role_change_logs_created ON admin_role_change_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_deployment_audit_logs_created ON deployment_audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_subscription_invoices_user ON subscription_invoices(user_id, issued_at DESC);
 CREATE INDEX IF NOT EXISTS idx_profiles_admin_status ON profiles(admin_status, verification_status);
 CREATE INDEX IF NOT EXISTS idx_profiles_profile_status ON profiles(profile_status);
 CREATE INDEX IF NOT EXISTS idx_profiles_match_search ON profiles(gender, is_published, admin_status, profile_status, verification_status, religion, caste);
 CREATE INDEX IF NOT EXISTS idx_advisors_status_city ON advisors(status, kyc_status, city, state, pincode);
 CREATE INDEX IF NOT EXISTS idx_advisor_service_areas_lookup ON advisor_service_areas(city, state, pincode, locality);
+CREATE INDEX IF NOT EXISTS idx_advisor_kyc_documents_review_status ON advisor_kyc_documents(status, document_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_profile_documents_review_status ON profile_documents(status, document_type, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_profile_documents_profile_type_side ON profile_documents(profile_id, document_type, document_side);
 CREATE INDEX IF NOT EXISTS idx_assisted_match_profiles_status ON assisted_match_profiles(request_status, support_level, assigned_advisor_id);
 CREATE INDEX IF NOT EXISTS idx_consent_events_user_type_created ON consent_events(user_id, consent_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_consent_events_profile_type_created ON consent_events(profile_id, consent_type, created_at DESC);

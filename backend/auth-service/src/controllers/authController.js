@@ -61,6 +61,27 @@ async function getStartedFlowState(userId) {
   };
 }
 
+async function shouldRequireRoleSelection(user, requestedUserType) {
+  if (requestedUserType || !user?.user_id) return false;
+  const currentUserType = userRepo.normalizeUserType(user.user_type);
+  if (currentUserType !== 'member' || user.role_selected_at) return false;
+  const flowState = await getStartedFlowState(user.user_id);
+  return !flowState.hasMemberProfile && !flowState.hasAdvisorProfile;
+}
+
+async function buildAuthPayload(user, tokens, options = {}) {
+  const requestedUserType = options.requestedUserType || null;
+  const resolvedUserType = userRepo.normalizeUserType(options.userType || user?.user_type);
+  return {
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    userId: user.user_id,
+    isNewUser: options.isNewUser === true,
+    userType: resolvedUserType,
+    requiresRoleSelection: await shouldRequireRoleSelection(user, requestedUserType)
+  };
+}
+
 exports.sendOTP = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -123,6 +144,7 @@ exports.verifyOTP = async (req, res, next) => {
         phone: normalizedPhone,
         is_verified: true,
         user_type: newUserType,
+        role_selected_at: requestedUserType ? new Date() : null,
         referred_by_code: referral?.code || null,
         acquisition_source: acquisitionSource || referral?.channel || null,
         referred_at: referral ? new Date() : null
@@ -155,7 +177,14 @@ exports.verifyOTP = async (req, res, next) => {
         }
       });
     }
-    res.json({ success: true, data: { accessToken, refreshToken, userId: user.user_id, isNewUser, userType: resolvedUserType } });
+    res.json({
+      success: true,
+      data: await buildAuthPayload(user, { accessToken, refreshToken }, {
+        isNewUser,
+        userType: resolvedUserType,
+        requestedUserType
+      })
+    });
   } catch (err) { next(err); }
 };
 
@@ -188,6 +217,7 @@ exports.googleLogin = async (req, res, next) => {
         email,
         is_verified: true,
         user_type: newUserType,
+        role_selected_at: requestedUserType ? new Date() : null,
         referred_by_code: referral?.code || null,
         acquisition_source: acquisitionSource || referral?.channel || null,
         referred_at: referral ? new Date() : null
@@ -220,7 +250,14 @@ exports.googleLogin = async (req, res, next) => {
         }
       });
     }
-    res.json({ success: true, data: { accessToken, refreshToken, userId: user.user_id, isNewUser, userType: resolvedUserType } });
+    res.json({
+      success: true,
+      data: await buildAuthPayload(user, { accessToken, refreshToken }, {
+        isNewUser,
+        userType: resolvedUserType,
+        requestedUserType
+      })
+    });
   } catch (err) { next(err); }
 };
 
@@ -255,6 +292,7 @@ exports.firebasePhoneLogin = async (req, res, next) => {
         phone: verifiedPhone,
         is_verified: true,
         user_type: newUserType,
+        role_selected_at: requestedUserType ? new Date() : null,
         referred_by_code: referral?.code || null,
         acquisition_source: acquisitionSource || referral?.channel || null,
         referred_at: referral ? new Date() : null
@@ -290,7 +328,14 @@ exports.firebasePhoneLogin = async (req, res, next) => {
       });
     }
 
-    res.json({ success: true, data: { accessToken, refreshToken, userId: user.user_id, isNewUser, userType: resolvedUserType } });
+    res.json({
+      success: true,
+      data: await buildAuthPayload(user, { accessToken, refreshToken }, {
+        isNewUser,
+        userType: resolvedUserType,
+        requestedUserType
+      })
+    });
   } catch (err) { next(err); }
 };
 
@@ -336,24 +381,26 @@ exports.selectUserType = async (req, res, next) => {
 
     const currentUserType = userRepo.normalizeUserType(user.user_type);
     if (currentUserType === requestedUserType) {
+      const selectedUser = user.role_selected_at ? user : await userRepo.markRoleSelected(user.user_id);
       const flowState = await getStartedFlowState(user.user_id);
       const { accessToken, refreshToken } = tokenService.generatePair({
-        userId: user.user_id,
-        phone: user.phone,
-        email: user.email,
+        userId: selectedUser.user_id,
+        phone: selectedUser.phone,
+        email: selectedUser.email,
         userType: currentUserType
       });
-      await tokenService.storeRefresh(user.user_id, refreshToken);
+      await tokenService.storeRefresh(selectedUser.user_id, refreshToken);
       return res.json({
         success: true,
         data: {
           accessToken,
           refreshToken,
-          userId: user.user_id,
+          userId: selectedUser.user_id,
           isNewUser: requestedUserType === 'member'
             ? !flowState.hasMemberProfile
             : !flowState.hasAdvisorProfile,
-          userType: currentUserType
+          userType: currentUserType,
+          requiresRoleSelection: false
         }
       });
     }
@@ -393,7 +440,8 @@ exports.selectUserType = async (req, res, next) => {
         isNewUser: requestedUserType === 'member'
           ? !flowState.hasMemberProfile
           : !flowState.hasAdvisorProfile,
-        userType: requestedUserType
+        userType: requestedUserType,
+        requiresRoleSelection: false
       }
     });
   } catch (err) { next(err); }

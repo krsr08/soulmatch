@@ -15,6 +15,106 @@ function getAdminEmail() {
   return process.env.ADMIN_EMAIL || 'admin@soulmatch.app';
 }
 
+function maskValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  if (raw.length <= 8) return 'configured';
+  return `${raw.slice(0, 4)}...${raw.slice(-4)}`;
+}
+
+function configuredSecret(name, purpose, service, source = 'environment variable', howGenerated = 'Created in the provider console and stored outside source code.') {
+  const value = process.env[name];
+  return {
+    name,
+    purpose,
+    service,
+    source,
+    configured: Boolean(value),
+    valuePreview: value ? maskValue(value) : null,
+    recoveryProcedure: 'Restore this value from the encrypted secrets backup or provider secret store, then restart the affected service.',
+    rotationProcedure: 'Generate a replacement in the owning provider, update the secret store, deploy, and revoke the old value.',
+    howGenerated
+  };
+}
+
+function buildSystemInventory(config = {}) {
+  return [
+    {
+      section: 'GitHub Actions',
+      description: 'Repository automation and production deployment secrets.',
+      items: [
+        configuredSecret('AZURE_VM_HOST', 'Production VM host used by GitHub Actions deploy workflow.', 'GitHub Actions'),
+        configuredSecret('AZURE_VM_USER', 'SSH username used by deployment workflow.', 'GitHub Actions'),
+        configuredSecret('AZURE_VM_SSH_KEY', 'Private SSH key used by deployment workflow.', 'GitHub Actions', 'GitHub Actions secret')
+      ]
+    },
+    {
+      section: 'Azure / Production VM',
+      description: 'Runtime infrastructure used by SoulMatch services.',
+      items: [
+        configuredSecret('DATABASE_URL', 'PostgreSQL connection used by backend services.', 'Backend services'),
+        configuredSecret('PUBLIC_API_BASE_URL', 'Public API base URL used by clients.', 'Mobile/Admin clients'),
+        configuredSecret('ADMIN_API_BASE_URL', 'Admin console API base URL.', 'Admin web')
+      ]
+    },
+    {
+      section: 'Firebase / Google Console',
+      description: 'Push, Google Sign-In, and service account configuration.',
+      items: [
+        configuredSecret('FIREBASE_PROJECT_ID', 'Firebase project identifier.', 'Notification service', 'environment variable', 'Generated from Firebase project settings.'),
+        configuredSecret('FIREBASE_CLIENT_EMAIL', 'Firebase service account email.', 'Notification service', 'environment variable', 'Generated from Firebase service account JSON.'),
+        configuredSecret('FIREBASE_PRIVATE_KEY', 'Firebase service account private key.', 'Notification service', 'environment variable', 'Generated from Firebase service account JSON.'),
+        configuredSecret('GOOGLE_WEB_CLIENT_ID', 'OAuth web client used for Google Sign-In.', 'Auth service / Android app', 'Google Cloud OAuth credentials')
+      ]
+    },
+    {
+      section: 'Twilio / Mobile OTP',
+      description: 'SMS OTP delivery. Mock OTP may be enabled only for local development.',
+      items: [
+        configuredSecret('OTP_MOCK_ENABLED', 'Controls mock OTP mode for local/test environments.', 'Auth service'),
+        configuredSecret('TWILIO_ACCOUNT_SID', 'Twilio account identifier for SMS.', 'Auth service', 'Twilio console'),
+        configuredSecret('TWILIO_AUTH_TOKEN', 'Twilio auth token for SMS.', 'Auth service', 'Twilio console'),
+        configuredSecret('TWILIO_VERIFY_SERVICE_SID', 'Twilio Verify service identifier.', 'Auth service', 'Twilio console')
+      ]
+    },
+    {
+      section: 'Razorpay / Payments',
+      description: 'Payment gateway credentials and webhook security.',
+      items: [
+        configuredSecret('RAZORPAY_KEY_ID', 'Razorpay public key id.', 'Payment service', 'Razorpay dashboard'),
+        configuredSecret('RAZORPAY_KEY_SECRET', 'Razorpay API secret.', 'Payment service', 'Razorpay dashboard'),
+        configuredSecret('RAZORPAY_WEBHOOK_SECRET', 'Webhook signature validation secret.', 'Payment service', 'Razorpay dashboard')
+      ]
+    },
+    {
+      section: 'Admin / Security',
+      description: 'Admin console login and service-to-service security.',
+      items: [
+        configuredSecret('ADMIN_EMAIL', 'Fallback super-admin email login.', 'Admin service'),
+        configuredSecret('ADMIN_PASSWORD_HASH', 'Fallback bcrypt password hash for super-admin login.', 'Admin service'),
+        configuredSecret('ADMIN_JWT_SECRET', 'JWT signing secret for admin sessions.', 'Admin service'),
+        configuredSecret('JWT_SECRET', 'JWT signing secret for member and agent sessions.', 'Auth service'),
+        configuredSecret('INTERNAL_SERVICE_SECRET', 'Internal API shared secret between backend services.', 'Backend services')
+      ]
+    },
+    {
+      section: 'Runtime Configuration',
+      description: 'Public app settings stored in app_config and editable from CMS/Dynamic Configuration.',
+      items: Object.keys(config || {}).map((key) => ({
+        name: key,
+        purpose: `${key.replaceAll('_', ' ')} runtime configuration`,
+        service: 'Control plane',
+        source: 'app_config',
+        configured: config[key] !== undefined,
+        valuePreview: 'stored as JSON',
+        recoveryProcedure: 'Restore app_config from database backup or exported configuration JSON.',
+        rotationProcedure: 'Update the section from Dynamic Configuration and audit the change.',
+        howGenerated: 'Managed by the admin console control plane.'
+      }))
+    }
+  ];
+}
+
 async function isValidAdminPassword(password) {
   if (process.env.ADMIN_PASSWORD_HASH) {
     return bcrypt.compare(password, process.env.ADMIN_PASSWORD_HASH);
@@ -365,16 +465,47 @@ exports.adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
     const normalizedEmail = String(email || '').trim().toLowerCase();
-    if (normalizedEmail !== getAdminEmail().toLowerCase()) {
-      return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid admin email or password.' } });
-    }
-    const valid = await isValidAdminPassword(String(password || ''));
-    if (!valid) return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid admin email or password.' } });
-    const role = getAdminRole();
+    const db = await getDB().catch((error) => {
+      logger.warn(`Admin login database lookup skipped: ${error.message}`);
+      return null;
+    });
+    let role = getAdminRole();
     let permissions = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.admin;
+    let adminUser = null;
+
+    if (db) {
+      const userResult = await db.query(
+        `SELECT admin_user_id, email, password_hash, display_name, role, status
+         FROM admin_console_users
+         WHERE LOWER(email) = LOWER($1) AND status <> 'deleted'
+         LIMIT 1`,
+        [normalizedEmail]
+      );
+      adminUser = userResult.rows[0] || null;
+      if (adminUser) {
+        if (adminUser.status !== 'active') {
+          return res.status(403).json({ success: false, error: { code: 'ADMIN_ACCOUNT_SUSPENDED', message: 'This admin account is not active.' } });
+        }
+        const validDbPassword = await bcrypt.compare(String(password || ''), adminUser.password_hash);
+        if (!validDbPassword) {
+          return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid admin email or password.' } });
+        }
+        role = adminUser.role || 'admin';
+        await db.query('UPDATE admin_console_users SET last_login=NOW(), updated_at=NOW() WHERE admin_user_id=$1', [adminUser.admin_user_id]);
+      }
+    }
+
+    if (!adminUser) {
+      if (normalizedEmail !== getAdminEmail().toLowerCase()) {
+        return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid admin email or password.' } });
+      }
+      const valid = await isValidAdminPassword(String(password || ''));
+      if (!valid) return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid admin email or password.' } });
+    }
+
     try {
-      const db = await getDB();
-      const configured = await getConfigSection(db, 'admin_roles');
+      const configDb = db || await getDB();
+      const configured = await getConfigSection(configDb, 'admin_roles');
       const match = (configured.roles || []).find((item) => item.role === role);
       if (match && Array.isArray(match.permissions)) permissions = match.permissions;
     } catch (error) {
@@ -385,12 +516,13 @@ exports.adminLogin = async (req, res) => {
         role,
         roles: [role],
         permissions,
-        email: normalizedEmail
+        email: normalizedEmail,
+        adminUserId: adminUser?.admin_user_id || null
       },
       getAdminSecret(),
       { expiresIn: '8h' }
     );
-    res.json({ success: true, data: { token, role, permissions } });
+    res.json({ success: true, data: { token, role, permissions, displayName: adminUser?.display_name || null } });
   } catch (err) {
     respondServerError(res, err, 'Unable to complete admin sign-in right now.');
   }
@@ -432,6 +564,7 @@ exports.getDashboard = async (req, res) => {
       recentMembers,
       membershipBreakdown,
       agentLeaderboard,
+      recentAgents,
       recentAudit
     ] = await Promise.all([
       db.query(
@@ -500,7 +633,7 @@ exports.getDashboard = async (req, res) => {
          JOIN users u ON u.user_id = p.user_id
          LEFT JOIN subscriptions s ON s.user_id = p.user_id AND s.is_active=true
          ORDER BY p.created_at DESC
-         LIMIT 7`
+         LIMIT 12`
       ),
       db.query(
         `SELECT COALESCE(s.plan_id,'free') AS plan_id,
@@ -524,6 +657,30 @@ exports.getDashboard = async (req, res) => {
          GROUP BY a.advisor_id
          ORDER BY members_added DESC, a.average_rating DESC NULLS LAST
          LIMIT 5`
+      ),
+      db.query(
+        `SELECT
+           a.advisor_id,
+           a.user_id,
+           a.full_name,
+           a.agent_code,
+           a.phone,
+           a.email,
+           a.business_name,
+           a.city,
+           a.state,
+           a.status,
+           a.kyc_status,
+           a.onboarding_status,
+           a.membership_plan,
+           a.average_rating,
+           a.created_at,
+           COUNT(p.profile_id)::int AS profiles_added
+         FROM advisors a
+         LEFT JOIN profiles p ON p.created_by_advisor_id = a.advisor_id
+         GROUP BY a.advisor_id
+         ORDER BY a.created_at DESC
+         LIMIT 10`
       ),
       db.query(
         `SELECT admin_email, admin_role, action, entity_type, entity_id, ip_address, created_at
@@ -575,6 +732,7 @@ exports.getDashboard = async (req, res) => {
           recentMembers: recentMembers.rows || [],
           membershipBreakdown: membershipBreakdown.rows || [],
           agentLeaderboard: agentLeaderboard.rows || [],
+          recentAgents: recentAgents.rows || [],
           recentAudit: recentAudit.rows || []
         },
         services: health
@@ -850,6 +1008,50 @@ exports.getProfiles = async (req, res) => {
          pp.good_to_have,
          a.full_name AS advisor_name,
          a.agent_code AS advisor_code,
+         COALESCE((
+           SELECT json_agg(json_build_object(
+             'photo_id', phs.photo_id,
+             'photo_url', phs.photo_url,
+             'is_primary', phs.is_primary,
+             'is_approved', phs.is_approved,
+             'sequence_order', phs.sequence_order,
+             'uploaded_at', phs.uploaded_at
+           ) ORDER BY phs.is_primary DESC, phs.sequence_order NULLS LAST, phs.uploaded_at DESC)
+           FROM profile_photos phs
+           WHERE phs.profile_id = p.profile_id
+         ), '[]'::json) AS photos,
+         COALESCE((
+           SELECT json_agg(json_build_object(
+             'profile_document_id', pd.profile_document_id,
+             'document_type', pd.document_type,
+             'document_side', pd.document_side,
+             'file_url', pd.file_url,
+             'status', pd.status,
+             'review_comment', pd.review_comment,
+             'uploaded_at', pd.uploaded_at,
+             'reviewed_at', pd.reviewed_at,
+             'reviewed_by', pd.reviewed_by
+           ) ORDER BY pd.uploaded_at DESC)
+           FROM profile_documents pd
+           WHERE pd.profile_id = p.profile_id
+         ), '[]'::json) AS documents,
+         COALESCE((
+           SELECT json_agg(json_build_object(
+             'interest_id', i.interest_id,
+             'direction', CASE WHEN i.sender_id = p.profile_id THEN 'sent' ELSE 'received' END,
+             'other_profile_id', CASE WHEN i.sender_id = p.profile_id THEN i.receiver_id ELSE i.sender_id END,
+             'status', i.status,
+             'sent_at', i.sent_at,
+             'responded_at', i.responded_at
+           ) ORDER BY i.sent_at DESC)
+           FROM interests i
+           WHERE i.sender_id = p.profile_id OR i.receiver_id = p.profile_id
+         ), '[]'::json) AS interests,
+         (SELECT COUNT(*)::int FROM interests i WHERE i.sender_id = p.profile_id) AS interests_sent_count,
+         (SELECT COUNT(*)::int FROM interests i WHERE i.receiver_id = p.profile_id) AS interests_received_count,
+         (SELECT COUNT(*)::int FROM shortlists sh WHERE sh.profile_id = p.profile_id) AS shortlist_count,
+         (SELECT COUNT(*)::int FROM profile_views pv WHERE pv.viewed_profile_id = p.profile_id) AS view_count,
+         (SELECT COUNT(*)::int FROM reports r WHERE r.reported_id = p.user_id) AS report_count,
          p.created_at
        FROM profiles p
        JOIN users u ON u.user_id = p.user_id
@@ -1421,8 +1623,8 @@ exports.createProfile = async (req, res) => {
     const body = req.body || {};
     await client.query('BEGIN');
     const user = await client.query(
-      `INSERT INTO users (phone, email, is_verified, is_active, user_type, acquisition_source, created_at, updated_at)
-       VALUES ($1,$2,$3,true,'member','admin_manual',NOW(),NOW())
+      `INSERT INTO users (phone, email, is_verified, is_active, user_type, role_selected_at, acquisition_source, created_at, updated_at)
+       VALUES ($1,$2,$3,true,'member',NOW(),'admin_manual',NOW(),NOW())
        RETURNING user_id, phone, email`,
       [body.phone || null, body.email || null, body.isVerified === true]
     );
@@ -2174,34 +2376,139 @@ exports.getChatLogs = async (req, res) => {
 exports.getPayments = async (req, res) => {
   try {
     const db = await getDB();
-    const [transactions, plans, coupons] = await Promise.all([
+    const [transactions, plans, coupons, pendingOrders, invoices, revenueSummary] = await Promise.all([
       db.query(
         `SELECT
            t.transaction_id,
            t.user_id,
            u.phone,
+           u.email,
+           u.user_type,
+           p.profile_id,
+           CONCAT('SM-', UPPER(SUBSTRING(REPLACE(p.profile_id::text, '-', '') FROM 1 FOR 8))) AS profile_display_id,
+           a.advisor_id,
+           a.agent_code,
+           COALESCE(NULLIF(CONCAT_WS(' ', p.first_name, p.last_name), ''), a.full_name, u.email, u.phone) AS display_name,
+           CASE WHEN a.advisor_id IS NOT NULL THEN 'agent' ELSE 'member' END AS owner_type,
            p.first_name,
            p.last_name,
            s.plan_id,
            t.amount,
            t.currency,
            t.status,
+           t.gateway,
+           t.payment_method,
            t.razorpay_order_id,
            t.razorpay_payment_id,
            t.created_at
          FROM transactions t
          LEFT JOIN users u ON u.user_id=t.user_id
          LEFT JOIN profiles p ON p.user_id=t.user_id
+         LEFT JOIN advisors a ON a.user_id=t.user_id
          LEFT JOIN subscriptions s ON s.subscription_id=t.subscription_id
          ORDER BY t.created_at DESC
          LIMIT 100`
       ),
       db.query('SELECT plan_id, COUNT(*) AS active_users, COALESCE(SUM(amount_paid),0) AS revenue FROM subscriptions WHERE is_active=true GROUP BY plan_id ORDER BY revenue DESC'),
-      db.query('SELECT * FROM referral_codes ORDER BY created_at DESC LIMIT 50')
+      db.query('SELECT * FROM referral_codes ORDER BY created_at DESC LIMIT 50'),
+      db.query(
+        `SELECT
+           po.payment_order_id,
+           po.user_id,
+           u.phone,
+           u.email,
+           u.user_type,
+           p.profile_id,
+           CONCAT('SM-', UPPER(SUBSTRING(REPLACE(p.profile_id::text, '-', '') FROM 1 FOR 8))) AS profile_display_id,
+           a.advisor_id,
+           a.agent_code,
+           COALESCE(NULLIF(CONCAT_WS(' ', p.first_name, p.last_name), ''), a.full_name, u.email, u.phone) AS display_name,
+           CASE WHEN a.advisor_id IS NOT NULL THEN 'agent' ELSE 'member' END AS owner_type,
+           po.plan_id,
+           po.amount,
+           po.currency,
+           po.status,
+           po.gateway,
+           po.provider_order_id,
+           po.provider_payment_id,
+           po.support_contacted,
+           po.support_comments,
+           po.support_contacted_at,
+           po.metadata,
+           po.created_at,
+           po.updated_at
+         FROM payment_orders po
+         LEFT JOIN users u ON u.user_id = po.user_id
+         LEFT JOIN profiles p ON p.user_id = po.user_id
+         LEFT JOIN advisors a ON a.user_id = po.user_id
+         WHERE po.status NOT IN ('paid','success','captured')
+         ORDER BY po.updated_at DESC, po.created_at DESC
+         LIMIT 200`
+      ),
+      db.query(
+        `SELECT
+           COALESCE(si.invoice_id::text, t.transaction_id::text) AS invoice_id,
+           COALESCE(si.invoice_number, CONCAT('SM-INV-', UPPER(SUBSTRING(REPLACE(t.transaction_id::text, '-', '') FROM 1 FOR 10)))) AS invoice_number,
+           t.user_id,
+           u.phone,
+           u.email,
+           p.profile_id,
+           CONCAT('SM-', UPPER(SUBSTRING(REPLACE(p.profile_id::text, '-', '') FROM 1 FOR 8))) AS profile_display_id,
+           a.advisor_id,
+           a.agent_code,
+           COALESCE(NULLIF(CONCAT_WS(' ', p.first_name, p.last_name), ''), a.full_name, u.email, u.phone) AS display_name,
+           CASE WHEN a.advisor_id IS NOT NULL THEN 'agent' ELSE 'member' END AS owner_type,
+           COALESCE(si.plan_id, s.plan_id) AS plan_id,
+           COALESCE(si.amount, t.amount) AS amount,
+           COALESCE(si.currency, t.currency) AS currency,
+           COALESCE(si.status, 'issued') AS status,
+           COALESCE(si.payment_method, t.payment_method, t.gateway) AS payment_method,
+           COALESCE(si.transaction_ref, t.razorpay_payment_id, t.razorpay_order_id) AS transaction_ref,
+           COALESCE(si.valid_from, s.start_date) AS valid_from,
+           COALESCE(si.valid_to, s.end_date) AS valid_to,
+           COALESCE(si.issued_at, t.created_at) AS issued_at
+         FROM transactions t
+         LEFT JOIN users u ON u.user_id = t.user_id
+         LEFT JOIN subscriptions s ON s.subscription_id = t.subscription_id
+         LEFT JOIN profiles p ON p.user_id = t.user_id
+         LEFT JOIN advisors a ON a.user_id = t.user_id
+         LEFT JOIN subscription_invoices si ON si.transaction_id = t.transaction_id
+         WHERE t.status IN ('paid','success','captured')
+         ORDER BY COALESCE(si.issued_at, t.created_at) DESC
+         LIMIT 200`
+      ),
+      db.query(
+        `SELECT
+           DATE_TRUNC('month', t.created_at) AS month,
+           CASE WHEN a.advisor_id IS NOT NULL THEN 'agent' ELSE 'member' END AS owner_type,
+           COALESCE(s.plan_id, 'unknown') AS plan_id,
+           COUNT(*)::int AS paid_count,
+           COALESCE(SUM(t.amount),0)::numeric AS revenue
+         FROM transactions t
+         LEFT JOIN subscriptions s ON s.subscription_id = t.subscription_id
+         LEFT JOIN advisors a ON a.user_id = t.user_id
+         WHERE t.status IN ('paid','success','captured')
+         GROUP BY
+           DATE_TRUNC('month', t.created_at),
+           CASE WHEN a.advisor_id IS NOT NULL THEN 'agent' ELSE 'member' END,
+           COALESCE(s.plan_id, 'unknown')
+         ORDER BY month DESC, revenue DESC
+         LIMIT 120`
+      )
     ]);
-    res.json({ success: true, data: { transactions: transactions.rows, plans: plans.rows, coupons: coupons.rows } });
+    res.json({
+      success: true,
+      data: {
+        transactions: transactions.rows,
+        plans: plans.rows,
+        coupons: coupons.rows,
+        pendingOrders: pendingOrders.rows,
+        invoices: invoices.rows,
+        revenueSummary: revenueSummary.rows
+      }
+    });
   } catch (err) {
-    respondDegraded(res, err, { transactions: [], plans: [], coupons: [] }, 'Payment store is unavailable. Showing empty payment data.');
+    respondDegraded(res, err, { transactions: [], plans: [], coupons: [], pendingOrders: [], invoices: [], revenueSummary: [] }, 'Payment store is unavailable. Showing empty payment data.');
   }
 };
 
@@ -2364,6 +2671,146 @@ exports.getRoles = async (req, res) => {
   }
 };
 
+exports.getAdminUsers = async (req, res) => {
+  try {
+    const db = await getDB();
+    const result = await db.query(
+      `SELECT admin_user_id, email, display_name, role, status, created_by, last_login, created_at, updated_at
+       FROM admin_console_users
+       WHERE status <> 'deleted'
+       ORDER BY updated_at DESC, created_at DESC`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    respondDegraded(res, err, [], 'Admin user store is unavailable. Showing no admin identities.');
+  }
+};
+
+exports.createAdminUser = async (req, res) => {
+  try {
+    const db = await getDB();
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const password = String(req.body?.password || '');
+    const displayName = String(req.body?.displayName || req.body?.display_name || '').trim() || email.split('@')[0];
+    const role = String(req.body?.role || 'admin').trim() || 'admin';
+    if (!email || !email.includes('@') || password.length < 8) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'A valid email and password with at least 8 characters are required.' } });
+    }
+    const passwordHash = await bcrypt.hash(password, 12);
+    const result = await db.query(
+      `INSERT INTO admin_console_users (email, password_hash, display_name, role, status, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (email) DO UPDATE SET
+         password_hash=EXCLUDED.password_hash,
+         display_name=EXCLUDED.display_name,
+         role=EXCLUDED.role,
+         status=EXCLUDED.status,
+         updated_at=NOW()
+       RETURNING admin_user_id, email, display_name, role, status, created_by, last_login, created_at, updated_at`,
+      [email, passwordHash, displayName, role, req.body?.status || 'active', req.admin?.email || 'admin']
+    );
+    await auditLog(db, req, 'admin_user.upsert', 'admin_console_user', result.rows[0].admin_user_id, { email, role });
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    respondServerError(res, err, 'Unable to create admin user right now.');
+  }
+};
+
+exports.updateAdminUser = async (req, res) => {
+  try {
+    const db = await getDB();
+    const id = req.params.id;
+    const sets = [];
+    const values = [];
+    const pushSet = (column, value) => {
+      values.push(value);
+      sets.push(`${column}=$${values.length}`);
+    };
+    if (req.body?.email) pushSet('email', String(req.body.email).trim().toLowerCase());
+    if (req.body?.displayName !== undefined || req.body?.display_name !== undefined) pushSet('display_name', req.body.displayName ?? req.body.display_name);
+    if (req.body?.role) pushSet('role', String(req.body.role).trim());
+    if (req.body?.status) pushSet('status', String(req.body.status).trim());
+    if (req.body?.password) {
+      if (String(req.body.password).length < 8) {
+        return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Password must be at least 8 characters.' } });
+      }
+      pushSet('password_hash', await bcrypt.hash(String(req.body.password), 12));
+    }
+    if (!sets.length) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'No fields were provided to update.' } });
+    }
+    values.push(id);
+    const result = await db.query(
+      `UPDATE admin_console_users SET ${sets.join(', ')}, updated_at=NOW()
+       WHERE admin_user_id=$${values.length}
+       RETURNING admin_user_id, email, display_name, role, status, created_by, last_login, created_at, updated_at`,
+      values
+    );
+    await auditLog(db, req, 'admin_user.update', 'admin_console_user', id, { fields: sets.map((item) => item.split('=')[0]) });
+    res.json({ success: true, data: result.rows[0] || null });
+  } catch (err) {
+    respondServerError(res, err, 'Unable to update admin user right now.');
+  }
+};
+
+exports.deleteAdminUser = async (req, res) => {
+  try {
+    const db = await getDB();
+    const result = await db.query(
+      `UPDATE admin_console_users
+       SET status='deleted', updated_at=NOW()
+       WHERE admin_user_id=$1
+       RETURNING admin_user_id, email, display_name, role, status, created_at, updated_at`,
+      [req.params.id]
+    );
+    await auditLog(db, req, 'admin_user.delete', 'admin_console_user', req.params.id, { mode: 'soft_delete' });
+    res.json({ success: true, data: result.rows[0] || null });
+  } catch (err) {
+    respondServerError(res, err, 'Unable to delete admin user right now.');
+  }
+};
+
+exports.getSystemInventory = async (req, res) => {
+  try {
+    const db = await getDB();
+    const [config, deployments, roleChanges] = await Promise.all([
+      getConfigMap(db, true).catch(() => DEFAULT_CONFIG),
+      db.query(
+        `SELECT
+           deployment_audit_id,
+           created_at AS timestamp,
+           admin_actor,
+           release_description,
+           change_details,
+           release_version,
+           deployment_status,
+           change_type,
+           source_commit,
+           source_branch
+         FROM deployment_audit_logs
+         ORDER BY created_at DESC
+         LIMIT 100`
+      ),
+      db.query(
+        `SELECT role_change_log_id, admin_email, change_description, modification_details, created_at
+         FROM admin_role_change_logs
+         ORDER BY created_at DESC
+         LIMIT 100`
+      )
+    ]);
+    res.json({
+      success: true,
+      data: {
+        inventory: buildSystemInventory(config),
+        deploymentAudit: deployments.rows,
+        roleChangeLogs: roleChanges.rows
+      }
+    });
+  } catch (err) {
+    respondDegraded(res, err, { inventory: buildSystemInventory(DEFAULT_CONFIG), deploymentAudit: [], roleChangeLogs: [] }, 'System inventory is unavailable.');
+  }
+};
+
 exports.getPendingStories = async (req, res) => {
   try {
     const db = await getDB();
@@ -2415,6 +2862,20 @@ exports.updateConfig = async (req, res) => {
     }
     const updated = await upsertConfigSection(db, key, req.body, req.admin?.email || 'admin');
     await auditLog(db, req, 'config.update', 'app_config', key, { key });
+    if (key === 'admin_roles') {
+      await db.query(
+        `INSERT INTO admin_role_change_logs (admin_email, change_description, modification_details)
+         VALUES ($1,$2,$3::jsonb)`,
+        [
+          req.admin?.email || 'admin',
+          'Role Master configuration updated',
+          JSON.stringify({
+            roles: Array.isArray(req.body.roles) ? req.body.roles.map((role) => role.role || role.label) : [],
+            propagate: req.body.propagate ?? null
+          })
+        ]
+      ).catch((error) => logger.warn(`Role change log skipped: ${error.message}`));
+    }
     broadcastAdminEvent('admin:config_updated', { key, config: updated });
     res.json({ success: true, data: updated });
   } catch (err) {

@@ -2557,7 +2557,10 @@ exports.upsertAgentOnboarding = async (userId, payload = {}) => {
       );
     }
 
-    await client.query('UPDATE users SET user_type = $2, updated_at = NOW() WHERE user_id = $1', [userId, 'agent']);
+    await client.query(
+      'UPDATE users SET user_type = $2, role_selected_at = COALESCE(role_selected_at, NOW()), updated_at = NOW() WHERE user_id = $1',
+      [userId, 'agent']
+    );
     await client.query('COMMIT');
     return buildAgentProfile(advisorId);
   } catch (error) {
@@ -3027,8 +3030,8 @@ exports.createManagedProfileByAgentUserId = async (userId, payload = {}) => {
     const memberUserId = randomUUID();
     const profileId = randomUUID();
     await client.query(
-      `INSERT INTO users (user_id, phone, email, is_verified, user_type, created_at, updated_at)
-       VALUES ($1,$2,$3,false,'member',NOW(),NOW())`,
+      `INSERT INTO users (user_id, phone, email, is_verified, user_type, role_selected_at, created_at, updated_at)
+       VALUES ($1,$2,$3,false,'member',NOW(),NOW(),NOW())`,
       [memberUserId, payload.mobile ? String(payload.mobile).trim() : null, payload.email ? String(payload.email).trim() : null]
     );
     await client.query(

@@ -52,6 +52,7 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
     suspend fun saveRefreshToken(t: String) { store.edit { it[REFRESH_TOKEN] = t } }
     suspend fun saveUserId(id: String) { store.edit { it[USER_ID] = id } }
     suspend fun saveUserType(type: String) { store.edit { it[USER_TYPE] = type } }
+    suspend fun clearUserType() { store.edit { it.remove(USER_TYPE) } }
     suspend fun saveAdvisorId(id: String) {
         store.edit {
             if (id.isBlank()) it.remove(ADVISOR_ID) else it[ADVISOR_ID] = id

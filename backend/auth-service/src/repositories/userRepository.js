@@ -76,8 +76,16 @@ exports.updateUserType = async (userId, userType) => {
   const db = await getDB();
   const normalized = normalizeUserType(userType);
   const r = await db.query(
-    'UPDATE users SET user_type=$1, updated_at=NOW() WHERE user_id=$2 RETURNING *',
+    'UPDATE users SET user_type=$1, role_selected_at=NOW(), updated_at=NOW() WHERE user_id=$2 RETURNING *',
     [normalized, userId]
+  );
+  return r.rows[0] || null;
+};
+exports.markRoleSelected = async (userId) => {
+  const db = await getDB();
+  const r = await db.query(
+    'UPDATE users SET role_selected_at=COALESCE(role_selected_at, NOW()), updated_at=NOW() WHERE user_id=$1 RETURNING *',
+    [userId]
   );
   return r.rows[0] || null;
 };
@@ -87,8 +95,8 @@ exports.create = async (data) => {
   const userType = normalizeUserType(data.user_type);
   const r = await db.query(
     `INSERT INTO users (
-       user_id, phone, email, google_id, is_verified, referred_by_code, acquisition_source, referred_at, user_type
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+       user_id, phone, email, google_id, is_verified, referred_by_code, acquisition_source, referred_at, user_type, role_selected_at
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
     [
       randomUUID(),
       normalizedPhone || null,
@@ -98,7 +106,8 @@ exports.create = async (data) => {
       data.referred_by_code || null,
       data.acquisition_source || null,
       data.referred_at || null,
-      userType
+      userType,
+      data.role_selected_at || null
     ]
   );
   return r.rows[0];

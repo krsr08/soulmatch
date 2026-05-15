@@ -209,6 +209,10 @@ psql_file() {
     psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1
 }
 
+sql_escape() {
+  printf "%s" "${1:-}" | sed "s/'/''/g"
+}
+
 write_deployment_version() {
   local source_commit="${DEPLOYED_SOURCE_COMMIT:-}"
   local source_branch="${DEPLOYED_SOURCE_BRANCH:-}"
@@ -232,6 +236,47 @@ write_deployment_version() {
   "composeFile": "$COMPOSE_FILE"
 }
 EOF
+}
+
+record_deployment_audit() {
+  local source_commit="${DEPLOYED_SOURCE_COMMIT:-}"
+  local source_branch="${DEPLOYED_SOURCE_BRANCH:-}"
+  local release_version="${RELEASE_VERSION:-}"
+  local release_description="${RELEASE_DESCRIPTION:-Automated production deploy from main}"
+  local release_changes="${RELEASE_CHANGE_DETAILS:-Code synchronized, migrations applied, services restarted and health checks passed.}"
+  local change_type="${RELEASE_CHANGE_TYPE:-Both}"
+
+  if [ -z "$source_commit" ] && command -v git >/dev/null 2>&1 && [ -d .git ]; then
+    source_commit="$(git rev-parse HEAD 2>/dev/null || true)"
+  fi
+  if [ -z "$source_branch" ] && command -v git >/dev/null 2>&1 && [ -d .git ]; then
+    source_branch="$(git branch --show-current 2>/dev/null || true)"
+  fi
+  if [ -z "$release_version" ]; then
+    release_version="${source_commit:0:8}"
+  fi
+
+  cat <<SQL | psql_file >/dev/null
+INSERT INTO deployment_audit_logs (
+  admin_actor,
+  release_description,
+  change_details,
+  release_version,
+  deployment_status,
+  change_type,
+  source_commit,
+  source_branch
+) VALUES (
+  'github-actions',
+  '$(sql_escape "$release_description")',
+  '$(sql_escape "$release_changes")',
+  '$(sql_escape "${release_version:-unknown}")',
+  'success',
+  '$(sql_escape "$change_type")',
+  '$(sql_escape "${source_commit:-unknown}")',
+  '$(sql_escape "${source_branch:-unknown}")'
+);
+SQL
 }
 
 log "Ensuring migration tracking table exists."
@@ -295,4 +340,5 @@ log "Pruning unused Docker build cache."
 docker builder prune -f >/dev/null || true
 
 write_deployment_version
+record_deployment_audit || log "Deployment audit write skipped."
 log "SoulMatch production deployment completed successfully."

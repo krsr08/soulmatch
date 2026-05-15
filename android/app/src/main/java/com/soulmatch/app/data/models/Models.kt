@@ -52,7 +52,8 @@ data class AuthData(
     val refreshToken: String,
     val userId: String,
     val isNewUser: Boolean,
-    val userType: String = "member"
+    val userType: String = "member",
+    val requiresRoleSelection: Boolean = false
 )
 
 data class AgentServiceAreaData(
