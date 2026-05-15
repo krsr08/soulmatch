@@ -37,9 +37,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -48,9 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.ui.components.premium.PremiumCard
-import com.soulmatch.app.ui.components.premium.PremiumHeader
 import com.soulmatch.app.ui.components.premium.PremiumScreen
-import com.soulmatch.app.ui.components.dialogs.ReportConcernDialog
 import com.soulmatch.app.ui.components.premium.SectionTitle
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.Error
@@ -85,11 +80,7 @@ fun SettingsScreen(
 ) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
-    val hiddenMembers by vm.hiddenMembers.collectAsStateWithLifecycle()
-    val blockedMembers by vm.blockedMembers.collectAsStateWithLifecycle()
-    val reportedConcerns by vm.reportedConcerns.collectAsStateWithLifecycle()
     val logout: () -> Unit = onLogout ?: {}
-    var editingConcern by remember { mutableStateOf<ReportedConcernUi?>(null) }
 
     LaunchedEffect(status) {
         if (status != null) {
@@ -101,7 +92,7 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Account & Settings", fontWeight = FontWeight.Bold) },
+                title = {},
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
@@ -121,11 +112,6 @@ fun SettingsScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                PremiumHeader(
-                    eyebrow = "Account",
-                    title = "Account & Settings",
-                    subtitle = "Manage privacy, visibility, safety controls, notifications, and sign-out."
-                )
                 if (!status.isNullOrBlank()) {
                     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp), containerColor = SuccessSoft) {
                         Text(status ?: "", style = MaterialTheme.typography.bodyMedium, color = Success, fontWeight = FontWeight.SemiBold)
@@ -133,30 +119,10 @@ fun SettingsScreen(
                 }
                 PrivacyControlsCard(settings = settings, vm = vm)
                 ContactAndVisibilityCard(settings = settings, vm = vm)
-                ManagementListsCard(
-                    hiddenMembers = hiddenMembers,
-                    blockedMembers = blockedMembers,
-                    reportedConcerns = reportedConcerns,
-                    onShowAgain = vm::showHiddenMemberAgain,
-                    onUnblock = vm::unblockMember,
-                    onEditConcern = { editingConcern = it },
-                    onDeleteConcern = vm::deleteConcern
-                )
                 SupportCard(onLogout = { vm.logout(logout) })
                 Box(Modifier.padding(bottom = 8.dp))
             }
         }
-    }
-    editingConcern?.let { concern ->
-        ReportConcernDialog(
-            profileName = concern.name,
-            initialConcern = concern.concern,
-            onDismiss = { editingConcern = null },
-            onSubmit = { updated ->
-                vm.updateConcern(concern.profileId, updated)
-                editingConcern = null
-            }
-        )
     }
 }
 

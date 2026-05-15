@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -46,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -64,7 +67,6 @@ import com.soulmatch.app.data.models.AssistAgentStatsData
 import com.soulmatch.app.data.models.SafetyCenterContentData
 import com.soulmatch.app.data.models.SafetyCenterResourceData
 import com.soulmatch.app.data.models.SafetyCenterTileData
-import com.soulmatch.app.ui.components.premium.ChipTone
 import com.soulmatch.app.ui.components.premium.FilterChoiceChip
 import com.soulmatch.app.ui.components.media.MemberPhoto
 import com.soulmatch.app.ui.components.premium.MetricPill
@@ -73,7 +75,6 @@ import com.soulmatch.app.ui.components.premium.PremiumHeader
 import com.soulmatch.app.ui.components.premium.PremiumScreen
 import com.soulmatch.app.ui.components.status.ProfileStrengthAdvisor
 import com.soulmatch.app.ui.components.premium.SectionTitle
-import com.soulmatch.app.ui.components.premium.SignalChips
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.Error
 import com.soulmatch.app.ui.theme.ErrorSoft
@@ -138,18 +139,8 @@ fun SoulMatchAssistScreen(
     val showAgentSelection = assistEnabled
     val showFamilyEditor = assistEnabled && (editFamilyDetails || !hasSavedFamilyDetails)
     val selectedAdvisorIdsForSave = if (showAgentSelection) selectedAdvisorIds else emptyList()
-    val hasUnsavedAssistChanges =
-        assistEnabled != assist.isOptedIn ||
-            desiredSupportLevel != assist.supportLevel ||
-            shareMode != assist.shareMode ||
-            selectedAdvisorIdsForSave != assist.selectedAdvisorIds ||
-            preferredWindow != assist.preferredContactWindow ||
-            familyContactName != assist.familyContactName ||
-            familyContactPhone != assist.familyContactPhone ||
-            notes != assist.notes
-    val showSaveCta = showFamilyEditor || hasUnsavedAssistChanges
-    val canSaveSelection = !showAgentSelection || selectedAdvisorIds.isNotEmpty()
-    val saveAssistChanges = {
+    val showSaveCta = showFamilyEditor
+    val saveAssistChanges: () -> Unit = {
         vm.updateAssistStatus(
             isOptedIn = assistEnabled,
             supportLevel = desiredSupportLevel,
@@ -176,14 +167,7 @@ fun SoulMatchAssistScreen(
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
                 item {
-                    PremiumHeader(
-                        eyebrow = "SoulMatch Assist",
-                        title = "Connect with active local agents",
-                        subtitle = "You can contact these registered agents directly for offline support. SoulMatch only lists the directory and does not participate in the discussion."
-                    )
-                }
-                item {
-                    AssistStatsRow(stats = assist.agentStats, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                    AssistStatsRow(stats = assist.agentStats, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp))
                 }
                 item {
                     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
@@ -218,6 +202,16 @@ fun SoulMatchAssistScreen(
                                             shareMode = "single"
                                             selectedAdvisorIds = emptyList()
                                         }
+                                        vm.updateAssistStatus(
+                                            isOptedIn = enabled,
+                                            supportLevel = if (enabled) "advisor_assisted" else "self_service",
+                                            shareMode = if (enabled) shareMode else "single",
+                                            selectedAdvisorIds = if (enabled) selectedAdvisorIds else emptyList(),
+                                            preferredContactWindow = preferredWindow,
+                                            familyContactName = familyContactName,
+                                            familyContactPhone = familyContactPhone,
+                                            notes = notes
+                                        )
                                     }
                                 )
                             }
@@ -296,6 +290,25 @@ fun SoulMatchAssistScreen(
                         }
                     }
                 }
+                if (showSaveCta) {
+                    item {
+                        Button(
+                            onClick = {
+                                saveAssistChanges()
+                                if (hasSavedFamilyDetails || familyContactName.isNotBlank() || familyContactPhone.isNotBlank() || preferredWindow.isNotBlank() || notes.isNotBlank()) {
+                                    editFamilyDetails = false
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            enabled = !isLoading && !isSaving
+                        ) {
+                            Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("Save SoulMatch Assistance")
+                        }
+                    }
+                }
                 if (showAgentSelection) {
                     item {
                         PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
@@ -326,25 +339,6 @@ fun SoulMatchAssistScreen(
                                     color = TextSecondary
                                 )
                             }
-                        }
-                    }
-                }
-                if (showSaveCta) {
-                    item {
-                        Button(
-                            onClick = {
-                                saveAssistChanges()
-                                if (hasSavedFamilyDetails || familyContactName.isNotBlank() || familyContactPhone.isNotBlank() || preferredWindow.isNotBlank() || notes.isNotBlank()) {
-                                    editFamilyDetails = false
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            enabled = !isLoading && !isSaving && canSaveSelection
-                        ) {
-                            Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text("Save SoulMatch Assistance")
                         }
                     }
                 }
@@ -906,11 +900,7 @@ fun SafetyCenterScreen(
     val blockedMembers by vm.blockedMembers.collectAsStateWithLifecycle()
     val reportedConcerns by vm.reportedConcerns.collectAsStateWithLifecycle()
     val profile by profileVm.profile.collectAsStateWithLifecycle()
-    val verificationLabel = when {
-        profile?.verificationStatus.equals("verified", ignoreCase = true) -> "Verified"
-        profile?.verificationStatus.equals("rejected", ignoreCase = true) -> "Needs update"
-        else -> "Pending setup"
-    }
+    val profileStrength = (profile?.completionScore ?: 0).coerceIn(0, 100)
     val tiles = content.tiles.ifEmpty { SafetyCenterContentData().tiles }
     val resources = content.resources.ifEmpty { SafetyCenterContentData().resources }
     val verificationCard = content.verificationCard
@@ -929,15 +919,8 @@ fun SafetyCenterScreen(
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
                 item {
-                    PremiumHeader(
-                        eyebrow = "Safety and trust",
-                        title = content.title.ifBlank { "Safety Center" },
-                        subtitle = content.subtitle.ifBlank { "Explore practical tools and guidance that help you stay safe while matching." }
-                    )
-                }
-                item {
                     Column(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         tiles.chunked(2).forEach { rowTiles ->
@@ -959,32 +942,26 @@ fun SafetyCenterScreen(
                         }
                     }
                 }
-                item {
-                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
-                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            SectionTitle(verificationCard.title, verificationCard.body)
-                            SignalChips(
-                                labels = listOf(
-                                    "Verification: $verificationLabel",
-                                    if (settings.profileActive) "Profile active" else "Profile inactive",
-                                    if (settings.pushEnabled) "Alerts enabled" else "Alerts paused"
-                                ),
-                                tone = ChipTone.Info
-                            )
-                            Button(
-                                onClick = {
-                                    openSafetyDestination(
-                                        verificationCard.destination.ifBlank { "my_profile" },
-                                        onOpenSettings,
-                                        onOpenVerification,
-                                        onOpenHelp,
-                                        onOpenSafetyDestination
-                                    )
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Filled.Verified, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Text(verificationCard.cta.ifBlank { "Verify yourself" })
+                if (profile != null && profileStrength < 100) {
+                    item {
+                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+                            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                SectionTitle(verificationCard.title, verificationCard.body)
+                                Button(
+                                    onClick = {
+                                        openSafetyDestination(
+                                            verificationCard.destination.ifBlank { "my_profile" },
+                                            onOpenSettings,
+                                            onOpenVerification,
+                                            onOpenHelp,
+                                            onOpenSafetyDestination
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Filled.Verified, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Text(verificationCard.cta.ifBlank { "Verify yourself" })
+                                }
                             }
                         }
                     }
@@ -994,17 +971,25 @@ fun SafetyCenterScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             SectionTitle("Safety overview", "Your current safety controls and actions.")
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                                MetricPill("Hidden", hiddenMembers.size.toString(), modifier = Modifier.weight(1f))
-                                MetricPill("Blocked", blockedMembers.size.toString(), modifier = Modifier.weight(1f))
-                                MetricPill("Reports", reportedConcerns.size.toString(), modifier = Modifier.weight(1f))
+                                SafetyMetricButton(
+                                    label = "Hidden",
+                                    value = hiddenMembers.size.toString(),
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onOpenSafetyDestination("hidden_members") }
+                                )
+                                SafetyMetricButton(
+                                    label = "Blocked",
+                                    value = blockedMembers.size.toString(),
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onOpenSafetyDestination("blocked_members") }
+                                )
+                                SafetyMetricButton(
+                                    label = "Reports",
+                                    value = reportedConcerns.size.toString(),
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onOpenSafetyDestination("reported_members") }
+                                )
                             }
-                            SignalChips(
-                                labels = listOf(
-                                    if (settings.photoPrivacyEnabled) "Photos protected" else "Photos public",
-                                    if (settings.contactFilterEnabled) "Contact filter on" else "Open contact flow"
-                                ),
-                                tone = ChipTone.Info
-                            )
                         }
                     }
                 }
@@ -1066,10 +1051,20 @@ fun SafetyCenterDetailScreen(
             ) {
                 item {
                     PremiumHeader(
-                        eyebrow = "Safety Center",
+                        eyebrow = "",
                         title = article.title.ifBlank { "Safety Guide" },
                         subtitle = article.subtitle
                     )
+                }
+                if (article.id == "online_personal_tips") {
+                    item {
+                        SafetyGuidanceTabs(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            onOpenSettings = onOpenSettings,
+                            onOpenReport = { onOpenSafetyDestination("article:report_block") },
+                            onOpenWellbeing = { onOpenSafetyDestination("article:mental_wellbeing") }
+                        )
+                    }
                 }
                 if (article.body.isNotBlank()) {
                     item {
@@ -1113,6 +1108,16 @@ fun SafetyCenterDetailScreen(
                         }
                     }
                 }
+                if (article.id == "report_block") {
+                    item {
+                        SafetyActionLinks(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            onOpenSettings = onOpenSettings,
+                            onOpenReport = { onOpenSafetyDestination("reported_members") },
+                            onOpenWellbeing = { onOpenSafetyDestination("article:mental_wellbeing") }
+                        )
+                    }
+                }
                 if (article.primaryCta.isNotBlank() && article.destination.isNotBlank()) {
                     item {
                         Button(
@@ -1135,6 +1140,128 @@ fun SafetyCenterDetailScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SafetyMetricButton(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        color = SurfaceSoft,
+        border = BorderStroke(1.dp, Divider)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary, maxLines = 1)
+        }
+    }
+}
+
+private data class SafetyGuidanceGroup(
+    val title: String,
+    val points: List<String>
+)
+
+@Composable
+private fun SafetyGuidanceTabs(
+    modifier: Modifier = Modifier,
+    onOpenSettings: () -> Unit,
+    onOpenReport: () -> Unit,
+    onOpenWellbeing: () -> Unit
+) {
+    val groups = listOf(
+        SafetyGuidanceGroup(
+            "Online Safety",
+            listOf(
+                "Protect your personal information until both families are comfortable.",
+                "Never share financial information, OTPs, banking details, or identity documents in chat.",
+                "Enjoy safer conversations on SoulMatch before moving to personal calls.",
+                "Stay alert and be cautious if someone pushes urgency or secrecy."
+            )
+        ),
+        SafetyGuidanceGroup(
+            "Fraud Protection",
+            listOf(
+                "Cash on delivery fraud: do not pay for unsolicited gifts or parcels.",
+                "Explicit video calls and blackmail: avoid private video calls with unknown profiles.",
+                "Emergency cash requirement: verify with family before considering any request for money."
+            )
+        ),
+        SafetyGuidanceGroup(
+            "Personal Meeting",
+            listOf(
+                "Meet in public places and inform a trusted family member before you go.",
+                "Do not be in a hurry; genuine families respect time and boundaries.",
+                "Feel free to leave if you feel uncomfortable at any point."
+            )
+        )
+    )
+    var selectedIndex by remember { mutableIntStateOf(0) }
+    PremiumCard(modifier = modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+            ) {
+                groups.forEachIndexed { index, group ->
+                    FilterChoiceChip(
+                        label = group.title,
+                        selected = selectedIndex == index,
+                        onClick = { selectedIndex = index }
+                    )
+                }
+            }
+            SectionTitle(groups[selectedIndex].title)
+            groups[selectedIndex].points.forEach { point ->
+                SafetyBulletRow(point)
+            }
+            SafetyActionLinks(
+                onOpenSettings = onOpenSettings,
+                onOpenReport = onOpenReport,
+                onOpenWellbeing = onOpenWellbeing
+            )
+        }
+    }
+}
+
+@Composable
+private fun SafetyActionLinks(
+    modifier: Modifier = Modifier,
+    onOpenSettings: () -> Unit,
+    onOpenReport: () -> Unit,
+    onOpenWellbeing: () -> Unit
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        DrawerActionButton(
+            icon = Icons.Filled.Settings,
+            title = "Privacy Settings",
+            subtitle = "Control photos, contact flow, alerts, and visibility.",
+            onClick = onOpenSettings
+        )
+        DrawerActionButton(
+            icon = Icons.Filled.ReportProblem,
+            title = "Report Profile",
+            subtitle = "Review warning signs and report unsafe behavior.",
+            onClick = onOpenReport
+        )
+        DrawerActionButton(
+            icon = Icons.Filled.Favorite,
+            title = "Wellbeing",
+            subtitle = "Move at a pace that feels safe for you and your family.",
+            onClick = onOpenWellbeing
+        )
     }
 }
 
@@ -1293,13 +1420,6 @@ fun HelpSupportScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
-                item {
-                    PremiumHeader(
-                        eyebrow = "Support desk",
-                        title = "Get help quickly",
-                        subtitle = "Reach SoulMatch for account, payment, verification, privacy, or safety help."
-                    )
-                }
                 if (!status.isNullOrBlank()) {
                     item {
                         StatusInfoCard(

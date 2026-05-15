@@ -441,8 +441,17 @@ fun AppNavigation(
                 onBack = { nav.popBackStack() }
             )
         }
-        composable("interests") {
+        composable(
+            "interests?tab={tab}",
+            arguments = listOf(
+                navArgument("tab") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                }
+            )
+        ) { backStack ->
             InterestsScreen(
+                initialTab = backStack.arguments?.getString("tab").orEmpty(),
                 onViewProfile = { nav.navigate("profile/$it") },
                 onOpenChat = { participantId, name -> nav.navigate("chat/$participantId/${Uri.encode(name)}") },
                 onSubscribe = { nav.navigate("subscription") },
@@ -680,6 +689,13 @@ private fun resolveSafetyDestination(destination: String): String {
         normalized.equals("help", ignoreCase = true) ||
             normalized.equals("help_support", ignoreCase = true) ||
             normalized.equals("support", ignoreCase = true) -> "help_support"
+        normalized.equals("hidden_members", ignoreCase = true) ||
+            normalized.equals("hidden", ignoreCase = true) -> "interests?tab=hidden"
+        normalized.equals("blocked_members", ignoreCase = true) ||
+            normalized.equals("blocked", ignoreCase = true) -> "interests?tab=blocked"
+        normalized.equals("reported_members", ignoreCase = true) ||
+            normalized.equals("reports", ignoreCase = true) ||
+            normalized.equals("reported", ignoreCase = true) -> "interests?tab=reported"
         normalized.startsWith("article:", ignoreCase = true) ->
             "safety_center/article/${Uri.encode(normalized.substringAfter(':'))}"
         normalized.startsWith("safety_center/article/") -> normalized

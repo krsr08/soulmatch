@@ -95,6 +95,7 @@ fun InterestsScreen(
     profileId: String = "",
     chatId: String = "",
     participantName: String = "",
+    initialTab: String = "",
     vm: InterestsViewModel = hiltViewModel()
 ) {
     val received by vm.received.collectAsStateWithLifecycle()
@@ -103,7 +104,7 @@ fun InterestsScreen(
     val viewers by vm.viewers.collectAsStateWithLifecycle()
     val loading by vm.isLoading.collectAsStateWithLifecycle()
     val interactions by ProfileInteractionStore.state.collectAsStateWithLifecycle()
-    var tab by remember { mutableIntStateOf(0) }
+    var tab by remember(initialTab) { mutableIntStateOf(activityTabIndex(initialTab)) }
     val viewProfile: (String) -> Unit = onViewProfile ?: { _ -> }
     val openChat: (String, String) -> Unit = onOpenChat ?: { _, _ -> }
     val accepted = remember(received, sent) { buildInterestBucket(received, sent, "accepted") }
@@ -304,6 +305,21 @@ fun InterestsScreen(
                 }
             }
         }
+    }
+}
+
+private fun activityTabIndex(tab: String): Int {
+    return when (tab.trim().lowercase()) {
+        "received" -> 0
+        "sent" -> 1
+        "accepted" -> 2
+        "declined" -> 3
+        "shortlist", "shortlisted" -> 4
+        "visitors", "viewers" -> 5
+        "hidden", "hidden_members" -> 6
+        "blocked", "blocked_members" -> 7
+        "reported", "reports", "reported_members" -> 8
+        else -> 0
     }
 }
 

@@ -1260,12 +1260,8 @@ data class SafetyCenterContentData(
         SafetyCenterArticleData(
             id = "online_personal_tips",
             title = "Online / Personal Tips",
-            subtitle = "Use simple checks before sharing contact details or meeting offline.",
-            bullets = listOf(
-                "Keep early conversations inside SoulMatch until both families are comfortable.",
-                "Do not send money, gifts, documents, or OTPs to a new contact.",
-                "Speak with family members before moving to private calls or meetings."
-            )
+            subtitle = "Choose Online Safety, Fraud Protection, or Personal Meeting guidance before moving ahead.",
+            body = "Safety guidance is split into practical sections so families can review the right caution at the right moment."
         ),
         SafetyCenterArticleData(
             id = "privacy_settings",
@@ -1284,9 +1280,10 @@ data class SafetyCenterContentData(
             title = "Report / Block Profile",
             subtitle = "Report suspicious requests, abusive messages, fake profiles, or money demands.",
             bullets = listOf(
-                "Block a member immediately when the interaction feels unsafe.",
-                "Report profiles that ask for payments, gifts, loans, visas, or emergency help.",
-                "SoulMatch reviews safety reports and may restrict accounts."
+                "How to identify possible violations: pressure for secrecy, abusive language, fake claims, payment requests, or document misuse.",
+                "Ways to take action: preserve screenshots, stop private sharing, and keep conversations inside SoulMatch while reviewing.",
+                "Report the profile when there is fraud, harassment, impersonation, explicit content, or unsafe behavior.",
+                "Block the profile immediately when you do not want further calls, messages, or visibility."
             )
         ),
         SafetyCenterArticleData(
