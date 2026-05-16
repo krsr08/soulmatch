@@ -187,25 +187,27 @@ const DEFAULT_SAFETY_CENTER_CONTENT = {
 };
 
 const DEFAULT_MEMBERSHIP_FEATURE_MATRIX = [
-  { featureKey: 'visible_matches', label: 'Visible Matches', description: 'Number of recommended profiles visible in discovery.', bronze: '10', silver: '50', gold: 'Unlimited', platinum: 'Unlimited' },
-  { featureKey: 'contact_views', label: 'Contact Views', description: 'Eligible verified contact views per month.', bronze: '0', silver: '20', gold: '100', platinum: 'Unlimited' },
-  { featureKey: 'daily_interests', label: 'Daily Interests', description: 'Interest requests a member can send each day.', bronze: '5', silver: '20', gold: 'Unlimited', platinum: 'Unlimited' },
+  { featureKey: 'visible_matches', label: 'Visible Matches', description: 'Number of recommended profiles visible in discovery.', bronze: 'Access up to 80', silver: 'Access up to 80', gold: 'Access up to 80', platinum: 'Access up to 80' },
+  { featureKey: 'profile_views', label: 'Profile Views', description: 'Detailed profile views per 30-day cycle.', bronze: '10', silver: '30', gold: '50', platinum: '80' },
+  { featureKey: 'contact_details', label: 'Contact Details', description: 'Eligible verified contact unlocks per 30-day cycle.', bronze: 'Not available', silver: '15', gold: '30', platinum: '80' },
+  { featureKey: 'engage_plus', label: 'Engage+', description: 'Engagement and intent insights.', bronze: false, silver: true, gold: true, platinum: true },
+  { featureKey: 'daily_interests', label: 'Interests', description: 'Interest requests a member can send every 30-day cycle.', bronze: '5', silver: '20', gold: '40', platinum: '80' },
   { featureKey: 'advanced_filters', label: 'Advanced Filters', description: 'Filter by work, family, activity, horoscope, trust and privacy attributes.', bronze: false, silver: true, gold: true, platinum: true },
-  { featureKey: 'chat_after_match', label: 'Chat After Match', description: 'Message after mutual interest acceptance.', bronze: true, silver: true, gold: true, platinum: true },
+  { featureKey: 'chat_after_match', label: 'Chat After Match', description: 'Message after mutual interest acceptance.', bronze: false, silver: true, gold: true, platinum: true },
   { featureKey: 'photo_request', label: 'Private Photo Requests', description: 'Request access to private photos.', bronze: true, silver: true, gold: true, platinum: true },
-  { featureKey: 'spotlight', label: 'Spotlight Boosts', description: 'Profile appears higher in compatible recommendations.', bronze: false, silver: 'Paid add-on', gold: '3 / month', platinum: 'Unlimited' },
+  { featureKey: 'spotlight', label: 'Spotlight Boosts', description: 'Profile appears higher in compatible recommendations.', bronze: false, silver: false, gold: '2 / month', platinum: '4 / month' },
   { featureKey: 'anonymous_browsing', label: 'Anonymous Browsing', description: 'Browse profiles without showing visitor identity.', bronze: false, silver: false, gold: true, platinum: true },
-  { featureKey: 'soulmatch_assist', label: 'SoulMatch Assist', description: 'Share profile with selected registered agents for offline support.', bronze: false, silver: true, gold: true, platinum: true },
+  { featureKey: 'soulmatch_assist', label: 'SoulMatch Assist', description: 'Share profile with selected registered agents for offline support.', bronze: false, silver: false, gold: true, platinum: true },
   { featureKey: 'priority_listing', label: 'Priority Listing', description: 'Higher visibility in best-match and recently active feeds.', bronze: false, silver: false, gold: true, platinum: true },
   { featureKey: 'concierge_support', label: 'Concierge Support', description: 'Dedicated help for high-intent families.', bronze: false, silver: false, gold: false, platinum: true },
   { featureKey: 'trust_badge_boost', label: 'Trust Badge Boost', description: 'Trust-complete profiles receive visual priority and better response prompts.', bronze: true, silver: true, gold: true, platinum: true }
 ];
 
 const DEFAULT_MEMBER_PLANS = [
-  { planId: 'free', name: 'Bronze', displayName: 'Bronze (Free)', price: 0, duration: 'lifetime', durationDays: 0, tierRank: 0, features: ['10 visible matches', '5 interests/day', 'Basic discovery', 'Private photo requests'] },
-  { planId: 'silver', name: 'Silver', displayName: 'Silver', price: 999, duration: 'monthly', durationDays: 30, tierRank: 1, features: ['50 visible matches', '20 contact views', 'Advanced filters', 'SoulMatch Assist opt-in'] },
-  { planId: 'gold', name: 'Gold', displayName: 'Gold', price: 2499, duration: 'monthly', durationDays: 30, tierRank: 2, features: ['Unlimited visible matches', '100 contact views', 'Priority listing', 'Spotlight credits'] },
-  { planId: 'platinum', name: 'Platinum', displayName: 'Platinum', price: 4999, duration: 'monthly', durationDays: 30, tierRank: 3, features: ['Unlimited contacts', 'Featured placement', 'Concierge support', 'Unlimited boosts'] }
+  { planId: 'free', name: 'Bronze', displayName: 'Bronze (Free)', price: 0, duration: 'lifetime', durationDays: 0, tierRank: 0, features: ['Access up to 80 matches', '10 profile views', '5 shortlists', '5 interests'] },
+  { planId: 'silver', name: 'Silver', displayName: 'Silver', price: 299, duration: 'monthly', durationDays: 30, tierRank: 1, features: ['Access up to 80 matches', '30 profile views', '15 contact unlocks', 'Chat enabled'] },
+  { planId: 'gold', name: 'Gold', displayName: 'Gold', price: 599, duration: 'monthly', durationDays: 30, tierRank: 2, features: ['Access up to 80 matches', '50 profile views', '30 contact unlocks', 'Match assistance', '2 spotlight boosts'] },
+  { planId: 'platinum', name: 'Platinum', displayName: 'Platinum', price: 999, duration: 'monthly', durationDays: 30, tierRank: 3, features: ['Access up to 80 matches', '80 profile views', '80 contact unlocks', 'Match assistance', '4 spotlight boosts'] }
 ];
 
 const DEFAULT_CONFIG = {
@@ -598,6 +600,7 @@ function getPublicRuntimeConfig(configMap) {
       refundGuaranteeTitle: configMap.monetization.refundGuaranteeTitle,
       refundGuaranteeSubtitle: configMap.monetization.refundGuaranteeSubtitle,
       premiumLimits: configMap.monetization.premiumLimits,
+      memberPlanEntitlements: configMap.monetization.memberPlanEntitlements || {},
       membershipFeatureMatrix: configMap.monetization.membershipFeatureMatrix || [],
       upgradePackageGroups: configMap.monetization.upgradePackageGroups || [],
       plans: configMap.monetization.plans.map((plan) => ({

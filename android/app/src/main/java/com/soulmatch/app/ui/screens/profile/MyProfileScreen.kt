@@ -1868,9 +1868,10 @@ private fun VerifiedProfileCard(
 @Composable
 private fun PrivacySettingsCard(
     profile: ProfileData,
-    onUpdatePhotoPrivacy: (String, String, Boolean) -> Unit
+    onUpdatePhotoPrivacy: (String, String, Boolean, String?) -> Unit
 ) {
     val showPhotoToEveryone = profile.photoPrivacy.equals("all", ignoreCase = true)
+    val contactMasked = profile.contactPrivacy.equals("masked", ignoreCase = true)
     var hideLastSeen by remember(profile.profileId, profile.hideLastSeen) { mutableStateOf(profile.hideLastSeen) }
 
     PremiumCard(
@@ -1895,7 +1896,21 @@ private fun PrivacySettingsCard(
                     onUpdatePhotoPrivacy(
                         if (enabled) "all" else "request_only",
                         profile.profileVisibility,
-                        hideLastSeen
+                        hideLastSeen,
+                        null
+                    )
+                }
+            )
+            PrivacySwitchRow(
+                label = "Keep contact details private",
+                subtitle = "When enabled, members see a message to connect through chat instead of unmasking your phone or email.",
+                checked = contactMasked,
+                onCheckedChange = { masked ->
+                    onUpdatePhotoPrivacy(
+                        profile.photoPrivacy,
+                        profile.profileVisibility,
+                        hideLastSeen,
+                        if (masked) "masked" else "visible"
                     )
                 }
             )
@@ -1905,7 +1920,7 @@ private fun PrivacySettingsCard(
                 checked = hideLastSeen,
                 onCheckedChange = {
                     hideLastSeen = it
-                    onUpdatePhotoPrivacy(profile.photoPrivacy, profile.profileVisibility, it)
+                    onUpdatePhotoPrivacy(profile.photoPrivacy, profile.profileVisibility, it, null)
                 }
             )
         }

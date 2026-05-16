@@ -431,7 +431,7 @@ exports.getProfile = async (req, res, next) => {
       const code = access.reason === 'not_found' ? ErrorCodes.NOT_FOUND : ErrorCodes.FORBIDDEN;
       return next(new AppError(status, code, access.reason === 'not_found' ? 'Profile not found' : 'This profile is not available to you.'));
     }
-    const p = await repo.findFullById(req.params.profileId);
+    let p = await repo.findFullById(req.params.profileId);
     if (!p) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
     if (!access.owner) {
       const photoState = await repo.getPhotoAccessState(p.profile_id, req.user.userId);
@@ -447,8 +447,42 @@ exports.getProfile = async (req, res, next) => {
     }
     p.completion_score = await repo.calcCompletion(p.profile_id);
     await attachTrustSummary(p);
-    repo.recordView(req.params.profileId, req.user.userId).catch(() => {});
+    p = await repo.decorateContactPrivacy(p, req.user.userId, access.owner);
+    if (!access.owner) {
+      const meteredView = await repo.recordView(req.params.profileId, req.user.userId);
+      if (meteredView?.allowed === false && meteredView.reason === 'limit_reached') {
+        return next(new AppError(403, ErrorCodes.FORBIDDEN, meteredView.message || 'Limit reached. Extend your subscription to continue.'));
+      }
+    }
     res.json({ success: true, data: formatProfileForResponse(p) });
+  } catch (err) { next(err); }
+};
+
+exports.unlockContact = async (req, res, next) => {
+  try {
+    const access = await repo.canViewProfile(req.params.profileId, req.user.userId);
+    if (!access.allowed) {
+      const status = access.reason === 'not_found' ? 404 : 403;
+      const code = access.reason === 'not_found' ? ErrorCodes.NOT_FOUND : ErrorCodes.FORBIDDEN;
+      return next(new AppError(status, code, access.reason === 'not_found' ? 'Profile not found' : 'This profile is not available to you.'));
+    }
+    const result = await repo.unlockContactDetails(req.params.profileId, req.user.userId);
+    if (result.status === 'not_found') {
+      return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
+    }
+    const blockedStatuses = new Set(['owner_masked', 'upgrade_required', 'limit_reached']);
+    if (blockedStatuses.has(result.status)) {
+      return res.status(result.status === 'owner_masked' ? 200 : 403).json({
+        success: result.status === 'owner_masked',
+        data: result,
+        error: result.status === 'owner_masked' ? null : {
+          code: ErrorCodes.FORBIDDEN,
+          message: result.message
+        },
+        message: result.message
+      });
+    }
+    res.json({ success: true, data: result, message: result.message });
   } catch (err) { next(err); }
 };
 
@@ -842,7 +876,15 @@ exports.addFamilyDecisionComment = async (req, res, next) => {
     res.json({ success: true, data: result.comment, message: 'Family input recorded.' });
   } catch (err) { next(err); }
 };
-exports.recordView = async (req, res, next) => { try { await repo.recordView(req.params.profileId, req.user.userId); res.json({ success: true }); } catch (err) { next(err); } };
+exports.recordView = async (req, res, next) => {
+  try {
+    const result = await repo.recordView(req.params.profileId, req.user.userId);
+    if (result?.allowed === false && result.reason === 'limit_reached') {
+      return next(new AppError(403, ErrorCodes.FORBIDDEN, result.message || 'Limit reached. Extend your subscription to continue.'));
+    }
+    res.json({ success: true, data: result || { allowed: true } });
+  } catch (err) { next(err); }
+};
 exports.getViewers = async (req, res, next) => {
   try {
     await requireOwnedProfile(req.params.profileId, req.user.userId);

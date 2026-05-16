@@ -340,14 +340,15 @@ class MyProfileViewModel @Inject constructor(
         }
     }
 
-    fun updatePrivacySettings(photoPrivacy: String, profileVisibility: String, hideLastSeen: Boolean) {
+    fun updatePrivacySettings(photoPrivacy: String, profileVisibility: String, hideLastSeen: Boolean, contactPrivacy: String? = null) {
         val current = _profile.value ?: return
         val profileId = current.profileId
         if (profileId.isBlank()) return
         _profile.value = current.copy(
             photoPrivacy = photoPrivacy,
             profileVisibility = profileVisibility,
-            hideLastSeen = hideLastSeen
+            hideLastSeen = hideLastSeen,
+            contactPrivacy = contactPrivacy ?: current.contactPrivacy
         )
         viewModelScope.launch {
             _status.value = null
@@ -357,7 +358,8 @@ class MyProfileViewModel @Inject constructor(
                     PrivacySettingsRequest(
                         photoPrivacy = photoPrivacy,
                         profileVisibility = profileVisibility,
-                        hideLastSeen = hideLastSeen
+                        hideLastSeen = hideLastSeen,
+                        contactPrivacy = contactPrivacy
                     )
                 )
                 if (response.isSuccessful && response.body()?.success == true) {
@@ -614,6 +616,11 @@ class MyProfileViewModel @Inject constructor(
         seriousnessWarnings = safeList(seriousnessWarnings),
         primaryPhotoUrl = safeText(primaryPhotoUrl).ifBlank { null },
         photoPrivacy = safeText(photoPrivacy).ifBlank { "all" },
+        contactPrivacy = safeText(contactPrivacy).ifBlank { "visible" },
+        contactAccessStatus = safeText(contactAccessStatus).ifBlank { "masked" },
+        contactAccessMessage = safeText(contactAccessMessage),
+        maskedPhone = safeText(maskedPhone),
+        maskedEmail = safeText(maskedEmail),
         photoAccessStatus = safeText(photoAccessStatus).ifBlank { "visible" },
         photoAccessRequestId = safeText(photoAccessRequestId).ifBlank { null },
         profileVisibility = safeText(profileVisibility).ifBlank { "all" },

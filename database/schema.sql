@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS profiles (
     primary_photo_url TEXT,
     video_url TEXT,
     photo_privacy VARCHAR(20) DEFAULT 'all',
+    contact_privacy VARCHAR(20) DEFAULT 'visible' CHECK (contact_privacy IN ('visible', 'masked')),
     profile_visibility VARCHAR(20) DEFAULT 'all',
     hide_last_seen BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT NOW(),
@@ -297,6 +298,30 @@ CREATE TABLE IF NOT EXISTS profile_views (
     viewer_id UUID REFERENCES profiles(profile_id),
     viewed_profile_id UUID REFERENCES profiles(profile_id),
     viewed_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS member_subscription_usage (
+    user_id UUID PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+    plan_id VARCHAR(24) NOT NULL DEFAULT 'bronze',
+    period_started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    period_ends_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '30 days'),
+    profile_views_used INTEGER NOT NULL DEFAULT 0,
+    contact_unlocks_used INTEGER NOT NULL DEFAULT 0,
+    shortlists_used INTEGER NOT NULL DEFAULT 0,
+    interests_used INTEGER NOT NULL DEFAULT 0,
+    spotlight_boosts_used INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS member_meter_events (
+    event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    target_profile_id UUID REFERENCES profiles(profile_id) ON DELETE CASCADE,
+    event_type VARCHAR(40) NOT NULL,
+    period_key DATE NOT NULL,
+    metadata JSONB DEFAULT '{}'::JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, target_profile_id, event_type, period_key)
 );
 
 CREATE TABLE IF NOT EXISTS verifications (

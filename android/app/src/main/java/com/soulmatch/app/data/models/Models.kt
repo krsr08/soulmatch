@@ -331,7 +331,19 @@ data class MatchFeedbackRequest(
 data class PrivacySettingsRequest(
     @SerializedName("photoPrivacy") val photoPrivacy: String,
     @SerializedName("profileVisibility") val profileVisibility: String,
-    @SerializedName("hideLastSeen") val hideLastSeen: Boolean = false
+    @SerializedName("hideLastSeen") val hideLastSeen: Boolean = false,
+    @SerializedName("contactPrivacy") val contactPrivacy: String? = null
+)
+
+data class ContactUnlockData(
+    val status: String = "",
+    val canUnmask: Boolean = false,
+    val phone: String = "",
+    val email: String = "",
+    val maskedPhone: String = "",
+    val maskedEmail: String = "",
+    val remaining: Int? = null,
+    val message: String = ""
 )
 
 data class ProfileStatusRequest(
@@ -522,6 +534,13 @@ data class ProfileData(
     @SerializedName("seriousness_warnings") val seriousnessWarnings: List<String> = emptyList(),
     @SerializedName("primary_photo_url") val primaryPhotoUrl: String? = null,
     @SerializedName("photo_privacy") val photoPrivacy: String = "all",
+    @SerializedName("contact_privacy") val contactPrivacy: String = "visible",
+    @SerializedName("contact_access_status") val contactAccessStatus: String = "masked",
+    @SerializedName("can_unmask_contact") val canUnmaskContact: Boolean = false,
+    @SerializedName("contact_unlocks_remaining") val contactUnlocksRemaining: Int? = null,
+    @SerializedName("contact_access_message") val contactAccessMessage: String = "",
+    @SerializedName("masked_phone") val maskedPhone: String = "",
+    @SerializedName("masked_email") val maskedEmail: String = "",
     @SerializedName("can_view_photo") val canViewPhoto: Boolean = true,
     @SerializedName("photo_access_status") val photoAccessStatus: String = "visible",
     @SerializedName("photo_access_request_id") val photoAccessRequestId: String? = null,
@@ -807,11 +826,38 @@ data class PaymentVerifyRequest(
 
 data class SubscriptionData(
     @SerializedName("plan_id") val planId: String = "free",
+    @SerializedName("effective_plan_id") val effectivePlanId: String = "bronze",
     @SerializedName("is_active") val isActive: Boolean = true,
     @SerializedName("start_date") val startDate: String? = null,
     @SerializedName("end_date") val endDate: String? = null,
     @SerializedName("plan_name") val planName: String = "",
-    @SerializedName("duration_days") val durationDays: Int? = null
+    @SerializedName("duration_days") val durationDays: Int? = null,
+    val entitlements: MemberPlanEntitlements = MemberPlanEntitlements(),
+    val usage: MemberSubscriptionUsageData = MemberSubscriptionUsageData()
+)
+
+data class MemberPlanEntitlements(
+    val planId: String = "bronze",
+    val label: String = "Bronze",
+    val visibleMatches: Int = 80,
+    val profileViews: Int = 10,
+    val contactDetails: Int = 0,
+    val engagePlus: Boolean = false,
+    val shortlist: Int = 5,
+    val interests: Int = 5,
+    val matchAssistance: Boolean = false,
+    val chat: Boolean = false,
+    val spotlightBoosts: Int = 0
+)
+
+data class MemberSubscriptionUsageData(
+    @SerializedName("period_started_at") val periodStartedAt: String? = null,
+    @SerializedName("period_ends_at") val periodEndsAt: String? = null,
+    @SerializedName("profile_views_used") val profileViewsUsed: Int = 0,
+    @SerializedName("contact_unlocks_used") val contactUnlocksUsed: Int = 0,
+    @SerializedName("shortlists_used") val shortlistsUsed: Int = 0,
+    @SerializedName("interests_used") val interestsUsed: Int = 0,
+    @SerializedName("spotlight_boosts_used") val spotlightBoostsUsed: Int = 0
 )
 
 data class BrandingConfig(
@@ -1363,6 +1409,7 @@ data class MonetizationRuntimeData(
     val refundGuaranteeSubtitle: String = "*Conditions apply",
     val premiumLimits: Map<String, Map<String, Int>> = emptyMap(),
     val plans: List<PlanData> = emptyList(),
+    val memberPlanEntitlements: Map<String, MemberPlanEntitlements> = emptyMap(),
     val membershipFeatureMatrix: List<Map<String, Any>> = emptyList()
 )
 

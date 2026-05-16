@@ -7,6 +7,137 @@ import httpx
 
 from app.config.database import get_db_pool
 
+PLAN_ENTITLEMENTS = {
+    "free": {"interests": 5, "shortlist": 5},
+    "bronze": {"interests": 5, "shortlist": 5},
+    "silver": {"interests": 20, "shortlist": 20},
+    "gold": {"interests": 40, "shortlist": 40},
+    "platinum": {"interests": 80, "shortlist": 80},
+}
+
+
+def _config_dict(value):
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except Exception:
+            return {}
+    return {}
+
+
+def _normalize_plan_id(plan_id: Optional[str]) -> str:
+    value = str(plan_id or "free").lower()
+    return "bronze" if value == "free" else value if value in PLAN_ENTITLEMENTS else "bronze"
+
+
+async def _member_entitlements(conn, plan_id: str) -> dict:
+    normalized = _normalize_plan_id(plan_id)
+    monetization = _config_dict(
+        await conn.fetchval("SELECT config_value FROM app_config WHERE config_key='monetization' LIMIT 1")
+    )
+    configured = _config_dict(monetization.get("memberPlanEntitlements"))
+    raw = _config_dict(configured.get(normalized))
+    base = PLAN_ENTITLEMENTS.get(normalized, PLAN_ENTITLEMENTS["bronze"])
+    return {
+        "interests": int(raw.get("interests") or base["interests"]),
+        "shortlist": int(raw.get("shortlist") or base["shortlist"]),
+    }
+
+
+async def _active_plan_id(conn, user_id: str) -> str:
+    row = await conn.fetchval(
+        """
+        SELECT plan_id
+        FROM subscriptions
+        WHERE user_id=$1
+          AND is_active=true
+          AND (end_date IS NULL OR end_date>NOW())
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        user_id,
+    )
+    return _normalize_plan_id(row)
+
+
+async def _ensure_usage_record(conn, user_id: str, plan_id: str) -> dict:
+    row = await conn.fetchrow("SELECT * FROM member_subscription_usage WHERE user_id=$1 LIMIT 1", user_id)
+    normalized = _normalize_plan_id(plan_id)
+    if not row:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO member_subscription_usage (user_id, plan_id, period_started_at, period_ends_at)
+            VALUES ($1,$2,NOW(),NOW() + INTERVAL '30 days')
+            RETURNING *
+            """,
+            user_id,
+            normalized,
+        )
+        return dict(row)
+    expired = row["period_ends_at"] and row["period_ends_at"].timestamp() <= __import__("time").time()
+    plan_changed = _normalize_plan_id(row["plan_id"]) != normalized
+    if expired or plan_changed:
+        row = await conn.fetchrow(
+            """
+            UPDATE member_subscription_usage
+            SET plan_id=$2,
+                period_started_at=NOW(),
+                period_ends_at=NOW() + INTERVAL '30 days',
+                profile_views_used=0,
+                contact_unlocks_used=0,
+                shortlists_used=0,
+                interests_used=0,
+                spotlight_boosts_used=0,
+                updated_at=NOW()
+            WHERE user_id=$1
+            RETURNING *
+            """,
+            user_id,
+            normalized,
+        )
+    return dict(row)
+
+
+async def _consume_limit(conn, user_id: str, target_profile_id: str, event_type: str, column: str, limit: int) -> None:
+    plan_id = await _active_plan_id(conn, user_id)
+    usage = await _ensure_usage_record(conn, user_id, plan_id)
+    already = await conn.fetchval(
+        """
+        SELECT true
+        FROM member_meter_events
+        WHERE user_id=$1
+          AND target_profile_id=$2
+          AND event_type=$3
+          AND period_key=DATE_TRUNC('month', NOW())::date
+        LIMIT 1
+        """,
+        user_id,
+        target_profile_id,
+        event_type,
+    )
+    if already:
+        return
+    used = int(usage.get(column) or 0)
+    if used >= int(limit):
+        raise ValueError("Limit reached. Extend your subscription to continue.")
+    await conn.execute(
+        """
+        INSERT INTO member_meter_events (event_id,user_id,target_profile_id,event_type,period_key,metadata,created_at)
+        VALUES ($1,$2,$3,$4,DATE_TRUNC('month', NOW())::date,'{}'::jsonb,NOW())
+        ON CONFLICT (user_id,target_profile_id,event_type,period_key) DO NOTHING
+        """,
+        str(uuid.uuid4()),
+        user_id,
+        target_profile_id,
+        event_type,
+    )
+    await conn.execute(
+        f"UPDATE member_subscription_usage SET {column}={column}+1, updated_at=NOW() WHERE user_id=$1",
+        user_id,
+    )
+
 
 async def _get_profile_id_for_user(conn, user_id: str) -> Optional[str]:
     return await conn.fetchval('SELECT profile_id FROM profiles WHERE user_id=$1 LIMIT 1', user_id)
@@ -90,6 +221,16 @@ async def send_interest(sender_user_id: str, receiver_id: str) -> dict:
                     "existingStatus": existing_status or "pending"
                 }
         else:
+            plan_id = await _active_plan_id(conn, sender_user_id)
+            entitlements = await _member_entitlements(conn, plan_id)
+            await _consume_limit(
+                conn,
+                sender_user_id,
+                receiver_profile_id,
+                "interest",
+                "interests_used",
+                entitlements["interests"],
+            )
             interest_id = str(uuid.uuid4())
             await conn.execute('INSERT INTO interests (interest_id,sender_id,receiver_id) VALUES ($1,$2,$3)', interest_id, sender_profile_id, receiver_profile_id)
         mutual = await conn.fetchrow("SELECT * FROM interests WHERE sender_id=$1 AND receiver_id=$2 AND status='accepted'", receiver_profile_id, sender_profile_id)
@@ -240,6 +381,16 @@ async def toggle_shortlist(user_id: str, profile_id: str) -> dict:
         if existing:
             await conn.execute('DELETE FROM shortlists WHERE added_by=$1 AND profile_id=$2', user_id, resolved_profile_id)
             return {"action": "removed"}
+        plan_id = await _active_plan_id(conn, user_id)
+        entitlements = await _member_entitlements(conn, plan_id)
+        await _consume_limit(
+            conn,
+            user_id,
+            resolved_profile_id,
+            "shortlist",
+            "shortlists_used",
+            entitlements["shortlist"],
+        )
         await conn.execute('INSERT INTO shortlists (shortlist_id,added_by,profile_id) VALUES ($1,$2,$3)', str(uuid.uuid4()), user_id, resolved_profile_id)
         return {"action": "added"}
 

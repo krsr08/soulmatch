@@ -1,6 +1,8 @@
 const { getDB } = require('../config/database');
 const { createHash, createHmac, randomUUID } = require('crypto');
 const { scoreAdvisorCandidate, normalizeList } = require('../services/assistAllocationService');
+const { getConfigSection } = require('../../../shared/controlPlane');
+const { consumeMeter, ensureUsageRecord, getActivePlanId, getEntitlements, periodKey } = require('../../../shared/memberEntitlements');
 const logger = require('../utils/logger');
 const DPDP_NOTICE_VERSION = 'dpdp-2026-05-10-v1';
 
@@ -1850,13 +1852,176 @@ exports.updatePrivacy = async (profileId, data) => {
   const db = await getDB();
   const allowedPhoto = ['all', 'matches_only', 'request_only', 'private'];
   const allowedVisibility = ['all', 'matches_only', 'hidden'];
+  const allowedContact = ['visible', 'masked'];
   const photoPrivacy = allowedPhoto.includes(data.photoPrivacy) ? data.photoPrivacy : null;
   const profileVisibility = allowedVisibility.includes(data.profileVisibility) ? data.profileVisibility : null;
+  const contactPrivacy = allowedContact.includes(data.contactPrivacy) ? data.contactPrivacy : null;
   const hideLastSeen = typeof data.hideLastSeen === 'boolean' ? data.hideLastSeen : null;
   await db.query(
-    'UPDATE profiles SET photo_privacy=COALESCE($1,photo_privacy),profile_visibility=COALESCE($2,profile_visibility),hide_last_seen=COALESCE($3,hide_last_seen),updated_at=NOW() WHERE profile_id=$4',
-    [photoPrivacy, profileVisibility, hideLastSeen, profileId]
+    'UPDATE profiles SET photo_privacy=COALESCE($1,photo_privacy),profile_visibility=COALESCE($2,profile_visibility),hide_last_seen=COALESCE($3,hide_last_seen),contact_privacy=COALESCE($4,contact_privacy),updated_at=NOW() WHERE profile_id=$5',
+    [photoPrivacy, profileVisibility, hideLastSeen, contactPrivacy, profileId]
   );
+};
+
+function maskPhone(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  const last = digits.slice(-2);
+  return `${'*'.repeat(Math.max(digits.length - 2, 4))}${last}`;
+}
+
+function maskEmail(email) {
+  const value = String(email || '').trim();
+  const [name, domain] = value.split('@');
+  if (!name || !domain) return value ? '••••' : '';
+  return `${name.slice(0, 1)}${'*'.repeat(Math.max(name.length - 1, 3))}@${domain}`;
+}
+
+async function hasCurrentContactUnlock(db, viewerUserId, targetProfileId) {
+  const result = await db.query(
+    `SELECT 1
+     FROM member_meter_events
+     WHERE user_id=$1
+       AND target_profile_id=$2
+       AND event_type='contact_unlock'
+       AND period_key=$3::date
+     LIMIT 1`,
+    [viewerUserId, targetProfileId, periodKey()]
+  );
+  return Boolean(result.rows[0]);
+}
+
+async function getContactEntitlementState(db, viewerUserId, targetProfileId, targetUserId, contactPrivacy) {
+  if (viewerUserId === targetUserId) {
+    return {
+      status: 'owner',
+      canUnmask: true,
+      reason: 'owner',
+      message: 'These are your contact details.'
+    };
+  }
+  const monetization = await getConfigSection(db, 'monetization');
+  const planId = await getActivePlanId(db, viewerUserId);
+  const entitlements = getEntitlements(monetization, planId);
+  const usage = await ensureUsageRecord(db, viewerUserId, entitlements.planId);
+  if (contactPrivacy === 'masked') {
+    return {
+      status: 'owner_masked',
+      canUnmask: false,
+      reason: 'owner_masked',
+      planId: entitlements.planId,
+      entitlements,
+      usage,
+      message: 'This member has chosen to keep contact details private. You can connect through chat.'
+    };
+  }
+  if (Number(entitlements.contactDetails || 0) <= 0) {
+    return {
+      status: 'upgrade_required',
+      canUnmask: false,
+      reason: 'upgrade_required',
+      planId: entitlements.planId,
+      entitlements,
+      usage,
+      message: 'Upgrade to Silver or above to view contact details.'
+    };
+  }
+  const unlocked = await hasCurrentContactUnlock(db, viewerUserId, targetProfileId);
+  const used = Number(usage.contact_unlocks_used || 0);
+  const limit = Number(entitlements.contactDetails || 0);
+  return {
+    status: unlocked ? 'unlocked' : 'masked',
+    canUnmask: unlocked || used < limit,
+    reason: unlocked ? 'already_unlocked' : used >= limit ? 'limit_reached' : 'available',
+    planId: entitlements.planId,
+    entitlements,
+    usage,
+    remaining: Math.max(limit - used, 0),
+    message: used >= limit && !unlocked
+      ? 'Limit reached. Extend your subscription to continue.'
+      : 'Contact details are masked until you unlock them.'
+  };
+}
+
+exports.decorateContactPrivacy = async (profile, viewerUserId, owner = false) => {
+  if (!profile) return profile;
+  const db = await getDB();
+  const contactPrivacy = profile.contact_privacy || 'visible';
+  const state = await getContactEntitlementState(db, viewerUserId, profile.profile_id, profile.user_id, contactPrivacy);
+  const canShow = owner || state.status === 'owner' || state.status === 'unlocked';
+  const phone = profile.phone || '';
+  const email = profile.email || '';
+  return {
+    ...profile,
+    contact_privacy: contactPrivacy,
+    contact_access_status: state.status,
+    can_unmask_contact: Boolean(state.canUnmask),
+    contact_unlocks_remaining: state.remaining ?? null,
+    contact_access_message: state.message,
+    masked_phone: maskPhone(phone),
+    masked_email: maskEmail(email),
+    phone: canShow ? phone : maskPhone(phone),
+    email: canShow ? email : maskEmail(email)
+  };
+};
+
+exports.unlockContactDetails = async (profileId, viewerUserId) => {
+  const db = await getDB();
+  const profile = await exports.findFullById(profileId);
+  if (!profile) return { status: 'not_found' };
+  const contactPrivacy = profile.contact_privacy || 'visible';
+  const state = await getContactEntitlementState(db, viewerUserId, profile.profile_id, profile.user_id, contactPrivacy);
+  const phone = profile.phone || '';
+  const email = profile.email || '';
+  if (state.status === 'owner' || state.status === 'unlocked') {
+    return {
+      status: state.status,
+      canUnmask: true,
+      phone,
+      email,
+      maskedPhone: maskPhone(phone),
+      maskedEmail: maskEmail(email),
+      remaining: state.remaining ?? null,
+      message: state.message
+    };
+  }
+  if (!state.canUnmask) {
+    return {
+      status: state.status,
+      canUnmask: false,
+      maskedPhone: maskPhone(phone),
+      maskedEmail: maskEmail(email),
+      remaining: state.remaining ?? 0,
+      message: state.message
+    };
+  }
+  const consumed = await consumeMeter(db, {
+    userId: viewerUserId,
+    targetProfileId: profile.profile_id,
+    eventType: 'contact_unlock',
+    limit: state.entitlements.contactDetails,
+    metadata: { targetUserId: profile.user_id }
+  });
+  if (!consumed.allowed) {
+    return {
+      status: 'limit_reached',
+      canUnmask: false,
+      maskedPhone: maskPhone(phone),
+      maskedEmail: maskEmail(email),
+      remaining: 0,
+      message: 'Limit reached. Extend your subscription to continue.'
+    };
+  }
+  return {
+    status: 'unlocked',
+    canUnmask: true,
+    phone,
+    email,
+    maskedPhone: maskPhone(phone),
+    maskedEmail: maskEmail(email),
+    remaining: consumed.remaining,
+    message: 'Contact details unlocked for this billing cycle.'
+  };
 };
 
 exports.recordConsentEvent = async (event) => {
@@ -1936,8 +2101,28 @@ exports.deletePhoto = async (profileId, photoId) => {
 exports.recordView = async (viewedProfileId, viewerUserId) => {
   const db = await getDB();
   const viewer = await exports.findByUserId(viewerUserId);
-  if (!viewer) return;
+  if (!viewer) return { allowed: false, reason: 'viewer_profile_missing' };
+  if (viewer.profile_id === viewedProfileId) return { allowed: true, owner: true };
+  const monetization = await getConfigSection(db, 'monetization');
+  const planId = await getActivePlanId(db, viewerUserId);
+  const entitlements = getEntitlements(monetization, planId);
+  await ensureUsageRecord(db, viewerUserId, entitlements.planId);
+  const consumed = await consumeMeter(db, {
+    userId: viewerUserId,
+    targetProfileId: viewedProfileId,
+    eventType: 'profile_view',
+    limit: entitlements.profileViews,
+    metadata: { viewerProfileId: viewer.profile_id }
+  });
+  if (!consumed.allowed) {
+    return {
+      allowed: false,
+      reason: 'limit_reached',
+      message: 'Limit reached. Extend your subscription to continue.'
+    };
+  }
   await db.query('INSERT INTO profile_views (viewer_id,viewed_profile_id) VALUES ($1,$2) ON CONFLICT (viewer_id, viewed_profile_id) DO UPDATE SET viewed_at=NOW()', [viewer.profile_id, viewedProfileId]);
+  return { allowed: true, remaining: consumed.remaining };
 };
 exports.getViewers = async (profileId) => { const db = await getDB(); const r = await db.query('SELECT p.profile_id,p.user_id,p.first_name,p.last_name,p.primary_photo_url,pv.viewed_at FROM profile_views pv JOIN profiles p ON p.profile_id=pv.viewer_id WHERE pv.viewed_profile_id=$1 ORDER BY pv.viewed_at DESC LIMIT 50', [profileId]); return r.rows; };
 exports.blockProfile = async (blockerUserId, profileId) => {

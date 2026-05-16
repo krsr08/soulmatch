@@ -170,6 +170,13 @@ private fun ContactAndVisibilityCard(settings: SettingsUiState, vm: SettingsView
             )
             SettingToggle(
                 icon = Icons.Filled.Lock,
+                title = if (settings.contactMasked) "Contact details are private" else "Eligible members can unlock contacts",
+                description = if (settings.contactMasked) "Members will see a prompt to use chat instead of your phone or email" else "Silver and above members can spend a contact unlock to view your phone and email",
+                checked = settings.contactMasked,
+                onCheckedChange = { vm.setContactPrivacy(it) }
+            )
+            SettingToggle(
+                icon = Icons.Filled.Lock,
                 title = "Who can send interest?",
                 description = "Allow only people close to your partner preferences",
                 checked = settings.contactFilterEnabled,

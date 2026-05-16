@@ -5,6 +5,7 @@ const { getDB } = require('../config/database');
 const logger = require('../utils/logger');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const { getConfigSection, getPlanById, recordAnalyticsEvent } = require('../../shared/controlPlane');
+const { ensureUsageRecord, getEntitlements, normalizePlanId } = require('../../shared/memberEntitlements');
 
 const RENEWAL_WINDOW_DAYS = 7;
 
@@ -53,7 +54,7 @@ function planRank(monetization, plan) {
     return String(configuredPlan.planId || '').toLowerCase() === normalizedId;
   });
   if (configuredIndex >= 0) return configuredIndex;
-  const rankMap = { free: 0, silver: 1, gold: 2, platinum: 3 };
+  const rankMap = { free: 0, bronze: 0, silver: 1, gold: 2, platinum: 3 };
   if (Object.prototype.hasOwnProperty.call(rankMap, normalizedId)) return rankMap[normalizedId];
   return Math.max(1, Math.round(Number(plan.price || 0) / 500));
 }
@@ -228,6 +229,7 @@ async function activatePaidOrder(db, { order, plan, paymentId, signature = null,
        VALUES ($1,$2,$3,NOW() + ($4::text || ' days')::interval,true,$5,$6)`,
       [subId, currentOrder.user_id, plan.planId, String(days), paymentId, currentOrder.amount]
     );
+    await ensureUsageRecord(client, currentOrder.user_id, normalizePlanId(plan.planId));
     await client.query(
       `INSERT INTO transactions (
          transaction_id,user_id,subscription_id,razorpay_order_id,razorpay_payment_id,amount,currency,status,
@@ -552,15 +554,49 @@ exports.getSubscription = async (req, res, next) => {
     }
     const active = r.rows[0];
     if (!active) {
-      return res.json({ success:true, data:{ plan_id:'free', is_active:true, plan_name:'Free', duration_days:null } });
+      const entitlements = getEntitlements(monetization, 'free');
+      const usage = await ensureUsageRecord(db, req.user.userId, entitlements.planId);
+      return res.json({
+        success:true,
+        data:{
+          plan_id:'free',
+          effective_plan_id: entitlements.planId,
+          is_active:true,
+          plan_name:'Bronze',
+          duration_days:null,
+          entitlements,
+          usage: {
+            period_started_at: usage.period_started_at,
+            period_ends_at: usage.period_ends_at,
+            profile_views_used: Number(usage.profile_views_used || 0),
+            contact_unlocks_used: Number(usage.contact_unlocks_used || 0),
+            shortlists_used: Number(usage.shortlists_used || 0),
+            interests_used: Number(usage.interests_used || 0),
+            spotlight_boosts_used: Number(usage.spotlight_boosts_used || 0)
+          }
+        }
+      });
     }
     const plan = getPlanById(monetization, active.plan_id);
+    const entitlements = getEntitlements(monetization, active.plan_id);
+    const usage = await ensureUsageRecord(db, req.user.userId, entitlements.planId);
     res.json({
       success:true,
       data:{
         ...active,
+        effective_plan_id: entitlements.planId,
         plan_name: plan?.name || active.plan_id,
-        duration_days: plan?.durationDays || null
+        duration_days: plan?.durationDays || null,
+        entitlements,
+        usage: {
+          period_started_at: usage.period_started_at,
+          period_ends_at: usage.period_ends_at,
+          profile_views_used: Number(usage.profile_views_used || 0),
+          contact_unlocks_used: Number(usage.contact_unlocks_used || 0),
+          shortlists_used: Number(usage.shortlists_used || 0),
+          interests_used: Number(usage.interests_used || 0),
+          spotlight_boosts_used: Number(usage.spotlight_boosts_used || 0)
+        }
       }
     });
   } catch (err) { next(err); }

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.filled.Share
@@ -219,7 +220,17 @@ fun ProfileDetailScreen(
                                 canChat = canChat,
                                 shortlisted = shortlisted,
                                 onSendInterest = { vm.sendInterest() },
-                                onOpenChat = { openChat(data.userId, data.fullName()) },
+                                onOpenChat = {
+                                    if (canChat) {
+                                        openChat(data.userId, data.fullName())
+                                    } else {
+                                        actionNotice = if (subscription.effectivePlan() == "bronze") {
+                                            "Upgrade to Silver or above to chat with matches."
+                                        } else {
+                                            "Chat opens after both families show mutual interest."
+                                        }
+                                    }
+                                },
                                 onSave = { vm.toggleShortlist() },
                                 onAddFamilyReview = {
                                     actionNotice = "Adding this profile to your family board..."
@@ -262,6 +273,14 @@ fun ProfileDetailScreen(
                                     }
                                 }
                             }
+                        }
+                        item {
+                            ContactDetailsSection(
+                                profile = data,
+                                subscription = subscription,
+                                onUnmask = { vm.unmaskContact() },
+                                onUpgrade = openSubscription
+                            )
                         }
                         item {
                             ProfileOverview(profile = data, compatibility = compatibility)
@@ -475,7 +494,6 @@ private fun PrimaryActionPanel(
                 }
                 OutlinedButton(
                     onClick = onOpenChat,
-                    enabled = canChat,
                     modifier = Modifier.weight(1f).height(52.dp)
                 ) {
                     Icon(Icons.Filled.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -571,6 +589,83 @@ private fun shareProfileWithFamily(context: Context, profile: ProfileData, compa
 
 private fun SubscriptionData.hasActivePaidMembership(): Boolean {
     return isActive && planId.isNotBlank() && !planId.equals("free", ignoreCase = true)
+}
+
+private fun SubscriptionData.effectivePlan(): String = effectivePlanId.ifBlank { if (planId.equals("free", ignoreCase = true)) "bronze" else planId }.lowercase()
+
+@Composable
+private fun ContactDetailsSection(
+    profile: ProfileData,
+    subscription: SubscriptionData,
+    onUnmask: () -> Unit,
+    onUpgrade: (() -> Unit)?
+) {
+    val plan = subscription.effectivePlan()
+    val isUnlocked = profile.contactAccessStatus.equals("unlocked", ignoreCase = true) ||
+        profile.contactAccessStatus.equals("owner", ignoreCase = true)
+    val ownerMasked = profile.contactAccessStatus.equals("owner_masked", ignoreCase = true) ||
+        profile.contactPrivacy.equals("masked", ignoreCase = true)
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surface) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            SectionTitle("Contact details", "Phone and email stay masked until access is allowed")
+            DetailGrid(
+                rows = listOf(
+                    "Mobile" to if (isUnlocked) profile.phone.ifBlank { "Not added" } else contactDisplay(profile.phone, profile.maskedPhone),
+                    "Email" to if (isUnlocked) profile.email.ifBlank { "Not added" } else contactDisplay(profile.email, profile.maskedEmail)
+                )
+            )
+            when {
+                ownerMasked -> {
+                    Surface(shape = RoundedCornerShape(14.dp), color = InfoSoft, border = BorderStroke(1.dp, Divider)) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.Chat, contentDescription = null, tint = Info, modifier = Modifier.size(18.dp))
+                            Text(
+                                profile.contactAccessMessage.ifBlank { "This member has chosen to keep contact details private. You can connect through chat." },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = PrimaryDark,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+                isUnlocked -> {
+                    SignalChip(
+                        label = profile.contactUnlocksRemaining?.let { "Unlocked | $it contacts left" } ?: "Contact details unlocked",
+                        tone = ChipTone.Success
+                    )
+                }
+                plan == "bronze" -> {
+                    UpgradePlanGate(
+                        title = "Upgrade to view contacts",
+                        detail = "Bronze members can browse matches, but contact details unlock from Silver onward.",
+                        onUpgrade = onUpgrade,
+                        compact = true
+                    )
+                }
+                else -> {
+                    Button(onClick = onUnmask, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                        Icon(Icons.Filled.LockOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.size(8.dp))
+                        Text("Unmask contact details")
+                    }
+                    Text(
+                        profile.contactUnlocksRemaining?.let { "$it contact unlocks remaining this month." }
+                            ?: "This uses one contact unlock if the member allows contact visibility.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun contactDisplay(value: String, masked: String): String {
+    return masked.ifBlank { value.ifBlank { "Not added" } }
 }
 
 private fun formatHeightLabel(heightCm: Int): String {

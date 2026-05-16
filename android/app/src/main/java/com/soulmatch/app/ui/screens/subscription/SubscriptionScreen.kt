@@ -888,18 +888,22 @@ private fun MonetizationRuntimeData.fixedAccessPackage(): UpgradePackage {
 }
 
 private fun fallbackMemberPlans(): List<PlanData> = listOf(
-    PlanData("free", "Bronze", "Bronze", 0, "lifetime", 0, 0, listOf("Basic discovery")),
-    PlanData("silver", "Silver", "Silver", 999, "monthly", 30, 1, listOf("Contact views")),
-    PlanData("gold", "Gold", "Gold", 2499, "monthly", 30, 2, listOf("Priority reach")),
-    PlanData("platinum", "Platinum", "Platinum", 4999, "monthly", 30, 3, listOf("Full access"))
+    PlanData("free", "Bronze", "Bronze", 0, "lifetime", 0, 0, listOf("80 visible matches", "10 profile views", "5 interests")),
+    PlanData("silver", "Silver", "Silver", 299, "monthly", 30, 1, listOf("30 profile views", "15 contact unlocks", "Chat enabled")),
+    PlanData("gold", "Gold", "Gold", 599, "monthly", 30, 2, listOf("50 profile views", "30 contact unlocks", "2 spotlight boosts")),
+    PlanData("platinum", "Platinum", "Platinum", 999, "monthly", 30, 3, listOf("80 profile views", "80 contact unlocks", "4 spotlight boosts"))
 )
 
 private fun fallbackFeatureMatrix(): List<Map<String, Any>> = listOf(
-    mapOf("label" to "Contact details", "free" to "0", "bronze" to "0", "silver" to "20", "gold" to "100", "platinum" to "Unlimited"),
-    mapOf("label" to "Visible matches", "free" to "10", "bronze" to "10", "silver" to "50", "gold" to "Unlimited", "platinum" to "Unlimited"),
-    mapOf("label" to "Super interest", "free" to "0", "bronze" to "0", "silver" to "10", "gold" to "50", "platinum" to "Unlimited"),
-    mapOf("label" to "Spotlights", "free" to "0", "bronze" to "0", "silver" to "Paid", "gold" to "3", "platinum" to "Unlimited"),
-    mapOf("label" to "Gold badge", "free" to false, "bronze" to false, "silver" to false, "gold" to true, "platinum" to true)
+    mapOf("label" to "Visible matches", "free" to "80", "bronze" to "80", "silver" to "80", "gold" to "80", "platinum" to "80"),
+    mapOf("label" to "Profile views", "free" to "10", "bronze" to "10", "silver" to "30", "gold" to "50", "platinum" to "80"),
+    mapOf("label" to "Contact details", "free" to "0", "bronze" to "0", "silver" to "15", "gold" to "30", "platinum" to "80"),
+    mapOf("label" to "Engage+", "free" to false, "bronze" to false, "silver" to true, "gold" to true, "platinum" to true),
+    mapOf("label" to "Shortlist", "free" to "5", "bronze" to "5", "silver" to "20", "gold" to "40", "platinum" to "80"),
+    mapOf("label" to "Interests", "free" to "5", "bronze" to "5", "silver" to "20", "gold" to "40", "platinum" to "80"),
+    mapOf("label" to "Match assistance", "free" to false, "bronze" to false, "silver" to false, "gold" to true, "platinum" to true),
+    mapOf("label" to "Chat", "free" to false, "bronze" to false, "silver" to true, "gold" to true, "platinum" to true),
+    mapOf("label" to "Spotlight boost", "free" to "No", "bronze" to "No", "silver" to "No", "gold" to "2 / month", "platinum" to "4 / month")
 )
 
 private fun Map<String, Any>.tierValue(planId: String): Any? {

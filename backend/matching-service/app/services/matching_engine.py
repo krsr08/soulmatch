@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 import numpy as np
@@ -6,6 +7,59 @@ from app.config.database import get_db_pool
 RELIGION_MAP = {"Hindu": 0, "Muslim": 1, "Christian": 2, "Sikh": 3, "Buddhist": 4, "Jain": 5, "Other": 6}
 EDUCATION_MAP = {"High School": 1, "Graduate": 2, "Post Graduate": 3, "Doctorate": 4, "Professional": 5}
 INCOME_MAP = {"< 3 LPA": 1, "3-5 LPA": 2, "5-10 LPA": 3, "10-20 LPA": 4, "20+ LPA": 5}
+
+DEFAULT_PLAN_ENTITLEMENTS = {
+    "free": {"visibleMatches": 80},
+    "bronze": {"visibleMatches": 80},
+    "silver": {"visibleMatches": 80},
+    "gold": {"visibleMatches": 80},
+    "platinum": {"visibleMatches": 80},
+}
+
+
+def normalize_plan_id(plan_id):
+    value = str(plan_id or "bronze").lower()
+    return "bronze" if value == "free" else value if value in DEFAULT_PLAN_ENTITLEMENTS else "bronze"
+
+
+def config_dict(value):
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except Exception:
+            return {}
+    return {}
+
+
+async def active_plan_id(conn, user_id: str) -> str:
+    row = await conn.fetchval(
+        """
+        SELECT plan_id
+        FROM subscriptions
+        WHERE user_id=$1
+          AND is_active=true
+          AND (end_date IS NULL OR end_date>NOW())
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        user_id,
+    )
+    return normalize_plan_id(row)
+
+
+async def visible_match_limit(conn, user_id: str) -> int:
+    plan_id = await active_plan_id(conn, user_id)
+    monetization = config_dict(
+        await conn.fetchval("SELECT config_value FROM app_config WHERE config_key='monetization' LIMIT 1")
+    )
+    configured = config_dict(monetization.get("memberPlanEntitlements"))
+    plan_config = config_dict(configured.get(plan_id)) or DEFAULT_PLAN_ENTITLEMENTS.get(plan_id, DEFAULT_PLAN_ENTITLEMENTS["bronze"])
+    try:
+        return max(0, int(plan_config.get("visibleMatches") or DEFAULT_PLAN_ENTITLEMENTS[plan_id]["visibleMatches"]))
+    except Exception:
+        return DEFAULT_PLAN_ENTITLEMENTS["bronze"]["visibleMatches"]
 
 
 def number_or(value, fallback):
@@ -270,6 +324,7 @@ async def get_recommended_matches(user_id: str, page: int, limit: int, verified_
         opp_gender = "female" if gender == "male" else "male" if gender == "female" else None
         page = max(int(page or 1), 1)
         limit = min(max(int(limit or 25), 15), 100)
+        access_limit = await visible_match_limit(conn, user_id)
         candidates = await conn.fetch(
             """
             SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
@@ -402,6 +457,7 @@ async def get_recommended_matches(user_id: str, page: int, limit: int, verified_
                 }
             )
         scored.sort(key=lambda x: (x["compatibilityScore"], x["trustScore"]), reverse=True)
+        scored = scored[:access_limit]
         start = (page - 1) * limit
         return {"matches": scored[start : start + limit], "total": len(scored), "page": page, "limit": limit}
 

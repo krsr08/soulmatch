@@ -58,10 +58,13 @@ class ProfileDetailViewModel @Inject constructor(
         ProfileInteractionStore.markViewed(profileId)
         viewModelScope.launch {
             _isLoading.value = true
-            val remoteProfile = runCatching { profileApi.getProfile(profileId) }
-                .getOrNull()
-                ?.body()
-                ?.takeIf { it.success }
+            val profileResponse = runCatching { profileApi.getProfile(profileId) }.getOrNull()
+            val profileBody = profileResponse?.body()
+            if (profileResponse?.isSuccessful == false) {
+                _status.value = profileBody?.error?.message ?: "Limit reached. Extend your subscription to continue."
+            }
+            val remoteProfile = profileBody
+                ?.takeIf { profileResponse?.isSuccessful == true && it.success }
                 ?.data
                 ?: if (AppEnvironment.allowDemoFallback) MarketFixtures.profileDetails(profileId) else null
             val discoverySummary = resolveDiscoverySummary(profileId)
@@ -193,6 +196,31 @@ class ProfileDetailViewModel @Inject constructor(
                 _status.value = body.message ?: "Photo access request sent."
             } else {
                 _status.value = body?.error?.message ?: "Couldn't request photo access right now."
+            }
+        }
+    }
+
+    fun unmaskContact() {
+        val target = _profile.value?.profileId ?: return
+        viewModelScope.launch {
+            val response = runCatching { profileApi.unmaskContact(target) }.getOrNull()
+            val body = response?.body()
+            if (response?.isSuccessful == true && body?.success == true) {
+                val data = body.data
+                if (data?.status == "unlocked" || data?.status == "owner") {
+                    _profile.value = _profile.value?.copy(
+                        phone = data.phone,
+                        email = data.email,
+                        maskedPhone = data.maskedPhone,
+                        maskedEmail = data.maskedEmail,
+                        contactAccessStatus = data.status,
+                        canUnmaskContact = true,
+                        contactUnlocksRemaining = data.remaining
+                    )
+                }
+                _status.value = data?.message ?: body.message ?: "Contact details updated."
+            } else {
+                _status.value = body?.error?.message ?: "Upgrade to Silver or above to view contact details."
             }
         }
     }
