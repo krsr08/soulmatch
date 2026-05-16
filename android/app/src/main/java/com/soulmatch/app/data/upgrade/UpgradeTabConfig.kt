@@ -2,13 +2,9 @@ package com.soulmatch.app.data.upgrade
 
 object UpgradeTabConfig {
     val canonicalOrder = listOf(
-        UpgradeTabKey.ONE_MONTH,
-        UpgradeTabKey.THREE_MONTHS,
-        UpgradeTabKey.SIX_MONTHS,
-        UpgradeTabKey.TILL_U_MARRY,
-        UpgradeTabKey.PERSONALIZED,
-        UpgradeTabKey.ELITE,
-        UpgradeTabKey.TWIN_PACK
+        UpgradeTabKey.SILVER,
+        UpgradeTabKey.GOLD,
+        UpgradeTabKey.PLATINUM
     )
 
     fun enabledTabs(flags: UpgradeFeatureFlags = UpgradeFeatureFlags()): List<UpgradeTabKey> {
@@ -33,6 +29,6 @@ object UpgradeTabConfig {
     }
 
     fun firstAvailable(enabledTabs: List<UpgradeTabKey>): UpgradeTabKey {
-        return enabledTabs.firstOrNull() ?: UpgradeTabKey.THREE_MONTHS
+        return enabledTabs.firstOrNull() ?: UpgradeTabKey.SILVER
     }
 }

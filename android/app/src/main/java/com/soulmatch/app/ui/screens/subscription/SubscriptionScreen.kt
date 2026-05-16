@@ -39,11 +39,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -54,9 +52,9 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -177,13 +175,13 @@ fun SubscriptionScreen(
     val selectedTab = UpgradeTabKey.from(selectedTabKey)
         ?.takeIf { it in enabledTabKeys }
         ?: enabledTabKeys.firstOrNull()
-        ?: UpgradeTabKey.THREE_MONTHS
+        ?: UpgradeTabKey.SILVER
     val selectedGroup = packageGroups.firstOrNull { it.semanticKey == selectedTab }
     val selectedPackage = packageGroups.asSequence()
         .flatMap { it.packages.asSequence() }
         .firstOrNull { it.pkgId == selectedPackageId }
         ?: selectedGroup?.packages?.firstOrNull()
-    val selectedTabIndex = UpgradeTabConfig.indexOf(selectedTab, enabledTabKeys).let { if (it >= 0) it else 0 }
+    val paidPackages = packageGroups.flatMap { it.packages }
     val packageNameByPlanId = packageGroups
         .flatMap { it.packages }
         .associate { it.planId to it.displayName }
@@ -252,9 +250,6 @@ fun SubscriptionScreen(
                     UpgradeHeader(monetization = monetization)
                 }
                 item {
-                    UpgradeModeSelector()
-                }
-                item {
                     AccessModeNotice(monetization = monetization)
                 }
                 if (monetization.refundGuaranteeEnabled) {
@@ -266,6 +261,12 @@ fun SubscriptionScreen(
                     CurrentMembershipCard(
                         subscription = subscription,
                         currentPlanName = currentMembershipName
+                    )
+                }
+                item {
+                    SectionHeading(
+                        title = "SoulMatch subscription packs",
+                        subtitle = "Only Bronze, Silver, Gold, and Platinum are available in the app. Choose a monthly pack based on the access your family needs."
                     )
                 }
                 item {
@@ -282,38 +283,8 @@ fun SubscriptionScreen(
                         }
                     )
                 }
-                item {
-                    if (enabledTabKeys.isNotEmpty()) {
-                        ScrollableTabRow(
-                            selectedTabIndex = selectedTabIndex,
-                            edgePadding = 12.dp,
-                            containerColor = Color.Transparent
-                        ) {
-                            enabledTabKeys.forEach { tabKey ->
-                                Tab(
-                                    selected = tabKey == selectedTab,
-                                    onClick = { vm.selectTab(tabKey.wireValue) },
-                                    text = {
-                                        Text(
-                                            tabKey.displayTitle,
-                                            fontWeight = if (tabKey == selectedTab) FontWeight.ExtraBold else FontWeight.SemiBold
-                                        )
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-                item {
-                    DurationOfferStrip(
-                        groups = packageGroups,
-                        selectedTab = selectedTab,
-                        selectedPackage = selectedPackage,
-                        onSelectTab = { vm.selectTab(it.wireValue) }
-                    )
-                }
                 if (monetization.isSubscriptionMode()) {
-                    items(selectedGroup?.packages.orEmpty(), key = { it.pkgId }) { packageInfo ->
+                    items(paidPackages, key = { it.pkgId }) { packageInfo ->
                         UpgradePackageCard(
                             packageInfo = packageInfo,
                             selected = selectedPackageId == packageInfo.pkgId,
@@ -327,6 +298,28 @@ fun SubscriptionScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SectionHeading(title: String, subtitle: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.ExtraBold,
+            color = PrimaryDark
+        )
+        Text(
+            subtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextSecondary
+        )
     }
 }
 
@@ -477,7 +470,7 @@ private fun MembershipComparisonGrid(
     onSelectPlan: (String) -> Unit
 ) {
     val tiers = plans.ifEmpty { fallbackMemberPlans() }
-        .filterNot { it.planId.equals("fixed_access", ignoreCase = true) }
+        .filter { it.planId.normalizedMemberPlanId() in CANONICAL_MEMBER_PLAN_IDS }
         .sortedBy { it.tierRank }
         .ifEmpty { fallbackMemberPlans() }
     val rows = matrix.ifEmpty { fallbackFeatureMatrix() }.take(7)
@@ -887,6 +880,15 @@ private fun MonetizationRuntimeData.fixedAccessPackage(): UpgradePackage {
     )
 }
 
+private val CANONICAL_MEMBER_PLAN_IDS = setOf("bronze", "silver", "gold", "platinum")
+
+private fun String.normalizedMemberPlanId(): String {
+    return when (lowercase(Locale.getDefault()).trim()) {
+        "", "free" -> "bronze"
+        else -> lowercase(Locale.getDefault()).trim()
+    }
+}
+
 private fun fallbackMemberPlans(): List<PlanData> = listOf(
     PlanData("free", "Bronze", "Bronze", 0, "lifetime", 0, 0, listOf("80 visible matches", "10 profile views", "5 interests")),
     PlanData("silver", "Silver", "Silver", 299, "monthly", 30, 1, listOf("30 profile views", "15 contact unlocks", "Chat enabled")),
@@ -938,10 +940,10 @@ private fun planRank(planId: String, amount: Int?): Int {
 
 private fun canonicalPlanName(planId: String): String {
     return when (planId.lowercase(Locale.getDefault())) {
-        "silver" -> "SoulMatch Verified Plus"
-        "gold" -> "SoulMatch Family Assist"
-        "platinum" -> "SoulMatch Platinum"
-        "free", "" -> "Free"
+        "silver" -> "Silver"
+        "gold" -> "Gold"
+        "platinum" -> "Platinum"
+        "free", "bronze", "" -> "Bronze"
         else -> titleCase(planId.replace('_', ' '))
     }
 }

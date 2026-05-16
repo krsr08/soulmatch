@@ -64,7 +64,7 @@ class SubscriptionViewModel @Inject constructor(
     private val _packageGroups = MutableStateFlow<List<UpgradePackageGroup>>(emptyList())
     private val _subscription = MutableStateFlow(SubscriptionData())
     private val _invoices = MutableStateFlow<List<InvoiceItem>>(emptyList())
-    private val _selectedTabKey = MutableStateFlow(UpgradeTabKey.THREE_MONTHS.wireValue)
+    private val _selectedTabKey = MutableStateFlow(UpgradeTabKey.SILVER.wireValue)
     private val _selectedPackageId = MutableStateFlow<Int?>(null)
     private val _isLoading = MutableStateFlow(false)
     private val _isProcessingPayment = MutableStateFlow(false)

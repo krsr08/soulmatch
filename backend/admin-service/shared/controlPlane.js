@@ -1,7 +1,7 @@
 const DEFAULT_UPGRADE_PACKAGE_GROUPS = [
   {
-    tabKey: 'one_month',
-    tabTitle: '1 Month',
+    tabKey: 'silver',
+    tabTitle: 'Silver',
     bannerTitle: 'Start with verified discovery',
     bannerText: 'A focused one-month Silver plan for members who want contact access and chat.',
     assistiveContent: 'Useful when you already have a shortlist and want faster introductions.',
@@ -489,6 +489,41 @@ function deepMerge(base, override) {
   return result;
 }
 
+const CANONICAL_SUBSCRIPTION_PLAN_IDS = ['silver', 'gold', 'platinum'];
+
+function normalizeUpgradePackageGroups(groups = []) {
+  const sourcePackages = (Array.isArray(groups) ? groups : [])
+    .flatMap((group) => Array.isArray(group?.packages) ? group.packages : [])
+    .filter((pkg) => CANONICAL_SUBSCRIPTION_PLAN_IDS.includes(String(pkg?.planId || '').toLowerCase()));
+  const defaultsByPlan = new Map(
+    DEFAULT_UPGRADE_PACKAGE_GROUPS.flatMap((group) => group.packages.map((pkg) => [pkg.planId, { group, pkg }]))
+  );
+  const byPlan = new Map();
+  for (const pkg of sourcePackages) {
+    const planId = String(pkg.planId).toLowerCase();
+    if (!byPlan.has(planId) || pkg.buyerChoice || String(pkg.badge || '').toLowerCase() === 'recommended') {
+      byPlan.set(planId, pkg);
+    }
+  }
+  return CANONICAL_SUBSCRIPTION_PLAN_IDS.map((planId) => {
+    const fallback = defaultsByPlan.get(planId);
+    const pkg = { ...(fallback?.pkg || {}), ...(byPlan.get(planId) || {}) };
+    return {
+      ...(fallback?.group || {}),
+      tabKey: planId,
+      tabTitle: pkg.pkgName?.replace(/\s+1\s+Month$/i, '') || fallback?.group?.tabTitle || planId,
+      packages: [{ ...pkg, planId }]
+    };
+  });
+}
+
+function normalizeMonetizationConfig(monetization = {}) {
+  return {
+    ...monetization,
+    upgradePackageGroups: normalizeUpgradePackageGroups(monetization.upgradePackageGroups)
+  };
+}
+
 async function getConfigMap(db, includePrivate = true) {
   const result = await db.query(
     'SELECT config_key, config_value, is_public, updated_at FROM app_config WHERE config_key = ANY($1::text[])',
@@ -508,7 +543,8 @@ async function getConfigMap(db, includePrivate = true) {
 async function getConfigSection(db, key) {
   const result = await db.query('SELECT config_value FROM app_config WHERE config_key=$1 LIMIT 1', [key]);
   const current = result.rows[0]?.config_value || {};
-  return deepMerge(DEFAULT_CONFIG[key] || {}, current);
+  const merged = deepMerge(DEFAULT_CONFIG[key] || {}, current);
+  return key === 'monetization' ? normalizeMonetizationConfig(merged) : merged;
 }
 
 async function upsertConfigSection(db, key, value, updatedBy = 'system', isPublicOverride = null) {
@@ -602,7 +638,7 @@ function getPublicRuntimeConfig(configMap) {
       premiumLimits: configMap.monetization.premiumLimits,
       memberPlanEntitlements: configMap.monetization.memberPlanEntitlements || {},
       membershipFeatureMatrix: configMap.monetization.membershipFeatureMatrix || [],
-      upgradePackageGroups: configMap.monetization.upgradePackageGroups || [],
+      upgradePackageGroups: normalizeUpgradePackageGroups(configMap.monetization.upgradePackageGroups),
       plans: configMap.monetization.plans.map((plan) => ({
         planId: plan.planId,
         name: plan.name,

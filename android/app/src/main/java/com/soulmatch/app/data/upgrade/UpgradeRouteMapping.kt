@@ -2,33 +2,32 @@ package com.soulmatch.app.data.upgrade
 
 object UpgradeRouteMapping {
     private val routeCodeToTabKey = mapOf(
-        0 to UpgradeTabKey.THREE_MONTHS,
-        1 to UpgradeTabKey.SIX_MONTHS,
-        2 to UpgradeTabKey.TILL_U_MARRY,
-        3 to UpgradeTabKey.PERSONALIZED,
-        5 to UpgradeTabKey.THREE_MONTHS,
-        6 to UpgradeTabKey.SIX_MONTHS,
-        8 to UpgradeTabKey.PERSONALIZED,
-        11 to UpgradeTabKey.THREE_MONTHS,
-        12 to UpgradeTabKey.THREE_MONTHS,
-        13 to UpgradeTabKey.THREE_MONTHS,
-        14 to UpgradeTabKey.SIX_MONTHS,
-        15 to UpgradeTabKey.SIX_MONTHS,
-        16 to UpgradeTabKey.SIX_MONTHS,
-        17 to UpgradeTabKey.TILL_U_MARRY,
-        18 to UpgradeTabKey.PERSONALIZED,
-        21 to UpgradeTabKey.TILL_U_MARRY,
-        33 to UpgradeTabKey.THREE_MONTHS
+        0 to UpgradeTabKey.SILVER,
+        1 to UpgradeTabKey.GOLD,
+        2 to UpgradeTabKey.PLATINUM,
+        3 to UpgradeTabKey.PLATINUM,
+        5 to UpgradeTabKey.SILVER,
+        6 to UpgradeTabKey.GOLD,
+        8 to UpgradeTabKey.PLATINUM,
+        11 to UpgradeTabKey.SILVER,
+        12 to UpgradeTabKey.SILVER,
+        13 to UpgradeTabKey.GOLD,
+        14 to UpgradeTabKey.GOLD,
+        15 to UpgradeTabKey.GOLD,
+        16 to UpgradeTabKey.GOLD,
+        17 to UpgradeTabKey.PLATINUM,
+        18 to UpgradeTabKey.PLATINUM,
+        21 to UpgradeTabKey.PLATINUM,
+        33 to UpgradeTabKey.GOLD
     )
 
     private val packageIdToTabKey = buildMap {
-        listOf(322, 323, 324, 325).forEach { put(it, UpgradeTabKey.ONE_MONTH) }
-        listOf(1, 4, 13, 33).forEach { put(it, UpgradeTabKey.THREE_MONTHS) }
-        listOf(2, 5, 14, 16).forEach { put(it, UpgradeTabKey.SIX_MONTHS) }
-        listOf(237, 238, 239, 273, 275).forEach { put(it, UpgradeTabKey.TILL_U_MARRY) }
-        listOf(48, 80, 306).forEach { put(it, UpgradeTabKey.PERSONALIZED) }
-        listOf(241).forEach { put(it, UpgradeTabKey.ELITE) }
-        listOf(266, 267, 288).forEach { put(it, UpgradeTabKey.TWIN_PACK) }
+        put(101, UpgradeTabKey.SILVER)
+        put(201, UpgradeTabKey.GOLD)
+        put(301, UpgradeTabKey.PLATINUM)
+        listOf(322, 323, 324, 325).forEach { put(it, UpgradeTabKey.SILVER) }
+        listOf(1, 4, 13, 33, 2, 5, 14, 16).forEach { put(it, UpgradeTabKey.GOLD) }
+        listOf(237, 238, 239, 273, 275, 48, 80, 306, 241, 266, 267, 288).forEach { put(it, UpgradeTabKey.PLATINUM) }
     }
 
     fun tabKeyForRouteCode(routeCode: Int?): UpgradeTabKey? {
@@ -51,7 +50,7 @@ object UpgradeRouteMapping {
         val refreshTab = UpgradeTabKey.from(pageToLandAfterRefresh)
         val targetPackageTab = tabKeyForPackageId(targetPackageId)
         val routeTab = tabKeyForRouteCode(routeCode ?: landOnPage)
-        val defaultTab = UpgradeTabKey.THREE_MONTHS
+        val defaultTab = UpgradeTabKey.SILVER
 
         val candidates = if (preferRefreshState) {
             listOf(refreshTab, targetPackageTab, routeTab, defaultTab)

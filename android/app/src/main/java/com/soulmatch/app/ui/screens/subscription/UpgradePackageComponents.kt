@@ -166,7 +166,7 @@ fun UpgradePackageCard(
                 }
             } else {
                 Button(onClick = onSelect, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (selected) "Selected plan" else "Choose this plan")
+                    Text(if (selected) "Selected pack" else "Choose this pack")
                 }
             }
         }
@@ -183,7 +183,7 @@ fun UpgradeBenefitPanel(
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Package benefits", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                    Text("Plan benefits", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
                     Text(packageInfo.displayName, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                 }
                     Surface(shape = RoundedCornerShape(8.dp), color = WarningSoft, border = BorderStroke(1.dp, Divider)) {
@@ -278,7 +278,7 @@ fun CheckoutSummary(
         ) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    if (isActive) "Current package" else "Selected package",
+                    if (isActive) "Current plan" else "Selected plan",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
