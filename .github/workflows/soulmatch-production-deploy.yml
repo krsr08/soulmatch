@@ -64,11 +64,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t test_files < <(
-            find backend \
-              -path '*/node_modules/*' -prune -o \
-              -path '*/test/*.test.js' -type f -print | sort
-          )
+          mapfile -t test_files < <(git ls-files 'backend/**/test/*.test.js' | sort)
           if [ "${#test_files[@]}" -eq 0 ]; then
             echo "No backend unit tests found."
             exit 0
