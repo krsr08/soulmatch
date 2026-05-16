@@ -1,5 +1,10 @@
 package com.soulmatch.app.ui.screens.home
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -264,7 +269,7 @@ fun DashboardScreen(
     val canShowUpgradeInsert = content.showBestMatchInsertCards &&
         content.showBestMatchUpgradeCards &&
         shouldShowHomeUpgrade(subscription, packageGroups)
-    val adCards = homeBestMatchAdCards(content, subscription)
+    val adCards = homeBestMatchAdCards(content, subscription, assistEnabled)
         .filter { canShowUpgradeInsert || !it.isUpgradeType() }
 
     ProfileSideDrawer(
@@ -453,7 +458,7 @@ private fun HomeTopBar(
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        "My matches",
+                        profile.fullName().ifBlank { "My matches" },
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontFamily = FontFamily.SansSerif,
                             fontWeight = FontWeight.ExtraBold,
@@ -1097,6 +1102,21 @@ private fun BestMatchInsertCard(
                     modifier = modifier,
                     onOpen = onOpenSubscription
                 )
+                "trust" -> HomeTrustProgressInsertCard(
+                    ad = ad,
+                    modifier = modifier,
+                    onOpen = { openHomeAdDestination(ad.destination, onOpenSubscription, onOpenSearch, onOpenAstrology, onOpenDestination) }
+                )
+                "astrology", "horoscope" -> HomeHoroscopeInsertCard(
+                    ad = ad,
+                    modifier = modifier,
+                    onOpen = { openHomeAdDestination(ad.destination, onOpenSubscription, onOpenSearch, onOpenAstrology, onOpenDestination) }
+                )
+                "notification", "alerts" -> HomeNotificationInsertCard(
+                    ad = ad,
+                    modifier = modifier,
+                    onOpen = { openHomeAdDestination(ad.destination, onOpenSubscription, onOpenSearch, onOpenAstrology, onOpenDestination) }
+                )
                 else -> HomeAdInsertCard(
                     ad = ad,
                     modifier = modifier,
@@ -1210,6 +1230,160 @@ private fun HomeUpgradeBenefitsCard(
                 Button(onClick = onOpen, shape = RoundedCornerShape(14.dp)) {
                     Text(ad.cta.ifBlank { "Upgrade now" }, fontWeight = FontWeight.ExtraBold)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeTrustProgressInsertCard(
+    ad: HomeBestMatchAdData,
+    modifier: Modifier = Modifier,
+    onOpen: () -> Unit
+) {
+    val transition = rememberInfiniteTransition(label = "trust-card")
+    val fill by transition.animateFloat(
+        initialValue = 0.56f,
+        targetValue = 0.92f,
+        animationSpec = infiniteRepeatable(tween(1600), RepeatMode.Reverse),
+        label = "trust-fill"
+    )
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFEFFAF5)),
+        border = BorderStroke(1.dp, Color(0xFFBDE5CD)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(shape = RoundedCornerShape(999.dp), color = Color.White, border = BorderStroke(1.dp, Color(0xFFBDE5CD))) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Verified, contentDescription = null, tint = Color(0xFF0F7A4F), modifier = Modifier.size(18.dp))
+                        Text(ad.badge.ifBlank { "Trust profile" }, style = MaterialTheme.typography.labelMedium, color = Color(0xFF0F7A4F), fontWeight = FontWeight.ExtraBold)
+                    }
+                }
+                Text(ad.title.ifBlank { "Build trust before families connect" }, style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.ExtraBold, lineHeight = 31.sp), color = Color(0xFF143B2A))
+                Text(ad.body.ifBlank { "Complete verification details to improve response confidence." }, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF49695A), maxLines = 3, overflow = TextOverflow.Ellipsis)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                LinearProgressIndicator(
+                    progress = fill,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(999.dp)),
+                    color = Color(0xFF0F7A4F),
+                    trackColor = Color.White
+                )
+                ad.bullets.ifEmpty { listOf("Higher trust score", "More confident family responses", "Verification status stays visible") }
+                    .take(3)
+                    .forEach { bullet ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Check, contentDescription = null, tint = Color(0xFF0F7A4F), modifier = Modifier.size(17.dp))
+                            Text(bullet, style = MaterialTheme.typography.bodySmall, color = Color(0xFF143B2A), fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                Button(onClick = onOpen, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                    Text(ad.cta.ifBlank { "Improve trust" }, fontWeight = FontWeight.ExtraBold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeHoroscopeInsertCard(
+    ad: HomeBestMatchAdData,
+    modifier: Modifier = Modifier,
+    onOpen: () -> Unit
+) {
+    val transition = rememberInfiniteTransition(label = "horoscope-card")
+    val glow by transition.animateFloat(
+        initialValue = 0.18f,
+        targetValue = 0.42f,
+        animationSpec = infiniteRepeatable(tween(1400), RepeatMode.Reverse),
+        label = "horoscope-glow"
+    )
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F0FF)),
+        border = BorderStroke(1.dp, Color(0xFFD8B2FF)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(listOf(Color(0xFFF8EDFF), Color(0xFFFFFBF4))))
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                Surface(modifier = Modifier.size(108.dp), shape = RoundedCornerShape(999.dp), color = Color(0xFF6D28D9).copy(alpha = glow)) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Star, contentDescription = null, tint = Color(0xFF6D28D9), modifier = Modifier.size(48.dp))
+                    }
+                }
+                Text(ad.badge.ifBlank { "Horoscope" }, style = MaterialTheme.typography.labelLarge, color = Color(0xFF6D28D9), fontWeight = FontWeight.ExtraBold)
+                Text(ad.title.ifBlank { "Add horoscope details for family compatibility" }, style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.ExtraBold, lineHeight = 31.sp), color = Color(0xFF3B136F), textAlign = TextAlign.Center)
+                Text(ad.body.ifBlank { "Rashi, nakshatra, and manglik details help families compare expectations early." }, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF5E3E85), textAlign = TextAlign.Center)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                ad.bullets.ifEmpty { listOf("Kundli details improve family fit", "Manglik and rashi checks stay clear", "Useful before a family call") }
+                    .take(3)
+                    .forEach { bullet ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Filled.Check, contentDescription = null, tint = Color(0xFF6D28D9), modifier = Modifier.size(17.dp))
+                            Text(bullet, style = MaterialTheme.typography.bodySmall, color = Color(0xFF3B136F), fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                Button(onClick = onOpen, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                    Text(ad.cta.ifBlank { "Open astrology" }, fontWeight = FontWeight.ExtraBold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeNotificationInsertCard(
+    ad: HomeBestMatchAdData,
+    modifier: Modifier = Modifier,
+    onOpen: () -> Unit
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF4FF)),
+        border = BorderStroke(1.dp, Color(0xFFB9D6F5)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Surface(modifier = Modifier.size(104.dp), shape = RoundedCornerShape(999.dp), color = Color.White) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Notifications, contentDescription = null, tint = Color(0xFF2563A8), modifier = Modifier.size(48.dp))
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+            Text(ad.title.ifBlank { "Turn on match alerts" }, style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.ExtraBold, lineHeight = 31.sp), color = Color(0xFF183B66), textAlign = TextAlign.Center)
+            Spacer(Modifier.height(10.dp))
+            Text(ad.body.ifBlank { "Get notified when serious matches send interest, accept, or message you." }, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF3E5873), textAlign = TextAlign.Center)
+            Spacer(Modifier.height(22.dp))
+            Button(onClick = onOpen, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                Text(ad.cta.ifBlank { "Manage alerts" }, fontWeight = FontWeight.ExtraBold)
             }
         }
     }
@@ -1582,11 +1756,13 @@ private fun buildBestMatchSlots(
 
 private fun homeBestMatchAdCards(
     content: HomeContentData,
-    subscription: SubscriptionData
+    subscription: SubscriptionData,
+    assistEnabled: Boolean
 ): List<HomeBestMatchAdData> {
     return content.bestMatchAdCards
         .ifEmpty { defaultHomeBestMatchAds() }
         .filter { it.enabled && (it.title.isNotBlank() || it.body.isNotBlank()) }
+        .filterNot { assistEnabled && it.type.equals("assist", ignoreCase = true) }
         .filter { it.isEligibleForPlan(subscription) }
 }
 

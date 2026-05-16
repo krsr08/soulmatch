@@ -100,6 +100,7 @@ const DEFAULT_BEST_MATCH_AD_CARDS = [
     badge: 'Horoscope',
     title: 'Add horoscope details for family compatibility',
     body: 'Help families compare birth details, rashi, nakshatra, and kundli expectations.',
+    bullets: ['Kundli details improve family fit', 'Manglik and rashi checks stay clear', 'Useful before a family call'],
     cta: 'Open astrology',
     destination: 'astrology_services'
   },
@@ -112,8 +113,22 @@ const DEFAULT_BEST_MATCH_AD_CARDS = [
     badge: 'Trust profile',
     title: 'Verified profiles receive more confident responses',
     body: 'Complete phone, email, photo, document, education, income, and family trust checks.',
+    bullets: ['Higher trust score', 'More confident family responses', 'Verification status stays visible'],
     cta: 'Improve trust',
     destination: 'my_profile'
+  },
+  {
+    id: 'enable-notifications',
+    type: 'notification',
+    enabled: true,
+    targetPlans: ['free', 'bronze', 'silver', 'gold', 'platinum'],
+    theme: 'blue',
+    badge: 'Alerts',
+    title: 'Turn on match alerts',
+    body: 'Get notified when a serious profile sends interest, accepts, or messages you.',
+    bullets: ['New interest alerts', 'Acceptance reminders', 'Message notifications'],
+    cta: 'Manage alerts',
+    destination: 'settings'
   },
   {
     id: 'private-photo-control',
@@ -463,7 +478,7 @@ const DEFAULT_CONFIG = {
       home: 'Home',
       search: 'Search',
       activity: 'Activity',
-      chat: 'Chat',
+      chat: 'Messenger',
       profile: 'Profile',
       upgrade: 'Upgrade'
     },
@@ -509,6 +524,15 @@ const DEFAULT_CONFIG = {
   },
   monetization: {
     currency: 'INR',
+    accessMode: 'subscription',
+    subscriptionModelEnabled: true,
+    fixedPriceAmount: 200,
+    fixedPricePlanId: 'fixed_access',
+    fixedPriceLabel: '₹200',
+    freeAccessLabel: 'Account',
+    refundGuaranteeEnabled: true,
+    refundGuaranteeTitle: '30-day full refund guarantee*',
+    refundGuaranteeSubtitle: '*Conditions apply',
     premiumLimits: {
       dailySwipes: { free: 25, silver: 80, gold: 200, platinum: 500 },
       dailyInterests: { free: 5, silver: 20, gold: 999, platinum: 999 },
@@ -618,6 +642,20 @@ function renderTemplate(template, variables = {}) {
 }
 
 function getPlanById(monetization, planId) {
+  if (
+    String(planId) === String(monetization?.fixedPricePlanId || 'fixed_access') &&
+    String(monetization?.accessMode || '').toLowerCase() === 'fixed_price' &&
+    monetization?.subscriptionModelEnabled === false
+  ) {
+    return {
+      planId: String(monetization.fixedPricePlanId || 'fixed_access'),
+      name: 'SoulMatch Fixed Access',
+      price: Number(monetization.fixedPriceAmount || 200),
+      duration: 'fixed access',
+      durationDays: 30,
+      features: ['Full member access at the configured fixed price']
+    };
+  }
   const directPlan = (monetization?.plans || []).find((plan) => String(plan.planId) === String(planId));
   if (directPlan) return directPlan;
   const upgradePackage = (monetization?.upgradePackageGroups || [])
@@ -646,6 +684,15 @@ function getPublicRuntimeConfig(configMap) {
     paymentGateways: configMap.payment_gateways,
     monetization: {
       currency: configMap.monetization.currency,
+      accessMode: configMap.monetization.accessMode,
+      subscriptionModelEnabled: configMap.monetization.subscriptionModelEnabled,
+      fixedPriceAmount: configMap.monetization.fixedPriceAmount,
+      fixedPricePlanId: configMap.monetization.fixedPricePlanId,
+      fixedPriceLabel: configMap.monetization.fixedPriceLabel,
+      freeAccessLabel: configMap.monetization.freeAccessLabel,
+      refundGuaranteeEnabled: configMap.monetization.refundGuaranteeEnabled,
+      refundGuaranteeTitle: configMap.monetization.refundGuaranteeTitle,
+      refundGuaranteeSubtitle: configMap.monetization.refundGuaranteeSubtitle,
       premiumLimits: configMap.monetization.premiumLimits,
       membershipFeatureMatrix: configMap.monetization.membershipFeatureMatrix || [],
       upgradePackageGroups: configMap.monetization.upgradePackageGroups || [],

@@ -80,8 +80,9 @@ const DEFAULT_BEST_MATCH_AD_CARDS = [
   { id: 'spotlight-day-pass', type: 'spotlight', enabled: true, targetPlans: ['free', 'bronze', 'silver', 'gold'], minPlan: 'free', maxPlan: 'gold', theme: 'sunrise', badge: 'Spotlight', title: 'Be the first profile others see for an entire day', body: 'Appear on top of recommendations and increase your chances of receiving more interests.', cta: 'Get Spotlight', destination: 'membership' },
   { id: 'contact-unlock', type: 'membership', enabled: true, targetPlans: ['free', 'bronze', 'silver'], minPlan: 'free', maxPlan: 'silver', theme: 'blue', badge: 'Contact access', title: 'Ready to speak with the right family?', body: 'Upgrade to unlock eligible contact views after privacy and trust checks.', bullets: ['Verified phone access', 'Privacy-first contact rules', 'Safer introductions'], cta: 'Unlock contacts', destination: 'membership' },
   { id: 'profile-boost', type: 'membership', enabled: true, targetPlans: ['free', 'bronze', 'silver'], minPlan: 'free', maxPlan: 'silver', theme: 'rose', badge: 'Boost', title: 'Get noticed by more compatible families', body: 'Boosted profiles receive higher placement in compatible recommendations.', bullets: ['Higher listing priority', 'More profile views', 'Better response chances'], cta: 'Boost my profile', destination: 'membership' },
-  { id: 'horoscope-family-match', type: 'astrology', enabled: true, targetPlans: ['free', 'bronze', 'silver', 'gold', 'platinum'], theme: 'purple', badge: 'Horoscope', title: 'Add horoscope details for family compatibility', body: 'Help families compare birth details, rashi, nakshatra, and kundli expectations.', cta: 'Open astrology', destination: 'astrology_services' },
-  { id: 'verified-trust-profile', type: 'trust', enabled: true, targetPlans: ['free', 'bronze', 'silver', 'gold', 'platinum'], theme: 'green', badge: 'Trust profile', title: 'Verified profiles receive more confident responses', body: 'Complete phone, email, photo, document, education, income, and family trust checks.', cta: 'Improve trust', destination: 'my_profile' },
+  { id: 'horoscope-family-match', type: 'astrology', enabled: true, targetPlans: ['free', 'bronze', 'silver', 'gold', 'platinum'], theme: 'purple', badge: 'Horoscope', title: 'Add horoscope details for family compatibility', body: 'Help families compare birth details, rashi, nakshatra, and kundli expectations.', bullets: ['Kundli details improve family fit', 'Manglik and rashi checks stay clear', 'Useful before a family call'], cta: 'Open astrology', destination: 'astrology_services' },
+  { id: 'verified-trust-profile', type: 'trust', enabled: true, targetPlans: ['free', 'bronze', 'silver', 'gold', 'platinum'], theme: 'green', badge: 'Trust profile', title: 'Verified profiles receive more confident responses', body: 'Complete phone, email, photo, document, education, income, and family trust checks.', bullets: ['Higher trust score', 'More confident family responses', 'Verification status stays visible'], cta: 'Improve trust', destination: 'my_profile' },
+  { id: 'enable-notifications', type: 'notification', enabled: true, targetPlans: ['free', 'bronze', 'silver', 'gold', 'platinum'], theme: 'blue', badge: 'Alerts', title: 'Turn on match alerts', body: 'Get notified when a serious profile sends interest, accepts, or messages you.', bullets: ['New interest alerts', 'Acceptance reminders', 'Message notifications'], cta: 'Manage alerts', destination: 'settings' },
   { id: 'private-photo-control', type: 'privacy', enabled: true, targetPlans: ['free', 'bronze', 'silver', 'gold', 'platinum'], theme: 'ivory', badge: 'Privacy', title: 'Keep photos private until you are ready', body: 'Use request-based photo access so families can review visibility safely.', cta: 'Manage photos', destination: 'my_profile' },
   { id: 'assisted-discovery', type: 'assist', enabled: true, targetPlans: ['silver', 'gold', 'platinum'], minPlan: 'silver', theme: 'peach', badge: 'SoulMatch Assist', title: 'Need offline help from a local agent?', body: 'Share your profile with selected registered agents for offline introductions.', cta: 'Open Assist', destination: 'soulmatch_assist' },
   { id: 'wedding-readiness', type: 'marriage', enabled: true, targetPlans: ['free', 'bronze', 'silver', 'gold', 'platinum'], theme: 'maroon', badge: 'Family planning', title: 'Shortlist services after both families connect', body: 'Keep venues, photography, and ceremony planning separate from discovery until you are ready.', cta: 'View ideas', destination: 'search' },
@@ -371,7 +372,7 @@ const DEFAULT_CONFIG = {
       home: 'Home',
       search: 'Search',
       activity: 'Activity',
-      chat: 'Chat',
+      chat: 'Messenger',
       profile: 'Profile',
       upgrade: 'Upgrade'
     },
@@ -419,6 +420,15 @@ const DEFAULT_CONFIG = {
   },
   monetization: {
     currency: 'INR',
+    accessMode: 'subscription',
+    subscriptionModelEnabled: true,
+    fixedPriceAmount: 200,
+    fixedPricePlanId: 'fixed_access',
+    fixedPriceLabel: '₹200',
+    freeAccessLabel: 'Account',
+    refundGuaranteeEnabled: true,
+    refundGuaranteeTitle: '30-day full refund guarantee*',
+    refundGuaranteeSubtitle: '*Conditions apply',
     premiumLimits: {
       dailySwipes: { free: 25, silver: 80, gold: 200, platinum: 500 },
       dailyInterests: { free: 5, silver: 20, gold: 999, platinum: 999 },
@@ -528,6 +538,20 @@ function renderTemplate(template, variables = {}) {
 }
 
 function getPlanById(monetization, planId) {
+  if (
+    String(planId) === String(monetization?.fixedPricePlanId || 'fixed_access') &&
+    String(monetization?.accessMode || '').toLowerCase() === 'fixed_price' &&
+    monetization?.subscriptionModelEnabled === false
+  ) {
+    return {
+      planId: String(monetization.fixedPricePlanId || 'fixed_access'),
+      name: 'SoulMatch Fixed Access',
+      price: Number(monetization.fixedPriceAmount || 200),
+      duration: 'fixed access',
+      durationDays: 30,
+      features: ['Full member access at the configured fixed price']
+    };
+  }
   const directPlan = (monetization?.plans || []).find((plan) => String(plan.planId) === String(planId));
   if (directPlan) return directPlan;
   const upgradePackage = (monetization?.upgradePackageGroups || [])
@@ -564,6 +588,15 @@ function getPublicRuntimeConfig(configMap) {
     paymentGateways: configMap.payment_gateways,
     monetization: {
       currency: configMap.monetization.currency,
+      accessMode: configMap.monetization.accessMode,
+      subscriptionModelEnabled: configMap.monetization.subscriptionModelEnabled,
+      fixedPriceAmount: configMap.monetization.fixedPriceAmount,
+      fixedPricePlanId: configMap.monetization.fixedPricePlanId,
+      fixedPriceLabel: configMap.monetization.fixedPriceLabel,
+      freeAccessLabel: configMap.monetization.freeAccessLabel,
+      refundGuaranteeEnabled: configMap.monetization.refundGuaranteeEnabled,
+      refundGuaranteeTitle: configMap.monetization.refundGuaranteeTitle,
+      refundGuaranteeSubtitle: configMap.monetization.refundGuaranteeSubtitle,
       premiumLimits: configMap.monetization.premiumLimits,
       membershipFeatureMatrix: configMap.monetization.membershipFeatureMatrix || [],
       upgradePackageGroups: configMap.monetization.upgradePackageGroups || [],

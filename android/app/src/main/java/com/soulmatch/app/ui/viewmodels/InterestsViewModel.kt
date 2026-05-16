@@ -112,16 +112,20 @@ class InterestsViewModel @Inject constructor(
     }
 
     fun respond(interestId: String, status: String) {
+        if (interestId.isBlank()) return
+        ProfileInteractionStore.respondToInterest(interestId, status)
+        _received.value = _received.value.map { item ->
+            if (item.interestId == interestId) item.copy(status = status) else item
+        }
         viewModelScope.launch {
             val response = runCatching { interestApi.respond(interestId, RespondRequest(status)) }.getOrNull()
             val result = response?.body()?.takeIf { response.isSuccessful && it.success }?.data
             if (result?.status == status) {
-                ProfileInteractionStore.respondToInterest(interestId, status)
                 _received.value = _received.value.map { item ->
                     if (item.interestId == interestId) item.copy(status = status) else item
                 }
-                interestSyncManager.notifyChanged()
             }
+            interestSyncManager.notifyChanged()
         }
     }
 

@@ -1,25 +1,35 @@
 package com.soulmatch.app.ui.screens.subscription
 
 import android.app.Activity
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,11 +54,15 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.razorpay.Checkout
+import com.soulmatch.app.data.models.MonetizationRuntimeData
+import com.soulmatch.app.data.models.PlanData
 import com.soulmatch.app.BuildConfig
 import com.soulmatch.app.data.models.SubscriptionData
 import com.soulmatch.app.data.payments.PendingCheckout
@@ -59,10 +73,10 @@ import com.soulmatch.app.data.upgrade.UpgradeTabKey
 import com.soulmatch.app.ui.components.premium.ChipTone
 import com.soulmatch.app.ui.components.premium.PremiumCard
 import com.soulmatch.app.ui.components.premium.PremiumScreen
-import com.soulmatch.app.ui.components.premium.SectionTitle
 import com.soulmatch.app.ui.components.premium.SignalChip
 import com.soulmatch.app.ui.formatCurrency
 import com.soulmatch.app.ui.theme.Divider
+import com.soulmatch.app.ui.theme.PrimaryDark
 import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.titleCase
@@ -88,6 +102,7 @@ fun SubscriptionScreen(
     chatId: String = "",
     participantName: String = "",
     razorpayKeyId: String = "",
+    monetization: MonetizationRuntimeData = MonetizationRuntimeData(),
     landOnPage: Int? = null,
     routeCode: Int? = null,
     targetPackageId: String? = null,
@@ -176,6 +191,8 @@ fun SubscriptionScreen(
         .takeIf { it.isNotBlank() }
         ?: packageNameByPlanId[subscription.planId]
         ?: canonicalPlanName(subscription.planId)
+    val fixedPackage = remember(monetization) { monetization.fixedAccessPackage() }
+    val checkoutPackage = if (monetization.isFixedPriceMode()) fixedPackage else selectedPackage
 
     planPrompt?.let { prompt ->
         ModalBottomSheet(
@@ -193,7 +210,7 @@ fun SubscriptionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Membership") },
+                title = { Text("Upgrade Membership") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
@@ -203,14 +220,14 @@ fun SubscriptionScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            selectedPackage?.let { pkg ->
+            checkoutPackage?.let { pkg ->
                 val showRenew = shouldShowRenew(subscription, pkg)
                 CheckoutSummary(
                     packageInfo = pkg,
                     isProcessing = isProcessingPayment,
-                    isActive = subscription.planId == pkg.planId && !showRenew,
+                    isActive = !monetization.isFixedPriceMode() && subscription.planId == pkg.planId && !showRenew,
                     actionLabel = checkoutActionLabel(subscription, pkg),
-                    onPay = { vm.startCheckout() }
+                    onPay = { vm.startCheckout(pkg) }
                 )
             }
         }
@@ -232,11 +249,18 @@ fun SubscriptionScreen(
                 contentPadding = PaddingValues(bottom = 118.dp)
             ) {
                 item {
-                    MembershipHero(
-                        selectedGroup = selectedGroup,
-                        selectedPackage = selectedPackage,
-                        currentPlanName = currentMembershipName
-                    )
+                    UpgradeHeader(monetization = monetization)
+                }
+                item {
+                    UpgradeModeSelector()
+                }
+                item {
+                    AccessModeNotice(monetization = monetization)
+                }
+                if (monetization.refundGuaranteeEnabled) {
+                    item {
+                        RefundGuaranteeBanner(monetization = monetization)
+                    }
                 }
                 item {
                     CurrentMembershipCard(
@@ -245,10 +269,17 @@ fun SubscriptionScreen(
                     )
                 }
                 item {
-                    SectionTitle(
-                        title = "Choose a plan",
-                        subtitle = "Pick the support level that matches how actively your family is searching.",
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                    MembershipComparisonGrid(
+                        plans = monetization.plans,
+                        matrix = monetization.membershipFeatureMatrix,
+                        selectedPlanId = checkoutPackage?.planId ?: selectedPackage?.planId.orEmpty(),
+                        activePlanId = subscription.planId,
+                        onSelectPlan = { planId ->
+                            packageGroups
+                                .flatMap { it.packages }
+                                .firstOrNull { it.planId.equals(planId, ignoreCase = true) }
+                                ?.let { vm.selectPackage(it.pkgId) }
+                        }
                     )
                 }
                 item {
@@ -274,18 +305,287 @@ fun SubscriptionScreen(
                     }
                 }
                 item {
-                    UpgradeTabBanner(group = selectedGroup)
-                }
-                items(selectedGroup?.packages.orEmpty(), key = { it.pkgId }) { packageInfo ->
-                    UpgradePackageCard(
-                        packageInfo = packageInfo,
-                        selected = selectedPackageId == packageInfo.pkgId,
-                        activePlanId = subscription.planId,
-                        onSelect = { vm.selectPackage(packageInfo.pkgId) }
+                    DurationOfferStrip(
+                        groups = packageGroups,
+                        selectedTab = selectedTab,
+                        selectedPackage = selectedPackage,
+                        onSelectTab = { vm.selectTab(it.wireValue) }
                     )
                 }
+                if (monetization.isSubscriptionMode()) {
+                    items(selectedGroup?.packages.orEmpty(), key = { it.pkgId }) { packageInfo ->
+                        UpgradePackageCard(
+                            packageInfo = packageInfo,
+                            selected = selectedPackageId == packageInfo.pkgId,
+                            activePlanId = subscription.planId,
+                            onSelect = { vm.selectPackage(packageInfo.pkgId) }
+                        )
+                    }
+                }
                 item {
-                    UpgradeBenefitPanel(packageInfo = selectedPackage)
+                    UpgradeBenefitPanel(packageInfo = checkoutPackage ?: selectedPackage)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpgradeHeader(monetization: MonetizationRuntimeData) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
+            Text(
+                "Upgrade Membership",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.ExtraBold,
+                color = PrimaryDark
+            )
+            Text(
+                when {
+                    monetization.isFreeAccessMode() -> "All member features are currently open for free."
+                    monetization.isFixedPriceMode() -> "Full access is available at ${monetization.fixedPriceLabel.ifBlank { formatCurrency(monetization.fixedPriceAmount) }}."
+                    else -> "Choose contact access, visibility, and family support that fits your search."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary
+            )
+        }
+        Text(
+            "Need help?",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.ExtraBold
+        )
+    }
+}
+
+@Composable
+private fun UpgradeModeSelector() {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, Divider)
+    ) {
+        Row(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = SurfaceWarm,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.48f))
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text("Self-Service", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = PrimaryDark)
+                }
+            }
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = Color.Transparent
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text("Assisted", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccessModeNotice(monetization: MonetizationRuntimeData) {
+    if (monetization.isSubscriptionMode()) return
+    PremiumCard(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        containerColor = if (monetization.isFreeAccessMode()) Color(0xFFEFFAF5) else Color(0xFFFFF4E7),
+        contentPadding = PaddingValues(14.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                if (monetization.isFreeAccessMode()) Icons.Filled.CheckCircle else Icons.Filled.Info,
+                contentDescription = null,
+                tint = if (monetization.isFreeAccessMode()) Color(0xFF0F7A4F) else Color(0xFF9B5B00),
+                modifier = Modifier.size(26.dp)
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(
+                    if (monetization.isFreeAccessMode()) "Free access is enabled" else "Fixed price access",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = PrimaryDark
+                )
+                Text(
+                    if (monetization.isFreeAccessMode()) {
+                        "The backend currently allows all members to use paid features without checkout."
+                    } else {
+                        "A single ${monetization.fixedPriceLabel.ifBlank { formatCurrency(monetization.fixedPriceAmount) }} payment unlocks configured member access."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RefundGuaranteeBanner(monetization: MonetizationRuntimeData) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = Color(0xFFE9F8EE),
+        border = BorderStroke(1.dp, Color(0xFFC7E8D1))
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(modifier = Modifier.size(58.dp), shape = RoundedCornerShape(999.dp), color = Color(0xFF68C57F)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text("30\nDAY", style = MaterialTheme.typography.labelMedium, color = Color.White, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(monetization.refundGuaranteeTitle, style = MaterialTheme.typography.titleMedium, color = Color(0xFF1F8D3B), fontWeight = FontWeight.ExtraBold)
+                Text(monetization.refundGuaranteeSubtitle, style = MaterialTheme.typography.bodySmall, color = Color(0xFF1F8D3B))
+            }
+            Icon(Icons.Filled.Info, contentDescription = null, tint = Color(0xFF1F8D3B))
+        }
+    }
+}
+
+@Composable
+private fun MembershipComparisonGrid(
+    plans: List<PlanData>,
+    matrix: List<Map<String, Any>>,
+    selectedPlanId: String,
+    activePlanId: String,
+    onSelectPlan: (String) -> Unit
+) {
+    val tiers = plans.ifEmpty { fallbackMemberPlans() }
+        .filterNot { it.planId.equals("fixed_access", ignoreCase = true) }
+        .sortedBy { it.tierRank }
+        .ifEmpty { fallbackMemberPlans() }
+    val rows = matrix.ifEmpty { fallbackFeatureMatrix() }.take(7)
+    PremiumCard(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentPadding = PaddingValues(14.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("Compare member benefits", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = PrimaryDark)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(end = 2.dp)) {
+                items(tiers, key = { it.planId }) { plan ->
+                    PlanTierColumn(
+                        plan = plan,
+                        rows = rows,
+                        selected = selectedPlanId.equals(plan.planId, ignoreCase = true),
+                        active = activePlanId.equals(plan.planId, ignoreCase = true),
+                        onSelect = { onSelectPlan(plan.planId) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanTierColumn(
+    plan: PlanData,
+    rows: List<Map<String, Any>>,
+    selected: Boolean,
+    active: Boolean,
+    onSelect: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .width(148.dp)
+            .defaultMinSize(minHeight = 360.dp)
+            .clickable(onClick = onSelect),
+        shape = RoundedCornerShape(18.dp),
+        color = if (selected) Color(0xFFFFEEF2) else Color.White,
+        border = BorderStroke(1.2.dp, if (selected) MaterialTheme.colorScheme.primary else Divider)
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(plan.displayName.ifBlank { plan.name.ifBlank { titleCase(plan.planId) } }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = PrimaryDark, textAlign = TextAlign.Center)
+            Icon(if (selected || active) Icons.Filled.CheckCircle else Icons.Filled.AutoAwesome, contentDescription = null, tint = if (selected || active) MaterialTheme.colorScheme.primary else Divider, modifier = Modifier.size(30.dp))
+            rows.forEach { row ->
+                val value = row.tierValue(plan.planId)
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(row["label"]?.toString().orEmpty(), style = MaterialTheme.typography.labelSmall, color = TextSecondary, textAlign = TextAlign.Center, maxLines = 2)
+                    Text(formatFeatureValue(value), style = MaterialTheme.typography.titleSmall, color = PrimaryDark, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, maxLines = 2)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DurationOfferStrip(
+    groups: List<UpgradePackageGroup>,
+    selectedTab: UpgradeTabKey,
+    selectedPackage: UpgradePackage?,
+    onSelectTab: (UpgradeTabKey) -> Unit
+) {
+    val visibleGroups = groups.ifEmpty { emptyList() }
+    if (visibleGroups.isEmpty()) return
+    Column(
+        modifier = Modifier.padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Spacer(Modifier.height(1.dp).weight(1f).background(Divider))
+            Text("FLAT SAVINGS ON ALL PLANS", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+            Spacer(Modifier.height(1.dp).weight(1f).background(Divider))
+        }
+        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(visibleGroups, key = { it.tabKey }) { group ->
+                val key = group.semanticKey ?: return@items
+                val plan = group.packages.firstOrNull { it.pkgId == selectedPackage?.pkgId } ?: group.packages.firstOrNull()
+                Surface(
+                    modifier = Modifier
+                        .width(150.dp)
+                        .height(92.dp)
+                        .clickable { onSelectTab(key) },
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (key == selectedTab) Color(0xFFFFEFF3) else Color.White,
+                    border = BorderStroke(1.dp, if (key == selectedTab) MaterialTheme.colorScheme.primary else Divider)
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(group.tabTitle.ifBlank { key.displayTitle }, style = MaterialTheme.typography.titleSmall, color = if (key == selectedTab) MaterialTheme.colorScheme.primary else PrimaryDark, fontWeight = FontWeight.ExtraBold)
+                            Icon(if (key == selectedTab) Icons.Filled.CheckCircle else Icons.Filled.Info, contentDescription = null, tint = if (key == selectedTab) MaterialTheme.colorScheme.primary else Divider, modifier = Modifier.size(20.dp))
+                        }
+                        Text(plan?.payableAmount?.let(::formatCurrency) ?: "Configured", style = MaterialTheme.typography.titleMedium, color = PrimaryDark, fontWeight = FontWeight.ExtraBold)
+                        plan?.pkgActualRate?.takeIf { it > plan.payableAmount }?.let {
+                            Text(formatCurrency(it), style = MaterialTheme.typography.bodySmall, color = TextSecondary, textDecoration = TextDecoration.LineThrough)
+                        }
+                    }
                 }
             }
         }
@@ -553,6 +853,66 @@ private fun checkoutActionLabel(subscription: SubscriptionData, packageInfo: Upg
         targetRank > currentRank -> "Upgrade"
         targetRank < currentRank -> "Unavailable"
         else -> "Continue"
+    }
+}
+
+private fun MonetizationRuntimeData.isSubscriptionMode(): Boolean {
+    return subscriptionModelEnabled || accessMode.equals("subscription", ignoreCase = true)
+}
+
+private fun MonetizationRuntimeData.isFreeAccessMode(): Boolean {
+    return !subscriptionModelEnabled && accessMode.equals("free", ignoreCase = true)
+}
+
+private fun MonetizationRuntimeData.isFixedPriceMode(): Boolean {
+    return !subscriptionModelEnabled && accessMode.equals("fixed_price", ignoreCase = true)
+}
+
+private fun MonetizationRuntimeData.fixedAccessPackage(): UpgradePackage {
+    val amount = fixedPriceAmount.coerceAtLeast(1)
+    return UpgradePackage(
+        pkgId = 9001,
+        remotePlanId = fixedPricePlanId.ifBlank { "fixed_access" },
+        pkgName = "SoulMatch Fixed Access",
+        pkgActualRate = amount,
+        pkgDiscountedRate = amount,
+        pkgRate = amount,
+        pkgDuration = "30 days",
+        pkgDurationDays = 30,
+        pkgPhoneCount = 999,
+        pkgBenefit = "Full member access at the configured fixed price.",
+        buyerChoice = true,
+        badge = "Fixed price",
+        features = listOf("Best matches", "Interest actions", "Contact access rules", "Safety and trust tools")
+    )
+}
+
+private fun fallbackMemberPlans(): List<PlanData> = listOf(
+    PlanData("free", "Bronze", "Bronze", 0, "lifetime", 0, 0, listOf("Basic discovery")),
+    PlanData("silver", "Silver", "Silver", 999, "monthly", 30, 1, listOf("Contact views")),
+    PlanData("gold", "Gold", "Gold", 2499, "monthly", 30, 2, listOf("Priority reach")),
+    PlanData("platinum", "Platinum", "Platinum", 4999, "monthly", 30, 3, listOf("Full access"))
+)
+
+private fun fallbackFeatureMatrix(): List<Map<String, Any>> = listOf(
+    mapOf("label" to "Contact details", "free" to "0", "bronze" to "0", "silver" to "20", "gold" to "100", "platinum" to "Unlimited"),
+    mapOf("label" to "Visible matches", "free" to "10", "bronze" to "10", "silver" to "50", "gold" to "Unlimited", "platinum" to "Unlimited"),
+    mapOf("label" to "Super interest", "free" to "0", "bronze" to "0", "silver" to "10", "gold" to "50", "platinum" to "Unlimited"),
+    mapOf("label" to "Spotlights", "free" to "0", "bronze" to "0", "silver" to "Paid", "gold" to "3", "platinum" to "Unlimited"),
+    mapOf("label" to "Gold badge", "free" to false, "bronze" to false, "silver" to false, "gold" to true, "platinum" to true)
+)
+
+private fun Map<String, Any>.tierValue(planId: String): Any? {
+    val normalized = planId.lowercase(Locale.getDefault()).ifBlank { "free" }
+    return this[normalized] ?: this[if (normalized == "free") "bronze" else normalized]
+}
+
+private fun formatFeatureValue(value: Any?): String {
+    return when (value) {
+        is Boolean -> if (value) "✓" else "—"
+        is Number -> if (value.toDouble() == 0.0) "0" else value.toString().removeSuffix(".0")
+        null -> "—"
+        else -> value.toString().ifBlank { "—" }
     }
 }
 

@@ -234,6 +234,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                             navigationLocked = route == "auth_role_selection",
                             branding = runtimeConfig.branding,
                             content = runtimeConfig.content,
+                            monetization = runtimeConfig.monetization,
                             legal = runtimeConfig.legal,
                             clientIntegrations = runtimeConfig.clientIntegrations
                         )

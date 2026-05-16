@@ -123,7 +123,7 @@ fun InterestsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Activity hub", fontWeight = FontWeight.Bold) },
+                title = { Text("Activity", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
@@ -333,11 +333,7 @@ private fun ActivitySummary(
     onOpenTab: (Int) -> Unit
 ) {
     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), containerColor = MaterialTheme.colorScheme.surface) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Activity overview", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
-                Text("Tap a count to open that activity tab", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-            }
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 ActivityStatTile("Received", received.toString(), modifier = Modifier.weight(1f), background = SurfaceWarm, onClick = { onOpenTab(0) })
                 ActivityStatTile("Sent interests", sent.toString(), modifier = Modifier.weight(1f), background = SurfaceSoft, onClick = { onOpenTab(1) })

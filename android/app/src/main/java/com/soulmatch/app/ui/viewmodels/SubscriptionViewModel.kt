@@ -231,6 +231,10 @@ class SubscriptionViewModel @Inject constructor(
 
     fun startCheckout() {
         val targetPackage = selectedPackage() ?: return
+        startCheckout(targetPackage)
+    }
+
+    fun startCheckout(targetPackage: UpgradePackage) {
         val current = _subscription.value
         val activePaidPlan = current.isActive && current.planId.isNotBlank() && current.planId != "free"
         if (activePaidPlan) {

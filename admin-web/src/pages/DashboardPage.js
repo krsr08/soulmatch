@@ -73,7 +73,22 @@ const EMPTY_STATS = {
 };
 
 const DEFAULT_CONFIG = {
-  monetization: { currency: 'INR', plans: [], premiumLimits: {}, upgradePackageGroups: [], membershipFeatureMatrix: [] },
+  monetization: {
+    currency: 'INR',
+    accessMode: 'subscription',
+    subscriptionModelEnabled: true,
+    fixedPriceAmount: 200,
+    fixedPricePlanId: 'fixed_access',
+    fixedPriceLabel: '₹200',
+    freeAccessLabel: 'Account',
+    refundGuaranteeEnabled: true,
+    refundGuaranteeTitle: '30-day full refund guarantee*',
+    refundGuaranteeSubtitle: '*Conditions apply',
+    plans: [],
+    premiumLimits: {},
+    upgradePackageGroups: [],
+    membershipFeatureMatrix: []
+  },
   assisted_matchmaking: { enabled: true, advisorPlans: [], memberModes: [] },
   admin_roles: { roles: [] },
   notification_templates: {},
@@ -1558,6 +1573,10 @@ function CmsManagementPanel({ config, onSave }) {
   const [promptText, setPromptText] = useState(JSON.stringify(content.notificationPrompt || {}, null, 2));
   const [safetyText, setSafetyText] = useState(JSON.stringify(content.safetyCenter || {}, null, 2));
   const [matrixText, setMatrixText] = useState(JSON.stringify(monetization.membershipFeatureMatrix || [], null, 2));
+  const [packageGroupsText, setPackageGroupsText] = useState(JSON.stringify(monetization.upgradePackageGroups || [], null, 2));
+  const [accessMode, setAccessMode] = useState(monetization.accessMode || 'subscription');
+  const [fixedPriceAmount, setFixedPriceAmount] = useState(String(monetization.fixedPriceAmount ?? 200));
+  const [fixedPricePlanId, setFixedPricePlanId] = useState(monetization.fixedPricePlanId || 'fixed_access');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -1566,13 +1585,18 @@ function CmsManagementPanel({ config, onSave }) {
     setPromptText(JSON.stringify(content.notificationPrompt || {}, null, 2));
     setSafetyText(JSON.stringify(content.safetyCenter || {}, null, 2));
     setMatrixText(JSON.stringify(monetization.membershipFeatureMatrix || [], null, 2));
-  }, [home.bestMatchAdCards, home.scamAwarenessCards, content.notificationPrompt, content.safetyCenter, monetization.membershipFeatureMatrix]);
+    setPackageGroupsText(JSON.stringify(monetization.upgradePackageGroups || [], null, 2));
+    setAccessMode(monetization.accessMode || 'subscription');
+    setFixedPriceAmount(String(monetization.fixedPriceAmount ?? 200));
+    setFixedPricePlanId(monetization.fixedPricePlanId || 'fixed_access');
+  }, [home.bestMatchAdCards, home.scamAwarenessCards, content.notificationPrompt, content.safetyCenter, monetization.membershipFeatureMatrix, monetization.upgradePackageGroups, monetization.accessMode, monetization.fixedPriceAmount, monetization.fixedPricePlanId]);
 
   const adCards = tryParseJson(cardsText, []);
   const scamCards = tryParseJson(scamText, []);
   const notificationPrompt = tryParseJson(promptText, {});
   const safetyCenter = tryParseJson(safetyText, {});
   const featureMatrix = tryParseJson(matrixText, []);
+  const packageGroups = tryParseJson(packageGroupsText, []);
 
   const saveHomeCms = () => {
     try {
@@ -1618,6 +1642,36 @@ function CmsManagementPanel({ config, onSave }) {
     }
   };
 
+  const saveAccessMode = () => {
+    const normalizedMode = accessMode || 'subscription';
+    const amount = Number(fixedPriceAmount || 0);
+    if (normalizedMode === 'fixed_price' && (!Number.isFinite(amount) || amount <= 0)) {
+      setError('Fixed price amount must be greater than zero.');
+      return;
+    }
+    setError('');
+    onSave('monetization', {
+      ...monetization,
+      accessMode: normalizedMode,
+      subscriptionModelEnabled: normalizedMode === 'subscription',
+      fixedPriceAmount: amount || 200,
+      fixedPricePlanId: fixedPricePlanId || 'fixed_access',
+      fixedPriceLabel: `₹${amount || 200}`,
+      freeAccessLabel: 'Account'
+    });
+  };
+
+  const savePackageGroups = () => {
+    try {
+      const parsed = JSON.parse(packageGroupsText);
+      if (!Array.isArray(parsed)) throw new Error('Upgrade package groups must be a JSON array.');
+      setError('');
+      onSave('monetization', { ...monetization, upgradePackageGroups: parsed });
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const updateFeatureMatrixCell = (rowIndex, key, value) => {
     const source = Array.isArray(featureMatrix) ? featureMatrix : [];
     const next = source.map((feature, index) => (
@@ -1658,6 +1712,45 @@ function CmsManagementPanel({ config, onSave }) {
       />
       {error ? <p className="form-error cms-error">{error}</p> : null}
       <div className="cms-grid">
+        <section className="admin-card cms-editor-card">
+          <div className="card-title-row">
+            <h3>Access & Pricing Mode</h3>
+            <StatusPill status={accessMode === 'subscription' ? 'active' : 'warning'}>{accessMode}</StatusPill>
+          </div>
+          <p className="muted">Controls whether members see subscription plans, all-free access, or a single fixed access price.</p>
+          <div className="config-form compact">
+            <label>Access mode
+              <select value={accessMode} onChange={(event) => setAccessMode(event.target.value)}>
+                <option value="subscription">Subscription model</option>
+                <option value="free">Allow all users for free</option>
+                <option value="fixed_price">Fixed price access</option>
+              </select>
+            </label>
+            <label>Fixed price amount
+              <input type="number" min="1" value={fixedPriceAmount} onChange={(event) => setFixedPriceAmount(event.target.value)} />
+            </label>
+            <label>Fixed price plan ID
+              <input value={fixedPricePlanId} onChange={(event) => setFixedPricePlanId(event.target.value)} />
+            </label>
+          </div>
+          <AdminButton variant="primary" onClick={saveAccessMode}>Save Access Mode</AdminButton>
+        </section>
+        <section className="admin-card cms-preview-card">
+          <div className="card-title-row">
+            <h3>Runtime Behavior</h3>
+            <StatusPill status="neutral">Mobile menu</StatusPill>
+          </div>
+          <div className="cms-card-list">
+            <article className="cms-preview-item">
+              <div>
+                <strong>{accessMode === 'free' ? '4th tab: Account' : accessMode === 'fixed_price' ? `4th tab: ₹${fixedPriceAmount || 200}` : '4th tab: Upgrade'}</strong>
+                <span>{accessMode === 'subscription' ? 'Plans and recurring checkout enabled' : accessMode === 'fixed_price' ? 'Single payment checkout enabled' : 'Paid upgrade hidden'}</span>
+                <small>These labels are read from public runtime configuration by the Android app.</small>
+              </div>
+              <StatusPill status={accessMode === 'free' ? 'active' : 'pending'}>{accessMode === 'free' ? 'Free' : 'Paid'}</StatusPill>
+            </article>
+          </div>
+        </section>
         <section className="admin-card cms-editor-card">
           <div className="card-title-row">
             <h3>Best Matches Insert Cards</h3>
@@ -1774,6 +1867,15 @@ function CmsManagementPanel({ config, onSave }) {
         actions={<AdminButton variant="primary" onClick={saveFeatureMatrix}>Save Feature Matrix</AdminButton>}
       />
       <div className="cms-grid matrix-grid">
+        <section className="admin-card cms-editor-card">
+          <div className="card-title-row">
+            <h3>Upgrade Packages JSON</h3>
+            <StatusPill status="neutral">{Array.isArray(packageGroups) ? packageGroups.length : 0} groups</StatusPill>
+          </div>
+          <p className="muted">Controls membership packages, prices, durations, plan IDs, benefits, badges and checkout targets.</p>
+          <textarea className="json-editor large cms-json" value={packageGroupsText} onChange={(event) => setPackageGroupsText(event.target.value)} />
+          <AdminButton variant="primary" onClick={savePackageGroups}>Save Upgrade Packages</AdminButton>
+        </section>
         <section className="admin-card cms-editor-card">
           <h3>Feature Matrix JSON</h3>
           <textarea className="json-editor large cms-json" value={matrixText} onChange={(event) => setMatrixText(event.target.value)} />

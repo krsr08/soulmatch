@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +39,7 @@ import com.soulmatch.app.data.models.AppContentData
 import com.soulmatch.app.data.models.BrandingConfig
 import com.soulmatch.app.data.models.ClientIntegrationsData
 import com.soulmatch.app.data.models.LegalContentData
+import com.soulmatch.app.data.models.MonetizationRuntimeData
 import com.soulmatch.app.data.models.NavigationContentData
 import com.soulmatch.app.ui.screens.auth.OTPVerificationScreen
 import com.soulmatch.app.ui.screens.auth.PhoneEntryScreen
@@ -85,6 +87,7 @@ fun AppNavigation(
     navigationLocked: Boolean = false,
     branding: BrandingConfig = BrandingConfig(),
     content: AppContentData = AppContentData(),
+    monetization: MonetizationRuntimeData = MonetizationRuntimeData(),
     legal: LegalContentData = LegalContentData(),
     clientIntegrations: ClientIntegrationsData = ClientIntegrationsData()
 ) {
@@ -113,6 +116,7 @@ fun AppNavigation(
                 AppBottomNavigation(
                     currentRoute = currentRoute,
                     labels = content.navigation,
+                    monetization = monetization,
                     onNavigate = { destination ->
                         if (navigationLocked) return@AppBottomNavigation
                         analytics.trackClick("bottom_nav_$destination", currentRoute)
@@ -479,6 +483,7 @@ fun AppNavigation(
             SubscriptionScreen(
                 onBack = { nav.popBackStack() },
                 razorpayKeyId = clientIntegrations.razorpayKeyId,
+                monetization = monetization,
                 landOnPage = args?.getInt("landOnPage")?.takeIf { it >= 0 },
                 routeCode = args?.getInt("routeCode")?.takeIf { it >= 0 },
                 targetPackageId = args?.getString("targetPackageId")?.takeIf { it.isNotBlank() },
@@ -584,25 +589,46 @@ private data class BottomNavItem(
     val label: String,
     val route: String,
     val routePrefixes: List<String>,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val overrideLabel: String? = null
 )
 
-private val bottomNavItems = listOf(
-    BottomNavItem("home", "dashboard", listOf("dashboard", "best_matches"), Icons.Filled.Home),
-    BottomNavItem("activity", "interests", listOf("interests"), Icons.Filled.AccessTime),
-    BottomNavItem("chat", "chat_list", listOf("chat_list", "chat/"), Icons.Filled.Chat),
-    BottomNavItem(
-        "upgrade",
-        "subscription",
-        listOf("subscription", "subscription_history", "spotlight"),
-        Icons.Filled.WorkspacePremium
+private fun bottomNavItems(monetization: MonetizationRuntimeData): List<BottomNavItem> {
+    val fourthItem = when {
+        monetization.isFreeAccessMode() -> BottomNavItem(
+            label = "account",
+            route = "my_profile",
+            routePrefixes = listOf("my_profile", "settings", "trust_details", "partner_preferences", "soulmatch_assist", "astrology_services", "safety_center", "help_support"),
+            icon = Icons.Filled.Person,
+            overrideLabel = monetization.freeAccessLabel.ifBlank { "Account" }
+        )
+        monetization.isFixedPriceMode() -> BottomNavItem(
+            label = "upgrade",
+            route = "subscription",
+            routePrefixes = listOf("subscription", "subscription_history", "spotlight"),
+            icon = Icons.Filled.WorkspacePremium,
+            overrideLabel = monetization.fixedPriceLabel.ifBlank { "₹${monetization.fixedPriceAmount.coerceAtLeast(1)}" }
+        )
+        else -> BottomNavItem(
+            label = "upgrade",
+            route = "subscription",
+            routePrefixes = listOf("subscription", "subscription_history", "spotlight"),
+            icon = Icons.Filled.WorkspacePremium
+        )
+    }
+    return listOf(
+        BottomNavItem("home", "dashboard", listOf("dashboard", "best_matches"), Icons.Filled.Home),
+        BottomNavItem("activity", "interests", listOf("interests"), Icons.Filled.AccessTime),
+        BottomNavItem("chat", "chat_list", listOf("chat_list", "chat/"), Icons.Filled.Chat),
+        fourthItem
     )
-)
+}
 
 @Composable
 private fun AppBottomNavigation(
     currentRoute: String,
     labels: NavigationContentData,
+    monetization: MonetizationRuntimeData,
     onNavigate: (String) -> Unit
 ) {
     Surface(
@@ -620,12 +646,12 @@ private fun AppBottomNavigation(
             containerColor = Color.Transparent,
             tonalElevation = 0.dp
         ) {
-            bottomNavItems.forEach { item ->
-                val label = when (item.label) {
+            bottomNavItems(monetization).forEach { item ->
+                val label = item.overrideLabel ?: when (item.label) {
                     "home" -> labels.home
                     "search" -> labels.search
                     "activity" -> labels.activity
-                    "chat" -> labels.chat
+                    "chat" -> labels.chat.takeUnless { it.equals("Chat", ignoreCase = true) } ?: "Messenger"
                     "profile" -> labels.profile
                     "upgrade" -> labels.upgrade
                     else -> item.label
@@ -657,6 +683,14 @@ private fun AppBottomNavigation(
             }
         }
     }
+}
+
+private fun MonetizationRuntimeData.isFreeAccessMode(): Boolean {
+    return !subscriptionModelEnabled && accessMode.equals("free", ignoreCase = true)
+}
+
+private fun MonetizationRuntimeData.isFixedPriceMode(): Boolean {
+    return !subscriptionModelEnabled && accessMode.equals("fixed_price", ignoreCase = true)
 }
 
 private fun String.shouldShowBottomNavigation(): Boolean {

@@ -1034,6 +1034,7 @@ fun defaultHomeBestMatchAds(): List<HomeBestMatchAdData> = listOf(
         badge = "Horoscope",
         title = "Add horoscope details for family compatibility",
         body = "Help families compare birth details, rashi, nakshatra, and kundli expectations.",
+        bullets = listOf("Kundli details improve family fit", "Manglik and rashi checks stay clear", "Useful before a family call"),
         cta = "Open astrology",
         destination = "astrology_services"
     ),
@@ -1045,8 +1046,21 @@ fun defaultHomeBestMatchAds(): List<HomeBestMatchAdData> = listOf(
         badge = "Trust profile",
         title = "Verified profiles receive more confident responses",
         body = "Complete phone, email, photo, document, education, income, and family trust checks.",
+        bullets = listOf("Higher trust score", "More confident family responses", "Verification status stays visible"),
         cta = "Improve trust",
         destination = "my_profile"
+    ),
+    HomeBestMatchAdData(
+        id = "enable-notifications",
+        type = "notification",
+        targetPlans = listOf("free", "bronze", "silver", "gold", "platinum"),
+        theme = "blue",
+        badge = "Alerts",
+        title = "Turn on match alerts",
+        body = "Get notified when a serious profile sends interest, accepts, or messages you.",
+        bullets = listOf("New interest alerts", "Acceptance reminders", "Message notifications"),
+        cta = "Manage alerts",
+        destination = "settings"
     ),
     HomeBestMatchAdData(
         id = "private-photo-control",
@@ -1143,7 +1157,7 @@ data class NavigationContentData(
     val home: String = "Home",
     val search: String = "Search",
     val activity: String = "Activity",
-    val chat: String = "Chat",
+    val chat: String = "Messenger",
     val profile: String = "Profile",
     val upgrade: String = "Upgrade"
 )
@@ -1338,6 +1352,15 @@ data class RuntimeConfigData(
 
 data class MonetizationRuntimeData(
     val currency: String = "INR",
+    val accessMode: String = "subscription",
+    val subscriptionModelEnabled: Boolean = true,
+    val fixedPriceAmount: Int = 200,
+    val fixedPricePlanId: String = "fixed_access",
+    val fixedPriceLabel: String = "₹200",
+    val freeAccessLabel: String = "Account",
+    val refundGuaranteeEnabled: Boolean = true,
+    val refundGuaranteeTitle: String = "30-day full refund guarantee*",
+    val refundGuaranteeSubtitle: String = "*Conditions apply",
     val premiumLimits: Map<String, Map<String, Int>> = emptyMap(),
     val plans: List<PlanData> = emptyList(),
     val membershipFeatureMatrix: List<Map<String, Any>> = emptyList()

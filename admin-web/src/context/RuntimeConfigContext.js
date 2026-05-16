@@ -97,7 +97,7 @@ const fallback = {
       home: 'Home',
       search: 'Search',
       activity: 'Activity',
-      chat: 'Chat',
+      chat: 'Messenger',
       profile: 'Profile'
     },
     support: {
@@ -124,6 +124,22 @@ const fallback = {
       resources: [],
       articles: []
     }
+  },
+  monetization: {
+    currency: 'INR',
+    accessMode: 'subscription',
+    subscriptionModelEnabled: true,
+    fixedPriceAmount: 200,
+    fixedPricePlanId: 'fixed_access',
+    fixedPriceLabel: '₹200',
+    freeAccessLabel: 'Account',
+    refundGuaranteeEnabled: true,
+    refundGuaranteeTitle: '30-day full refund guarantee*',
+    refundGuaranteeSubtitle: '*Conditions apply',
+    plans: [],
+    premiumLimits: {},
+    upgradePackageGroups: [],
+    membershipFeatureMatrix: []
   }
 };
 

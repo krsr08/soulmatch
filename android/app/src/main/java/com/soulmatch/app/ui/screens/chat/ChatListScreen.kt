@@ -25,6 +25,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -76,8 +78,12 @@ fun ChatListScreen(
     val conversations by vm.conversations.collectAsStateWithLifecycle()
     val loading by vm.isLoading.collectAsStateWithLifecycle()
     val openChat: (String, String) -> Unit = onOpenChat ?: { _, _ -> }
-    val unreadCount = conversations.sumOf { it.unreadCounts.values.sum() }
+    var tab by remember { mutableStateOf(0) }
     var callTarget by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
+    val visibleConversations = when (tab) {
+        1 -> conversations.filter { it.unreadCounts.values.any { unread -> unread > 0 } }
+        else -> conversations
+    }
 
     callTarget?.let { target ->
         CallActionDialog(
@@ -90,7 +96,7 @@ fun ChatListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Messages", fontWeight = FontWeight.Bold) },
+                title = { Text("Messenger", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
@@ -114,31 +120,26 @@ fun ChatListScreen(
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
                     item {
-                        PremiumHeader(
-                            eyebrow = "Mutual-interest chat",
-                            title = "Conversations with context",
-                            subtitle = "Chat opens after mutual interest, with room for safety cues and future call controls."
-                        )
-                    }
-                    item {
-                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp), containerColor = MaterialTheme.colorScheme.surface) {
-                            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                                    MetricPill("Chats", conversations.size.toString(), modifier = Modifier.weight(1f), background = SurfaceWarm)
-                                    MetricPill("Unread", unreadCount.toString(), modifier = Modifier.weight(1f), accent = Success, background = SuccessSoft)
-                                    MetricPill("Mutual", conversations.count { it.lastMessage != null }.toString(), modifier = Modifier.weight(1f), background = SurfaceSoft)
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, Divider)
+                        ) {
+                            TabRow(selectedTabIndex = tab, containerColor = MaterialTheme.colorScheme.surface) {
+                                listOf("Mutual", "Interested in Me").forEachIndexed { index, label ->
+                                    Tab(
+                                        selected = tab == index,
+                                        onClick = { tab = index },
+                                        text = { Text(label, fontWeight = if (tab == index) FontWeight.ExtraBold else FontWeight.SemiBold) }
+                                    )
                                 }
                             }
                         }
                     }
-                    item {
-                        SectionTitle(
-                            title = "Active conversations",
-                            subtitle = "Sorted by newest reply and unread signals",
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
-                        )
-                    }
-                    items(conversations, key = { it.chatId }) { conversation ->
+                    items(visibleConversations, key = { it.chatId }) { conversation ->
                         ConversationRow(
                             item = conversation,
                             onOpen = { openChat(conversation.participantUserId, conversation.participantName) },
@@ -146,12 +147,12 @@ fun ChatListScreen(
                             onVideo = { callTarget = conversation.participantName to true }
                         )
                     }
-                    if (conversations.isEmpty()) {
+                    if (visibleConversations.isEmpty()) {
                         item {
                             PremiumCard(modifier = Modifier.padding(16.dp), containerColor = SurfaceWarm) {
                                 Column(Modifier.padding(2.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Text("No active conversations yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                    Text("Once a mutual interest happens, chats will show up here with the profile context still visible.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                                    Text(if (tab == 0) "No mutual conversations yet" else "No profiles interested in you yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    Text(if (tab == 0) "Once a mutual interest happens, conversations will show up here." else "Unread or newly interested profiles will appear in this tab.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                                 }
                             }
                         }
