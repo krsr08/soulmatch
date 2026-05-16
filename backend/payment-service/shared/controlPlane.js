@@ -3,71 +3,71 @@ const DEFAULT_UPGRADE_PACKAGE_GROUPS = [
     tabKey: 'one_month',
     tabTitle: '1 Month',
     bannerTitle: 'Start with verified discovery',
-    bannerText: 'A focused one-month plan for members who want verified contact access and better visibility.',
+    bannerText: 'A focused one-month Silver plan for members who want contact access and chat.',
     assistiveContent: 'Useful when you already have a shortlist and want faster introductions.',
     packages: [
       {
         pkgId: 101,
         planId: 'silver',
-        pkgName: 'Verified Plus 1 Month',
-        pkgActualRate: 799,
-        pkgDiscountedRate: 499,
-        pkgRate: 499,
+        pkgName: 'Silver 1 Month',
+        pkgActualRate: 299,
+        pkgDiscountedRate: 299,
+        pkgRate: 299,
         pkgDuration: '30 days',
         pkgDurationDays: 30,
-        pkgPhoneCount: 20,
-        pkgBenefit: 'Unlock verified contact views, advanced search, and visitor insights for one focused month.',
+        pkgPhoneCount: 15,
+        pkgBenefit: 'Unlock 30 profile views, 15 contact unlocks, shortlist capacity, interests, and chat.',
         buyerChoice: true,
-        badge: 'Starter',
-        features: ['20 interests/day', 'Advanced search', 'See viewers']
+        badge: 'Silver',
+        features: ['30 profile views', '15 contact unlocks', 'Chat enabled']
       }
     ]
   },
   {
-    tabKey: 'three_months',
-    tabTitle: '3 Months',
+    tabKey: 'gold',
+    tabTitle: 'Gold',
     bannerTitle: 'Most families start here',
-    bannerText: 'Three months gives enough time to shortlist, speak, and involve both families without rushing.',
-    assistiveContent: 'Best for families comparing matches seriously over a full quarter.',
+    bannerText: 'Gold adds Match Assistance, stronger limits, and monthly spotlight boosts.',
+    assistiveContent: 'Best for families comparing matches seriously with guided support.',
     packages: [
       {
         pkgId: 201,
         planId: 'gold',
-        pkgName: 'Family Assist 3 Months',
-        pkgActualRate: 1499,
-        pkgDiscountedRate: 999,
-        pkgRate: 999,
-        pkgDuration: '90 days',
-        pkgDurationDays: 90,
-        pkgPhoneCount: 60,
-        pkgBenefit: 'Adds unlimited interests, video calling, priority search, and family decision support.',
+        pkgName: 'Gold 1 Month',
+        pkgActualRate: 599,
+        pkgDiscountedRate: 599,
+        pkgRate: 599,
+        pkgDuration: '30 days',
+        pkgDurationDays: 30,
+        pkgPhoneCount: 30,
+        pkgBenefit: 'Adds 50 profile views, 30 contact unlocks, Match Assistance, and 2 spotlight boosts.',
         buyerChoice: true,
         badge: 'Recommended',
-        features: ['Unlimited interests', 'Video calling', 'Priority search']
+        features: ['Match Assistance', '30 contact unlocks', '2 spotlight boosts']
       }
     ]
   },
   {
-    tabKey: 'elite',
-    tabTitle: 'Elite',
+    tabKey: 'platinum',
+    tabTitle: 'Platinum',
     bannerTitle: 'High-touch assisted matching',
-    bannerText: 'A premium plan for members who want deeper visibility, anonymous browsing, and advisor-assisted discovery.',
-    assistiveContent: 'Best when the family wants guided support and a longer membership window.',
+    bannerText: 'Platinum gives the highest monthly limits and stronger discovery reach.',
+    assistiveContent: 'Best when the family wants guided support and maximum access.',
     packages: [
       {
         pkgId: 301,
         planId: 'platinum',
-        pkgName: 'Advisor Assisted Elite',
-        pkgActualRate: 2499,
-        pkgDiscountedRate: 1499,
-        pkgRate: 1499,
-        pkgDuration: '365 days',
-        pkgDurationDays: 365,
-        pkgPhoneCount: 150,
-        pkgBenefit: 'Includes all Gold features, anonymous browsing, premium boosts, and advisor-assisted discovery.',
+        pkgName: 'Platinum 1 Month',
+        pkgActualRate: 999,
+        pkgDiscountedRate: 999,
+        pkgRate: 999,
+        pkgDuration: '30 days',
+        pkgDurationDays: 30,
+        pkgPhoneCount: 80,
+        pkgBenefit: 'Includes 80 profile views, 80 contact unlocks, Match Assistance, and 4 spotlight boosts.',
         buyerChoice: false,
-        badge: 'Elite',
-        features: ['All Gold features', 'Anonymous browsing', 'Unlimited boosts']
+        badge: 'Platinum',
+        features: ['80 contact unlocks', 'Match Assistance', '4 spotlight boosts']
       }
     ]
   }
