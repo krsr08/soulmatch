@@ -5,7 +5,7 @@ router = APIRouter()
 @router.get("/recommended")
 async def recommended_matches(
     page: int = Query(default=1, ge=1),
-    limit: int = Query(default=20, ge=1, le=50),
+    limit: int = Query(default=80, ge=1, le=80),
     verifiedOnly: bool = Query(default=False),
     current_user: dict = Depends(get_current_user)
 ):

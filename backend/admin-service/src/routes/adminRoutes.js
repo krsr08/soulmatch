@@ -17,6 +17,9 @@ router.get('/profiles', authenticateAdmin, controller.getProfiles);
 router.post('/profiles', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin'), controller.createProfile);
 router.post('/profiles/bulk', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin'), controller.bulkCreateProfiles);
 router.put('/profiles/:id', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.updateProfile);
+router.post('/profiles/:id/photos', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.addProfilePhoto);
+router.put('/profiles/:id/photos/:photoId', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.updateProfilePhoto);
+router.delete('/profiles/:id/photos/:photoId', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.deleteProfilePhoto);
 router.delete('/profiles/:id', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin'), controller.deleteProfile);
 router.put('/profiles/:id/status', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.updateProfileStatus);
 

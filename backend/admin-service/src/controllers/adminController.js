@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const fs = require('fs');
 const jwt = require('jsonwebtoken');
+const path = require('path');
 const { getDB } = require('../config/database');
 const logger = require('../utils/logger');
 const { CONFIG_KEYS, DEFAULT_CONFIG, getConfigMap, getConfigSection, getPublicRuntimeConfig, upsertConfigSection } = require('../../shared/controlPlane');
@@ -139,6 +141,33 @@ function arrayInput(value) {
   if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
   if (typeof value === 'string') return value.split(',').map((item) => item.trim()).filter(Boolean);
   return [];
+}
+
+function normalizePhotoUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  if (/^https?:\/\/\S+$/i.test(raw) || raw.startsWith('/uploads/')) return raw;
+  return false;
+}
+
+function saveAdminPhotoUpload(body, profileId, photoId) {
+  const dataUrl = String(body?.photoDataUrl || body?.photo_data_url || '').trim();
+  if (!dataUrl) return null;
+  const match = dataUrl.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) return false;
+  const mime = match[1].toLowerCase();
+  const extension = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg';
+  const bytes = Buffer.from(match[2], 'base64');
+  if (!bytes.length || bytes.length > 5 * 1024 * 1024) return false;
+  const uploadRoot = process.env.ADMIN_UPLOAD_DIR || process.env.LOCAL_UPLOAD_DIR || path.join(__dirname, '..', 'uploads');
+  const relativePath = path.join('admin', String(profileId), `${photoId}.${extension}`);
+  const absolutePath = path.join(uploadRoot, relativePath);
+  fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+  fs.writeFileSync(absolutePath, bytes);
+  return {
+    photoUrl: `/uploads/${relativePath.replace(/\\/g, '/')}`,
+    s3Key: `admin-upload/${relativePath.replace(/\\/g, '/')}`
+  };
 }
 
 function normalizeListInput(value) {
@@ -2006,6 +2035,144 @@ exports.updateProfile = async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     respondServerError(res, err, 'Unable to update profile right now.');
+  } finally {
+    client.release();
+  }
+};
+
+exports.addProfilePhoto = async (req, res) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    const profileId = req.params.id;
+    const requestedPhotoId = crypto.randomUUID();
+    const uploadedPhoto = saveAdminPhotoUpload(req.body, profileId, requestedPhotoId);
+    const photoUrl = uploadedPhoto?.photoUrl || normalizePhotoUrl(req.body?.photoUrl || req.body?.photo_url);
+    if (uploadedPhoto === false || photoUrl === false || !photoUrl) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Photo must be a JPEG/PNG/WebP upload, an HTTPS URL, or a SoulMatch upload path.' } });
+    }
+    await client.query('BEGIN');
+    const profileResult = await client.query('SELECT profile_id, primary_photo_url FROM profiles WHERE profile_id=$1 FOR UPDATE', [profileId]);
+    if (!profileResult.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found.' } });
+    }
+    const existingPrimary = Boolean(profileResult.rows[0].primary_photo_url);
+    const makePrimary = parseBool(req.body?.isPrimary ?? req.body?.is_primary, !existingPrimary);
+    const photoId = requestedPhotoId;
+    if (makePrimary) {
+      await client.query('UPDATE profile_photos SET is_primary=false WHERE profile_id=$1', [profileId]);
+    }
+    const inserted = await client.query(
+      `INSERT INTO profile_photos (photo_id, profile_id, photo_url, s3_key, is_primary, is_approved, sequence_order, uploaded_at)
+       VALUES ($1,$2,$3,$4,$5,$6,(SELECT COALESCE(MAX(sequence_order),0)+1 FROM profile_photos WHERE profile_id=$2),NOW())
+       RETURNING photo_id, profile_id, photo_url, is_primary, is_approved, sequence_order, uploaded_at`,
+      [photoId, profileId, photoUrl, uploadedPhoto?.s3Key || `admin/manual/${profileId}/${photoId}`, makePrimary, parseBool(req.body?.isApproved ?? req.body?.is_approved, true)]
+    );
+    if (makePrimary) {
+      await client.query('UPDATE profiles SET primary_photo_url=$1, updated_at=NOW() WHERE profile_id=$2', [photoUrl, profileId]);
+    }
+    await auditLog(client, req, 'profile_photo.add', 'profile', profileId, { photoId, photoUrl, makePrimary });
+    await client.query('COMMIT');
+    broadcastAdminEvent('admin:profile_updated', { profileId });
+    res.status(201).json({ success: true, data: inserted.rows[0] });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    respondServerError(res, err, 'Unable to add profile photo right now.');
+  } finally {
+    client.release();
+  }
+};
+
+exports.updateProfilePhoto = async (req, res) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    const profileId = req.params.id;
+    const photoId = req.params.photoId;
+    const uploadedPhoto = saveAdminPhotoUpload(req.body, profileId, photoId);
+    const photoUrl = uploadedPhoto?.photoUrl || (req.body?.photoUrl !== undefined || req.body?.photo_url !== undefined
+      ? normalizePhotoUrl(req.body?.photoUrl || req.body?.photo_url)
+      : null);
+    if (uploadedPhoto === false || photoUrl === false) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Photo must be a JPEG/PNG/WebP upload, an HTTPS URL, or a SoulMatch upload path.' } });
+    }
+    const makePrimary = req.body?.isPrimary !== undefined || req.body?.is_primary !== undefined
+      ? parseBool(req.body?.isPrimary ?? req.body?.is_primary)
+      : null;
+    await client.query('BEGIN');
+    const current = await client.query('SELECT photo_id, photo_url, is_primary FROM profile_photos WHERE profile_id=$1 AND photo_id=$2 FOR UPDATE', [profileId, photoId]);
+    if (!current.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Photo not found.' } });
+    }
+    if (makePrimary === true) {
+      await client.query('UPDATE profile_photos SET is_primary=false WHERE profile_id=$1', [profileId]);
+    }
+    const updated = await client.query(
+      `UPDATE profile_photos
+       SET photo_url=COALESCE($3, photo_url),
+           is_primary=COALESCE($4, is_primary),
+           is_approved=COALESCE($5, is_approved),
+           s3_key=COALESCE($6, s3_key)
+       WHERE profile_id=$1 AND photo_id=$2
+       RETURNING photo_id, profile_id, photo_url, is_primary, is_approved, sequence_order, uploaded_at`,
+      [
+        profileId,
+        photoId,
+        photoUrl,
+        makePrimary,
+        req.body?.isApproved !== undefined || req.body?.is_approved !== undefined ? parseBool(req.body?.isApproved ?? req.body?.is_approved) : null,
+        uploadedPhoto?.s3Key || null
+      ]
+    );
+    if (makePrimary === true || (photoUrl && current.rows[0].is_primary)) {
+      const primary = await client.query('SELECT photo_url FROM profile_photos WHERE profile_id=$1 AND is_primary=true LIMIT 1', [profileId]);
+      await client.query('UPDATE profiles SET primary_photo_url=$1, updated_at=NOW() WHERE profile_id=$2', [primary.rows[0]?.photo_url || photoUrl || null, profileId]);
+    }
+    await auditLog(client, req, 'profile_photo.update', 'profile', profileId, { photoId, photoUrl, makePrimary });
+    await client.query('COMMIT');
+    broadcastAdminEvent('admin:profile_updated', { profileId });
+    res.json({ success: true, data: updated.rows[0] });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    respondServerError(res, err, 'Unable to update profile photo right now.');
+  } finally {
+    client.release();
+  }
+};
+
+exports.deleteProfilePhoto = async (req, res) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    const profileId = req.params.id;
+    const photoId = req.params.photoId;
+    await client.query('BEGIN');
+    const removed = await client.query('DELETE FROM profile_photos WHERE profile_id=$1 AND photo_id=$2 RETURNING photo_id, is_primary', [profileId, photoId]);
+    if (!removed.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Photo not found.' } });
+    }
+    if (removed.rows[0].is_primary) {
+      const fallback = await client.query(
+        'SELECT photo_id, photo_url FROM profile_photos WHERE profile_id=$1 ORDER BY sequence_order ASC NULLS LAST, uploaded_at ASC LIMIT 1',
+        [profileId]
+      );
+      if (fallback.rows[0]) {
+        await client.query('UPDATE profile_photos SET is_primary = (photo_id=$2) WHERE profile_id=$1', [profileId, fallback.rows[0].photo_id]);
+        await client.query('UPDATE profiles SET primary_photo_url=$1, updated_at=NOW() WHERE profile_id=$2', [fallback.rows[0].photo_url, profileId]);
+      } else {
+        await client.query('UPDATE profiles SET primary_photo_url=NULL, updated_at=NOW() WHERE profile_id=$1', [profileId]);
+      }
+    }
+    await auditLog(client, req, 'profile_photo.delete', 'profile', profileId, { photoId });
+    await client.query('COMMIT');
+    broadcastAdminEvent('admin:profile_updated', { profileId });
+    res.json({ success: true, data: { photoId } });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    respondServerError(res, err, 'Unable to delete profile photo right now.');
   } finally {
     client.release();
   }

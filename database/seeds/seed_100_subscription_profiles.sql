@@ -68,8 +68,8 @@ prepared AS (
     '+9198' || LPAD(i::text, 8, '0') AS phone,
     'qa.subscription.member.' || LPAD(i::text, 3, '0') || '@soulmatch.local' AS email,
     CASE
-      WHEN gender = 'male' THEN 'https://api.dicebear.com/9.x/personas/png?seed=soulmatch-qa-groom-' || i || '&backgroundColor=e0f2fe,fef3c7,f3e8ff'
-      ELSE 'https://api.dicebear.com/9.x/personas/png?seed=soulmatch-qa-bride-' || i || '&backgroundColor=fff0f3,fef3c7,e0f2fe'
+      WHEN gender = 'male' THEN 'https://randomuser.me/api/portraits/men/' || (((i - 1) % 90) + 1)::text || '.jpg'
+      ELSE 'https://randomuser.me/api/portraits/women/' || (((i - 51) % 90) + 1)::text || '.jpg'
     END AS image_url,
     CASE WHEN i % 7 = 0 THEN 'request_only' ELSE 'all' END AS photo_privacy_value,
     CASE WHEN i % 6 = 0 THEN 'masked' ELSE 'visible' END AS contact_privacy_value,

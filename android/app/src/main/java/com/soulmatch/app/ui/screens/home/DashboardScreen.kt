@@ -257,15 +257,7 @@ fun DashboardScreen(
         viewedProfileIds = interactionState.viewedProfileIds,
         advancedFilters = advancedFilters
     )
-    val bestMatchProfileTarget = content.bestMatchMinimumProfiles.coerceAtLeast(5)
-    val highCompatibilityThreshold = content.bestMatchHighCompatibilityThreshold
-        .takeIf { it > 0 }
-        ?.coerceIn(70, 95)
-        ?: 80
-    val highCompatibilityCount = filteredRankedMatches.count { it.compatibilityScore >= highCompatibilityThreshold }
-    val bestMatchProfileCount = maxOf(bestMatchProfileTarget, highCompatibilityCount)
-        .coerceAtMost(filteredRankedMatches.size)
-    val bestMatches = filteredRankedMatches.take(bestMatchProfileCount)
+    val bestMatches = filteredRankedMatches.take(MAX_HOME_MATCHES)
     val canShowUpgradeInsert = content.showBestMatchInsertCards &&
         content.showBestMatchUpgradeCards &&
         shouldShowHomeUpgrade(subscription, packageGroups)
@@ -649,10 +641,10 @@ private fun HomeAdvancedFilterDialog(
                     ) {
                         Text(
                             "Refine matches",
-                            style = MaterialTheme.typography.headlineMedium.copy(
+                            style = MaterialTheme.typography.titleLarge.copy(
                                 fontFamily = FontFamily.Serif,
                                 fontWeight = FontWeight.ExtraBold,
-                                lineHeight = 34.sp
+                                lineHeight = 28.sp
                             ),
                             color = Color(0xFF202A36)
                         )
@@ -663,16 +655,34 @@ private fun HomeAdvancedFilterDialog(
                             maxLines = 2
                         )
                     }
-                    IconButton(
-                        onClick = onDismiss,
-                            modifier = Modifier.size(44.dp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            Icons.Filled.Close,
-                            contentDescription = "Close filters",
-                            tint = Color(0xFF9AA1AB),
-                            modifier = Modifier.size(28.dp)
-                        )
+                        OutlinedButton(
+                            onClick = {
+                                draft = HomeAdvancedFilters()
+                                onReset()
+                            },
+                            shape = RoundedCornerShape(999.dp),
+                            border = BorderStroke(1.dp, Color(0xFFD0D6DE)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF8A001F)),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                            modifier = Modifier.height(38.dp)
+                        ) {
+                            Text("Reset", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.ExtraBold)
+                        }
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = "Close filters",
+                                tint = Color(0xFF9AA1AB),
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
                     }
                 }
                 Row(Modifier.weight(1f)) {
@@ -2434,6 +2444,8 @@ private fun MatchCardAction(
 
 private fun profileOwnerLabel(profileCreatedBy: String): String =
     if (profileCreatedBy.equals("self", ignoreCase = true)) "Self" else "Agent"
+
+private const val MAX_HOME_MATCHES = 80
 
 private fun formatHeightLabel(heightCm: Int): String {
     val totalInches = (heightCm / 2.54).toInt()

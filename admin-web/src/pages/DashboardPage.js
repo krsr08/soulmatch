@@ -4,12 +4,14 @@ import { io } from 'socket.io-client';
 import {
   ADMIN_SOCKET_URL,
   acknowledgeAlert,
+  addProfilePhoto,
   approveProfileDocument,
   approveVerification,
   banUser,
   createAdminUser,
   createAdvisor,
   createProfile,
+  deleteProfilePhoto,
   deleteAdminUser,
   getAdvisors,
   getAdminUsers,
@@ -39,6 +41,7 @@ import {
   updateAdvisorStatus,
   updateConfig,
   updateProfile,
+  updateProfilePhoto,
   updateProfileStatus
 } from '../api/adminApi';
 import './DashboardPage.css';
@@ -186,10 +189,10 @@ const MENU_GROUPS = [
 ];
 
 const MEMBER_PLAN_FALLBACK = [
-  { planId: 'free', name: 'Bronze', displayName: 'Bronze (Free)', price: 0, durationDays: 0, contactViews: 0, visibleMatches: 10, profileBoost: false },
-  { id: 'silver', name: 'Silver', price: 999, durationDays: 30, contactViews: 20, visibleMatches: 50, profileBoost: true },
-  { id: 'gold', name: 'Gold', price: 2499, durationDays: 30, contactViews: 100, visibleMatches: -1, profileBoost: true },
-  { id: 'platinum', name: 'Platinum', price: 4999, durationDays: 30, contactViews: -1, visibleMatches: -1, profileBoost: true }
+  { planId: 'bronze', id: 'bronze', name: 'Bronze', displayName: 'Bronze (Free)', price: 0, durationDays: 30, contactViews: 5, visibleMatches: 80, profileViews: 10, shortlistLimit: 5, interestLimit: 5, chat: false, engagePlus: false, matchAssistance: false, spotlightBoosts: 0, profileBoost: false },
+  { planId: 'silver', id: 'silver', name: 'Silver', displayName: 'Silver', price: 299, durationDays: 30, contactViews: 15, visibleMatches: 80, profileViews: 30, shortlistLimit: 20, interestLimit: 20, chat: true, engagePlus: true, matchAssistance: false, spotlightBoosts: 0, profileBoost: true },
+  { planId: 'gold', id: 'gold', name: 'Gold', displayName: 'Gold', price: 599, durationDays: 30, contactViews: 30, visibleMatches: 80, profileViews: 50, shortlistLimit: 40, interestLimit: 40, chat: true, engagePlus: true, matchAssistance: true, spotlightBoosts: 2, profileBoost: true },
+  { planId: 'platinum', id: 'platinum', name: 'Platinum', displayName: 'Platinum', price: 999, durationDays: 30, contactViews: 80, visibleMatches: 80, profileViews: 80, shortlistLimit: 80, interestLimit: 80, chat: true, engagePlus: true, matchAssistance: true, spotlightBoosts: 4, profileBoost: true }
 ];
 
 const AGENT_PLAN_FALLBACK = [
@@ -2654,7 +2657,7 @@ function BoolSelect({ value, onChange }) {
   );
 }
 
-function MemberDrawer({ profile, onClose, onSave, onStatus }) {
+function MemberDrawer({ profile, onClose, onSave, onStatus, onPhotoAdd, onPhotoUpdate, onPhotoDelete }) {
   const [form, setForm] = useState(() => ({
     first_name: '',
     last_name: '',
@@ -2677,6 +2680,8 @@ function MemberDrawer({ profile, onClose, onSave, onStatus }) {
     ...profile,
     dob: profile?.dob ? String(profile.dob).slice(0, 10) : ''
   }));
+  const [newPhotoUrl, setNewPhotoUrl] = useState('');
+  const [newPhotoUpload, setNewPhotoUpload] = useState(null);
   const [saving, setSaving] = useState(false);
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const submit = async () => {
@@ -2685,6 +2690,60 @@ function MemberDrawer({ profile, onClose, onSave, onStatus }) {
       await onSave(form);
     } finally {
       setSaving(false);
+    }
+  };
+  const addPhoto = async () => {
+    if (!form.profile_id || (!newPhotoUrl.trim() && !newPhotoUpload?.dataUrl)) return;
+    const photo = await onPhotoAdd(form.profile_id, {
+      photoUrl: newPhotoUrl.trim(),
+      photoDataUrl: newPhotoUpload?.dataUrl || undefined,
+      fileName: newPhotoUpload?.fileName || undefined,
+      isPrimary: !Array.isArray(form.photos) || form.photos.length === 0
+    });
+    if (photo) {
+      setForm((current) => ({
+        ...current,
+        primary_photo_url: photo.is_primary ? photo.photo_url : current.primary_photo_url,
+        photos: [photo, ...(Array.isArray(current.photos) ? current.photos : [])]
+      }));
+      setNewPhotoUrl('');
+      setNewPhotoUpload(null);
+    }
+  };
+  const handlePhotoFile = (file) => {
+    if (!file) {
+      setNewPhotoUpload(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setNewPhotoUpload({ fileName: file.name, dataUrl: String(reader.result || '') });
+    };
+    reader.readAsDataURL(file);
+  };
+  const makePrimaryPhoto = async (photo) => {
+    if (!form.profile_id || !photo?.photo_id) return;
+    const updated = await onPhotoUpdate(form.profile_id, photo.photo_id, { isPrimary: true });
+    if (updated) {
+      setForm((current) => ({
+        ...current,
+        primary_photo_url: updated.photo_url,
+        photos: (Array.isArray(current.photos) ? current.photos : []).map((item) => ({
+          ...item,
+          is_primary: item.photo_id === updated.photo_id
+        }))
+      }));
+    }
+  };
+  const deletePhoto = async (photo) => {
+    if (!form.profile_id || !photo?.photo_id) return;
+    const ok = await onPhotoDelete(form.profile_id, photo.photo_id);
+    if (ok) {
+      setForm((current) => {
+        const remaining = (Array.isArray(current.photos) ? current.photos : []).filter((item) => item.photo_id !== photo.photo_id);
+        const primary = remaining.find((item) => item.is_primary) || remaining[0];
+        return { ...current, photos: remaining, primary_photo_url: primary?.photo_url || '' };
+      });
     }
   };
 
@@ -2760,11 +2819,35 @@ function MemberDrawer({ profile, onClose, onSave, onStatus }) {
         <div className="profile-360-grid">
           <div>
             <strong>Photos</strong>
+            {form.profile_id ? (
+              <div className="photo-admin-toolbar">
+                <input
+                  value={newPhotoUrl}
+                  onChange={(event) => setNewPhotoUrl(event.target.value)}
+                  placeholder="Paste HTTPS image URL or /uploads path"
+                />
+                <label className="photo-admin-file">
+                  <Icon name="image" />
+                  <span>{newPhotoUpload?.fileName || 'Choose file'}</span>
+                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handlePhotoFile(event.target.files?.[0])} />
+                </label>
+                <button type="button" onClick={addPhoto} disabled={!newPhotoUrl.trim() && !newPhotoUpload?.dataUrl}>
+                  <Icon name="plus" /> Add / upload
+                </button>
+              </div>
+            ) : (
+              <Field label="Primary photo URL"><Input value={form.primary_photo_url} onChange={(v) => set('primary_photo_url', v)} /></Field>
+            )}
             <div className="document-list">
               {(Array.isArray(form.photos) ? form.photos : []).map((photo) => (
-                <article key={photo.photo_id || photo.photo_url}>
+                <article key={photo.photo_id || photo.photo_url} className="photo-admin-row">
+                  <img src={photo.photo_url} alt="" />
                   <span>{photo.is_primary ? 'Primary photo' : 'Gallery photo'}<small>{photo.is_approved ? 'Approved' : 'Needs moderation'} | {dateOnly(photo.uploaded_at)}</small></span>
-                  <a href={photo.photo_url} target="_blank" rel="noreferrer">Open</a>
+                  <div className="photo-admin-actions">
+                    <a href={photo.photo_url} target="_blank" rel="noreferrer" title="Open image"><Icon name="eye" /></a>
+                    {!photo.is_primary ? <button type="button" onClick={() => makePrimaryPhoto(photo)} title="Make primary"><Icon name="star" /></button> : null}
+                    <button type="button" onClick={() => deletePhoto(photo)} title="Delete photo"><Icon name="close" /></button>
+                  </div>
                 </article>
               ))}
               {!Array.isArray(form.photos) || !form.photos.length ? <small className="muted">No photos uploaded.</small> : null}
@@ -3088,6 +3171,42 @@ export default function DashboardPage() {
     await withNotice(updateProfileStatus(profile.profile_id, action, `Admin ${action} from console`), labels[action] || `Member ${action} completed.`);
   };
 
+  const handleAddProfilePhoto = async (profileId, payload) => {
+    try {
+      const response = await addProfilePhoto(profileId, payload);
+      setNotice('Profile photo added.');
+      await reload();
+      return response.data?.data;
+    } catch (err) {
+      setNotice(err.response?.data?.error?.message || err.message);
+      return null;
+    }
+  };
+
+  const handleUpdateProfilePhoto = async (profileId, photoId, payload) => {
+    try {
+      const response = await updateProfilePhoto(profileId, photoId, payload);
+      setNotice('Profile photo updated.');
+      await reload();
+      return response.data?.data;
+    } catch (err) {
+      setNotice(err.response?.data?.error?.message || err.message);
+      return null;
+    }
+  };
+
+  const handleDeleteProfilePhoto = async (profileId, photoId) => {
+    try {
+      await deleteProfilePhoto(profileId, photoId);
+      setNotice('Profile photo deleted.');
+      await reload();
+      return true;
+    } catch (err) {
+      setNotice(err.response?.data?.error?.message || err.message);
+      return false;
+    }
+  };
+
   const handleBlockProfile = async (profile) => {
     if (!profile.user_id) return;
     const blocked = profile.is_banned === true;
@@ -3199,6 +3318,9 @@ export default function DashboardPage() {
           onClose={() => setDrawer(null)}
           onSave={handleSaveProfile}
           onStatus={handleProfileStatus}
+          onPhotoAdd={handleAddProfilePhoto}
+          onPhotoUpdate={handleUpdateProfilePhoto}
+          onPhotoDelete={handleDeleteProfilePhoto}
         />
       ) : null}
       {drawer?.type === 'agent' ? (

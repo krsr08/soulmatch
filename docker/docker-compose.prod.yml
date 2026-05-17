@@ -147,6 +147,8 @@ services:
       - ./production.env
     ports:
       - '127.0.0.1:3011:3011'
+    volumes:
+      - profile_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy

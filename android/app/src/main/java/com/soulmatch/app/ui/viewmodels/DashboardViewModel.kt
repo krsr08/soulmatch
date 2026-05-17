@@ -102,7 +102,7 @@ class DashboardViewModel @Inject constructor(
             try {
                 val canUseFallback = canUseDemoFallback()
                 val verifiedOnly = _verifiedOnlyMode.value
-                val remoteResponse = runCatching { matchingApi.getRecommended(page = 1, limit = 25, verifiedOnly = verifiedOnly) }.getOrNull()
+                val remoteResponse = runCatching { matchingApi.getRecommended(page = 1, limit = MAX_DISCOVERY_PROFILES, verifiedOnly = verifiedOnly) }.getOrNull()
                 val remoteBody = remoteResponse?.body()
                 val baseMatches = if (remoteResponse?.isSuccessful == true && remoteBody?.success == true) {
                     remoteBody.data?.matches.orEmpty()
@@ -330,7 +330,7 @@ class DashboardViewModel @Inject constructor(
             searchApi.advancedSearch(
                 SearchRequest(
                     page = 1,
-                    limit = 25,
+                    limit = MAX_DISCOVERY_PROFILES,
                     verifiedOnly = verifiedOnly,
                     gender = candidateGender
                 )
@@ -475,5 +475,6 @@ class DashboardViewModel @Inject constructor(
 
     private companion object {
         const val MIN_DISCOVERY_PROFILES = 15
+        const val MAX_DISCOVERY_PROFILES = 80
     }
 }

@@ -71,7 +71,7 @@ interface ProfileApiService {
     @POST("profile/{profileId}/report") suspend fun reportProfile(@Path("profileId") id: String, @Body req: Map<String, @JvmSuppressWildcards String>): Response<GenericResponse<Any>>
 }
 interface MatchingApiService {
-    @GET("matches/recommended") suspend fun getRecommended(@Query("page") page: Int = 1, @Query("limit") limit: Int = 25, @Query("verifiedOnly") verifiedOnly: Boolean = false): Response<GenericResponse<MatchesData>>
+    @GET("matches/recommended") suspend fun getRecommended(@Query("page") page: Int = 1, @Query("limit") limit: Int = 80, @Query("verifiedOnly") verifiedOnly: Boolean = false): Response<GenericResponse<MatchesData>>
     @GET("matches/compatibility/{profileId}") suspend fun getCompatibility(@Path("profileId") id: String): Response<GenericResponse<CompatibilityData>>
 }
 interface SearchApiService {

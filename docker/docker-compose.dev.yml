@@ -65,6 +65,8 @@ services:
       - '3002:3002'
     env_file:
       - ../backend/profile-service/.env
+    volumes:
+      - profile_uploads:/app/uploads
     environment:
       - DB_HOST=postgres
       - REDIS_HOST=redis
@@ -175,6 +177,8 @@ services:
       - '3011:3011'
     env_file:
       - ../backend/admin-service/.env
+    volumes:
+      - profile_uploads:/app/uploads
     environment:
       - DB_HOST=postgres
       - ADMIN_ROLE=super_admin
@@ -222,3 +226,4 @@ volumes:
   postgres_data:
   mongo_data:
   redis_data:
+  profile_uploads:

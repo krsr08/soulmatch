@@ -127,8 +127,8 @@ BEGIN
         birth_date := CURRENT_DATE - ((24 + (seed_no % 12)) * INTERVAL '1 year') - ((seed_no % 365) * INTERVAL '1 day');
         verification_value := 'verified';
         photo_value := CASE WHEN gender_value='female'
-            THEN 'https://api.dicebear.com/9.x/personas/png?seed=' || tongue || '-bride-' || seed_no || '&backgroundColor=fff0f3,fef3c7,e0f2fe'
-            ELSE 'https://api.dicebear.com/9.x/personas/png?seed=' || tongue || '-groom-' || seed_no || '&backgroundColor=e0f2fe,f3e8ff,fef3c7'
+            THEN 'https://randomuser.me/api/portraits/women/' || (((seed_no - 1) % 90) + 1)::TEXT || '.jpg'
+            ELSE 'https://randomuser.me/api/portraits/men/' || (((seed_no - 1) % 90) + 1)::TEXT || '.jpg'
         END;
         about_value := first_name_value || ' is a ' || education_value || ' graduate working as a ' || occupation_value ||
             ' in ' || city_value || '. The family values education, respect, and a thoughtful marriage journey.';
