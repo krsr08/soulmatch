@@ -27,6 +27,7 @@ test('socket message, typing, and read flows validate conversation eligibility',
   assert.match(socketSource, /if \(!await canChat\(socket\.userId,\s*receiverId\)\)/);
   assert.match(socketSource, /if \(!cid \|\| !await isConversationParticipant\(cid,\s*socket\.userId\)\)/);
   assert.match(socketSource, /jwt\.verify\(token,\s*process\.env\.JWT_SECRET,\s*verifyOptions\(\)\)/);
+  assert.match(socketSource, /memberHasChatAccess\(socket\.userId\)/);
 });
 
 test('internal conversation creation requires service authentication', () => {

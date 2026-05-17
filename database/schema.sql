@@ -379,6 +379,19 @@ CREATE TABLE IF NOT EXISTS member_meter_events (
     UNIQUE(user_id, target_profile_id, event_type, period_key)
 );
 
+CREATE TABLE IF NOT EXISTS profile_spotlight_boosts (
+    spotlight_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id UUID NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    plan_id VARCHAR(24) NOT NULL DEFAULT 'bronze',
+    starts_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    ends_at TIMESTAMP NOT NULL,
+    status VARCHAR(24) NOT NULL DEFAULT 'active',
+    metadata JSONB DEFAULT '{}'::JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT profile_spotlight_status_check CHECK (status IN ('active', 'expired', 'cancelled'))
+);
+
 CREATE TABLE IF NOT EXISTS verifications (
     verification_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(user_id),
@@ -784,6 +797,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_profile_views_pair ON profile_views(viewer_
 CREATE INDEX IF NOT EXISTS idx_partner_preferences_profile_updated ON partner_preferences(profile_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_match_feedback_user_target_created ON match_feedback(user_id, target_profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_match_feedback_action_created ON match_feedback(action, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_spotlight_profile_active ON profile_spotlight_boosts(profile_id, ends_at DESC) WHERE status='active';
+CREATE INDEX IF NOT EXISTS idx_spotlight_user_created ON profile_spotlight_boosts(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_family_details_state_city_pincode ON family_details(family_state, family_city, family_pincode);
 CREATE INDEX IF NOT EXISTS idx_referral_codes_owner ON referral_codes(owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_referral_redemptions_code ON referral_redemptions(referral_code_id);

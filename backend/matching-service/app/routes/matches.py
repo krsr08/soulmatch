@@ -30,7 +30,10 @@ async def recommended_matches(
     verifiedOnly: bool = Query(default=False),
     current_user: dict = Depends(rate_limited_user)
 ):
-    result = await get_recommended_matches(current_user["userId"], page, limit, verified_only=verifiedOnly)
+    try:
+        result = await get_recommended_matches(current_user["userId"], page, limit, verified_only=verifiedOnly)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     return {"success": True, "data": result}
 @router.get("/compatibility/{profile_id}")
 async def compatibility_score(profile_id: str, current_user: dict = Depends(rate_limited_user)):

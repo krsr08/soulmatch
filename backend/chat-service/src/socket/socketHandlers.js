@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
 const { getDB } = require('../config/database');
-const { isChatEnabled } = require('../middleware/featureGate');
+const { isChatEnabled, memberHasChatAccess } = require('../middleware/featureGate');
 const { moderateMessage } = require('../services/safetyModerationService');
 const { upsertConversationMetadata } = require('../services/chatMetadataService');
 const logger = require('../utils/logger');
@@ -118,8 +118,18 @@ exports.setupSocketHandlers = (io) => {
     if (!await isChatEnabled()) return next(new Error('Chat is temporarily unavailable'));
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error('Token required'));
-    try { const d = jwt.verify(token, process.env.JWT_SECRET, verifyOptions()); socket.userId = d.userId; next(); }
-    catch { next(new Error('Invalid token')); }
+    let d;
+    try {
+      d = jwt.verify(token, process.env.JWT_SECRET, verifyOptions());
+    }
+    catch { return next(new Error('Invalid token')); }
+    socket.userId = d.userId;
+    socket.userType = d.userType || d.role || 'member';
+    if (socket.userType === 'member' || !socket.userType) {
+      const access = await memberHasChatAccess(socket.userId);
+      if (!access.allowed) return next(new Error(access.message));
+    }
+    next();
   });
   io.on('connection', (socket) => {
     logger.info('Socket connected: ' + socket.id);

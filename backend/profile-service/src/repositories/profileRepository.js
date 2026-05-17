@@ -2052,6 +2052,68 @@ exports.unlockContactDetails = async (profileId, viewerUserId) => {
   };
 };
 
+exports.activateSpotlightBoost = async (profileId, userId, payload = {}) => {
+  const db = await getDB();
+  const profile = await exports.findById(profileId);
+  if (!profile) return { status: 'not_found' };
+  if (profile.user_id !== userId) return { status: 'not_owner' };
+  const monetization = await getConfigSection(db, 'monetization');
+  const planId = await getActivePlanId(db, userId);
+  const entitlements = getEntitlements(monetization, planId);
+  const limit = Number(entitlements.spotlightBoosts || 0);
+  if (limit <= 0) {
+    return {
+      status: 'upgrade_required',
+      planId: entitlements.planId,
+      entitlements,
+      message: 'Upgrade to Gold or above to use Spotlight Boost.'
+    };
+  }
+  await ensureUsageRecord(db, userId, entitlements.planId);
+  const consumed = await consumeMeter(db, {
+    userId,
+    eventType: 'spotlight',
+    limit,
+    metadata: { profileId }
+  });
+  if (!consumed.allowed) {
+    return {
+      status: 'limit_reached',
+      planId: entitlements.planId,
+      entitlements,
+      remaining: 0,
+      message: 'Limit reached. Extend your subscription to continue.'
+    };
+  }
+  const requestedHours = Number(payload.durationHours || payload.duration_hours || 24);
+  const durationHours = Math.min(Math.max(Number.isFinite(requestedHours) ? requestedHours : 24, 1), 72);
+  const inserted = await db.query(
+    `INSERT INTO profile_spotlight_boosts (
+       profile_id,user_id,plan_id,starts_at,ends_at,status,metadata
+     )
+     VALUES ($1,$2,$3,NOW(),NOW() + ($4::text || ' hours')::interval,'active',$5::jsonb)
+     RETURNING *`,
+    [
+      profileId,
+      userId,
+      entitlements.planId,
+      String(durationHours),
+      JSON.stringify({
+        source: payload.source || 'member_app',
+        requestedHours: durationHours,
+        remaining: consumed.remaining
+      })
+    ]
+  );
+  return {
+    status: 'active',
+    spotlight: inserted.rows[0],
+    planId: entitlements.planId,
+    remaining: consumed.remaining,
+    message: 'Spotlight boost activated.'
+  };
+};
+
 exports.recordConsentEvent = async (event) => {
   const db = await getDB();
   return insertConsentEvent(db, event);

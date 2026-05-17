@@ -42,6 +42,7 @@ router.get('/:profileId', authenticate, ctrl.getProfile);
 router.post('/:profileId/contact/unmask', authenticate, ctrl.unlockContact);
 router.post('/:profileId/ai/bio-suggestions', authenticate, ctrl.suggestProfileBio);
 router.post('/:profileId/ai/icebreakers', authenticate, ctrl.generateIcebreakers);
+router.post('/:profileId/spotlight/activate', authenticate, ctrl.activateSpotlight);
 router.put('/:profileId', authenticate, ctrl.updateProfile);
 router.get('/:profileId/verifications', authenticate, ctrl.getVerifications);
 router.post('/:profileId/verifications/upload', authenticate, documentUpload.single('document'), ctrl.submitVerificationUpload);

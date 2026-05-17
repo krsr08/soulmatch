@@ -10,11 +10,11 @@ EDUCATION_MAP = {"High School": 1, "Graduate": 2, "Post Graduate": 3, "Doctorate
 INCOME_MAP = {"< 3 LPA": 1, "3-5 LPA": 2, "5-10 LPA": 3, "10-20 LPA": 4, "20+ LPA": 5}
 
 DEFAULT_PLAN_ENTITLEMENTS = {
-    "free": {"visibleMatches": 80},
-    "bronze": {"visibleMatches": 80},
-    "silver": {"visibleMatches": 80},
-    "gold": {"visibleMatches": 80},
-    "platinum": {"visibleMatches": 80},
+    "free": {"visibleMatches": 80, "verifiedOnly": True},
+    "bronze": {"visibleMatches": 80, "verifiedOnly": True},
+    "silver": {"visibleMatches": 80, "verifiedOnly": True},
+    "gold": {"visibleMatches": 80, "verifiedOnly": True},
+    "platinum": {"visibleMatches": 80, "verifiedOnly": True},
 }
 
 
@@ -34,6 +34,21 @@ def config_dict(value):
     return {}
 
 
+def bool_config(value, fallback=False):
+    if value is None or value == "":
+        return fallback
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    normalized = str(value).strip().lower()
+    if normalized in {"false", "0", "no", "off", "disabled"}:
+        return False
+    if normalized in {"true", "1", "yes", "on", "enabled"}:
+        return True
+    return fallback
+
+
 async def active_plan_id(conn, user_id: str) -> str:
     row = await conn.fetchval(
         """
@@ -50,17 +65,28 @@ async def active_plan_id(conn, user_id: str) -> str:
     return normalize_plan_id(row)
 
 
-async def visible_match_limit(conn, user_id: str) -> int:
+async def match_entitlements(conn, user_id: str) -> dict:
     plan_id = await active_plan_id(conn, user_id)
     monetization = config_dict(
         await conn.fetchval("SELECT config_value FROM app_config WHERE config_key='monetization' LIMIT 1")
     )
     configured = config_dict(monetization.get("memberPlanEntitlements"))
-    plan_config = config_dict(configured.get(plan_id)) or DEFAULT_PLAN_ENTITLEMENTS.get(plan_id, DEFAULT_PLAN_ENTITLEMENTS["bronze"])
+    base = DEFAULT_PLAN_ENTITLEMENTS.get(plan_id, DEFAULT_PLAN_ENTITLEMENTS["bronze"])
+    plan_config = config_dict(configured.get(plan_id)) or base
     try:
-        return max(0, int(plan_config.get("visibleMatches") or DEFAULT_PLAN_ENTITLEMENTS[plan_id]["visibleMatches"]))
+        visible_matches = max(0, int(plan_config.get("visibleMatches") or base["visibleMatches"]))
     except Exception:
-        return DEFAULT_PLAN_ENTITLEMENTS["bronze"]["visibleMatches"]
+        visible_matches = DEFAULT_PLAN_ENTITLEMENTS["bronze"]["visibleMatches"]
+    return {
+        "planId": plan_id,
+        "visibleMatches": visible_matches,
+        "verifiedOnly": bool_config(plan_config.get("verifiedOnly"), base.get("verifiedOnly", True)),
+    }
+
+
+async def visible_match_limit(conn, user_id: str) -> int:
+    entitlements = await match_entitlements(conn, user_id)
+    return entitlements["visibleMatches"]
 
 
 def number_or(value, fallback):
@@ -328,7 +354,10 @@ async def get_recommended_matches(user_id: str, page: int, limit: int, verified_
         user = dict(user_row)
         gender = (user.get("gender") or "").lower()
         opp_gender = "female" if gender == "male" else "male" if gender == "female" else None
-        access_limit = await visible_match_limit(conn, user_id)
+        entitlements = await match_entitlements(conn, user_id)
+        if verified_only and not entitlements.get("verifiedOnly", True):
+            raise PermissionError("Upgrade your membership to use verified-only match filtering.")
+        access_limit = entitlements["visibleMatches"]
         candidates = await conn.fetch(
             """
             SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
