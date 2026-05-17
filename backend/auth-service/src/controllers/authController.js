@@ -197,6 +197,9 @@ exports.googleLogin = async (req, res, next) => {
     if (!googleToken) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'googleToken required'));
     const payload = await tokenService.verifyGoogleToken(googleToken);
     const { sub: googleId, email } = payload;
+    if (!payload.email_verified) {
+      return next(new AppError(401, ErrorCodes.UNAUTHORIZED, 'Google email must be verified before sign in.'));
+    }
     let user = await userRepo.findByGoogleId(googleId);
     if (!user && email) {
       user = await userRepo.findByEmail(email);
@@ -344,11 +347,15 @@ exports.refreshToken = async (req, res, next) => {
     const { refreshToken } = req.body;
     if (!refreshToken) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'refreshToken required'));
     const decoded = tokenService.verifyRefresh(refreshToken);
+    if (await tokenService.isRefreshRevoked(decoded)) {
+      return next(new AppError(401, ErrorCodes.UNAUTHORIZED, 'Invalid refresh token'));
+    }
     const stored = await tokenService.getRefresh(decoded.userId);
     if (stored !== refreshToken) return next(new AppError(401, ErrorCodes.UNAUTHORIZED, 'Invalid refresh token'));
     const user = await userRepo.findById(decoded.userId);
     const resolvedUserType = userRepo.normalizeUserType(user?.user_type || decoded.userType);
     const tokens = tokenService.generatePair({ userId: decoded.userId, userType: resolvedUserType });
+    await tokenService.revokeRefresh(decoded);
     await tokenService.storeRefresh(decoded.userId, tokens.refreshToken);
     res.json({
       success: true,
