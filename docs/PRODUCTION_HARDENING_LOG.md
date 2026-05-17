@@ -28,3 +28,8 @@
 - Android compile check passed with `.\gradlew.bat :app:compileDebugKotlin`.
 - Docker smoke stack could not start because Docker Desktop / Linux engine was not running locally: `failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine`.
 - Because the Docker stack did not start, `node test_folder\auth-flow-smoke.js` and `node test_folder\api-smoke.js` returned `fetch failed`. Re-run these after Docker Desktop is running.
+
+## Phase 2 Status
+| ID | Item | Status | Commit | Notes |
+|----|------|--------|--------|-------|
+| P2-01 | Runtime config control plane | Done | d735141 | Canonicalized `backend/shared/controlPlane.js`, removed service-local shared copies, added schema-backed config validation, restored upgrade package normalization plus member entitlements, added runtime config ETag/304 handling and Android backoff polling. Tested with `node backend\payment-service\test\controlPlane.test.js`, `node backend\profile-service\test\profileVisibility.test.js`, `node --check` on changed controllers/repositories, and `.\gradlew.bat :app:compileDebugKotlin`. |
