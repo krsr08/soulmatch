@@ -28,3 +28,8 @@ test('socket message, typing, and read flows validate conversation eligibility',
   assert.match(socketSource, /if \(!cid \|\| !await isConversationParticipant\(cid,\s*socket\.userId\)\)/);
   assert.match(socketSource, /jwt\.verify\(token,\s*process\.env\.JWT_SECRET,\s*verifyOptions\(\)\)/);
 });
+
+test('internal conversation creation requires service authentication', () => {
+  assert.match(chatRoutesSource, /router\.post\('\/internal\/conversations', authenticateService/);
+  assert.match(chatRoutesSource, /\$addToSet:\s*\{\s*participants:\s*\{\s*\$each:\s*participants\s*\}\s*\}/);
+});

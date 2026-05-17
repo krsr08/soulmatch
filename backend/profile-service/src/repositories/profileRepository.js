@@ -2153,10 +2153,31 @@ exports.blockProfile = async (blockerUserId, profileId) => {
   const db = await getDB();
   const target = await exports.findById(profileId);
   if (!target) return false;
-  await db.query(
-    'INSERT INTO blocks (block_id,blocker_id,blocked_id) VALUES ($1,$2,$3) ON CONFLICT (blocker_id, blocked_id) DO NOTHING',
-    [randomUUID(), blockerUserId, target.user_id]
-  );
+  const blocker = await db.query('SELECT profile_id FROM profiles WHERE user_id=$1 LIMIT 1', [blockerUserId]);
+  const blockerProfileId = blocker.rows[0]?.profile_id || null;
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'INSERT INTO blocks (block_id,blocker_id,blocked_id) VALUES ($1,$2,$3) ON CONFLICT (blocker_id, blocked_id) DO NOTHING',
+      [randomUUID(), blockerUserId, target.user_id]
+    );
+    if (blockerProfileId) {
+      await client.query(
+        `UPDATE interests
+         SET status='blocked', responded_at=NOW()
+         WHERE status='pending'
+           AND ((sender_id=$1 AND receiver_id=$2) OR (sender_id=$2 AND receiver_id=$1))`,
+        [blockerProfileId, target.profile_id]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
   return true;
 };
 exports.reportProfile = async (reporterUserId, profileId, reason, description) => {

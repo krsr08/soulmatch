@@ -2,6 +2,7 @@ const express = require('express');
 const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
 const { authenticate } = require('../middleware/authMiddleware');
+const { authenticateService } = require('../middleware/serviceAuthMiddleware');
 const { ensureChatEnabled } = require('../middleware/featureGate');
 const { getDB } = require('../config/database');
 const { detectTextSafety } = require('../services/safetyModerationService');
@@ -9,6 +10,7 @@ const crypto = require('crypto');
 
 const router = express.Router();
 const MAX_PAGE_SIZE = 100;
+const makeChatId = (a, b) => [a, b].sort().join('_');
 
 async function getProfileIdByUserId(db, userId) {
   const row = await db.query(
@@ -196,6 +198,42 @@ router.get('/eligibility/:targetUserId', authenticate, ensureChatEnabled, async 
   try {
     const db = await getDB();
     res.json({ success: true, data: await getChatEligibility(db, req.user.userId, req.params.targetUserId) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/internal/conversations', authenticateService, async (req, res, next) => {
+  try {
+    const participants = Array.isArray(req.body?.participants) ? req.body.participants.map(String).filter(Boolean) : [];
+    if (participants.length !== 2 || participants[0] === participants[1]) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Exactly two distinct participants are required.'
+        }
+      });
+    }
+    const chatId = makeChatId(participants[0], participants[1]);
+    const conversation = await Conversation.findOneAndUpdate(
+      { chatId },
+      {
+        $setOnInsert: {
+          chatId,
+          unreadCounts: {},
+          createdAt: new Date()
+        },
+        $set: {
+          source: req.body?.source || 'matching-service',
+          interestId: req.body?.interestId || null,
+          updatedAt: new Date()
+        },
+        $addToSet: { participants: { $each: participants } }
+      },
+      { upsert: true, new: true }
+    );
+    res.json({ success: true, data: { chatId, conversationId: conversation._id.toString() } });
   } catch (err) {
     next(err);
   }
