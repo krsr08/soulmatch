@@ -1,0 +1,16 @@
+title = "SoulMatch gitleaks configuration"
+
+[allowlist]
+description = "Allow public mobile/client identifiers and documented placeholders; block private credentials."
+regexes = [
+  '''rzp_test_placeholder''',
+  '''REPLACE_[A-Z0-9_]+''',
+  '''soul-match-2ead9''',
+  '''253330028301''',
+  '''AIzaSyDaNUgpw4-bs6kXg0Y3mEyvgl5ZGRMb7qQ'''
+]
+
+paths = [
+  '''android/app/google-services.json''',
+  '''recovery-kit/templates/production.env.template'''
+]
