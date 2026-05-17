@@ -9,4 +9,5 @@ router.put('/:id/read', authenticate, controller.markRead);
 router.post('/devices/fcm-token', authenticate, controller.registerFcmToken);
 router.post('/send', authenticateService, controller.sendPush);
 router.post('/template', authenticateService, controller.sendTemplate);
+router.get('/stats', authenticateService, controller.getDeliveryStats);
 module.exports = router;
