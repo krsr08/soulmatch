@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
+const { validateDocumentFile } = require('./fileValidation');
 
 const ENCRYPTION_VERSION = 'SMENC1';
 const ALGORITHM = 'AES-256-GCM';
@@ -34,6 +35,7 @@ async function encryptUploadedFiles(files = []) {
   return Promise.all(files.map(async (file) => {
     if (!file?.path) return file;
     const sourcePath = file.path;
+    const detectedType = await validateDocumentFile(file);
     const plaintext = await fs.readFile(sourcePath);
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
@@ -56,7 +58,7 @@ async function encryptUploadedFiles(files = []) {
       encryptionIv: iv.toString('base64'),
       contentSha256: crypto.createHash('sha256').update(plaintext).digest('hex'),
       originalFileName: file.originalname || file.filename || '',
-      mimeType: file.mimetype || 'application/octet-stream',
+      mimeType: detectedType.type || file.mimetype || 'application/octet-stream',
       fileSizeBytes: file.size || plaintext.length
     };
   }));

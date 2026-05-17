@@ -113,6 +113,10 @@ CREATE TABLE IF NOT EXISTS profile_photos (
     s3_key TEXT NOT NULL,
     is_primary BOOLEAN DEFAULT FALSE,
     is_approved BOOLEAN DEFAULT FALSE,
+    review_status VARCHAR(24) DEFAULT 'pending',
+    review_comment TEXT,
+    reviewed_at TIMESTAMP,
+    reviewed_by VARCHAR(255),
     sequence_order INTEGER,
     uploaded_at TIMESTAMP DEFAULT NOW()
 );

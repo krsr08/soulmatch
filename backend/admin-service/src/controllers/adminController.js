@@ -1176,6 +1176,10 @@ exports.getProfiles = async (req, res) => {
              'photo_url', phs.photo_url,
              'is_primary', phs.is_primary,
              'is_approved', phs.is_approved,
+             'review_status', COALESCE(phs.review_status, CASE WHEN phs.is_approved THEN 'approved' ELSE 'pending' END),
+             'review_comment', phs.review_comment,
+             'reviewed_at', phs.reviewed_at,
+             'reviewed_by', phs.reviewed_by,
              'sequence_order', phs.sequence_order,
              'uploaded_at', phs.uploaded_at
            ) ORDER BY phs.is_primary DESC, phs.sequence_order NULLS LAST, phs.uploaded_at DESC)
@@ -2196,11 +2200,12 @@ exports.addProfilePhoto = async (req, res) => {
     if (makePrimary) {
       await client.query('UPDATE profile_photos SET is_primary=false WHERE profile_id=$1', [profileId]);
     }
+    const isApproved = parseBool(req.body?.isApproved ?? req.body?.is_approved, true);
     const inserted = await client.query(
-      `INSERT INTO profile_photos (photo_id, profile_id, photo_url, s3_key, is_primary, is_approved, sequence_order, uploaded_at)
-       VALUES ($1,$2,$3,$4,$5,$6,(SELECT COALESCE(MAX(sequence_order),0)+1 FROM profile_photos WHERE profile_id=$2),NOW())
-       RETURNING photo_id, profile_id, photo_url, is_primary, is_approved, sequence_order, uploaded_at`,
-      [photoId, profileId, photoUrl, uploadedPhoto?.s3Key || `admin/manual/${profileId}/${photoId}`, makePrimary, parseBool(req.body?.isApproved ?? req.body?.is_approved, true)]
+      `INSERT INTO profile_photos (photo_id, profile_id, photo_url, s3_key, is_primary, is_approved, review_status, reviewed_at, reviewed_by, sequence_order, uploaded_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,CASE WHEN $6 THEN NOW() ELSE NULL END,CASE WHEN $6 THEN $8 ELSE NULL END,(SELECT COALESCE(MAX(sequence_order),0)+1 FROM profile_photos WHERE profile_id=$2),NOW())
+       RETURNING photo_id, profile_id, photo_url, is_primary, is_approved, review_status, review_comment, reviewed_at, reviewed_by, sequence_order, uploaded_at`,
+      [photoId, profileId, photoUrl, uploadedPhoto?.s3Key || `admin/manual/${profileId}/${photoId}`, makePrimary, isApproved, isApproved ? 'approved' : 'pending', req.admin?.email || 'admin']
     );
     if (makePrimary) {
       await client.query('UPDATE profiles SET primary_photo_url=$1, updated_at=NOW() WHERE profile_id=$2', [photoUrl, profileId]);
@@ -2247,16 +2252,26 @@ exports.updateProfilePhoto = async (req, res) => {
        SET photo_url=COALESCE($3, photo_url),
            is_primary=COALESCE($4, is_primary),
            is_approved=COALESCE($5, is_approved),
+           review_status=CASE
+             WHEN $5 IS TRUE THEN 'approved'
+             WHEN $5 IS FALSE THEN 'rejected'
+             ELSE COALESCE(review_status, CASE WHEN is_approved THEN 'approved' ELSE 'pending' END)
+           END,
+           review_comment=COALESCE($7, review_comment),
+           reviewed_at=CASE WHEN $5 IS NOT NULL THEN NOW() ELSE reviewed_at END,
+           reviewed_by=CASE WHEN $5 IS NOT NULL THEN $8 ELSE reviewed_by END,
            s3_key=COALESCE($6, s3_key)
        WHERE profile_id=$1 AND photo_id=$2
-       RETURNING photo_id, profile_id, photo_url, is_primary, is_approved, sequence_order, uploaded_at`,
+       RETURNING photo_id, profile_id, photo_url, is_primary, is_approved, review_status, review_comment, reviewed_at, reviewed_by, sequence_order, uploaded_at`,
       [
         profileId,
         photoId,
         photoUrl,
         makePrimary,
         req.body?.isApproved !== undefined || req.body?.is_approved !== undefined ? parseBool(req.body?.isApproved ?? req.body?.is_approved) : null,
-        uploadedPhoto?.s3Key || null
+        uploadedPhoto?.s3Key || null,
+        req.body?.reviewComment || req.body?.review_comment || null,
+        req.admin?.email || 'admin'
       ]
     );
     if (makePrimary === true || (photoUrl && current.rows[0].is_primary)) {
@@ -2289,7 +2304,7 @@ exports.deleteProfilePhoto = async (req, res) => {
     }
     if (removed.rows[0].is_primary) {
       const fallback = await client.query(
-        'SELECT photo_id, photo_url FROM profile_photos WHERE profile_id=$1 ORDER BY sequence_order ASC NULLS LAST, uploaded_at ASC LIMIT 1',
+        'SELECT photo_id, photo_url FROM profile_photos WHERE profile_id=$1 AND is_approved=true ORDER BY sequence_order ASC NULLS LAST, uploaded_at ASC LIMIT 1',
         [profileId]
       );
       if (fallback.rows[0]) {
@@ -2306,6 +2321,133 @@ exports.deleteProfilePhoto = async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     respondServerError(res, err, 'Unable to delete profile photo right now.');
+  } finally {
+    client.release();
+  }
+};
+
+exports.getPendingPhotoModeration = async (req, res) => {
+  try {
+    const db = await getDB();
+    const result = await db.query(
+      `SELECT
+         pp.photo_id,
+         pp.profile_id,
+         pp.photo_url,
+         pp.is_primary,
+         pp.is_approved,
+         COALESCE(pp.review_status, CASE WHEN pp.is_approved THEN 'approved' ELSE 'pending' END) AS review_status,
+         pp.review_comment,
+         pp.uploaded_at,
+         p.first_name,
+         p.last_name,
+         p.user_id,
+         u.email,
+         u.phone
+       FROM profile_photos pp
+       JOIN profiles p ON p.profile_id=pp.profile_id
+       JOIN users u ON u.user_id=p.user_id
+       WHERE COALESCE(pp.review_status, CASE WHEN pp.is_approved THEN 'approved' ELSE 'pending' END)='pending'
+       ORDER BY pp.uploaded_at ASC
+       LIMIT 100`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    respondDegraded(res, err, [], 'Photo moderation queue is unavailable.');
+  }
+};
+
+exports.approveProfilePhoto = async (req, res) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    const note = String(req.body?.note || '').trim() || null;
+    await client.query('BEGIN');
+    const updated = await client.query(
+      `UPDATE profile_photos
+       SET is_approved=true,
+           review_status='approved',
+           review_comment=$3,
+           reviewed_at=NOW(),
+           reviewed_by=$4
+       WHERE profile_id=$1 AND photo_id=$2
+       RETURNING *`,
+      [req.params.id, req.params.photoId, note, req.admin?.email || 'admin']
+    );
+    const photo = updated.rows[0];
+    if (!photo) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Photo not found.' } });
+    }
+    const profile = await client.query('SELECT user_id, primary_photo_url FROM profiles WHERE profile_id=$1 FOR UPDATE', [req.params.id]);
+    if (photo.is_primary || !profile.rows[0]?.primary_photo_url) {
+      await client.query('UPDATE profiles SET primary_photo_url=$1, updated_at=NOW() WHERE profile_id=$2', [photo.photo_url, req.params.id]);
+    }
+    await auditLog(client, req, 'profile_photo.approve', 'profile_photo', req.params.photoId, { profileId: req.params.id, note });
+    await client.query('COMMIT');
+    if (profile.rows[0]?.user_id) {
+      await notifyMember(db, profile.rows[0].user_id, 'Profile photo approved', 'Your uploaded SoulMatch profile photo is approved.', {
+        type: 'profile_photo_review',
+        status: 'approved',
+        profileId: req.params.id,
+        photoId: req.params.photoId
+      }).catch((error) => logger.warn(`Photo approval notification skipped: ${error.message}`));
+    }
+    broadcastAdminEvent('admin:photo_moderation', { action: 'approve', photo });
+    res.json({ success: true, data: photo });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    respondServerError(res, err, 'Unable to approve profile photo right now.');
+  } finally {
+    client.release();
+  }
+};
+
+exports.rejectProfilePhoto = async (req, res) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    const note = String(req.body?.note || '').trim() || 'Photo does not meet SoulMatch profile photo guidelines.';
+    await client.query('BEGIN');
+    const updated = await client.query(
+      `UPDATE profile_photos
+       SET is_approved=false,
+           review_status='rejected',
+           review_comment=$3,
+           reviewed_at=NOW(),
+           reviewed_by=$4
+       WHERE profile_id=$1 AND photo_id=$2
+       RETURNING *`,
+      [req.params.id, req.params.photoId, note, req.admin?.email || 'admin']
+    );
+    const photo = updated.rows[0];
+    if (!photo) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Photo not found.' } });
+    }
+    const profile = await client.query('SELECT user_id, primary_photo_url FROM profiles WHERE profile_id=$1 FOR UPDATE', [req.params.id]);
+    if (profile.rows[0]?.primary_photo_url === photo.photo_url) {
+      const fallback = await client.query(
+        'SELECT photo_url FROM profile_photos WHERE profile_id=$1 AND is_approved=true ORDER BY is_primary DESC, sequence_order ASC NULLS LAST, uploaded_at ASC LIMIT 1',
+        [req.params.id]
+      );
+      await client.query('UPDATE profiles SET primary_photo_url=$1, updated_at=NOW() WHERE profile_id=$2', [fallback.rows[0]?.photo_url || null, req.params.id]);
+    }
+    await auditLog(client, req, 'profile_photo.reject', 'profile_photo', req.params.photoId, { profileId: req.params.id, note });
+    await client.query('COMMIT');
+    if (profile.rows[0]?.user_id) {
+      await notifyMember(db, profile.rows[0].user_id, 'Profile photo needs attention', note, {
+        type: 'profile_photo_review',
+        status: 'rejected',
+        profileId: req.params.id,
+        photoId: req.params.photoId
+      }).catch((error) => logger.warn(`Photo rejection notification skipped: ${error.message}`));
+    }
+    broadcastAdminEvent('admin:photo_moderation', { action: 'reject', photo });
+    res.json({ success: true, data: photo });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    respondServerError(res, err, 'Unable to reject profile photo right now.');
   } finally {
     client.release();
   }

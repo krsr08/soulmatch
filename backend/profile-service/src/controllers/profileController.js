@@ -584,6 +584,13 @@ exports.getPhotos = async (req, res, next) => {
     res.json({ success: true, data: await repo.getPhotos(req.params.profileId) });
   } catch (err) { next(err); }
 };
+
+exports.redirectMedia = async (req, res, next) => {
+  try {
+    await media.redirectToSignedMedia(req.params.token, res);
+  } catch (err) { next(err); }
+};
+
 exports.uploadPhotos = async (req, res, next) => {
   try {
     await requireEditableProfileForUser(req, req.params.profileId);

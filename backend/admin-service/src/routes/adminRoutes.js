@@ -21,6 +21,8 @@ router.put('/profiles/:id', authenticateAdmin, authorizeAdminRoles('super_admin'
 router.post('/profiles/:id/photos', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.addProfilePhoto);
 router.put('/profiles/:id/photos/:photoId', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.updateProfilePhoto);
 router.delete('/profiles/:id/photos/:photoId', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.deleteProfilePhoto);
+router.put('/profiles/:id/photos/:photoId/approve', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.approveProfilePhoto);
+router.put('/profiles/:id/photos/:photoId/reject', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.rejectProfilePhoto);
 router.delete('/profiles/:id', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin'), controller.deleteProfile);
 router.put('/profiles/:id/status', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.updateProfileStatus);
 
@@ -43,6 +45,7 @@ router.put('/profile-documents/:id/reject', authenticateAdmin, authorizeAdminRol
 router.get('/reports', authenticateAdmin, controller.getReports);
 router.put('/reports/:id/resolve', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.resolveReport);
 router.get('/moderation/reports', authenticateAdmin, controller.getReports);
+router.get('/moderation/photos', authenticateAdmin, controller.getPendingPhotoModeration);
 router.get('/moderation/chat-logs', authenticateAdmin, controller.getChatLogs);
 
 router.get('/payments', authenticateAdmin, controller.getPayments);

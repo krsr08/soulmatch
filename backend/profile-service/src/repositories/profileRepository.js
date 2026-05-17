@@ -901,6 +901,9 @@ exports.getPhotos = async (profileId) => {
        photo_id,
        photo_url,
        is_primary,
+       is_approved,
+       COALESCE(review_status, CASE WHEN is_approved THEN 'approved' ELSE 'pending' END) AS review_status,
+       review_comment,
        sequence_order,
        uploaded_at
      FROM profile_photos
@@ -2097,22 +2100,22 @@ exports.updateVideoUrl = async (profileId, url) => { const db = await getDB(); a
 exports.getPhotoCount = async (profileId) => { const db = await getDB(); const r = await db.query('SELECT COUNT(*) FROM profile_photos WHERE profile_id=$1', [profileId]); return parseInt(r.rows[0].count); };
 exports.setPrimaryPhoto = async (profileId, photoId) => {
   const db = await getDB();
-  const photo = await db.query('SELECT photo_url FROM profile_photos WHERE profile_id=$1 AND photo_id=$2 LIMIT 1', [profileId, photoId]);
+  const photo = await db.query('SELECT photo_url,is_approved FROM profile_photos WHERE profile_id=$1 AND photo_id=$2 LIMIT 1', [profileId, photoId]);
   if (!photo.rows[0]) return false;
   await db.query('UPDATE profile_photos SET is_primary=false WHERE profile_id=$1', [profileId]);
   await db.query('UPDATE profile_photos SET is_primary=true WHERE profile_id=$1 AND photo_id=$2', [profileId, photoId]);
-  await db.query('UPDATE profiles SET primary_photo_url=$1,updated_at=NOW() WHERE profile_id=$2', [photo.rows[0].photo_url, profileId]);
+  await db.query('UPDATE profiles SET primary_photo_url=$1,updated_at=NOW() WHERE profile_id=$2', [photo.rows[0].is_approved ? photo.rows[0].photo_url : null, profileId]);
   return true;
 };
 exports.deletePhoto = async (profileId, photoId) => {
   const db = await getDB();
   await db.query('DELETE FROM profile_photos WHERE photo_id=$1 AND profile_id=$2', [photoId,profileId]);
-  const primary = await db.query('SELECT photo_url FROM profile_photos WHERE profile_id=$1 AND is_primary=true LIMIT 1', [profileId]);
+  const primary = await db.query('SELECT photo_url FROM profile_photos WHERE profile_id=$1 AND is_primary=true AND is_approved=true LIMIT 1', [profileId]);
   if (primary.rows[0]) {
     await db.query('UPDATE profiles SET primary_photo_url=$1,updated_at=NOW() WHERE profile_id=$2', [primary.rows[0].photo_url, profileId]);
     return;
   }
-  const fallback = await db.query('SELECT photo_id,photo_url FROM profile_photos WHERE profile_id=$1 ORDER BY sequence_order ASC, uploaded_at ASC LIMIT 1', [profileId]);
+  const fallback = await db.query('SELECT photo_id,photo_url FROM profile_photos WHERE profile_id=$1 AND is_approved=true ORDER BY sequence_order ASC, uploaded_at ASC LIMIT 1', [profileId]);
   if (!fallback.rows[0]) {
     await db.query('UPDATE profiles SET primary_photo_url=NULL,updated_at=NOW() WHERE profile_id=$1', [profileId]);
     return;
