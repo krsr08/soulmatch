@@ -6,6 +6,7 @@ from typing import Optional
 import httpx
 
 from app.config.database import get_db_pool
+from app.services.feed_cache import invalidate_feed
 
 PLAN_ENTITLEMENTS = {
     "free": {"interests": 5, "shortlist": 5},
@@ -290,6 +291,7 @@ async def send_interest(sender_user_id: str, receiver_id: str) -> dict:
         mutual = await conn.fetchrow("SELECT * FROM interests WHERE sender_id=$1 AND receiver_id=$2 AND status='accepted'", receiver_profile_id, sender_profile_id)
         sender_profile = await _get_profile_summary(conn, sender_profile_id)
         receiver_profile = await _get_profile_summary(conn, receiver_profile_id)
+        await invalidate_feed(sender_profile.get('user_id'), receiver_profile.get('user_id'))
         if receiver_profile.get('user_id'):
             await _send_template_notification(
                 receiver_profile['user_id'],
@@ -433,6 +435,7 @@ async def respond_to_interest(interest_id: str, status: str, user_id: str) -> di
                     }
                 )
         chat_id = None
+        await invalidate_feed(sender_profile.get('user_id'), receiver_profile.get('user_id'))
         if status == 'accepted' and sender_profile.get('user_id') and receiver_profile.get('user_id'):
             chat_id = await _create_chat_conversation(sender_profile['user_id'], receiver_profile['user_id'], interest_id)
             if sender_profile.get('user_id'):

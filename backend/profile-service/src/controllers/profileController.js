@@ -2,6 +2,7 @@ const repo = require('../repositories/profileRepository');
 const media = require('../services/mediaService');
 const aiAssist = require('../services/aiAssistService');
 const secureDocuments = require('../services/secureDocumentService');
+const { invalidateAllMatchFeeds } = require('../services/feedCache');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const { redactProfileForViewer } = require('../../../shared/profileVisibility');
 
@@ -370,6 +371,7 @@ exports.createOrUpdateStep = async (req, res, next) => {
       beforeData: before || {},
       afterData: after || {}
     });
+    await invalidateAllMatchFeeds();
     res.json({ success: true, data: { profileId: result.profile_id, completionScore: score, step: normalizedStep } });
   } catch (err) { next(err); }
 };
@@ -715,6 +717,7 @@ exports.updatePrivacy = async (req, res, next) => {
       beforeData: before || {},
       afterData: after || {}
     });
+    await invalidateAllMatchFeeds();
     res.json({ success: true });
   } catch (err) { next(err); }
 };
@@ -738,6 +741,7 @@ exports.updateProfileStatus = async (req, res, next) => {
         profileVisibility: updated.profile_visibility
       }
     });
+    await invalidateAllMatchFeeds();
     res.json({
       success: true,
       data: {

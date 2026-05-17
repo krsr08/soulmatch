@@ -4,6 +4,7 @@ const { scoreAdvisorCandidate, normalizeList } = require('../services/assistAllo
 const { getConfigSection } = require('../../../shared/controlPlane');
 const { consumeMeter, ensureUsageRecord, getActivePlanId, getEntitlements, periodKey } = require('../../../shared/memberEntitlements');
 const { evaluateProfileVisibility } = require('../../../shared/profileVisibility');
+const { invalidateMatchFeed } = require('../services/feedCache');
 const logger = require('../utils/logger');
 const DPDP_NOTICE_VERSION = 'dpdp-2026-05-10-v1';
 
@@ -2178,6 +2179,7 @@ exports.blockProfile = async (blockerUserId, profileId) => {
   } finally {
     client.release();
   }
+  await invalidateMatchFeed(blockerUserId, target.user_id);
   return true;
 };
 exports.reportProfile = async (reporterUserId, profileId, reason, description) => {

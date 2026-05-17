@@ -3,6 +3,10 @@ const logger = require('../utils/logger');
 
 async function ensureAdminSchema() {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      logger.info('Admin schema bootstrap skipped in production; run database migrations instead.');
+      return;
+    }
     const db = await getDB();
     await db.query(`
       ALTER TABLE profiles

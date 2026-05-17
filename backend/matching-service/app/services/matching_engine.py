@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 from app.config.database import get_db_pool
+from app.services.feed_cache import get_feed, set_feed
 
 RELIGION_MAP = {"Hindu": 0, "Muslim": 1, "Christian": 2, "Sikh": 3, "Buddhist": 4, "Jain": 5, "Other": 6}
 EDUCATION_MAP = {"High School": 1, "Graduate": 2, "Post Graduate": 3, "Doctorate": 4, "Professional": 5}
@@ -295,6 +296,11 @@ def build_match_reasons(user, candidate, preference_score, vector_score, horosco
 
 
 async def get_recommended_matches(user_id: str, page: int, limit: int, verified_only: bool = False) -> dict:
+    page = max(int(page or 1), 1)
+    limit = min(max(int(limit or 25), 1), 50)
+    cached = await get_feed(user_id, page, limit, verified_only)
+    if cached is not None:
+        return cached
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         user_row = await conn.fetchrow(
@@ -322,8 +328,6 @@ async def get_recommended_matches(user_id: str, page: int, limit: int, verified_
         user = dict(user_row)
         gender = (user.get("gender") or "").lower()
         opp_gender = "female" if gender == "male" else "male" if gender == "female" else None
-        page = max(int(page or 1), 1)
-        limit = min(max(int(limit or 25), 1), 50)
         access_limit = await visible_match_limit(conn, user_id)
         candidates = await conn.fetch(
             """
@@ -489,7 +493,9 @@ async def get_recommended_matches(user_id: str, page: int, limit: int, verified_
         scored.sort(key=lambda x: (x["compatibilityScore"], x["trustScore"]), reverse=True)
         scored = scored[:access_limit]
         start = (page - 1) * limit
-        return {"matches": scored[start : start + limit], "total": len(scored), "page": page, "limit": limit}
+        result = {"matches": scored[start : start + limit], "total": len(scored), "page": page, "limit": limit}
+        await set_feed(user_id, page, limit, verified_only, result)
+        return result
 
 
 async def get_compatibility(user_id: str, target_profile_id: str) -> dict:
