@@ -13,6 +13,8 @@ const photoUpload = multer({ storage, limits: { fileSize: 5*1024*1024 }, fileFil
 const documentUpload = multer({ storage, limits: { fileSize: 10*1024*1024 }, fileFilter: (req, file, cb) => { const ok = ['image/jpeg','image/png','image/webp','application/pdf'].includes(file.mimetype); cb(ok?null:new Error('JPG/PNG/WebP/PDF only'), ok); } });
 router.post('/create', authenticate, ctrl.createOrUpdateStep);
 router.get('/me', authenticate, ctrl.getMyProfile);
+router.get('/export', authenticate, ctrl.exportMyData);
+router.post('/delete-account', authenticate, ctrl.deleteMyAccount);
 router.get('/media/:token', ctrl.redirectMedia);
 router.get('/agent/me', authenticate, ctrl.getAgentProfile);
 router.post('/agent/onboarding', authenticate, documentUpload.array('documents', 6), ctrl.upsertAgentOnboarding);

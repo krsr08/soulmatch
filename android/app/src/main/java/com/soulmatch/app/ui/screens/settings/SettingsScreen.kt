@@ -119,6 +119,10 @@ fun SettingsScreen(
                 }
                 PrivacyControlsCard(settings = settings, vm = vm)
                 ContactAndVisibilityCard(settings = settings, vm = vm)
+                DataRightsCard(
+                    onExport = { vm.exportMyData() },
+                    onDelete = { vm.deleteAccount(logout) }
+                )
                 SupportCard(onLogout = { vm.logout(logout) })
                 Box(Modifier.padding(bottom = 8.dp))
             }
@@ -253,6 +257,28 @@ private fun ManagementListsCard(
                         onDelete = { onDeleteConcern(concern.profileId) }
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DataRightsCard(onExport: () -> Unit, onDelete: () -> Unit) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp), containerColor = MaterialTheme.colorScheme.surface) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SectionTitle("Data rights", "Export your account data or request deletion")
+            Text(
+                "SoulMatch keeps a consent log for privacy, KYC, photo sharing, and assistance choices. Account deletion anonymizes personal details and disables login.",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary
+            )
+            OutlinedButton(onClick = onExport, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.Visibility, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text("Export my data")
+            }
+            OutlinedButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp), tint = Error)
+                Text("Delete my account", color = Error)
             }
         }
     }

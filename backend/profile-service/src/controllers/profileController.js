@@ -397,6 +397,29 @@ exports.getMyProfile = async (req, res, next) => {
     res.json({ success: true, data: formatProfileForResponse(p), isNewProfile: !p });
   } catch (err) { next(err); }
 };
+
+exports.exportMyData = async (req, res, next) => {
+  try {
+    const exportData = await repo.exportUserData(req.user.userId, auditMeta(req));
+    if (!exportData) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Account not found'));
+    res.json({ success: true, data: exportData, message: 'Your SoulMatch data export is ready.' });
+  } catch (err) { next(err); }
+};
+
+exports.deleteMyAccount = async (req, res, next) => {
+  try {
+    const reason = String(req.body?.reason || 'user_requested').trim().slice(0, 500) || 'user_requested';
+    const result = await repo.deleteAccount(req.user.userId, { reason, audit: auditMeta(req) });
+    if (!result) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Account not found'));
+    await invalidateAllMatchFeeds();
+    res.json({
+      success: true,
+      data: result,
+      message: 'Your account has been deleted and personal details were anonymized.'
+    });
+  } catch (err) { next(err); }
+};
+
 exports.getAssistStatus = async (req, res, next) => {
   try {
     const status = await repo.getAssistStatusByUserId(req.user.userId);

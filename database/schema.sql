@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS users (
     referred_at TIMESTAMP,
     user_type VARCHAR(16) DEFAULT 'member',
     role_selected_at TIMESTAMP,
+    deleted_at TIMESTAMP,
+    deletion_reason TEXT,
     last_login TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
@@ -47,6 +49,9 @@ CREATE TABLE IF NOT EXISTS profiles (
     contact_privacy VARCHAR(20) DEFAULT 'visible' CHECK (contact_privacy IN ('visible', 'masked')),
     profile_visibility VARCHAR(20) DEFAULT 'all',
     hide_last_seen BOOLEAN DEFAULT FALSE,
+    consent_notice_version VARCHAR(48),
+    consent_granted_at TIMESTAMP,
+    consent_withdrawn_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -684,11 +689,16 @@ CREATE TABLE IF NOT EXISTS consent_events (
     created_at TIMESTAMP DEFAULT NOW(),
     CONSTRAINT consent_events_type_check CHECK (
         consent_type IN (
+            'signup_terms',
+            'privacy_policy',
             'photo_upload',
             'kyc_upload',
             'agent_kyc_upload',
+            'agent_terms_acceptance',
             'agent_profile_share',
-            'soulmatch_assistance'
+            'soulmatch_assistance',
+            'data_export',
+            'account_deletion'
         )
     ),
     CONSTRAINT consent_events_status_check CHECK (status IN ('granted', 'withdrawn', 'updated'))

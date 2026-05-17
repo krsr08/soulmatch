@@ -1,6 +1,8 @@
 const { getDB } = require('../config/database');
 const { randomUUID } = require('crypto');
 
+const LEGAL_NOTICE_VERSION = process.env.LEGAL_NOTICE_VERSION || process.env.PRIVACY_POLICY_VERSION || 'dpdp-2026-05-10-v1';
+
 function cleanPhone(phone) {
   return String(phone || '').trim().replace(/[\s()-]/g, '');
 }
@@ -134,5 +136,34 @@ exports.recordReferralRedemption = async ({ referralCodeId, referredUserId, refe
      ON CONFLICT (referred_user_id)
      DO NOTHING`,
     [referralCodeId, referredUserId, referrerUserId || null, JSON.stringify(metadata || {})]
+  );
+};
+
+exports.recordSignupConsent = async (userId, { method = 'unknown', ipAddress = null, userAgent = null } = {}) => {
+  const db = await getDB();
+  await db.query(
+    `INSERT INTO consent_events (
+       consent_event_id,
+       user_id,
+       consent_type,
+       status,
+       purpose,
+       notice_version,
+       metadata,
+       source,
+       ip_address,
+       user_agent,
+       created_at
+     )
+     VALUES ($1,$2,'signup_terms','granted',$3,$4,$5::jsonb,'auth-service',$6,$7,NOW())`,
+    [
+      randomUUID(),
+      userId,
+      'Accepted SoulMatch Terms and Privacy Policy during account creation.',
+      LEGAL_NOTICE_VERSION,
+      JSON.stringify({ method }),
+      ipAddress,
+      userAgent
+    ]
   );
 };

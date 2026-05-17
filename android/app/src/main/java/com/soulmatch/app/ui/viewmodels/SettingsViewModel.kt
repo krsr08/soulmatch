@@ -229,6 +229,31 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun exportMyData() {
+        viewModelScope.launch {
+            val response = runCatching { profileApi.exportMyData() }.getOrNull()
+            _status.value = if (response?.isSuccessful == true && response.body()?.success == true) {
+                "Your data export is ready. Contact support if you need it as a downloadable file."
+            } else {
+                response?.body()?.error?.message ?: "Could not prepare your data export."
+            }
+        }
+    }
+
+    fun deleteAccount(onDeleted: () -> Unit) {
+        viewModelScope.launch {
+            val response = runCatching {
+                profileApi.deleteAccount(mapOf("reason" to "member_app_request"))
+            }.getOrNull()
+            if (response?.isSuccessful == true && response.body()?.success == true) {
+                prefs.clearAll()
+                onDeleted()
+            } else {
+                _status.value = response?.body()?.error?.message ?: "Could not delete your account. Please contact support."
+            }
+        }
+    }
+
     fun showHiddenMemberAgain(profileId: String) {
         removedHiddenProfileIds += profileId
         ProfileInteractionStore.showProfileAgain(profileId)

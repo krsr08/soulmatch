@@ -82,6 +82,14 @@ async function buildAuthPayload(user, tokens, options = {}) {
   };
 }
 
+async function recordNewUserConsent(req, user, method) {
+  await userRepo.recordSignupConsent(user.user_id, {
+    method,
+    ipAddress: req.ip || req.socket?.remoteAddress || null,
+    userAgent: req.get('user-agent') || null
+  });
+}
+
 exports.sendOTP = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -149,6 +157,7 @@ exports.verifyOTP = async (req, res, next) => {
         acquisition_source: acquisitionSource || referral?.channel || null,
         referred_at: referral ? new Date() : null
       });
+      await recordNewUserConsent(req, user, 'otp');
       if (referral) {
         await userRepo.recordReferralRedemption({
           referralCodeId: referral.referral_code_id,
@@ -225,6 +234,7 @@ exports.googleLogin = async (req, res, next) => {
         acquisition_source: acquisitionSource || referral?.channel || null,
         referred_at: referral ? new Date() : null
       });
+      await recordNewUserConsent(req, user, 'google');
       if (referral) {
         await userRepo.recordReferralRedemption({
           referralCodeId: referral.referral_code_id,
@@ -300,6 +310,7 @@ exports.firebasePhoneLogin = async (req, res, next) => {
         acquisition_source: acquisitionSource || referral?.channel || null,
         referred_at: referral ? new Date() : null
       });
+      await recordNewUserConsent(req, user, 'firebase_phone');
       if (referral) {
         await userRepo.recordReferralRedemption({
           referralCodeId: referral.referral_code_id,

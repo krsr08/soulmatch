@@ -2118,6 +2118,240 @@ exports.recordConsentEvent = async (event) => {
   const db = await getDB();
   return insertConsentEvent(db, event);
 };
+
+async function rowsFor(db, sql, params = []) {
+  const result = await db.query(sql, params);
+  return result.rows || [];
+}
+
+function stripInternalPhotoFields(photo) {
+  if (!photo) return photo;
+  const { s3_key, ...safe } = photo;
+  return safe;
+}
+
+function stripInternalDocumentFields(document) {
+  if (!document) return document;
+  const { file_url, document_url, ...safe } = document;
+  return {
+    ...safe,
+    file_stored: Boolean(file_url || document_url)
+  };
+}
+
+exports.exportUserData = async (userId, audit = {}) => {
+  const db = await getDB();
+  const userRows = await rowsFor(
+    db,
+    `SELECT user_id, phone, email, is_verified, is_active, is_banned, user_type,
+            role_selected_at, last_login, created_at, updated_at, deleted_at
+     FROM users
+     WHERE user_id=$1`,
+    [userId]
+  );
+  const user = userRows[0] || null;
+  if (!user) return null;
+
+  const profiles = await rowsFor(db, 'SELECT * FROM profiles WHERE user_id=$1 ORDER BY created_at DESC', [userId]);
+  const profileIds = profiles.map((profile) => profile.profile_id);
+  const profileIdArray = profileIds.length ? profileIds : [randomUUID()];
+
+  const [
+    physical,
+    education,
+    family,
+    lifestyle,
+    horoscope,
+    preferences,
+    photos,
+    verifications,
+    profileDocuments,
+    assist,
+    photoAccess,
+    interestsSent,
+    interestsReceived,
+    blocks,
+    reports,
+    matchFeedback,
+    subscriptions,
+    paymentOrders,
+    consentEvents
+  ] = await Promise.all([
+    rowsFor(db, 'SELECT * FROM physical_details WHERE profile_id = ANY($1::uuid[])', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM education_career WHERE profile_id = ANY($1::uuid[])', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM family_details WHERE profile_id = ANY($1::uuid[])', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM lifestyle_details WHERE profile_id = ANY($1::uuid[])', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM horoscope_details WHERE profile_id = ANY($1::uuid[])', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM partner_preferences WHERE profile_id = ANY($1::uuid[])', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM profile_photos WHERE profile_id = ANY($1::uuid[]) ORDER BY uploaded_at DESC', [profileIdArray]),
+    rowsFor(db, 'SELECT verification_id, user_id, type, status, reviewer_email, review_note, reviewed_at, created_at, document_url IS NOT NULL AS document_stored FROM verifications WHERE user_id=$1 ORDER BY created_at DESC', [userId]),
+    rowsFor(db, 'SELECT * FROM profile_documents WHERE profile_id = ANY($1::uuid[]) ORDER BY uploaded_at DESC', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM assisted_match_profiles WHERE profile_id = ANY($1::uuid[])', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM profile_photo_access_requests WHERE target_user_id=$1 OR requester_user_id=$1 ORDER BY requested_at DESC', [userId]),
+    rowsFor(db, 'SELECT * FROM interests WHERE sender_id = ANY($1::uuid[]) ORDER BY sent_at DESC', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM interests WHERE receiver_id = ANY($1::uuid[]) ORDER BY sent_at DESC', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM blocks WHERE blocker_id=$1 OR blocked_id=$1 ORDER BY blocked_at DESC', [userId]),
+    rowsFor(db, 'SELECT * FROM reports WHERE reporter_id=$1 OR reported_id=$1 ORDER BY created_at DESC', [userId]),
+    rowsFor(db, 'SELECT * FROM match_feedback WHERE user_id=$1 OR source_profile_id = ANY($2::uuid[]) OR target_profile_id = ANY($2::uuid[]) ORDER BY created_at DESC', [userId, profileIdArray]),
+    rowsFor(db, 'SELECT * FROM subscriptions WHERE user_id=$1 ORDER BY created_at DESC', [userId]),
+    rowsFor(db, 'SELECT payment_order_id, user_id, plan_id, amount, currency, gateway, status, support_contacted, support_comments, support_contacted_at, metadata, created_at, updated_at FROM payment_orders WHERE user_id=$1 ORDER BY created_at DESC', [userId]),
+    rowsFor(db, 'SELECT * FROM consent_events WHERE user_id=$1 OR profile_id = ANY($2::uuid[]) ORDER BY created_at DESC', [userId, profileIdArray])
+  ]);
+
+  await insertConsentEvent(db, {
+    userId,
+    consentType: 'data_export',
+    status: 'granted',
+    purpose: 'Member requested a copy of their SoulMatch profile and account data.',
+    metadata: { profileCount: profiles.length },
+    audit
+  });
+
+  return {
+    exportedAt: new Date().toISOString(),
+    noticeVersion: DPDP_NOTICE_VERSION,
+    user,
+    profiles,
+    physical,
+    education,
+    family,
+    lifestyle,
+    horoscope,
+    partnerPreferences: preferences,
+    photos: photos.map(stripInternalPhotoFields),
+    verifications,
+    profileDocuments: profileDocuments.map(stripInternalDocumentFields),
+    soulmatchAssistance: assist,
+    photoAccessRequests: photoAccess,
+    interests: {
+      sent: interestsSent,
+      received: interestsReceived
+    },
+    blocks,
+    reports,
+    matchFeedback,
+    subscriptions,
+    paymentOrders,
+    consentEvents
+  };
+};
+
+exports.deleteAccount = async (userId, { reason = 'user_requested', audit = {} } = {}) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const userResult = await client.query(
+      'SELECT user_id, phone, email, user_type FROM users WHERE user_id=$1 FOR UPDATE',
+      [userId]
+    );
+    const user = userResult.rows[0];
+    if (!user) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    const profileResult = await client.query('SELECT profile_id FROM profiles WHERE user_id=$1', [userId]);
+    const profileIds = profileResult.rows.map((row) => row.profile_id);
+    const profileIdArray = profileIds.length ? profileIds : [randomUUID()];
+
+    await insertConsentEvent(client, {
+      userId,
+      consentType: 'account_deletion',
+      status: 'withdrawn',
+      purpose: 'Member requested account deletion and withdrawal of account processing consent.',
+      metadata: { reason, profileIds },
+      audit
+    });
+
+    await client.query(
+      `UPDATE profile_documents
+       SET file_url='redacted_after_account_deletion',
+           status='rejected',
+           review_comment=COALESCE(review_comment, 'Removed after account deletion request'),
+           updated_at=NOW()
+       WHERE profile_id = ANY($1::uuid[])`,
+      [profileIdArray]
+    );
+    await client.query(
+      `UPDATE profile_photos
+       SET photo_url='redacted_after_account_deletion',
+           s3_key='redacted_after_account_deletion',
+           is_primary=false,
+           is_approved=false,
+           review_status='rejected',
+           review_comment=COALESCE(review_comment, 'Removed after account deletion request'),
+           reviewed_at=NOW()
+       WHERE profile_id = ANY($1::uuid[])`,
+      [profileIdArray]
+    );
+    await client.query(
+      `UPDATE verifications
+       SET document_url=NULL,
+           status='rejected',
+           review_note=COALESCE(review_note, 'Document removed after account deletion request'),
+           reviewed_at=NOW()
+       WHERE user_id=$1`,
+      [userId]
+    );
+    await client.query(
+      `UPDATE assisted_match_profiles
+       SET is_opted_in=false,
+           request_status='paused',
+           family_contact_name=NULL,
+           family_contact_phone=NULL,
+           notes=NULL,
+           consent_withdrawn_at=NOW(),
+           updated_at=NOW()
+       WHERE profile_id = ANY($1::uuid[])`,
+      [profileIdArray]
+    );
+    await client.query(
+      `UPDATE profiles
+       SET first_name='Deleted',
+           last_name='Member',
+           primary_photo_url=NULL,
+           video_url=NULL,
+           is_published=false,
+           profile_status='inactive',
+           profile_visibility='hidden',
+           photo_privacy='private',
+           contact_privacy='masked',
+           admin_status='deleted',
+           consent_withdrawn_at=NOW(),
+           updated_at=NOW()
+       WHERE profile_id = ANY($1::uuid[])`,
+      [profileIdArray]
+    );
+    await client.query(
+      `UPDATE users
+       SET phone=NULL,
+           email=NULL,
+           google_id=NULL,
+           fcm_token=NULL,
+           is_active=false,
+           is_banned=true,
+           deleted_at=NOW(),
+           deletion_reason=$2,
+           updated_at=NOW()
+       WHERE user_id=$1`,
+      [userId, String(reason || 'user_requested').slice(0, 500)]
+    );
+    await client.query('COMMIT');
+    return {
+      status: 'deleted',
+      userId,
+      userType: user.user_type,
+      profileIds,
+      deletedAt: new Date().toISOString()
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 exports.recordAiAssistEvent = async ({
   userId,
   profileId,

@@ -18,6 +18,8 @@ interface AuthApiService {
 interface ProfileApiService {
     @POST("profile/create") suspend fun createProfileStep(@Body req: Map<String, @JvmSuppressWildcards Any>): Response<GenericResponse<ProfileStepResponse>>
     @GET("profile/me") suspend fun getMyProfile(): Response<GenericResponse<ProfileData>>
+    @GET("profile/export") suspend fun exportMyData(): Response<GenericResponse<Any>>
+    @POST("profile/delete-account") suspend fun deleteAccount(@Body req: Map<String, @JvmSuppressWildcards String>): Response<GenericResponse<Any>>
     @GET("profile/agent/me") suspend fun getAgentProfile(): Response<GenericResponse<AgentProfileData>>
     @PUT("profile/agent/me") suspend fun upsertAgentProfile(@Body req: AgentProfileUpsertRequest): Response<GenericResponse<AgentProfileData>>
     @POST("profile/agent/onboarding") suspend fun submitAgentOnboarding(@Body req: AgentOnboardingRequest): Response<GenericResponse<AgentProfileData>>
