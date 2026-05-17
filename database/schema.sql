@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS profiles (
     verification_status VARCHAR(24) DEFAULT 'pending',
     admin_status VARCHAR(24) DEFAULT 'active',
     moderation_score NUMERIC(5,2) DEFAULT 0,
+    trust_score INTEGER DEFAULT 0,
+    trust_level VARCHAR(16) DEFAULT 'low',
     primary_photo_url TEXT,
     video_url TEXT,
     photo_privacy VARCHAR(20) DEFAULT 'all',

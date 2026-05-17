@@ -558,6 +558,73 @@ async function notifyMember(db, userId, title, body, data = {}) {
   return false;
 }
 
+function trustLevelForScore(score) {
+  if (score >= 80) return 'high';
+  if (score >= 55) return 'medium';
+  return 'low';
+}
+
+async function recalculateTrustScore(db, profileIdOrUserId, mode = 'profile') {
+  const result = await db.query(
+    `SELECT
+       p.profile_id,
+       LEAST(
+         100,
+         (CASE WHEN u.is_verified THEN 12 ELSE 0 END) +
+         (CASE WHEN u.email IS NOT NULL AND u.email <> '' THEN 5 ELSE 0 END) +
+         (CASE WHEN u.google_id IS NOT NULL THEN 8 ELSE 0 END) +
+         (CASE WHEN COALESCE(p.completion_score,0) >= 90 THEN 15 WHEN COALESCE(p.completion_score,0) >= 70 THEN 12 WHEN COALESCE(p.completion_score,0) >= 50 THEN 8 ELSE 0 END) +
+         (CASE WHEN COALESCE(p.verification_status,'pending')='verified' THEN 15 WHEN COALESCE(p.verification_status,'pending')='pending' THEN 5 ELSE 0 END) +
+         (CASE WHEN COALESCE(approved_docs.total,0) > 0 THEN 8 ELSE 0 END) +
+         (CASE WHEN COALESCE(approved_types.has_education,false) THEN 8 ELSE 0 END) +
+         (CASE WHEN COALESCE(approved_types.has_income,false) THEN 8 ELSE 0 END) +
+         (CASE WHEN COALESCE(approved_types.has_family,false) THEN 8 WHEN fd.family_city IS NOT NULL OR fd.family_pincode IS NOT NULL THEN 4 ELSE 0 END) +
+         (CASE WHEN COALESCE(approved_photos.total,0) >= 3 THEN 10 WHEN COALESCE(approved_photos.total,0) >= 1 THEN 7 ELSE 0 END) +
+         (CASE WHEN COALESCE(p.profile_status,'active')='active' THEN 5 ELSE -8 END) +
+         (CASE WHEN u.last_login >= NOW() - INTERVAL '30 days' THEN 6 ELSE 0 END) +
+         (CASE WHEN COALESCE(open_reports.total,0)=0 THEN 10 ELSE -LEAST(35, COALESCE(open_reports.total,0) * 12) END)
+       )::int AS trust_score
+     FROM profiles p
+     JOIN users u ON u.user_id=p.user_id
+     LEFT JOIN family_details fd ON fd.profile_id=p.profile_id
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS total
+       FROM profile_photos pp
+       WHERE pp.profile_id=p.profile_id AND pp.is_approved=true
+     ) approved_photos ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS total
+       FROM verifications v
+       WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')
+     ) approved_docs ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT
+         BOOL_OR(v.type='education') AS has_education,
+         BOOL_OR(v.type='income') AS has_income,
+         BOOL_OR(v.type='family') AS has_family
+       FROM verifications v
+       WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')
+     ) approved_types ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS total
+       FROM reports r
+       WHERE r.reported_id=p.user_id AND r.status IN ('pending','open','reviewing')
+     ) open_reports ON TRUE
+     WHERE ${mode === 'user' ? 'p.user_id=$1' : 'p.profile_id=$1'}
+     LIMIT 1`,
+    [profileIdOrUserId]
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  const score = Math.max(0, Math.min(100, Number(row.trust_score) || 0));
+  const level = trustLevelForScore(score);
+  await db.query(
+    'UPDATE profiles SET trust_score=$1, trust_level=$2, updated_at=NOW() WHERE profile_id=$3',
+    [score, level, row.profile_id]
+  );
+  return { profileId: row.profile_id, trustScore: score, trustLevel: level };
+}
+
 function profileScore(body) {
   const checks = [
     body.firstName || body.first_name,
@@ -1097,6 +1164,8 @@ exports.getProfiles = async (req, res) => {
          p.mother_tongue,
          p.marital_status,
          p.completion_score,
+         COALESCE(p.trust_score, 0) AS trust_score,
+         COALESCE(p.trust_level, 'low') AS trust_level,
          p.is_published,
          p.is_partner_pref_set,
          p.profile_status,
@@ -2383,6 +2452,7 @@ exports.approveProfilePhoto = async (req, res) => {
     if (photo.is_primary || !profile.rows[0]?.primary_photo_url) {
       await client.query('UPDATE profiles SET primary_photo_url=$1, updated_at=NOW() WHERE profile_id=$2', [photo.photo_url, req.params.id]);
     }
+    const trust = await recalculateTrustScore(client, req.params.id);
     await auditLog(client, req, 'profile_photo.approve', 'profile_photo', req.params.photoId, { profileId: req.params.id, note });
     await client.query('COMMIT');
     if (profile.rows[0]?.user_id) {
@@ -2393,8 +2463,8 @@ exports.approveProfilePhoto = async (req, res) => {
         photoId: req.params.photoId
       }).catch((error) => logger.warn(`Photo approval notification skipped: ${error.message}`));
     }
-    broadcastAdminEvent('admin:photo_moderation', { action: 'approve', photo });
-    res.json({ success: true, data: photo });
+    broadcastAdminEvent('admin:photo_moderation', { action: 'approve', photo, trust });
+    res.json({ success: true, data: photo, trust });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     respondServerError(res, err, 'Unable to approve profile photo right now.');
@@ -2433,6 +2503,7 @@ exports.rejectProfilePhoto = async (req, res) => {
       );
       await client.query('UPDATE profiles SET primary_photo_url=$1, updated_at=NOW() WHERE profile_id=$2', [fallback.rows[0]?.photo_url || null, req.params.id]);
     }
+    const trust = await recalculateTrustScore(client, req.params.id);
     await auditLog(client, req, 'profile_photo.reject', 'profile_photo', req.params.photoId, { profileId: req.params.id, note });
     await client.query('COMMIT');
     if (profile.rows[0]?.user_id) {
@@ -2443,8 +2514,8 @@ exports.rejectProfilePhoto = async (req, res) => {
         photoId: req.params.photoId
       }).catch((error) => logger.warn(`Photo rejection notification skipped: ${error.message}`));
     }
-    broadcastAdminEvent('admin:photo_moderation', { action: 'reject', photo });
-    res.json({ success: true, data: photo });
+    broadcastAdminEvent('admin:photo_moderation', { action: 'reject', photo, trust });
+    res.json({ success: true, data: photo, trust });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     respondServerError(res, err, 'Unable to reject profile photo right now.');
@@ -2506,9 +2577,10 @@ exports.updateProfileStatus = async (req, res) => {
       [profileId, updates.published, updates.verification, updates.admin, updates.review, reason]
     );
     if (!result.rows[0]) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found.' } });
+    const trust = await recalculateTrustScore(db, profileId);
     await auditLog(db, req, `profile.${action}`, 'profile', profileId, { reason });
-    broadcastAdminEvent('admin:profile_status', { action, profile: result.rows[0] });
-    res.json({ success: true, data: result.rows[0] });
+    broadcastAdminEvent('admin:profile_status', { action, profile: result.rows[0], trust });
+    res.json({ success: true, data: result.rows[0], trust });
   } catch (err) {
     respondServerError(res, err, 'Unable to update profile status right now.');
   }
@@ -2595,6 +2667,7 @@ exports.approveVerification = async (req, res) => {
     }
     await client.query("UPDATE users SET is_verified=true, updated_at=NOW() WHERE user_id=$1", [result.rows[0].user_id]);
     await client.query("UPDATE profiles SET verification_status='verified', updated_at=NOW() WHERE user_id=$1", [result.rows[0].user_id]);
+    const trust = await recalculateTrustScore(client, result.rows[0].user_id, 'user');
     await auditLog(client, req, 'verification.approve', 'verification', req.params.id, { type: result.rows[0].type });
     await client.query('COMMIT');
     await notifyMember(
@@ -2608,8 +2681,8 @@ exports.approveVerification = async (req, res) => {
         verificationId: result.rows[0].verification_id
       }
     );
-    broadcastAdminEvent('admin:verification_updated', { action: 'approve', verification: result.rows[0] });
-    res.json({ success: true, data: result.rows[0] });
+    broadcastAdminEvent('admin:verification_updated', { action: 'approve', verification: result.rows[0], trust });
+    res.json({ success: true, data: result.rows[0], trust });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     respondServerError(res, err, 'Unable to approve this verification request right now.');
@@ -2634,6 +2707,7 @@ exports.rejectVerification = async (req, res) => {
     }
     await client.query("UPDATE users SET is_verified=false, updated_at=NOW() WHERE user_id=$1", [result.rows[0].user_id]);
     await client.query("UPDATE profiles SET verification_status='rejected', updated_at=NOW() WHERE user_id=$1", [result.rows[0].user_id]);
+    const trust = await recalculateTrustScore(client, result.rows[0].user_id, 'user');
     await auditLog(client, req, 'verification.reject', 'verification', req.params.id, { type: result.rows[0].type, note: note || null });
     await client.query('COMMIT');
     await notifyMember(
@@ -2647,8 +2721,8 @@ exports.rejectVerification = async (req, res) => {
         verificationId: result.rows[0].verification_id
       }
     );
-    broadcastAdminEvent('admin:verification_updated', { action: 'reject', verification: result.rows[0] });
-    res.json({ success: true, data: result.rows[0] });
+    broadcastAdminEvent('admin:verification_updated', { action: 'reject', verification: result.rows[0], trust });
+    res.json({ success: true, data: result.rows[0], trust });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     respondServerError(res, err, 'Unable to reject this verification request right now.');
@@ -2706,6 +2780,7 @@ exports.approveProfileDocument = async (req, res) => {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile document not found.' } });
     }
     const publishResult = await publishManagedProfileIfReady(client, document.profile_id, note);
+    const trust = await recalculateTrustScore(client, document.profile_id);
     await auditLog(client, req, 'profile_document.approve', 'profile_document', req.params.id, {
       note,
       managedProfilePublished: publishResult.published === true,
@@ -2715,7 +2790,7 @@ exports.approveProfileDocument = async (req, res) => {
     if (publishResult.published) {
       broadcastAdminEvent('admin:profile_status', { action: 'auto_publish', profile: publishResult.profile });
     }
-    res.json({ success: true, data: document, profileReview: publishResult });
+    res.json({ success: true, data: document, profileReview: publishResult, trust });
   } catch (err) {
     if (client) await client.query('ROLLBACK').catch(() => {});
     respondServerError(res, err, 'Unable to approve this profile document right now.');
@@ -2752,6 +2827,7 @@ exports.rejectProfileDocument = async (req, res) => {
       [document.profile_id, note]
     );
     await auditLog(db, req, 'profile_document.reject', 'profile_document', req.params.id, { note });
+    const trust = await recalculateTrustScore(db, document.profile_id);
     const profileUserId = profileResult.rows[0]?.user_id;
     if (profileUserId) {
       await notifyMember(
@@ -2762,7 +2838,7 @@ exports.rejectProfileDocument = async (req, res) => {
         { type: 'profile_document_review', status: 'rejected', profileDocumentId: req.params.id, profileId: document.profile_id }
       ).catch((error) => logger.warn(`Profile document rejection notification skipped: ${error.message}`));
     }
-    res.json({ success: true, data: document });
+    res.json({ success: true, data: document, trust });
   } catch (err) {
     respondServerError(res, err, 'Unable to reject this profile document right now.');
   }
