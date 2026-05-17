@@ -2,6 +2,31 @@ const { getDB } = require('../config/database');
 const { DEFAULT_CONFIG, escapeHtml, getConfigMap, getPublicRuntimeConfig, recordAnalyticsEvent } = require('../../shared/controlPlane');
 const logger = require('../utils/logger');
 
+const ANALYTICS_RATE_BUCKETS = new Map();
+const ANALYTICS_EVENT_TYPES = new Set([
+  'page_view',
+  'click',
+  'sign_up',
+  'account_type_selected',
+  'payment_click',
+  'payment_success',
+  'match_made',
+  'profile_view',
+  'contact_unlock',
+  'ai_bio_suggestions',
+  'ai_icebreakers',
+  'chat_report',
+  'chat_message_safety',
+  'assist_updated',
+  'advisor_selected',
+  'advisors_selected',
+  'waiting_assignment',
+  'family_assisted_enabled'
+]);
+const PUBLIC_ANALYTICS_LIMIT = Number(process.env.PUBLIC_ANALYTICS_RATE_LIMIT || 30);
+const PUBLIC_ANALYTICS_WINDOW_MS = Number(process.env.PUBLIC_ANALYTICS_WINDOW_MS || 60 * 1000);
+const PUBLIC_ANALYTICS_MAX_PAYLOAD_BYTES = Number(process.env.PUBLIC_ANALYTICS_MAX_PAYLOAD_BYTES || 4096);
+
 async function loadSharedConfig() {
   const db = await getDB();
   const config = await getConfigMap(db, true);
@@ -154,6 +179,29 @@ function renderShareErrorPage({ appTitle, accentColor, title, message, linkUrl }
   });
 }
 
+function analyticsClientKey(req) {
+  return String(req.headers['x-forwarded-for'] || req.ip || req.socket?.remoteAddress || 'unknown')
+    .split(',')[0]
+    .trim();
+}
+
+function isPublicAnalyticsRateLimited(req) {
+  const key = analyticsClientKey(req);
+  const now = Date.now();
+  const bucket = (ANALYTICS_RATE_BUCKETS.get(key) || []).filter((stamp) => now - stamp < PUBLIC_ANALYTICS_WINDOW_MS);
+  if (bucket.length >= PUBLIC_ANALYTICS_LIMIT) {
+    ANALYTICS_RATE_BUCKETS.set(key, bucket);
+    return true;
+  }
+  bucket.push(now);
+  ANALYTICS_RATE_BUCKETS.set(key, bucket);
+  return false;
+}
+
+function payloadSizeBytes(value) {
+  return Buffer.byteLength(JSON.stringify(value || {}), 'utf8');
+}
+
 exports.getRuntimeConfig = async (req, res) => {
   try {
     const { config } = await loadSharedConfig();
@@ -166,20 +214,32 @@ exports.getRuntimeConfig = async (req, res) => {
 
 exports.trackAnalyticsEvent = async (req, res) => {
   try {
+    if (isPublicAnalyticsRateLimited(req)) {
+      return res.status(429).json({
+        success: false,
+        error: { code: 'RATE_LIMITED', message: 'Too many analytics events. Please try again later.' }
+      });
+    }
     const db = await getDB();
     const body = req.body || {};
     const eventType = String(body.eventType || body.event_type || '').trim().slice(0, 80);
-    if (!eventType) {
+    if (!eventType || !ANALYTICS_EVENT_TYPES.has(eventType)) {
       return res.status(400).json({
         success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'eventType is required.' }
+        error: { code: 'VALIDATION_ERROR', message: 'Unsupported analytics eventType.' }
       });
     }
     const payload = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload) ? body.payload : {};
+    if (payloadSizeBytes(payload) > PUBLIC_ANALYTICS_MAX_PAYLOAD_BYTES) {
+      return res.status(413).json({
+        success: false,
+        error: { code: 'PAYLOAD_TOO_LARGE', message: 'Analytics payload is too large.' }
+      });
+    }
     await recordAnalyticsEvent(db, {
       eventType,
       serviceName: String(body.serviceName || body.service_name || 'android-app').slice(0, 80),
-      userId: body.userId || body.user_id || null,
+      userId: null,
       sessionId: body.sessionId || body.session_id || null,
       payload: {
         ...payload,
@@ -192,6 +252,11 @@ exports.trackAnalyticsEvent = async (req, res) => {
   } catch (error) {
     sendJsonServerError(res, error, 'Unable to record analytics right now.');
   }
+};
+
+exports._test = {
+  ANALYTICS_EVENT_TYPES,
+  payloadSizeBytes
 };
 
 exports.getPublicProfile = async (req, res) => {
