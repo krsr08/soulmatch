@@ -270,7 +270,18 @@ class ProfileDetailViewModel @Inject constructor(
     }
 
     fun hideProfile() {
-        _profile.value?.profileId?.let(ProfileInteractionStore::hideProfile)
+        val target = _profile.value?.profileId ?: return
+        viewModelScope.launch {
+            val response = runCatching {
+                profileApi.recordMatchFeedback(target, com.soulmatch.app.data.models.MatchFeedbackRequest("not_interested"))
+            }.getOrNull()
+            if (response?.isSuccessful == true && response.body()?.success == true) {
+                ProfileInteractionStore.hideProfile(target)
+                _status.value = "This profile has been hidden from your recommendations."
+            } else {
+                _status.value = response?.body()?.error?.message ?: "Couldn't hide this profile right now."
+            }
+        }
     }
 
     fun blockProfile() {

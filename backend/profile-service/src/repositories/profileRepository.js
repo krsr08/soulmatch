@@ -3,6 +3,7 @@ const { createHash, createHmac, randomUUID } = require('crypto');
 const { scoreAdvisorCandidate, normalizeList } = require('../services/assistAllocationService');
 const { getConfigSection } = require('../../shared/controlPlane');
 const { consumeMeter, ensureUsageRecord, getActivePlanId, getEntitlements, periodKey } = require('../../shared/memberEntitlements');
+const { evaluateProfileVisibility } = require('../../shared/profileVisibility');
 const logger = require('../utils/logger');
 const DPDP_NOTICE_VERSION = 'dpdp-2026-05-10-v1';
 
@@ -663,12 +664,13 @@ exports.canViewProfile = async (profileId, viewerUserId) => {
     [profileId, viewerUserId]
   );
   const profile = r.rows[0];
-  if (!profile) return { allowed: false, reason: 'not_found' };
-  if (profile.user_id === viewerUserId) return { allowed: true, owner: true, profile };
-  if (profile.blocked) return { allowed: false, reason: 'blocked', profile };
-  if (!profile.is_published || profile.admin_status !== 'active') return { allowed: false, reason: 'not_available', profile };
-  if (profile.profile_status === 'inactive') return { allowed: false, reason: 'inactive', profile };
-  if (profile.profile_visibility === 'hidden') return { allowed: false, reason: 'hidden', profile };
+  const visibility = evaluateProfileVisibility(profile, viewerUserId);
+  if (!visibility.allowed && visibility.reason === 'matches_only') {
+    if (await exports.hasAcceptedInterestWithViewer(profileId, viewerUserId)) {
+      return { allowed: true, owner: false, profile };
+    }
+  }
+  if (!visibility.allowed) return { ...visibility, profile };
   return { allowed: true, owner: false, profile };
 };
 exports.hasAcceptedInterestWithViewer = async (profileId, viewerUserId) => {

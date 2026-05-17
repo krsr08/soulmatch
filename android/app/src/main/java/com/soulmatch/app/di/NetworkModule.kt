@@ -61,7 +61,7 @@ object NetworkModule {
     }
 
     private fun refreshAccessToken(prefs: UserPreferences): AuthData? {
-        val refreshToken = runBlocking { prefs.refreshToken.first() } ?: return null
+        val refreshToken = prefs.currentRefreshToken() ?: return null
         val refreshBody = gson.toJson(mapOf("refreshToken" to refreshToken)).toRequestBody("application/json".toMediaTypeOrNull())
         val request = okhttp3.Request.Builder()
             .url("${BuildConfig.AUTH_BASE_URL}auth/refresh-token")
@@ -100,7 +100,7 @@ object NetworkModule {
     @Provides @Singleton
     fun provideOkHttpClient(prefs: UserPreferences): OkHttpClient {
         val auth = Interceptor { chain ->
-            val token = runBlocking { prefs.authToken.first() }
+            val token = prefs.currentAuthToken()
             val req = if (!token.isNullOrEmpty()) chain.request().newBuilder().addHeader("Authorization","Bearer $token").build() else chain.request()
             chain.proceed(req)
         }

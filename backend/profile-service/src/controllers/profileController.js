@@ -3,6 +3,7 @@ const media = require('../services/mediaService');
 const aiAssist = require('../services/aiAssistService');
 const secureDocuments = require('../services/secureDocumentService');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
+const { redactProfileForViewer } = require('../../shared/profileVisibility');
 
 const ALLOWED_VERIFICATION_TYPES = new Set(['profile', 'identity', 'photo', 'education', 'income', 'family']);
 const ALLOWED_ASSIST_SUPPORT_LEVELS = new Set(['self_service', 'family_assisted', 'advisor_assisted']);
@@ -448,6 +449,11 @@ exports.getProfile = async (req, res, next) => {
     p.completion_score = await repo.calcCompletion(p.profile_id);
     await attachTrustSummary(p);
     p = await repo.decorateContactPrivacy(p, req.user.userId, access.owner);
+    p = redactProfileForViewer(p, {
+      owner: access.owner,
+      canViewPhoto: p.can_view_photo !== false,
+      canViewContact: ['owner', 'unlocked'].includes(p.contact_access_status)
+    });
     if (!access.owner) {
       const meteredView = await repo.recordView(req.params.profileId, req.user.userId);
       if (meteredView?.allowed === false && meteredView.reason === 'limit_reached') {

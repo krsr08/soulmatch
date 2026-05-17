@@ -142,6 +142,7 @@ dependencies {
     kapt 'androidx.room:room-compiler:2.6.1'
     implementation 'androidx.room:room-ktx:2.6.1'
     implementation 'androidx.datastore:datastore-preferences:1.0.0'
+    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
 
     // Firebase (Cleaned up duplicates - using the newer 33.1.0 version)
     implementation platform('com.google.firebase:firebase-bom:33.1.0')
