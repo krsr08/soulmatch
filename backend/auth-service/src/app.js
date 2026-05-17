@@ -7,9 +7,13 @@ const rateLimit = require('express-rate-limit');
 const authRoutes = require('./routes/authRoutes');
 const { errorHandler } = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
+const { buildCorsOptions } = require('./utils/corsOptions');
 const app = express();
+if (process.env.NODE_ENV === 'production' && process.env.MOCK_OTP === 'true') {
+  throw new Error('MOCK_OTP=true is not allowed in production.');
+}
 app.use(helmet());
-app.use(cors({ origin: '*' }));
+app.use(cors(buildCorsOptions()));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 app.use(express.json({ limit: '10kb' }));
 app.use(morgan('combined', { stream: { write: m => logger.info(m.trim()) } }));

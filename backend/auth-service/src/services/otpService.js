@@ -2,7 +2,7 @@ const twilio = require('twilio');
 const crypto = require('crypto');
 const { getRedis } = require('../config/redis');
 const logger = require('../utils/logger');
-const OTP_TTL = 300; const LOCK_TTL = 1800; const MAX_ATTEMPTS = 3; const SEND_WINDOW_TTL = 3600; const MAX_SENDS = parseInt(process.env.OTP_SEND_LIMIT || '5', 10);
+const OTP_TTL = 300; const LOCK_TTL = 1800; const MAX_ATTEMPTS = 3; const SEND_WINDOW_TTL = 15 * 60; const MAX_SENDS = parseInt(process.env.OTP_SEND_LIMIT || '3', 10);
 const OTP_PEPPER = process.env.OTP_HASH_PEPPER || process.env.JWT_SECRET || 'local-otp-pepper';
 const K = { otp: p => 'otp:' + p, attempts: p => 'otp_attempts:' + p, lock: p => 'otp_lock:' + p, sends: p => 'otp_sends:' + p };
 let twilioClient = undefined;
