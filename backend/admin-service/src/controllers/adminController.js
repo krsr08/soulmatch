@@ -2426,6 +2426,90 @@ exports.getPendingPhotoModeration = async (req, res) => {
   }
 };
 
+exports.getModerationInbox = async (req, res) => {
+  try {
+    const db = await getDB();
+    const result = await db.query(
+      `SELECT *
+       FROM (
+         SELECT
+           'report' AS item_type,
+           r.report_id::text AS item_id,
+           COALESCE(r.reason, 'Profile report') AS title,
+           COALESCE(r.description, 'A member reported this profile.') AS body,
+           r.status,
+           r.created_at,
+           90 AS severity_score,
+           r.reported_id::text AS target_id,
+           reporter.phone AS reporter_phone,
+           reported.phone AS target_phone
+         FROM reports r
+         LEFT JOIN users reporter ON reporter.user_id=r.reporter_id
+         LEFT JOIN users reported ON reported.user_id=r.reported_id
+         WHERE COALESCE(r.status,'pending') IN ('pending','reviewing')
+
+         UNION ALL
+
+         SELECT
+           'chat_report' AS item_type,
+           cmr.chat_message_report_id::text AS item_id,
+           COALESCE(cmr.reason, 'Chat message report') AS title,
+           COALESCE(cmr.description, cmr.message_id) AS body,
+           cmr.status,
+           cmr.created_at,
+           85 AS severity_score,
+           cmr.reported_user_id::text AS target_id,
+           reporter.phone AS reporter_phone,
+           reported.phone AS target_phone
+         FROM chat_message_reports cmr
+         LEFT JOIN users reporter ON reporter.user_id=cmr.reporter_user_id
+         LEFT JOIN users reported ON reported.user_id=cmr.reported_user_id
+         WHERE COALESCE(cmr.status,'pending') IN ('pending','reviewing')
+
+         UNION ALL
+
+         SELECT
+           'photo' AS item_type,
+           pp.photo_id::text AS item_id,
+           'Photo moderation' AS title,
+           CONCAT(COALESCE(p.first_name,''), ' ', COALESCE(p.last_name,''), ' profile photo needs review') AS body,
+           COALESCE(pp.review_status, CASE WHEN pp.is_approved THEN 'approved' ELSE 'pending' END) AS status,
+           pp.uploaded_at AS created_at,
+           70 AS severity_score,
+           pp.profile_id::text AS target_id,
+           NULL AS reporter_phone,
+           u.phone AS target_phone
+         FROM profile_photos pp
+         JOIN profiles p ON p.profile_id=pp.profile_id
+         JOIN users u ON u.user_id=p.user_id
+         WHERE COALESCE(pp.review_status, CASE WHEN pp.is_approved THEN 'approved' ELSE 'pending' END) IN ('pending','under_review')
+
+         UNION ALL
+
+         SELECT
+           'verification' AS item_type,
+           v.verification_id::text AS item_id,
+           CONCAT('Verification: ', COALESCE(v.type, 'profile')) AS title,
+           COALESCE(v.review_note, 'Member verification is waiting for admin review.') AS body,
+           v.status,
+           v.created_at,
+           65 AS severity_score,
+           v.user_id::text AS target_id,
+           NULL AS reporter_phone,
+           u.phone AS target_phone
+         FROM verifications v
+         LEFT JOIN users u ON u.user_id=v.user_id
+         WHERE COALESCE(v.status,'pending') IN ('pending','submitted','under_review')
+       ) inbox
+       ORDER BY severity_score DESC, created_at ASC
+       LIMIT 150`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    respondDegraded(res, err, [], 'Unified moderation inbox is unavailable right now.');
+  }
+};
+
 exports.approveProfilePhoto = async (req, res) => {
   const db = await getDB();
   const client = await db.connect();

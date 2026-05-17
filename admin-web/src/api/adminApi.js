@@ -33,6 +33,7 @@ export const getProfileDocuments = () => api.get('/profile-documents');
 export const approveProfileDocument = (id, note = '') => api.put('/profile-documents/' + id + '/approve', { note });
 export const rejectProfileDocument = (id, note = '') => api.put('/profile-documents/' + id + '/reject', { note });
 export const getReports = () => api.get('/moderation/reports');
+export const getModerationInbox = () => api.get('/moderation/inbox');
 export const resolveReport = id => api.put('/reports/' + id + '/resolve');
 export const getChatLogs = () => api.get('/moderation/chat-logs');
 export const getPayments = () => api.get('/payments');

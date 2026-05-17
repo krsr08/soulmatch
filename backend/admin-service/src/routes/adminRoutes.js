@@ -45,6 +45,7 @@ router.put('/profile-documents/:id/reject', authenticateAdmin, authorizeAdminRol
 router.get('/reports', authenticateAdmin, controller.getReports);
 router.put('/reports/:id/resolve', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.resolveReport);
 router.get('/moderation/reports', authenticateAdmin, controller.getReports);
+router.get('/moderation/inbox', authenticateAdmin, controller.getModerationInbox);
 router.get('/moderation/photos', authenticateAdmin, controller.getPendingPhotoModeration);
 router.get('/moderation/chat-logs', authenticateAdmin, controller.getChatLogs);
 
