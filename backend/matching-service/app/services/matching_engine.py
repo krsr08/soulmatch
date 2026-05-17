@@ -323,7 +323,7 @@ async def get_recommended_matches(user_id: str, page: int, limit: int, verified_
         gender = (user.get("gender") or "").lower()
         opp_gender = "female" if gender == "male" else "male" if gender == "female" else None
         page = max(int(page or 1), 1)
-        limit = min(max(int(limit or 25), 15), 100)
+        limit = min(max(int(limit or 25), 1), 50)
         access_limit = await visible_match_limit(conn, user_id)
         candidates = await conn.fetch(
             """
@@ -391,9 +391,28 @@ async def get_recommended_matches(user_id: str, page: int, limit: int, verified_
               AND COALESCE(p.admin_status,'active')='active'
               AND COALESCE(p.profile_status,'active')='active'
               AND COALESCE(p.profile_visibility,'all')!='hidden'
+              AND (
+                COALESCE(p.profile_visibility,'all')!='matches_only'
+                OR EXISTS (
+                  SELECT 1 FROM interests i
+                  WHERE ((i.sender_id=$3 AND i.receiver_id=p.profile_id) OR (i.sender_id=p.profile_id AND i.receiver_id=$3))
+                    AND i.status='accepted'
+                )
+              )
               AND u.is_active=true
               AND COALESCE(u.is_banned,false)=false
               AND ($4::boolean=false OR COALESCE(p.verification_status,'pending')='verified')
+              AND ($5::int IS NULL OR EXTRACT(YEAR FROM AGE(p.dob))::int >= $5)
+              AND ($6::int IS NULL OR EXTRACT(YEAR FROM AGE(p.dob))::int <= $6)
+              AND ($7::int IS NULL OR pd.height_cm >= $7)
+              AND ($8::int IS NULL OR pd.height_cm <= $8)
+              AND ($9::text IS NULL OR $9='' OR p.religion=$9)
+              AND (COALESCE(array_length($10::text[], 1), 0)=0 OR LOWER(COALESCE(ec.education_level,''))=ANY($10::text[]))
+              AND (COALESCE(array_length($11::text[], 1), 0)=0 OR LOWER(COALESCE(ec.occupation,''))=ANY($11::text[]))
+              AND (COALESCE(array_length($12::text[], 1), 0)=0 OR LOWER(COALESCE(ec.working_city,''))=ANY($12::text[]) OR LOWER(COALESCE(fd.family_city,''))=ANY($12::text[]))
+              AND (COALESCE(array_length($13::text[], 1), 0)=0 OR LOWER(COALESCE(ld.diet,''))=ANY($13::text[]))
+              AND (COALESCE(array_length($14::text[], 1), 0)=0 OR LOWER(COALESCE(p.marital_status,''))=ANY($14::text[]))
+              AND (COALESCE(array_length($15::text[], 1), 0)=0 OR LOWER(COALESCE(fd.family_type,''))=ANY($15::text[]))
               AND p.user_id!=$1
               AND NOT EXISTS (
                 SELECT 1 FROM blocks b
@@ -407,6 +426,17 @@ async def get_recommended_matches(user_id: str, page: int, limit: int, verified_
             opp_gender,
             user["profile_id"],
             verified_only,
+            user.get("age_min"),
+            user.get("age_max"),
+            user.get("height_min_cm"),
+            user.get("height_max_cm"),
+            user.get("pref_religion"),
+            normalize_list(user.get("education_levels")),
+            normalize_list(user.get("occupations")),
+            normalize_list(user.get("locations")),
+            normalize_list(user.get("diet_prefs")),
+            normalize_list(user.get("marital_statuses")),
+            normalize_list(user.get("family_types")),
         )
         user_vec = build_vector(user)
         scored = []
@@ -490,8 +520,17 @@ async def get_compatibility(user_id: str, target_profile_id: str) -> dict:
             """
             SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
                    ec.education_level,ec.annual_income,ec.occupation,ec.working_city,
-                   pd.height_cm,ld.diet,hd.is_manglik,fd.family_city,fd.family_pincode,fd.family_type
+                   pd.height_cm,ld.diet,hd.is_manglik,fd.family_city,fd.family_pincode,fd.family_type,
+                   u.is_verified AS is_phone_verified,
+                   (u.google_id IS NOT NULL) AS firebase_verified,
+                   u.last_login,
+                   COALESCE((SELECT COUNT(*)::int FROM profile_photos pp WHERE pp.profile_id=p.profile_id), 0) AS photo_count,
+                   COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')), 0) AS approved_verifications,
+                   COALESCE((SELECT array_agg(DISTINCT v.type) FROM verifications v WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')), ARRAY[]::text[]) AS approved_verification_types,
+                   COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='pending'), 0) AS pending_verifications,
+                   COALESCE((SELECT COUNT(*)::int FROM reports rp WHERE rp.reported_id=p.user_id AND rp.status IN ('pending','open','reviewing')), 0) AS report_count
             FROM profiles p
+            JOIN users u ON u.user_id=p.user_id
             LEFT JOIN education_career ec ON p.profile_id=ec.profile_id
             LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id
             LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id
@@ -502,6 +541,15 @@ async def get_compatibility(user_id: str, target_profile_id: str) -> dict:
               AND COALESCE(p.admin_status,'active')='active'
               AND COALESCE(p.profile_status,'active')='active'
               AND COALESCE(p.profile_visibility,'all')!='hidden'
+              AND (
+                COALESCE(p.profile_visibility,'all')!='matches_only'
+                OR EXISTS (
+                  SELECT 1 FROM interests i
+                  JOIN profiles viewer ON viewer.user_id=$2
+                  WHERE ((i.sender_id=viewer.profile_id AND i.receiver_id=p.profile_id) OR (i.sender_id=p.profile_id AND i.receiver_id=viewer.profile_id))
+                    AND i.status='accepted'
+                )
+              )
               AND NOT EXISTS (
                 SELECT 1 FROM blocks b
                 WHERE (b.blocker_id=$2 AND b.blocked_id=p.user_id)
@@ -518,8 +566,10 @@ async def get_compatibility(user_id: str, target_profile_id: str) -> dict:
         vec_s = cosine_sim(build_vector(u), build_vector(t)) * 100
         pre_s = pref_score(t, u)
         hor_s = horoscope_score(u, t)
+        trust = build_trust_summary(t)
         total = int(vec_s * 0.35 + pre_s * 0.40 + hor_s * 0.25)
         return {
             "overallScore": min(99, total),
             "breakdown": {"preferences": int(pre_s), "personality": int(vec_s), "horoscope": int(hor_s)},
+            "explanations": build_match_reasons(u, t, pre_s, vec_s, hor_s, trust),
         }

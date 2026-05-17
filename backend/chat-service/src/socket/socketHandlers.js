@@ -9,6 +9,10 @@ const makeChatId = (a, b) => [a, b].sort().join('_');
 const MAX_MESSAGE_LENGTH = parseInt(process.env.MAX_CHAT_MESSAGE_LENGTH || '2000', 10);
 const NOTIFICATION_API_URL = process.env.NOTIFICATION_API_URL;
 const INTERNAL_SERVICE_SECRET = process.env.INTERNAL_SERVICE_SECRET;
+const verifyOptions = () => ({
+  issuer: process.env.JWT_ISSUER || 'soulmatch-auth',
+  audience: process.env.JWT_AUDIENCE || 'soulmatch-api'
+});
 
 const buildMessagePreview = (type, content) => {
   if (type && type !== 'text') return 'You received a new ' + type + ' message on SoulMatch.';
@@ -113,7 +117,7 @@ exports.setupSocketHandlers = (io) => {
     if (!await isChatEnabled()) return next(new Error('Chat is temporarily unavailable'));
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error('Token required'));
-    try { const d = jwt.verify(token, process.env.JWT_SECRET); socket.userId = d.userId; next(); }
+    try { const d = jwt.verify(token, process.env.JWT_SECRET, verifyOptions()); socket.userId = d.userId; next(); }
     catch { next(new Error('Invalid token')); }
   });
   io.on('connection', (socket) => {
