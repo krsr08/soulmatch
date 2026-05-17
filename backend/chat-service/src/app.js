@@ -7,6 +7,8 @@ const mongoose = require('mongoose');
 const logger = require('./utils/logger');
 const chatRoutes = require('./routes/chatRoutes');
 const { setupSocketHandlers } = require('./socket/socketHandlers');
+const { attachSocketRedisAdapter } = require('./services/socketRedisAdapter');
+const { startChatArchiveJob } = require('./services/chatArchiveService');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const { buildCorsOptions, socketCorsOptions } = require('./utils/corsOptions');
 const app = express();
@@ -16,6 +18,8 @@ app.use(helmet()); app.use(require('cors')(buildCorsOptions())); app.use(express
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/soulmatch_chat').then(() => logger.info('MongoDB connected')).catch(err => logger.error('MongoDB error:', err));
 app.use('/api/v1/chat', chatRoutes);
 app.get('/health', (req, res) => res.json({ status: 'ok', service: 'chat-service' }));
+attachSocketRedisAdapter(io);
+startChatArchiveJob();
 setupSocketHandlers(io);
 app.use(notFoundHandler);
 app.use(errorHandler);

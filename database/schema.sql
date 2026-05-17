@@ -297,6 +297,21 @@ CREATE TABLE IF NOT EXISTS notification_templates (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS chat_conversation_metadata (
+    chat_id TEXT PRIMARY KEY,
+    participant_user_ids TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    last_message_preview TEXT,
+    last_message_type TEXT,
+    last_message_at TIMESTAMP,
+    last_sender_user_id TEXT,
+    message_count INTEGER NOT NULL DEFAULT 0,
+    source TEXT,
+    interest_id TEXT,
+    archived_until TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS interests (
     interest_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sender_id UUID REFERENCES profiles(profile_id),
@@ -753,6 +768,9 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_
 CREATE INDEX IF NOT EXISTS idx_notifications_user_status ON notifications(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_outbox_events_ready ON outbox_events(status, available_at, created_at) WHERE status IN ('pending', 'retry');
 CREATE INDEX IF NOT EXISTS idx_notification_dlq_failed_at ON notification_dlq(failed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_metadata_participants ON chat_conversation_metadata USING GIN (participant_user_ids);
+CREATE INDEX IF NOT EXISTS idx_chat_metadata_last_message ON chat_conversation_metadata(last_message_at DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS idx_chat_metadata_source ON chat_conversation_metadata(source);
 CREATE INDEX IF NOT EXISTS idx_verifications_status_created ON verifications(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_verifications_user_status ON verifications(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_blocks_blocker ON blocks(blocker_id);

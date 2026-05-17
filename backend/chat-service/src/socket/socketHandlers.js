@@ -4,6 +4,7 @@ const Conversation = require('../models/Conversation');
 const { getDB } = require('../config/database');
 const { isChatEnabled } = require('../middleware/featureGate');
 const { moderateMessage } = require('../services/safetyModerationService');
+const { upsertConversationMetadata } = require('../services/chatMetadataService');
 const logger = require('../utils/logger');
 const makeChatId = (a, b) => [a, b].sort().join('_');
 const MAX_MESSAGE_LENGTH = parseInt(process.env.MAX_CHAT_MESSAGE_LENGTH || '2000', 10);
@@ -147,7 +148,7 @@ exports.setupSocketHandlers = (io) => {
         }
         const safetyFlags = moderation.flags || [];
         const msg = await Message.create({ chatId:cid, senderId:socket.userId, receiverId, type:resolvedType, content, duration, safetyFlags });
-        await Conversation.findOneAndUpdate(
+        const conversation = await Conversation.findOneAndUpdate(
           { chatId:cid },
           {
             $set:{
@@ -165,6 +166,14 @@ exports.setupSocketHandlers = (io) => {
           { upsert:true, new:true }
         );
         const msgData = { messageId:msg._id.toString(), chatId:cid, senderId:socket.userId, receiverId, type:resolvedType, content, duration, sentAt:msg.sentAt, status:'sent' };
+        await upsertConversationMetadata({
+          chatId: cid,
+          participants: conversation.participants || [socket.userId, receiverId],
+          lastMessage: { type: resolvedType, content, sentAt: msg.sentAt, senderId: socket.userId },
+          source: conversation.source || 'socket',
+          interestId: conversation.interestId || null,
+          incrementMessageCount: true
+        });
         io.to('user:'+receiverId).emit('message:received', msgData);
         await sendChatNotification({ receiverId, senderId: socket.userId, chatId: cid, type: resolvedType, content });
         cb && cb({ success:true, message:msgData });

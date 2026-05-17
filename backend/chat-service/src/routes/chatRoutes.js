@@ -6,6 +6,7 @@ const { authenticateService } = require('../middleware/serviceAuthMiddleware');
 const { ensureChatEnabled } = require('../middleware/featureGate');
 const { getDB } = require('../config/database');
 const { detectTextSafety } = require('../services/safetyModerationService');
+const { touchConversationMetadata } = require('../services/chatMetadataService');
 const crypto = require('crypto');
 
 const router = express.Router();
@@ -233,6 +234,7 @@ router.post('/internal/conversations', authenticateService, async (req, res, nex
       },
       { upsert: true, new: true }
     );
+    await touchConversationMetadata(conversation);
     res.json({ success: true, data: { chatId, conversationId: conversation._id.toString() } });
   } catch (err) {
     next(err);
