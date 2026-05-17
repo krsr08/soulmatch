@@ -5,7 +5,6 @@ import android.content.Intent
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,14 +55,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.CompatibilityData
+import com.soulmatch.app.data.models.PartnerPreferencesData
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.SubscriptionData
 import com.soulmatch.app.data.models.fullName
@@ -79,8 +77,6 @@ import com.soulmatch.app.ui.components.premium.SectionTitle
 import com.soulmatch.app.ui.components.premium.SignalChip
 import com.soulmatch.app.ui.components.premium.UpgradePlanGate
 import com.soulmatch.app.ui.theme.Divider
-import com.soulmatch.app.ui.theme.Error
-import com.soulmatch.app.ui.theme.ErrorSoft
 import com.soulmatch.app.ui.theme.Info
 import com.soulmatch.app.ui.theme.InfoSoft
 import com.soulmatch.app.ui.theme.PrimaryDark
@@ -115,8 +111,6 @@ fun ProfileDetailScreen(
     val shortlisted by vm.shortlisted.collectAsStateWithLifecycle()
     val canChat by vm.canChat.collectAsStateWithLifecycle()
     val photoActionStatus by vm.status.collectAsStateWithLifecycle()
-    val icebreakers by vm.icebreakers.collectAsStateWithLifecycle()
-    val isGeneratingIcebreakers by vm.isGeneratingIcebreakers.collectAsStateWithLifecycle()
     val subscription by subscriptionVm.subscription.collectAsStateWithLifecycle()
     val openChat: (String, String) -> Unit = onOpenChat ?: { _, _ -> }
     val openSubscription: (() -> Unit)? = onSubscribe
@@ -239,14 +233,6 @@ fun ProfileDetailScreen(
                                 onShare = { shareProfileWithFamily(context, data, compatibility.overallScore) }
                             )
                         }
-                        item {
-                            IcebreakerPanel(
-                                suggestions = icebreakers,
-                                isLoading = isGeneratingIcebreakers,
-                                onGenerate = { vm.generateIcebreakers() },
-                                onSelect = { actionNotice = it }
-                            )
-                        }
                         if (!actionNotice.isNullOrBlank()) {
                             item {
                                 PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
@@ -284,6 +270,9 @@ fun ProfileDetailScreen(
                         }
                         item {
                             ProfileOverview(profile = data, compatibility = compatibility)
+                        }
+                        item {
+                            PartnerPreferenceSection(preferences = data.partnerPreferences)
                         }
                         item {
                             DetailSection(
@@ -522,49 +511,6 @@ private fun PrimaryActionPanel(
     }
 }
 
-@Composable
-private fun IcebreakerPanel(
-    suggestions: List<String>,
-    isLoading: Boolean,
-    onGenerate: () -> Unit,
-    onSelect: (String) -> Unit
-) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.weight(1f)) {
-                    Text("Conversation starters", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Profile-aware lines for a respectful first message", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                }
-                OutlinedButton(onClick = onGenerate, enabled = !isLoading) {
-                    if (isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.size(6.dp))
-                    }
-                    Text(if (isLoading) "Preparing" else "Suggest")
-                }
-            }
-            suggestions.forEach { suggestion ->
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelect(suggestion) },
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, Divider)
-                ) {
-                    Text(
-                        suggestion,
-                        modifier = Modifier.padding(14.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = PrimaryDark
-                    )
-                }
-            }
-        }
-    }
-}
-
 private fun shareProfileWithFamily(context: Context, profile: ProfileData, compatibilityScore: Int) {
     val safeName = listOfNotNull(
         profile.firstName.ifBlank { null },
@@ -650,7 +596,7 @@ private fun ContactDetailsSection(
                     Button(onClick = onUnmask, modifier = Modifier.fillMaxWidth().height(48.dp)) {
                         Icon(Icons.Filled.LockOpen, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))
-                        Text("Unmask contact details")
+                        Text("Unlock contact details")
                     }
                     Text(
                         profile.contactUnlocksRemaining?.let { "$it contact unlocks remaining this month." }
@@ -690,6 +636,45 @@ private fun ProfileOverview(profile: ProfileData, compatibility: CompatibilityDa
                 )
             )
         }
+    }
+}
+
+@Composable
+private fun PartnerPreferenceSection(preferences: PartnerPreferencesData?) {
+    val pref = preferences
+    val rows = if (pref == null) {
+        listOf("Preference status" to "Not added by this member yet")
+    } else {
+        listOf(
+            "Age range" to "${pref.ageMin}-${pref.ageMax} yrs",
+            "Height range" to listOfNotNull(pref.heightMinCm?.let(::formatHeightLabel), pref.heightMaxCm?.let(::formatHeightLabel)).joinToString(" to "),
+            "Religion" to (pref.religion ?: "Open to all"),
+            "Education" to pref.educationLevels.joinToString(", ").ifBlank { "Open" },
+            "Occupation" to pref.occupations.joinToString(", ").ifBlank { "Open" },
+            "Income" to preferenceIncomeRange(pref),
+            "Locations" to pref.locations.joinToString(", ").ifBlank { "Anywhere" },
+            "Marital status" to pref.maritalStatuses.joinToString(", ").ifBlank { "Open" },
+            "Diet" to pref.dietPrefs.joinToString(", ").ifBlank { "Open" },
+            "Manglik" to titleCase(pref.manglikPref),
+            "Timeline" to (pref.timeline ?: "Flexible")
+        )
+    }
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            SectionTitle("Partner preferences", "What this member is looking for")
+            DetailGrid(rows = rows)
+        }
+    }
+}
+
+private fun preferenceIncomeRange(preferences: PartnerPreferencesData): String {
+    val min = preferences.annualIncomeMin
+    val max = preferences.annualIncomeMax
+    return when {
+        min != null && max != null -> "₹${min}L-₹${max}L"
+        min != null -> "₹${min}L+"
+        max != null -> "Up to ₹${max}L"
+        else -> "Open"
     }
 }
 

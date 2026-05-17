@@ -1829,7 +1829,28 @@ exports.findFullById = async (profileId) => {
        hd.nakshatra,
        hd.is_manglik,
        hd.birth_city,
-       hd.gotra
+       hd.gotra,
+       CASE WHEN pp.profile_id IS NULL THEN NULL ELSE json_build_object(
+         'age_min', pp.age_min,
+         'age_max', pp.age_max,
+         'religion', pp.religion,
+         'manglik_pref', pp.manglik_pref,
+         'education_levels', COALESCE(pp.education_levels, ARRAY[]::text[]),
+         'occupations', COALESCE(pp.occupations, ARRAY[]::text[]),
+         'annual_income_min', pp.annual_income_min,
+         'annual_income_max', pp.annual_income_max,
+         'height_min_cm', pp.height_min_cm,
+         'height_max_cm', pp.height_max_cm,
+         'locations', COALESCE(pp.locations, ARRAY[]::text[]),
+         'location_radius_km', pp.location_radius_km,
+         'diet_prefs', COALESCE(pp.diet_prefs, ARRAY[]::text[]),
+         'marital_statuses', COALESCE(pp.marital_statuses, ARRAY[]::text[]),
+         'family_types', COALESCE(pp.family_types, ARRAY[]::text[]),
+         'relocation_open', pp.relocation_open,
+         'timeline', pp.timeline,
+         'deal_breakers', COALESCE(pp.deal_breakers, ARRAY[]::text[]),
+         'good_to_have', COALESCE(pp.good_to_have, ARRAY[]::text[])
+       ) END AS partner_preferences
      FROM profiles p
      JOIN users u ON u.user_id=p.user_id
      LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id
@@ -1837,6 +1858,7 @@ exports.findFullById = async (profileId) => {
      LEFT JOIN family_details fd ON p.profile_id=fd.profile_id
      LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id
      LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id
+     LEFT JOIN partner_preferences pp ON p.profile_id=pp.profile_id
      WHERE p.profile_id=$1
      LIMIT 1`,
     [profileId]

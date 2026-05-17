@@ -2,7 +2,6 @@ package com.soulmatch.app.ui.screens.chat
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,28 +41,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.ChatMessage
-import com.soulmatch.app.data.models.SubscriptionData
 import com.soulmatch.app.ui.components.premium.AvatarInitial
 import com.soulmatch.app.ui.components.dialogs.CallActionDialog
-import com.soulmatch.app.ui.components.premium.ChipTone
 import com.soulmatch.app.ui.components.premium.PremiumCard
 import com.soulmatch.app.ui.components.premium.PremiumScreen
-import com.soulmatch.app.ui.components.premium.SignalChip
-import com.soulmatch.app.ui.components.premium.UpgradePlanGate
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.ErrorSoft
 import com.soulmatch.app.ui.theme.Info
 import com.soulmatch.app.ui.theme.InfoSoft
 import com.soulmatch.app.ui.theme.PrimaryDark
-import com.soulmatch.app.ui.theme.Success
-import com.soulmatch.app.ui.theme.SuccessSoft
-import com.soulmatch.app.ui.theme.SurfaceSoft
 import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.formatChatTime
@@ -90,22 +80,11 @@ fun ChatScreen(
     val currentUserId by vm.currentUserId.collectAsStateWithLifecycle()
     val loading by vm.isLoading.collectAsStateWithLifecycle()
     val sendStatus by vm.sendStatus.collectAsStateWithLifecycle()
-    val subscription by subscriptionVm.subscription.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf("") }
     var callAction by remember { mutableStateOf<Boolean?>(null) }
-    val openSubscription: (() -> Unit)? = onSubscribe
-    val hasActiveMembership = subscription.hasActivePaidMembership()
-    val prompts = listOf(
-        "What does a good weekend with family look like for you?",
-        "I liked your profile. What values matter most to you in marriage?",
-        "Would you be open to a family introduction after we speak a little?"
-    )
 
     LaunchedEffect(chatId) {
         vm.load(chatId)
-    }
-    LaunchedEffect(Unit) {
-        subscriptionVm.load()
     }
 
     callAction?.let { isVideo ->
@@ -189,25 +168,11 @@ fun ChatScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(top = 12.dp, bottom = 18.dp)
                 ) {
-                    item {
-                        SafetyBanner()
-                    }
                     if (!sendStatus.isNullOrBlank()) {
                         item {
                             PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = ErrorSoft) {
                                 Text(sendStatus ?: "", style = MaterialTheme.typography.bodyMedium, color = PrimaryDark, fontWeight = FontWeight.SemiBold)
                             }
-                        }
-                    }
-                    if (!hasActiveMembership) {
-                        item {
-                            UpgradePlanGate(
-                                title = "Upgrade for richer conversations",
-                                detail = "Premium unlocks contact views, better response signals, and assisted conversation support.",
-                                onUpgrade = openSubscription,
-                                compact = true,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                            )
                         }
                     }
                     if (messages.isEmpty()) {
@@ -227,34 +192,10 @@ fun ChatScreen(
                             )
                         }
                     }
-                    item {
-                        AssistPanel(prompts = prompts, onPrompt = { draft = it })
-                    }
                 }
             }
         }
     }
-}
-
-@Composable
-private fun SafetyBanner() {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(shape = RoundedCornerShape(16.dp), color = SuccessSoft, modifier = Modifier.size(46.dp)) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Verified, contentDescription = null, tint = Success)
-                }
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Stay safe", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text("Keep personal contact details inside the app until both sides are comfortable.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-            }
-        }
-    }
-}
-
-private fun SubscriptionData.hasActivePaidMembership(): Boolean {
-    return isActive && planId.isNotBlank() && !planId.equals("free", ignoreCase = true)
 }
 
 @Composable
@@ -301,44 +242,6 @@ private fun ChatBubble(message: ChatMessage, isMine: Boolean) {
                     fontWeight = FontWeight.Medium,
                     color = if (isMine) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.76f) else TextSecondary
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AssistPanel(prompts: List<String>, onPrompt: (String) -> Unit) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("Conversation assists", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Context-aware prompts for higher quality chats", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                }
-                SignalChip("Optional", tone = ChipTone.Info)
-            }
-            prompts.forEach { prompt ->
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable { onPrompt(prompt) },
-                    shape = RoundedCornerShape(16.dp),
-                    color = SurfaceSoft,
-                    border = BorderStroke(1.dp, Divider)
-                ) {
-                    Text(
-                        prompt,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = PrimaryDark
-                    )
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SignalChip("Family intro", tone = ChipTone.Warm)
-                SignalChip("Values", tone = ChipTone.Success)
-                SignalChip("Next step", tone = ChipTone.Neutral)
             }
         }
     }

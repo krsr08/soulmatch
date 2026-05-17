@@ -577,7 +577,8 @@ data class ProfileData(
     val nakshatra: String = "",
     @SerializedName("is_manglik") val isManglik: Boolean = false,
     @SerializedName("birth_city") val birthCity: String = "",
-    val gotra: String = ""
+    val gotra: String = "",
+    @SerializedName("partner_preferences") val partnerPreferences: PartnerPreferencesData? = null
 )
 
 data class CompatibilityBreakdown(

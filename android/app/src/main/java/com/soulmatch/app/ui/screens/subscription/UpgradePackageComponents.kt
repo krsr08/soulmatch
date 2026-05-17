@@ -1,14 +1,12 @@
 package com.soulmatch.app.ui.screens.subscription
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -16,8 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.LocalOffer
-import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
@@ -29,29 +25,19 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.soulmatch.app.data.upgrade.UpgradePackage
 import com.soulmatch.app.data.upgrade.UpgradePackageGroup
-import com.soulmatch.app.ui.components.premium.ChipTone
 import com.soulmatch.app.ui.components.premium.PremiumCard
-import com.soulmatch.app.ui.components.premium.SignalChip
 import com.soulmatch.app.ui.formatCurrency
 import com.soulmatch.app.ui.theme.Divider
-import com.soulmatch.app.ui.theme.InfoSoft
 import com.soulmatch.app.ui.theme.PrimaryDark
-import com.soulmatch.app.ui.theme.Success
-import com.soulmatch.app.ui.theme.SurfaceSoft
 import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
-import com.soulmatch.app.ui.theme.Warning
-import com.soulmatch.app.ui.theme.WarningSoft
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -63,109 +49,103 @@ fun UpgradePackageCard(
     modifier: Modifier = Modifier
 ) {
     val active = activePlanId == packageInfo.planId
+    val palette = membershipPalette(packageInfo.planId)
     PremiumCard(
         modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        containerColor = if (selected || active) SurfaceWarm else MaterialTheme.colorScheme.surface
+        containerColor = palette.background,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(18.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalAlignment = Alignment.Top
-            ) {
-                AsyncImage(
-                    model = packageInfo.choiceImage,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(width = 96.dp, height = 88.dp)
-                        .clip(RoundedCornerShape(14.dp)),
-                    contentScale = ContentScale.Crop
-                )
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Text(
-                            packageInfo.displayName,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.ExtraBold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (selected || active) {
-                            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        packageInfo.badge?.takeIf { it.isNotBlank() }?.let { badge ->
-                            SignalChip(badge, tone = if (packageInfo.buyerChoice) ChipTone.Gold else ChipTone.Info)
-                        }
-                        if (packageInfo.buyerChoice) {
-                            SignalChip("Buyer Choice", tone = ChipTone.Success)
-                        }
-                    }
-                }
-            }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Star,
+                contentDescription = null,
+                tint = palette.accent,
+                modifier = Modifier.size(30.dp)
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        formatCurrency(packageInfo.payableAmount),
+                        packageInfo.displayName,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = palette.title,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (packageInfo.pkgActualRate > packageInfo.payableAmount) {
+                    Text(
+                        if (active) "CURRENT MEMBERSHIP" else packageInfo.badge?.ifBlank { "MONTHLY ACCESS" } ?: "MONTHLY ACCESS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = palette.body.copy(alpha = 0.82f),
+                        fontWeight = FontWeight.Bold,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+                if (selected || active) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = palette.accent)
+                }
+            }
+            Text(
+                formatCurrency(packageInfo.payableAmount),
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.ExtraBold,
+                color = palette.title
+            )
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                packageInfo.features.take(4).forEach { feature ->
+                    Surface(
+                        modifier = Modifier.weight(1f).heightIn(min = 74.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        color = palette.tile,
+                        border = BorderStroke(1.dp, palette.tileBorder)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = palette.accent, modifier = Modifier.size(18.dp))
                             Text(
-                                formatCurrency(packageInfo.pkgActualRate),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary,
-                                textDecoration = TextDecoration.LineThrough
-                            )
-                        }
-                        if (packageInfo.savingsAmount > 0) {
-                            Text(
-                                "Save ${formatCurrency(packageInfo.savingsAmount)}",
+                                feature,
                                 style = MaterialTheme.typography.labelMedium,
-                                color = Success,
-                                fontWeight = FontWeight.Bold
+                                color = palette.body,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
                 }
-                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    packageInfo.perDayAmount()?.let {
-                        Text("${formatCurrency(it)}/day", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                    }
-                    packageInfo.perMonthAmount()?.let {
-                        Text("${formatCurrency(it)}/month", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                    }
-                }
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SignalChip(packageInfo.pkgDuration, tone = ChipTone.Neutral)
-                SignalChip("${packageInfo.pkgPhoneCount} contacts", tone = ChipTone.Warm)
-                packageInfo.toiPkgAmount?.let { SignalChip("TOI ${formatCurrency(it)}", tone = ChipTone.Gold) }
-            }
-            packageInfo.features.take(4).forEach { feature ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
-                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Success, modifier = Modifier.size(18.dp))
-                    Text(feature, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                }
+            if (packageInfo.pkgActualRate > packageInfo.payableAmount || packageInfo.savingsAmount > 0) {
+                Text(
+                    buildString {
+                        if (packageInfo.pkgActualRate > packageInfo.payableAmount) append("${formatCurrency(packageInfo.pkgActualRate)}  ")
+                        if (packageInfo.savingsAmount > 0) append("Save ${formatCurrency(packageInfo.savingsAmount)}")
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = palette.body.copy(alpha = 0.82f),
+                    textDecoration = if (packageInfo.savingsAmount <= 0) TextDecoration.LineThrough else TextDecoration.None
+                )
             }
             if (active) {
-                OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                     Text("Current membership")
                 }
             } else {
-                Button(onClick = onSelect, modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = onSelect, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                     Text(if (selected) "Selected pack" else "Choose this pack")
                 }
             }
@@ -173,67 +153,49 @@ fun UpgradePackageCard(
     }
 }
 
-@Composable
-fun UpgradeBenefitPanel(
-    packageInfo: UpgradePackage?,
-    modifier: Modifier = Modifier
-) {
-    if (packageInfo == null) return
-    PremiumCard(modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surface) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Plan benefits", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
-                    Text(packageInfo.displayName, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                }
-                    Surface(shape = RoundedCornerShape(8.dp), color = WarningSoft, border = BorderStroke(1.dp, Divider)) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Filled.Star, contentDescription = null, tint = Warning, modifier = Modifier.size(18.dp))
-                        Text("Selected", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = PrimaryDark)
-                    }
-                }
-            }
-            AsyncImage(
-                model = packageInfo.pkgBenefitImg,
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 8f)
-                    .clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Crop
-            )
-            Text(packageInfo.pkgBenefit, style = MaterialTheme.typography.bodyMedium)
-            if (packageInfo.linearContent.isNotBlank()) {
-                Surface(shape = RoundedCornerShape(8.dp), color = SurfaceSoft, border = BorderStroke(1.dp, Divider)) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Icon(Icons.Filled.LocalOffer, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                        Text(packageInfo.linearContent, style = MaterialTheme.typography.bodyMedium, color = PrimaryDark)
-                    }
-                }
-            }
-            if (packageInfo.assistiveContent.isNotBlank()) {
-                Surface(shape = RoundedCornerShape(8.dp), color = InfoSoft, border = BorderStroke(1.dp, Divider)) {
-                    Text(
-                        packageInfo.assistiveContent,
-                        modifier = Modifier.padding(14.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = PrimaryDark
-                    )
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Phone, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Text("${packageInfo.pkgPhoneCount} verified contact views included", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-            }
-        }
+private data class MembershipCardPalette(
+    val background: Color,
+    val title: Color,
+    val body: Color,
+    val accent: Color,
+    val tile: Color,
+    val tileBorder: Color
+)
+
+private fun membershipPalette(planId: String): MembershipCardPalette {
+    return when (planId.lowercase()) {
+        "gold" -> MembershipCardPalette(
+            background = Color(0xFF950033),
+            title = Color(0xFFFFE08A),
+            body = Color.White,
+            accent = Color(0xFFFFD86B),
+            tile = Color(0x1AFFFFFF),
+            tileBorder = Color(0x33FFFFFF)
+        )
+        "platinum" -> MembershipCardPalette(
+            background = Color(0xFF273022),
+            title = Color.White,
+            body = Color.White,
+            accent = Color(0xFFFFD86B),
+            tile = Color(0x1AFFFFFF),
+            tileBorder = Color(0x33FFFFFF)
+        )
+        "silver" -> MembershipCardPalette(
+            background = Color(0xFFF7F4F2),
+            title = PrimaryDark,
+            body = PrimaryDark,
+            accent = Color(0xFF9CA3AF),
+            tile = Color.White,
+            tileBorder = Divider
+        )
+        else -> MembershipCardPalette(
+            background = SurfaceWarm,
+            title = PrimaryDark,
+            body = PrimaryDark,
+            accent = Color(0xFFC17E6B),
+            tile = Color.White,
+            tileBorder = Divider
+        )
     }
 }
 

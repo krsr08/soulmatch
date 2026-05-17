@@ -27,6 +27,30 @@ DECLARE
     birth_date DATE;
     verification_value TEXT;
     photo_value TEXT;
+    male_photo_urls TEXT[] := ARRAY[
+        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1547425260-76bcadfb4f2c?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1530268729831-4b0b9e170218?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1504257432389-52343af06ae3?auto=format&fit=crop&w=1080&h=1080&q=82'
+    ];
+    female_photo_urls TEXT[] := ARRAY[
+        'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1554151228-14d9def656e4?auto=format&fit=crop&w=1080&h=1080&q=82',
+        'https://images.unsplash.com/photo-1512316609839-ce289d3eba0a?auto=format&fit=crop&w=1080&h=1080&q=82'
+    ];
     about_value TEXT;
     phone_value TEXT;
     email_value TEXT;
@@ -127,8 +151,8 @@ BEGIN
         birth_date := CURRENT_DATE - ((24 + (seed_no % 12)) * INTERVAL '1 year') - ((seed_no % 365) * INTERVAL '1 day');
         verification_value := 'verified';
         photo_value := CASE WHEN gender_value='female'
-            THEN 'https://randomuser.me/api/portraits/women/' || (((seed_no - 1) % 90) + 1)::TEXT || '.jpg'
-            ELSE 'https://randomuser.me/api/portraits/men/' || (((seed_no - 1) % 90) + 1)::TEXT || '.jpg'
+            THEN female_photo_urls[((seed_no - 1) % array_length(female_photo_urls, 1)) + 1]
+            ELSE male_photo_urls[((seed_no - 1) % array_length(male_photo_urls, 1)) + 1]
         END;
         about_value := first_name_value || ' is a ' || education_value || ' graduate working as a ' || occupation_value ||
             ' in ' || city_value || '. The family values education, respect, and a thoughtful marriage journey.';

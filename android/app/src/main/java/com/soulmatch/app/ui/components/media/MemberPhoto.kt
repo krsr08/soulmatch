@@ -14,12 +14,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import coil.compose.SubcomposeAsyncImage
+import coil.compose.AsyncImage
+import coil.request.CachePolicy
+import coil.request.ImageRequest
+import coil.size.Precision
+import coil.size.Scale
 import com.soulmatch.app.data.config.mediaUrl
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.SurfaceSoft
@@ -34,6 +40,7 @@ fun MemberPhoto(
     contentScale: ContentScale = ContentScale.Crop
 ) {
     val resolvedUrl = mediaUrl(photoUrl)
+    val context = LocalContext.current
     if (resolvedUrl == null) {
         MemberPhotoPlaceholder(
             contentDescription = contentDescription,
@@ -42,27 +49,32 @@ fun MemberPhoto(
         )
         return
     }
+    val imageRequest = remember(resolvedUrl) {
+        ImageRequest.Builder(context)
+            .data(resolvedUrl)
+            .crossfade(false)
+            .allowHardware(true)
+            .memoryCachePolicy(CachePolicy.ENABLED)
+            .diskCachePolicy(CachePolicy.ENABLED)
+            .networkCachePolicy(CachePolicy.ENABLED)
+            .precision(Precision.INEXACT)
+            .scale(Scale.FILL)
+            .build()
+    }
 
-    SubcomposeAsyncImage(
-        model = resolvedUrl,
-        contentDescription = contentDescription,
-        modifier = modifier.clip(shape),
-        contentScale = contentScale,
-        loading = {
-            MemberPhotoPlaceholder(
-                contentDescription = contentDescription,
-                modifier = Modifier.fillMaxSize(),
-                shape = shape
-            )
-        },
-        error = {
-            MemberPhotoPlaceholder(
-                contentDescription = contentDescription,
-                modifier = Modifier.fillMaxSize(),
-                shape = shape
-            )
-        }
-    )
+    Box(modifier = modifier.clip(shape)) {
+        MemberPhotoPlaceholder(
+            contentDescription = contentDescription,
+            modifier = Modifier.fillMaxSize(),
+            shape = shape
+        )
+        AsyncImage(
+            model = imageRequest,
+            contentDescription = contentDescription,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = contentScale
+        )
+    }
 }
 
 @Composable

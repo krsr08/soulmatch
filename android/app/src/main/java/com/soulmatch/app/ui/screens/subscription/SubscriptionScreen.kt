@@ -208,7 +208,7 @@ fun SubscriptionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Upgrade Membership") },
+                title = {},
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
@@ -246,9 +246,6 @@ fun SubscriptionScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 118.dp)
             ) {
-                item {
-                    UpgradeHeader(monetization = monetization)
-                }
                 item {
                     AccessModeNotice(monetization = monetization)
                 }
@@ -293,9 +290,6 @@ fun SubscriptionScreen(
                         )
                     }
                 }
-                item {
-                    UpgradeBenefitPanel(packageInfo = checkoutPackage ?: selectedPackage)
-                }
             }
         }
     }
@@ -319,41 +313,6 @@ private fun SectionHeading(title: String, subtitle: String) {
             subtitle,
             style = MaterialTheme.typography.bodyMedium,
             color = TextSecondary
-        )
-    }
-}
-
-@Composable
-private fun UpgradeHeader(monetization: MonetizationRuntimeData) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
-            Text(
-                "Upgrade Membership",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.ExtraBold,
-                color = PrimaryDark
-            )
-            Text(
-                when {
-                    monetization.isFreeAccessMode() -> "All member features are currently open for free."
-                    monetization.isFixedPriceMode() -> "Full access is available at ${monetization.fixedPriceLabel.ifBlank { formatCurrency(monetization.fixedPriceAmount) }}."
-                    else -> "Choose contact access, visibility, and family support that fits your search."
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = TextSecondary
-            )
-        }
-        Text(
-            "Need help?",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.ExtraBold
         )
     }
 }
