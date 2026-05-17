@@ -1,7 +1,8 @@
 FROM node:20-alpine
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY admin-service/package*.json ./
 RUN npm ci --omit=dev --audit=false --fund=false
-COPY . .
+COPY admin-service/ ./
+COPY shared /shared
 EXPOSE 3011
 CMD ["node", "src/app.js"]

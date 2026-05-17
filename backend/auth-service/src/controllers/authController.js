@@ -6,7 +6,7 @@ const userRepo = require('../repositories/userRepository');
 const logger = require('../utils/logger');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const { getDB } = require('../config/database');
-const { recordAnalyticsEvent } = require('../../shared/controlPlane');
+const { recordAnalyticsEvent } = require('../../../shared/controlPlane');
 
 function normalizeRequestedUserType(value) {
   if (value === undefined || value === null) return null;

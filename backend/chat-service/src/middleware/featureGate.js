@@ -1,6 +1,6 @@
 const { getDB } = require('../config/database');
-const { getConfigSection } = require('../../shared/controlPlane');
-const { getActivePlanId, getEntitlements } = require('../../shared/memberEntitlements');
+const { getConfigSection } = require('../../../shared/controlPlane');
+const { getActivePlanId, getEntitlements } = require('../../../shared/memberEntitlements');
 
 async function isChatEnabled() {
   const db = await getDB();

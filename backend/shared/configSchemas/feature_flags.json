@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "chat": { "type": "boolean" },
+    "videoCalling": { "type": "boolean" },
+    "maintenanceMode": { "type": "boolean" },
+    "minAppVersion": { "type": "string" },
+    "spotlightEnabled": { "type": "boolean" },
+    "familyAssistEnabled": { "type": "boolean" }
+  },
+  "additionalProperties": true
+}

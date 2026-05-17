@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const { getDB } = require('../config/database');
 const logger = require('../utils/logger');
-const { CONFIG_KEYS, DEFAULT_CONFIG, getConfigMap, getConfigSection, getPublicRuntimeConfig, upsertConfigSection } = require('../../shared/controlPlane');
+const { CONFIG_KEYS, DEFAULT_CONFIG, getConfigMap, getConfigSection, getPublicRuntimeConfig, resolveConfigKey, upsertConfigSection } = require('../../../shared/controlPlane');
 const { getServiceHealth } = require('../services/serviceHealth');
 const { broadcastAdminEvent, getRealtimeSnapshot } = require('../realtime/adminRealtime');
 
@@ -3165,7 +3165,7 @@ exports.getConfig = async (req, res) => {
 exports.updateConfig = async (req, res) => {
   try {
     const db = await getDB();
-    const key = req.params.key;
+    const key = resolveConfigKey(req.params.key);
     if (!CONFIG_KEYS.includes(key)) {
       return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: `Unknown config key: ${key}` } });
     }

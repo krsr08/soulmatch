@@ -1,4 +1,81 @@
+const fs = require('fs');
+const path = require('path');
 const { DEFAULT_MEMBER_PLAN_ENTITLEMENTS } = require('./memberEntitlements');
+
+const DEFAULT_UPGRADE_PACKAGE_GROUPS = [
+  {
+    tabKey: 'silver',
+    tabTitle: 'Silver',
+    bannerTitle: 'Start with verified discovery',
+    bannerText: 'A focused one-month Silver plan for members who want contact access and chat.',
+    assistiveContent: 'Useful when you already have a shortlist and want faster introductions.',
+    packages: [
+      {
+        pkgId: 101,
+        planId: 'silver',
+        pkgName: 'Silver 1 Month',
+        pkgActualRate: 299,
+        pkgDiscountedRate: 299,
+        pkgRate: 299,
+        pkgDuration: '30 days',
+        pkgDurationDays: 30,
+        pkgPhoneCount: 15,
+        pkgBenefit: 'Unlock 30 profile views, 15 contact unlocks, shortlist capacity, interests, and chat.',
+        buyerChoice: true,
+        badge: 'Silver',
+        features: ['30 profile views', '15 contact unlocks', 'Chat enabled']
+      }
+    ]
+  },
+  {
+    tabKey: 'gold',
+    tabTitle: 'Gold',
+    bannerTitle: 'Most families start here',
+    bannerText: 'Gold adds Match Assistance, stronger limits, and monthly spotlight boosts.',
+    assistiveContent: 'Best for families comparing matches seriously with guided support.',
+    packages: [
+      {
+        pkgId: 201,
+        planId: 'gold',
+        pkgName: 'Gold 1 Month',
+        pkgActualRate: 599,
+        pkgDiscountedRate: 599,
+        pkgRate: 599,
+        pkgDuration: '30 days',
+        pkgDurationDays: 30,
+        pkgPhoneCount: 30,
+        pkgBenefit: 'Adds 50 profile views, 30 contact unlocks, Match Assistance, and 2 spotlight boosts.',
+        buyerChoice: true,
+        badge: 'Recommended',
+        features: ['Match Assistance', '30 contact unlocks', '2 spotlight boosts']
+      }
+    ]
+  },
+  {
+    tabKey: 'platinum',
+    tabTitle: 'Platinum',
+    bannerTitle: 'High-touch assisted matching',
+    bannerText: 'Platinum gives the highest monthly limits and stronger discovery reach.',
+    assistiveContent: 'Best when the family wants guided support and maximum access.',
+    packages: [
+      {
+        pkgId: 301,
+        planId: 'platinum',
+        pkgName: 'Platinum 1 Month',
+        pkgActualRate: 999,
+        pkgDiscountedRate: 999,
+        pkgRate: 999,
+        pkgDuration: '30 days',
+        pkgDurationDays: 30,
+        pkgPhoneCount: 80,
+        pkgBenefit: 'Includes 80 profile views, 80 contact unlocks, Match Assistance, and 4 spotlight boosts.',
+        buyerChoice: false,
+        badge: 'Platinum',
+        features: ['80 contact unlocks', 'Match Assistance', '4 spotlight boosts']
+      }
+    ]
+  }
+];
 
 const DEFAULT_BEST_MATCH_AD_CARDS = [
   {
@@ -387,7 +464,23 @@ const DEFAULT_CONFIG = {
   feature_flags: {
     chat: true,
     videoCalling: true,
-    maintenanceMode: false
+    maintenanceMode: false,
+    minAppVersion: '',
+    spotlightEnabled: true,
+    familyAssistEnabled: true
+  },
+  navigation: {
+    home: 'Home',
+    search: 'Search',
+    activity: 'Activity',
+    chat: 'Messenger',
+    profile: 'Profile',
+    upgrade: 'Upgrade'
+  },
+  experiments: {
+    enabled: false,
+    assignments: {},
+    rolloutPercentages: {}
   },
   client_integrations: {
     googleWebClientId: '',
@@ -545,7 +638,11 @@ const DEFAULT_CONFIG = {
     plans: DEFAULT_MEMBER_PLANS,
     memberPlanEntitlements: DEFAULT_MEMBER_PLAN_ENTITLEMENTS,
     membershipFeatureMatrix: DEFAULT_MEMBERSHIP_FEATURE_MATRIX,
-    upgradePackageGroups: []
+    upgradePackageGroups: DEFAULT_UPGRADE_PACKAGE_GROUPS
+  },
+  admin_roles: {
+    roles: [],
+    propagate: false
   },
   notification_templates: {
     someone_liked_you: {
@@ -580,6 +677,27 @@ const DEFAULT_CONFIG = {
 };
 
 const CONFIG_KEYS = Object.freeze(Object.keys(DEFAULT_CONFIG));
+const CONFIG_ALIASES = Object.freeze({
+  features: 'feature_flags'
+});
+const PUBLIC_CONFIG_KEYS = new Set([
+  'branding',
+  'theme',
+  'feature_flags',
+  'navigation',
+  'experiments',
+  'payment_gateways',
+  'maintenance',
+  'monetization',
+  'legal',
+  'content',
+  'client_integrations'
+]);
+const CANONICAL_SUBSCRIPTION_PLAN_IDS = ['silver', 'gold', 'platinum'];
+
+function resolveConfigKey(key) {
+  return CONFIG_ALIASES[String(key || '').trim()] || String(key || '').trim();
+}
 
 function isPlainObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value);
@@ -596,6 +714,103 @@ function deepMerge(base, override) {
   return result;
 }
 
+function normalizeUpgradePackageGroups(groups = []) {
+  const sourcePackages = (Array.isArray(groups) ? groups : [])
+    .flatMap((group) => (Array.isArray(group?.packages) ? group.packages : []))
+    .filter((pkg) => CANONICAL_SUBSCRIPTION_PLAN_IDS.includes(String(pkg?.planId || '').toLowerCase()));
+  const defaultsByPlan = new Map(
+    DEFAULT_UPGRADE_PACKAGE_GROUPS.flatMap((group) => group.packages.map((pkg) => [pkg.planId, { group, pkg }]))
+  );
+  const byPlan = new Map();
+  for (const pkg of sourcePackages) {
+    const planId = String(pkg.planId).toLowerCase();
+    if (!byPlan.has(planId) || pkg.buyerChoice || String(pkg.badge || '').toLowerCase() === 'recommended') {
+      byPlan.set(planId, pkg);
+    }
+  }
+  return CANONICAL_SUBSCRIPTION_PLAN_IDS.map((planId) => {
+    const fallback = defaultsByPlan.get(planId);
+    const pkg = { ...(fallback?.pkg || {}), ...(byPlan.get(planId) || {}) };
+    return {
+      ...(fallback?.group || {}),
+      tabKey: planId,
+      tabTitle: pkg.pkgName?.replace(/\s+1\s+Month$/i, '') || fallback?.group?.tabTitle || planId,
+      packages: [{ ...pkg, planId }]
+    };
+  });
+}
+
+function normalizeMonetization(monetization = {}) {
+  return {
+    ...monetization,
+    memberPlanEntitlements: monetization.memberPlanEntitlements || DEFAULT_MEMBER_PLAN_ENTITLEMENTS,
+    upgradePackageGroups: normalizeUpgradePackageGroups(monetization.upgradePackageGroups)
+  };
+}
+
+function loadConfigSchemas() {
+  const schemaDir = path.join(__dirname, 'configSchemas');
+  if (!fs.existsSync(schemaDir)) return {};
+  return fs.readdirSync(schemaDir)
+    .filter((file) => file.endsWith('.json'))
+    .reduce((schemas, file) => {
+      const key = file.replace(/\.json$/i, '');
+      schemas[key] = JSON.parse(fs.readFileSync(path.join(schemaDir, file), 'utf8'));
+      return schemas;
+    }, {});
+}
+
+const CONFIG_SCHEMAS = loadConfigSchemas();
+
+function typeOf(value) {
+  if (Array.isArray(value)) return 'array';
+  if (value === null) return 'null';
+  return typeof value;
+}
+
+function validateAgainstSchema(schema, value, pathLabel = 'value', errors = []) {
+  if (!schema) return errors;
+  const allowedTypes = Array.isArray(schema.type) ? schema.type : schema.type ? [schema.type] : [];
+  if (allowedTypes.length && !allowedTypes.includes(typeOf(value))) {
+    errors.push(`${pathLabel} must be ${allowedTypes.join(' or ')}`);
+    return errors;
+  }
+  if (schema.enum && !schema.enum.includes(value)) {
+    errors.push(`${pathLabel} must be one of: ${schema.enum.join(', ')}`);
+  }
+  if (schema.type === 'object' && isPlainObject(value)) {
+    for (const requiredKey of schema.required || []) {
+      if (value[requiredKey] === undefined) errors.push(`${pathLabel}.${requiredKey} is required`);
+    }
+    const props = schema.properties || {};
+    for (const [key, childValue] of Object.entries(value)) {
+      const childSchema = props[key] || schema.additionalProperties;
+      if (childSchema === false) {
+        errors.push(`${pathLabel}.${key} is not allowed`);
+      } else if (childSchema && childSchema !== true) {
+        validateAgainstSchema(childSchema, childValue, `${pathLabel}.${key}`, errors);
+      }
+    }
+  }
+  if (schema.type === 'array' && Array.isArray(value) && schema.items) {
+    value.forEach((item, index) => validateAgainstSchema(schema.items, item, `${pathLabel}[${index}]`, errors));
+  }
+  return errors;
+}
+
+function validateConfigSection(key, value) {
+  const resolvedKey = resolveConfigKey(key);
+  const schema = CONFIG_SCHEMAS[resolvedKey] || CONFIG_SCHEMAS[key];
+  const errors = validateAgainstSchema(schema, value, resolvedKey, []);
+  if (errors.length) {
+    const error = new Error(`Invalid config for ${resolvedKey}: ${errors.join('; ')}`);
+    error.code = 'CONFIG_SCHEMA_VALIDATION';
+    error.details = errors;
+    throw error;
+  }
+  return true;
+}
+
 async function getConfigMap(db, includePrivate = true) {
   const result = await db.query(
     'SELECT config_key, config_value, is_public, updated_at FROM app_config WHERE config_key = ANY($1::text[])',
@@ -609,26 +824,37 @@ async function getConfigMap(db, includePrivate = true) {
     const base = DEFAULT_CONFIG[key];
     merged[key] = deepMerge(base, row?.config_value || {});
   }
+  merged.monetization = normalizeMonetization(merged.monetization);
   return merged;
 }
 
 async function getConfigSection(db, key) {
-  const result = await db.query('SELECT config_value FROM app_config WHERE config_key=$1 LIMIT 1', [key]);
+  const resolvedKey = resolveConfigKey(key);
+  const result = await db.query('SELECT config_value FROM app_config WHERE config_key=$1 LIMIT 1', [resolvedKey]);
   const current = result.rows[0]?.config_value || {};
-  return deepMerge(DEFAULT_CONFIG[key] || {}, current);
+  const merged = deepMerge(DEFAULT_CONFIG[resolvedKey] || {}, current);
+  return resolvedKey === 'monetization' ? normalizeMonetization(merged) : merged;
 }
 
 async function upsertConfigSection(db, key, value, updatedBy = 'system', isPublicOverride = null) {
-  const isPublic = isPublicOverride === null ? ['branding', 'theme', 'feature_flags', 'payment_gateways', 'maintenance', 'monetization', 'legal', 'content', 'client_integrations'].includes(key) : isPublicOverride;
-  const merged = deepMerge(DEFAULT_CONFIG[key] || {}, value);
+  const resolvedKey = resolveConfigKey(key);
+  if (!CONFIG_KEYS.includes(resolvedKey)) {
+    const error = new Error(`Unknown config key: ${key}`);
+    error.code = 'UNKNOWN_CONFIG_KEY';
+    throw error;
+  }
+  validateConfigSection(resolvedKey, value);
+  const isPublic = isPublicOverride === null ? PUBLIC_CONFIG_KEYS.has(resolvedKey) : isPublicOverride;
+  const merged = deepMerge(DEFAULT_CONFIG[resolvedKey] || {}, value);
+  const normalized = resolvedKey === 'monetization' ? normalizeMonetization(merged) : merged;
   await db.query(
     `INSERT INTO app_config (config_key, config_value, is_public, updated_at, updated_by)
      VALUES ($1, $2::jsonb, $3, NOW(), $4)
      ON CONFLICT (config_key)
      DO UPDATE SET config_value = EXCLUDED.config_value, is_public = EXCLUDED.is_public, updated_at = NOW(), updated_by = EXCLUDED.updated_by`,
-    [key, JSON.stringify(merged), isPublic, updatedBy]
+    [resolvedKey, JSON.stringify(normalized), isPublic, updatedBy]
   );
-  return merged;
+  return normalized;
 }
 
 async function recordAnalyticsEvent(db, { eventType, serviceName, userId = null, sessionId = null, payload = {} }) {
@@ -665,10 +891,10 @@ function getPlanById(monetization, planId) {
   if (directPlan) return directPlan;
   const upgradePackage = (monetization?.upgradePackageGroups || [])
     .flatMap((group) => group.packages || [])
-    .find((pkg) => String(pkg.pkgId) === String(planId));
+    .find((pkg) => String(pkg.planId || '') === String(planId) || String(pkg.pkgId) === String(planId));
   if (!upgradePackage) return null;
   return {
-    planId: String(upgradePackage.pkgId),
+    planId: String(upgradePackage.planId || upgradePackage.pkgId),
     name: upgradePackage.pkgName,
     price: upgradePackage.pkgRate || upgradePackage.pkgDiscountedRate || upgradePackage.pkgActualRate || 0,
     duration: upgradePackage.pkgDuration || '',
@@ -678,13 +904,24 @@ function getPlanById(monetization, planId) {
 }
 
 function getPublicRuntimeConfig(configMap) {
+  const content = {
+    ...configMap.content,
+    navigation: deepMerge(configMap.content?.navigation || {}, configMap.navigation || {})
+  };
+  const clientIntegrations = {
+    ...configMap.client_integrations,
+    googleWebClientId: configMap.client_integrations?.googleWebClientId || process.env.GOOGLE_WEB_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || '',
+    razorpayKeyId: configMap.client_integrations?.razorpayKeyId || process.env.RAZORPAY_KEY_ID || ''
+  };
   return {
     branding: configMap.branding,
     theme: configMap.theme,
     features: configMap.feature_flags,
-    clientIntegrations: configMap.client_integrations,
+    navigation: configMap.navigation,
+    experiments: configMap.experiments,
+    clientIntegrations,
     maintenance: configMap.maintenance,
-    content: configMap.content,
+    content,
     legal: configMap.legal,
     paymentGateways: configMap.payment_gateways,
     monetization: {
@@ -701,7 +938,7 @@ function getPublicRuntimeConfig(configMap) {
       premiumLimits: configMap.monetization.premiumLimits,
       memberPlanEntitlements: configMap.monetization.memberPlanEntitlements || {},
       membershipFeatureMatrix: configMap.monetization.membershipFeatureMatrix || [],
-      upgradePackageGroups: configMap.monetization.upgradePackageGroups || [],
+      upgradePackageGroups: normalizeUpgradePackageGroups(configMap.monetization.upgradePackageGroups),
       plans: configMap.monetization.plans.map((plan) => ({
         planId: plan.planId,
         name: plan.name,
@@ -724,7 +961,9 @@ function escapeHtml(value) {
 }
 
 module.exports = {
+  CONFIG_ALIASES,
   CONFIG_KEYS,
+  CONFIG_SCHEMAS,
   DEFAULT_CONFIG,
   deepMerge,
   escapeHtml,
@@ -732,7 +971,11 @@ module.exports = {
   getConfigSection,
   getPlanById,
   getPublicRuntimeConfig,
+  normalizeMonetization,
+  normalizeUpgradePackageGroups,
   recordAnalyticsEvent,
   renderTemplate,
-  upsertConfigSection
+  resolveConfigKey,
+  upsertConfigSection,
+  validateConfigSection
 };

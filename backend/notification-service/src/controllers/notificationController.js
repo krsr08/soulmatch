@@ -1,7 +1,7 @@
 const { getDB } = require('../config/database');
 const fcmService = require('../services/fcmService');
 const logger = require('../utils/logger');
-const { getConfigSection, renderTemplate } = require('../../shared/controlPlane');
+const { getConfigSection, renderTemplate } = require('../../../shared/controlPlane');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 
 async function resolveToken(db, userId) {

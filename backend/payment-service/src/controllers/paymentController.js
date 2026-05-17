@@ -4,8 +4,8 @@ const { randomUUID } = crypto;
 const { getDB } = require('../config/database');
 const logger = require('../utils/logger');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
-const { getConfigSection, getPlanById, recordAnalyticsEvent } = require('../../shared/controlPlane');
-const { ensureUsageRecord, getEntitlements, normalizePlanId } = require('../../shared/memberEntitlements');
+const { getConfigSection, getPlanById, recordAnalyticsEvent } = require('../../../shared/controlPlane');
+const { ensureUsageRecord, getEntitlements, normalizePlanId } = require('../../../shared/memberEntitlements');
 
 const RENEWAL_WINDOW_DAYS = 7;
 

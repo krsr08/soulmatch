@@ -96,6 +96,15 @@ const DEFAULT_CONFIG = {
   admin_roles: { roles: [] },
   notification_templates: {},
   legal: {},
+  branding: {},
+  feature_flags: {},
+  navigation: {},
+  maintenance: {},
+  client_integrations: {},
+  experiments: {},
+  payment_gateways: {},
+  seo_defaults: {},
+  analytics: {},
   content: {},
   theme: {}
 };
@@ -2552,7 +2561,24 @@ function DynamicConfigPanel({ config, onSave }) {
   const [selected, setSelected] = useState('monetization');
   const [json, setJson] = useState(JSON.stringify(config.monetization || {}, null, 2));
   const [error, setError] = useState('');
-  const keys = ['monetization', 'assisted_matchmaking', 'admin_roles', 'notification_templates', 'legal', 'content', 'theme'];
+  const keys = [
+    'branding',
+    'theme',
+    'feature_flags',
+    'navigation',
+    'maintenance',
+    'monetization',
+    'legal',
+    'content',
+    'experiments',
+    'assisted_matchmaking',
+    'admin_roles',
+    'notification_templates',
+    'client_integrations',
+    'payment_gateways',
+    'seo_defaults',
+    'analytics'
+  ];
 
   useEffect(() => {
     setJson(JSON.stringify(config[selected] || {}, null, 2));

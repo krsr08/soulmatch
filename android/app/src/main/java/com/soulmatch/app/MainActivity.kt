@@ -54,7 +54,6 @@ import com.razorpay.Checkout
 import com.razorpay.PaymentData
 import com.razorpay.PaymentResultWithDataListener
 import com.google.firebase.messaging.FirebaseMessaging
-import com.soulmatch.app.data.api.ControlPlaneApiService
 import com.soulmatch.app.data.api.NotificationApiService
 import com.soulmatch.app.data.api.ProfileApiService
 import com.soulmatch.app.data.auth.resolveAgentRoute
@@ -65,6 +64,7 @@ import com.soulmatch.app.data.models.FcmTokenRequest
 import com.soulmatch.app.data.models.NotificationPromptContentData
 import com.soulmatch.app.data.models.RuntimeConfigData
 import com.soulmatch.app.data.payments.PaymentCoordinator
+import com.soulmatch.app.data.runtime.RuntimeConfigRepository
 import com.soulmatch.app.ui.navigation.AppNavigation
 import com.soulmatch.app.ui.screens.system.LaunchBrandScreen
 import com.soulmatch.app.ui.screens.system.MaintenanceScreen
@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
     @Inject lateinit var userPreferences: UserPreferences
     @Inject lateinit var paymentCoordinator: PaymentCoordinator
     @Inject lateinit var profileApi: ProfileApiService
-    @Inject lateinit var controlPlaneApi: ControlPlaneApiService
+    @Inject lateinit var runtimeConfigRepository: RuntimeConfigRepository
     @Inject lateinit var notificationApi: NotificationApiService
 
     private val notificationPermissionLauncher = registerForActivityResult(
@@ -111,23 +111,13 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
             val token by userPreferences.authToken.collectAsState(initial = null)
             val pushEnabled by userPreferences.pushNotifications.collectAsState(initial = true)
             val notificationPromptDismissed by userPreferences.notificationPromptDismissed.collectAsState(initial = false)
-            var runtimeConfig by remember { mutableStateOf(RuntimeConfigData()) }
+            val runtimeConfig by runtimeConfigRepository.config.collectAsState(initial = RuntimeConfigData())
             var startDestination by remember(token) { mutableStateOf<String?>(null) }
 
             LaunchedEffect(Unit) {
-                suspend fun refreshRuntimeConfig() {
-                    runCatching { controlPlaneApi.getRuntimeConfig() }
-                        .getOrNull()
-                        ?.body()
-                        ?.takeIf { it.success }
-                        ?.data
-                        ?.let { runtimeConfig = it }
-                }
-
-                refreshRuntimeConfig()
                 while (true) {
-                    delay(45_000)
-                    refreshRuntimeConfig()
+                    val nextDelayMs = runtimeConfigRepository.refresh()
+                    delay(nextDelayMs)
                 }
             }
 

@@ -1,5 +1,6 @@
 const { getDB } = require('../config/database');
-const { DEFAULT_CONFIG, escapeHtml, getConfigMap, getPublicRuntimeConfig, recordAnalyticsEvent } = require('../../shared/controlPlane');
+const crypto = require('crypto');
+const { DEFAULT_CONFIG, escapeHtml, getConfigMap, getPublicRuntimeConfig, recordAnalyticsEvent } = require('../../../shared/controlPlane');
 const logger = require('../utils/logger');
 
 const ANALYTICS_RATE_BUCKETS = new Map();
@@ -205,10 +206,24 @@ function payloadSizeBytes(value) {
 exports.getRuntimeConfig = async (req, res) => {
   try {
     const { config } = await loadSharedConfig();
-    res.json({ success: true, data: getPublicRuntimeConfig(config) });
+    const body = JSON.stringify({ success: true, data: getPublicRuntimeConfig(config) });
+    const etag = `"${crypto.createHash('sha256').update(body).digest('hex')}"`;
+    res.set('Cache-Control', 'private, max-age=0, must-revalidate');
+    res.set('ETag', etag);
+    if (req.headers['if-none-match'] === etag) {
+      return res.status(304).end();
+    }
+    res.type('application/json').send(body);
   } catch (error) {
     logger.error(error.stack || error.message);
-    res.json({ success: true, data: getPublicRuntimeConfig(DEFAULT_CONFIG) });
+    const body = JSON.stringify({ success: true, data: getPublicRuntimeConfig(DEFAULT_CONFIG) });
+    const etag = `"${crypto.createHash('sha256').update(body).digest('hex')}"`;
+    res.set('Cache-Control', 'private, max-age=0, must-revalidate');
+    res.set('ETag', etag);
+    if (req.headers['if-none-match'] === etag) {
+      return res.status(304).end();
+    }
+    res.type('application/json').send(body);
   }
 };
 

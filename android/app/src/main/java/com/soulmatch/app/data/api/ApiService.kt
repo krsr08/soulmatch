@@ -97,7 +97,7 @@ interface PaymentApiService {
     @GET("payment/invoices") suspend fun getInvoices(): Response<GenericResponse<List<InvoiceItem>>>
 }
 interface ControlPlaneApiService {
-    @GET("public/config") suspend fun getRuntimeConfig(): Response<GenericResponse<RuntimeConfigData>>
+    @GET("public/config") suspend fun getRuntimeConfig(@Header("If-None-Match") etag: String? = null): Response<GenericResponse<RuntimeConfigData>>
     @POST("public/analytics") suspend fun trackAnalytics(@Body req: AnalyticsEventRequest): Response<GenericResponse<Any>>
 }
 interface NotificationApiService {

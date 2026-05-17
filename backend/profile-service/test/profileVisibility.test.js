@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { evaluateProfileVisibility, redactProfileForViewer } = require('../shared/profileVisibility');
+const { evaluateProfileVisibility, redactProfileForViewer } = require('../../shared/profileVisibility');
 
 test('blocked users cannot view a profile', () => {
   const result = evaluateProfileVisibility({

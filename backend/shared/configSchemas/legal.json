@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "terms": { "type": "object" },
+    "privacy": { "type": "object" },
+    "policyVersion": { "type": "string" }
+  },
+  "additionalProperties": true
+}

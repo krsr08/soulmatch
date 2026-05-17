@@ -1,9 +1,9 @@
 const { getDB } = require('../config/database');
 const { createHash, createHmac, randomUUID } = require('crypto');
 const { scoreAdvisorCandidate, normalizeList } = require('../services/assistAllocationService');
-const { getConfigSection } = require('../../shared/controlPlane');
-const { consumeMeter, ensureUsageRecord, getActivePlanId, getEntitlements, periodKey } = require('../../shared/memberEntitlements');
-const { evaluateProfileVisibility } = require('../../shared/profileVisibility');
+const { getConfigSection } = require('../../../shared/controlPlane');
+const { consumeMeter, ensureUsageRecord, getActivePlanId, getEntitlements, periodKey } = require('../../../shared/memberEntitlements');
+const { evaluateProfileVisibility } = require('../../../shared/profileVisibility');
 const logger = require('../utils/logger');
 const DPDP_NOTICE_VERSION = 'dpdp-2026-05-10-v1';
 

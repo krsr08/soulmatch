@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "properties": {
+    "roles": { "type": "array" },
+    "propagate": { "type": "boolean" }
+  },
+  "additionalProperties": true
+}

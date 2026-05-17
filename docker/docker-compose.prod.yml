@@ -35,8 +35,8 @@ services:
 
   auth-service:
     build:
-      context: ../backend/auth-service
-      dockerfile: Dockerfile
+      context: ../backend
+      dockerfile: auth-service/Dockerfile
     restart: unless-stopped
     env_file:
       - ./production.env
@@ -50,8 +50,8 @@ services:
 
   profile-service:
     build:
-      context: ../backend/profile-service
-      dockerfile: Dockerfile
+      context: ../backend
+      dockerfile: profile-service/Dockerfile
     restart: unless-stopped
     env_file:
       - ./production.env
@@ -84,8 +84,8 @@ services:
 
   search-service:
     build:
-      context: ../backend/search-service
-      dockerfile: Dockerfile
+      context: ../backend
+      dockerfile: search-service/Dockerfile
     restart: unless-stopped
     env_file:
       - ./production.env
@@ -97,8 +97,8 @@ services:
 
   chat-service:
     build:
-      context: ../backend/chat-service
-      dockerfile: Dockerfile
+      context: ../backend
+      dockerfile: chat-service/Dockerfile
     restart: unless-stopped
     env_file:
       - ./production.env
@@ -114,8 +114,8 @@ services:
 
   notification-service:
     build:
-      context: ../backend/notification-service
-      dockerfile: Dockerfile
+      context: ../backend
+      dockerfile: notification-service/Dockerfile
     restart: unless-stopped
     env_file:
       - ./production.env
@@ -127,8 +127,8 @@ services:
 
   payment-service:
     build:
-      context: ../backend/payment-service
-      dockerfile: Dockerfile
+      context: ../backend
+      dockerfile: payment-service/Dockerfile
     restart: unless-stopped
     env_file:
       - ./production.env
@@ -140,8 +140,8 @@ services:
 
   admin-service:
     build:
-      context: ../backend/admin-service
-      dockerfile: Dockerfile
+      context: ../backend
+      dockerfile: admin-service/Dockerfile
     restart: unless-stopped
     env_file:
       - ./production.env
