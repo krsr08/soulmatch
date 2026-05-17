@@ -9,6 +9,15 @@ async function resolveToken(db, userId) {
   return result.rows[0]?.fcm_token;
 }
 
+function isInvalidFcmTokenError(err) {
+  const code = String(err?.code || err?.errorInfo?.code || '').toLowerCase();
+  const message = String(err?.message || '').toLowerCase();
+  return code.includes('registration-token-not-registered') ||
+    code.includes('invalid-registration-token') ||
+    message.includes('registration-token-not-registered') ||
+    message.includes('invalid registration token');
+}
+
 async function deliverPush(db, { userId, title, body, data }) {
   const notification = await db.query(
     `INSERT INTO notifications (notification_id,user_id,title,body,data,status,created_at)
@@ -25,6 +34,9 @@ async function deliverPush(db, { userId, title, body, data }) {
       return { notificationId, status: 'sent' };
     } catch (err) {
       await db.query("UPDATE notifications SET status='failed' WHERE notification_id=$1", [notificationId]);
+      if (isInvalidFcmTokenError(err)) {
+        await db.query('UPDATE users SET fcm_token=NULL, updated_at=NOW() WHERE user_id=$1 AND fcm_token=$2', [userId, fcmToken]);
+      }
       logger.error('FCM delivery failed for notification ' + notificationId + ': ' + err.message);
       return { notificationId, status: 'failed', error: err.message };
     }
@@ -111,4 +123,8 @@ exports.sendTemplate = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+};
+
+exports._test = {
+  isInvalidFcmTokenError
 };
