@@ -17,6 +17,93 @@ function getAdminEmail() {
   return process.env.ADMIN_EMAIL || 'admin@soulmatch.app';
 }
 
+const LOGIN_FAILURES = new Map();
+const ADMIN_LOCKOUT_LIMIT = Number(process.env.ADMIN_LOCKOUT_LIMIT || 5);
+const ADMIN_LOCKOUT_WINDOW_MS = Number(process.env.ADMIN_LOCKOUT_WINDOW_MS || 15 * 60 * 1000);
+
+function loginFailureKey(email, ip) {
+  return `${String(email || '').trim().toLowerCase()}|${String(ip || '')}`;
+}
+
+function loginFailureState(email, ip) {
+  const key = loginFailureKey(email, ip);
+  const now = Date.now();
+  const bucket = (LOGIN_FAILURES.get(key) || []).filter((stamp) => now - stamp < ADMIN_LOCKOUT_WINDOW_MS);
+  LOGIN_FAILURES.set(key, bucket);
+  return { key, bucket };
+}
+
+function isAdminLoginLocked(email, ip) {
+  return loginFailureState(email, ip).bucket.length >= ADMIN_LOCKOUT_LIMIT;
+}
+
+function recordAdminLoginFailure(email, ip) {
+  const state = loginFailureState(email, ip);
+  state.bucket.push(Date.now());
+  LOGIN_FAILURES.set(state.key, state.bucket);
+}
+
+function clearAdminLoginFailures(email, ip) {
+  LOGIN_FAILURES.delete(loginFailureKey(email, ip));
+}
+
+function adminJwtOptions() {
+  return {
+    expiresIn: process.env.ADMIN_SESSION_TTL || '8h',
+    issuer: process.env.ADMIN_JWT_ISSUER || 'soulmatch-admin',
+    audience: process.env.ADMIN_JWT_AUDIENCE || 'soulmatch-admin-api',
+    jwtid: crypto.randomUUID()
+  };
+}
+
+function setAdminSessionCookie(res, token) {
+  res.cookie('soulmatch_admin_session', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 8 * 60 * 60 * 1000
+  });
+}
+
+function clearAdminSessionCookie(res) {
+  res.clearCookie('soulmatch_admin_session', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  });
+}
+
+function decodeBase32(secret) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = '';
+  String(secret || '').replace(/=+$/g, '').toUpperCase().split('').forEach((char) => {
+    const value = alphabet.indexOf(char);
+    if (value >= 0) bits += value.toString(2).padStart(5, '0');
+  });
+  const bytes = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8) {
+    bytes.push(parseInt(bits.slice(i, i + 8), 2));
+  }
+  return Buffer.from(bytes);
+}
+
+function generateTotp(secret, timeStep) {
+  const counter = Buffer.alloc(8);
+  counter.writeUInt32BE(0, 0);
+  counter.writeUInt32BE(timeStep, 4);
+  const hmac = crypto.createHmac('sha1', decodeBase32(secret)).update(counter).digest();
+  const offset = hmac[hmac.length - 1] & 0x0f;
+  const code = ((hmac.readUInt32BE(offset) & 0x7fffffff) % 1000000).toString().padStart(6, '0');
+  return code;
+}
+
+function verifyTotpCode(secret, code) {
+  const normalized = String(code || '').replace(/\s+/g, '');
+  if (!/^\d{6}$/.test(normalized)) return false;
+  const step = Math.floor(Date.now() / 30000);
+  return [-1, 0, 1].some((drift) => generateTotp(secret, step + drift) === normalized);
+}
+
 function maskValue(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;
@@ -492,8 +579,24 @@ function profileScore(body) {
 
 exports.adminLogin = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, totpCode } = req.body;
     const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (isAdminLoginLocked(normalizedEmail, req.ip)) {
+      return res.status(429).json({
+        success: false,
+        error: {
+          code: 'ADMIN_LOGIN_LOCKED',
+          message: 'Too many failed admin sign-in attempts. Please wait and try again.'
+        }
+      });
+    }
+    const failLogin = async (db, reason = 'invalid_credentials') => {
+      recordAdminLoginFailure(normalizedEmail, req.ip);
+      if (db) {
+        await auditLog(db, { ...req, admin: { email: normalizedEmail, role: 'unknown' } }, 'admin.login_failed', 'admin_session', null, { reason });
+      }
+      return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid admin email or password.' } });
+    };
     const db = await getDB().catch((error) => {
       logger.warn(`Admin login database lookup skipped: ${error.message}`);
       return null;
@@ -517,7 +620,7 @@ exports.adminLogin = async (req, res) => {
         }
         const validDbPassword = await bcrypt.compare(String(password || ''), adminUser.password_hash);
         if (!validDbPassword) {
-          return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid admin email or password.' } });
+          return failLogin(db, 'password_mismatch');
         }
         role = adminUser.role || 'admin';
         await db.query('UPDATE admin_console_users SET last_login=NOW(), updated_at=NOW() WHERE admin_user_id=$1', [adminUser.admin_user_id]);
@@ -526,17 +629,29 @@ exports.adminLogin = async (req, res) => {
 
     if (!adminUser) {
       if (normalizedEmail !== getAdminEmail().toLowerCase()) {
-        return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid admin email or password.' } });
+        return failLogin(db, 'unknown_email');
       }
       const valid = await isValidAdminPassword(String(password || ''));
-      if (!valid) return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid admin email or password.' } });
+      if (!valid) return failLogin(db, 'fallback_password_mismatch');
+    }
+
+    if (process.env.ADMIN_MFA_TOTP_SECRET && !verifyTotpCode(process.env.ADMIN_MFA_TOTP_SECRET, totpCode)) {
+      return failLogin(db, 'mfa_failed');
     }
 
     try {
       const configDb = db || await getDB();
-      const configured = await getConfigSection(configDb, 'admin_roles');
-      const match = (configured.roles || []).find((item) => item.role === role);
-      if (match && Array.isArray(match.permissions)) permissions = match.permissions;
+      const roleRow = await configDb.query(
+        "SELECT permissions FROM admin_roles WHERE role=$1 AND status='active' LIMIT 1",
+        [role]
+      ).catch(() => ({ rows: [] }));
+      if (Array.isArray(roleRow.rows[0]?.permissions)) {
+        permissions = roleRow.rows[0].permissions;
+      } else {
+        const configured = await getConfigSection(configDb, 'admin_roles');
+        const match = (configured.roles || []).find((item) => item.role === role);
+        if (match && Array.isArray(match.permissions)) permissions = match.permissions;
+      }
     } catch (error) {
       logger.warn(`Admin role permissions fallback used: ${error.message}`);
     }
@@ -549,11 +664,29 @@ exports.adminLogin = async (req, res) => {
         adminUserId: adminUser?.admin_user_id || null
       },
       getAdminSecret(),
-      { expiresIn: '8h' }
+      adminJwtOptions()
     );
+    clearAdminLoginFailures(normalizedEmail, req.ip);
+    setAdminSessionCookie(res, token);
+    if (db) {
+      await auditLog(db, { ...req, admin: { email: normalizedEmail, role } }, 'admin.login_success', 'admin_session', adminUser?.admin_user_id || normalizedEmail, {});
+    }
     res.json({ success: true, data: { token, role, permissions, displayName: adminUser?.display_name || null } });
   } catch (err) {
     respondServerError(res, err, 'Unable to complete admin sign-in right now.');
+  }
+};
+
+exports.adminLogout = async (req, res) => {
+  try {
+    clearAdminSessionCookie(res);
+    const db = await getDB().catch(() => null);
+    if (db) {
+      await auditLog(db, req, 'admin.logout', 'admin_session', req.admin?.adminUserId || req.admin?.email || null, {});
+    }
+    res.json({ success: true });
+  } catch (err) {
+    respondServerError(res, err, 'Unable to complete admin logout right now.');
   }
 };
 
@@ -2816,10 +2949,22 @@ exports.getRoles = async (req, res) => {
   }));
   try {
     const db = await getDB();
-    const configured = await getConfigSection(db, 'admin_roles');
-    const roles = Array.isArray(configured.roles) && configured.roles.length
-      ? configured.roles
-      : defaultRoles;
+    const roleRows = await db.query(
+      `SELECT role, description, status, permissions, updated_at
+       FROM admin_roles
+       WHERE status <> 'deleted'
+       ORDER BY role`
+    ).catch(() => ({ rows: [] }));
+    const configured = roleRows.rows.length
+      ? { roles: roleRows.rows.map((role) => ({
+          role: role.role,
+          title: role.role,
+          description: role.description,
+          status: role.status,
+          permissions: Array.isArray(role.permissions) ? role.permissions : []
+        })) }
+      : await getConfigSection(db, 'admin_roles');
+    const roles = Array.isArray(configured.roles) && configured.roles.length ? configured.roles : defaultRoles;
     res.json({
       success: true,
       data: roles.map((role) => ({

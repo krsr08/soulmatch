@@ -8,8 +8,22 @@ function getAdminSecret() {
   return process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET || 'dev-admin-secret';
 }
 
+function adminVerifyOptions() {
+  return {
+    issuer: process.env.ADMIN_JWT_ISSUER || 'soulmatch-admin',
+    audience: process.env.ADMIN_JWT_AUDIENCE || 'soulmatch-admin-api'
+  };
+}
+
 function isAdminRole(role) {
   return ['admin', 'super_admin', 'moderator', 'support_agent', 'marketing_manager'].includes(role);
+}
+
+function realtimeCorsOrigins() {
+  const configured = (process.env.CORS_ORIGINS || '').split(',').map((item) => item.trim()).filter(Boolean);
+  if (configured.length) return configured;
+  if (process.env.NODE_ENV !== 'production') return ['http://localhost:3000', 'http://127.0.0.1:3000'];
+  return [];
 }
 
 async function count(db, sql, params = []) {
@@ -103,7 +117,7 @@ function initAdminRealtime(server) {
   const { Server } = require('socket.io');
   io = new Server(server, {
     path: '/admin-socket',
-    cors: { origin: '*', methods: ['GET', 'POST'] }
+    cors: { origin: realtimeCorsOrigins(), methods: ['GET', 'POST'] }
   });
 
   const namespace = io.of('/admin');
@@ -111,7 +125,7 @@ function initAdminRealtime(server) {
     try {
       const token = socket.handshake.auth?.token || socket.handshake.query?.token;
       if (!token) return next(new Error('ADMIN_AUTH_REQUIRED'));
-      const decoded = jwt.verify(token, getAdminSecret());
+      const decoded = jwt.verify(token, getAdminSecret(), adminVerifyOptions());
       if (!isAdminRole(decoded.role)) return next(new Error('FORBIDDEN'));
       socket.admin = decoded;
       return next();

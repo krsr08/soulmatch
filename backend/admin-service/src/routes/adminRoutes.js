@@ -6,6 +6,7 @@ const { authenticateService } = require('../middleware/serviceAuthMiddleware');
 const router = express.Router();
 
 router.post('/login', controller.adminLogin);
+router.post('/logout', authenticateAdmin, controller.adminLogout);
 
 router.get('/dashboard', authenticateAdmin, controller.getDashboard);
 router.get('/realtime/snapshot', authenticateAdmin, controller.getRealtimeSnapshot);

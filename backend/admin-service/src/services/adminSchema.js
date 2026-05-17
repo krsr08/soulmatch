@@ -65,6 +65,31 @@ async function ensureAdminSchema() {
         updated_at TIMESTAMP DEFAULT NOW()
       );
 
+      CREATE TABLE IF NOT EXISTS admin_roles (
+        admin_role_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        role VARCHAR(80) UNIQUE NOT NULL,
+        description TEXT,
+        status VARCHAR(24) NOT NULL DEFAULT 'active',
+        permissions JSONB DEFAULT '[]'::JSONB,
+        created_by VARCHAR(255),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS admin_role_permissions (
+        admin_role_permission_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        role VARCHAR(80) NOT NULL,
+        resource VARCHAR(120) NOT NULL,
+        can_view BOOLEAN DEFAULT FALSE,
+        can_add BOOLEAN DEFAULT FALSE,
+        can_edit BOOLEAN DEFAULT FALSE,
+        can_delete BOOLEAN DEFAULT FALSE,
+        can_export BOOLEAN DEFAULT FALSE,
+        updated_by VARCHAR(255),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(role, resource)
+      );
+
       CREATE TABLE IF NOT EXISTS admin_role_change_logs (
         role_change_log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         admin_email VARCHAR(255),
@@ -115,6 +140,8 @@ async function ensureAdminSchema() {
       CREATE INDEX IF NOT EXISTS idx_admin_alerts_status ON admin_alerts(status, severity);
       CREATE INDEX IF NOT EXISTS idx_profiles_admin_status ON profiles(admin_status, verification_status);
       CREATE INDEX IF NOT EXISTS idx_admin_console_users_role_status ON admin_console_users(role, status);
+      CREATE INDEX IF NOT EXISTS idx_admin_roles_status ON admin_roles(status);
+      CREATE INDEX IF NOT EXISTS idx_admin_role_permissions_role ON admin_role_permissions(role);
       CREATE INDEX IF NOT EXISTS idx_admin_role_change_logs_created ON admin_role_change_logs(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_deployment_audit_logs_created ON deployment_audit_logs(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_subscription_invoices_user ON subscription_invoices(user_id, issued_at DESC);
