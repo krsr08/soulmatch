@@ -3,9 +3,12 @@ SoulMatch Matrimonial App
 A complete matrimonial app with Android + Backend + Admin Panel.
 Quick Start
 
-python3 setup.py
-cd soulmatch
+Run the local setup helper, then start the Docker development stack:
+
+```powershell
+.\tools\soulmatch-master-setup.ps1
 docker compose -f docker/docker-compose.dev.yml up --build
+```
 
 Admin: http://localhost:3000
 
