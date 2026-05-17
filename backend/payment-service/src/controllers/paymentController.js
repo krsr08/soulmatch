@@ -18,10 +18,18 @@ const MARK_PAYMENT_ORDER_PAID_SQL = `UPDATE payment_orders
            updated_at=NOW()
        WHERE payment_order_id=$5`;
 
+function isPlaceholderCredential(value) {
+  return /placeholder|replace_me|replace-with|change_this|dummy|example/i.test(String(value || ''));
+}
+
 function getRazorpayCredentials() {
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
-  if ((!keyId || !keySecret) && process.env.NODE_ENV === 'production') {
+  const invalidProductionCredential = !keyId ||
+    !keySecret ||
+    isPlaceholderCredential(keyId) ||
+    isPlaceholderCredential(keySecret);
+  if (invalidProductionCredential && process.env.NODE_ENV === 'production') {
     throw new AppError(503, ErrorCodes.SERVICE_UNAVAILABLE, 'Payment gateway is not configured.');
   }
   return {
@@ -651,6 +659,8 @@ exports._test = {
   MARK_PAYMENT_ORDER_PAID_SQL,
   buildPlanChangeContext,
   findCapturedPaymentForOrder,
+  getRazorpayCredentials,
+  isPlaceholderCredential,
   planRank,
   summarizeRazorpayPayment
 };

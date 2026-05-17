@@ -135,3 +135,22 @@ test('buildPlanChangeContext still ranks canonical plans without runtime config'
     'upgrade'
   );
 });
+
+test('production Razorpay credentials reject placeholders', () => {
+  const previousEnv = {
+    NODE_ENV: process.env.NODE_ENV,
+    RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID,
+    RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET
+  };
+  process.env.NODE_ENV = 'production';
+  process.env.RAZORPAY_KEY_ID = 'rzp_test_placeholder';
+  process.env.RAZORPAY_KEY_SECRET = 'placeholder';
+
+  assert.equal(_test.isPlaceholderCredential('change_this_secret'), true);
+  assert.throws(() => _test.getRazorpayCredentials(), /Payment gateway is not configured/);
+
+  Object.entries(previousEnv).forEach(([key, value]) => {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  });
+});
