@@ -23,4 +23,12 @@ Production readiness gates are documented in:
 - `docs/OBSERVABILITY.md`
 - `docs/SECURITY_TESTS.md`
 
+Developer architecture references:
+
+- `docs/ARCHITECTURE_IMPLEMENTATION_CHECKLIST.md`
+- `docs/ARCHITECTURE_FOUNDATION.md`
+- `docs/DEVELOPER_BOUNDARIES.md`
+- `docs/EXTENSION_POINTS.md`
+- `docs/project-structure.md`
+
 Pull requests run `.github/workflows/ci.yml`, which builds the Docker dev stack, applies migrations, runs smoke tests, audits dependencies, scans secrets, and runs Android unit tests.

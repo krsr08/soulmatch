@@ -80,6 +80,29 @@ src/
 - New backend profile/agent behavior: `backend/profile-service/src/controllers`, `repositories`, and `services`.
 - New admin review behavior: `backend/admin-service`.
 
+## Architecture References
+
+Read these before making structural changes:
+
+- `docs/ARCHITECTURE_IMPLEMENTATION_CHECKLIST.md` tracks the live status of the architecture modernization work.
+- `docs/ARCHITECTURE_FOUNDATION.md` explains the current and target architecture.
+- `docs/DEVELOPER_BOUNDARIES.md` defines service ownership and Android/admin mappings.
+- `docs/EXTENSION_POINTS.md` explains future placeholders such as BFF, workers, blob storage, search, WAF, and observability.
+
+## Reserved Future Folders
+
+These folders are documented as future architecture locations. Do not create or activate the related infrastructure until the implementation phase starts.
+
+```text
+backend/
+  mobile-bff/                  Optional future Android API aggregation layer
+  workers/
+    notification-worker/        Future async push/email/SMS delivery
+    trust-score-worker/         Future async trust score recalculation
+    search-index-worker/        Future OpenSearch/index sync
+    payment-webhook-worker/     Future async payment reconciliation
+```
+
 ## Refactor Rule
 
 Keep behavior changes separate from structure changes. For large cleanup work, move files and update imports first, compile, then make functional changes in a separate commit.
