@@ -33,5 +33,6 @@ Developer architecture references:
 - `docs/MODULE_OWNERSHIP_MAP.md`
 - `docs/RUNTIME_CONFIG_CONTROL_PLANE.md`
 - `docs/PRODUCTION_SMOKE_STATUS.md`
+- `docs/DEVELOPMENT_WORKFLOW.md`
 
 Pull requests run `.github/workflows/ci.yml`, which builds the Docker dev stack, applies migrations, runs smoke tests, audits dependencies, scans secrets, and runs Android unit tests.

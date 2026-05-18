@@ -59,6 +59,11 @@ Budget rule: do not add paid Azure resources while the app is still in developme
 | A8-03 | Production Smoke | Document safe smoke steps for when VM is intentionally started | Completed | Captured in `docs/PRODUCTION_SMOKE_STATUS.md`. |
 | A9-01 | Developer Navigation | Create module ownership map for Member, Agent, Admin, and shared rules | Completed | Captured in `docs/MODULE_OWNERSHIP_MAP.md`. |
 | A9-02 | Developer Navigation | Create runtime config/control-plane guide | Completed | Captured in `docs/RUNTIME_CONFIG_CONTROL_PLANE.md`. |
+| A10-01 | Source Signposts | Add backend service map near backend source | Completed | Captured in `backend/README.md`. |
+| A10-02 | Source Signposts | Add shared backend helper boundary near shared source | Completed | Captured in `backend/shared/README.md`. |
+| A10-03 | Source Signposts | Add Android screen map near screen source | Completed | Captured in `android/app/src/main/java/com/soulmatch/app/ui/screens/README.md`. |
+| A10-04 | Source Signposts | Add admin web source map | Completed | Captured in `admin-web/src/README.md`. |
+| A10-05 | Developer Workflow | Add branch/change/testing/deployment workflow guide | Completed | Captured in `docs/DEVELOPMENT_WORKFLOW.md`. |
 
 ## Current Phase Summary
 
@@ -97,6 +102,7 @@ Scope intentionally not changed:
 | A7 Git/Deploy | Completed | Architecture foundation merged to `main`; production workflow passed. |
 | A8 Production Smoke | Started | Public smoke is blocked while the VM is deallocated for cost control. |
 | A9 Developer Navigation | Completed | Module ownership and runtime config guides added. |
+| A10 Source Signposts | Completed | Source-adjacent READMEs and development workflow added without behavior changes. |
 
 ## Latest Validation Results
 
