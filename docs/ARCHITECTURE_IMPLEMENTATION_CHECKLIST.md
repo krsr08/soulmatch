@@ -52,7 +52,7 @@ Budget rule: do not add paid Azure resources while the app is still in developme
 | A6-05 | Validation | Run lightweight syntax and diff checks for A5 | Completed | `node -c` passed for touched JS files; `git diff --check` passed. |
 | A6-06 | Validation | Run Docker-backed smoke tests | Completed | `auth-flow-smoke.js`, `api-smoke.js`, and `p2_ux_correctness.test.js` passed against local Docker services. |
 | A7-01 | Git | Commit local architecture foundation changes | Completed | Local branch has architecture foundation commits through A5. |
-| A7-02 | Git | Push only after confirmation | Started | User approved next steps; pushing `codex/architecture-foundation` to GitHub. |
+| A7-02 | Git | Push only after confirmation | Completed | `codex/architecture-foundation` pushed to GitHub. |
 | A7-03 | Deploy | Deploy to VM only when approved | Not Started | VM is not required for this phase. |
 
 ## Current Phase Summary
@@ -89,7 +89,7 @@ Scope intentionally not changed:
 | A4 Extension Placeholders | Completed | Env/config placeholders added without enabling infrastructure. |
 | A5 Code Clarity | Completed | Critical comments added; no logic changed. |
 | A6 Validation | Completed | Backend tests, smoke tests, Android unit tests, and admin-web build passed locally. |
-| A7 Git/Deploy | Inprogress | Pushing `codex/architecture-foundation`; deploy remains pending. |
+| A7 Git/Deploy | Inprogress | Branch pushed to GitHub; deploy remains pending. |
 
 ## Latest Validation Results
 
