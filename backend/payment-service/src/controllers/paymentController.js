@@ -204,6 +204,8 @@ async function activatePaidOrder(db, { order, plan, paymentId, signature = null,
   const subId = randomUUID();
   try {
     await client.query('BEGIN');
+    // Client verification and Razorpay webhooks can arrive in either order.
+    // Lock the payment order so subscription activation stays idempotent.
     const locked = await client.query('SELECT * FROM payment_orders WHERE payment_order_id=$1 FOR UPDATE', [order.payment_order_id]);
     const currentOrder = locked.rows[0];
     if (!currentOrder) {
@@ -464,6 +466,8 @@ exports.verifyPayment = async (req, res, next) => {
     if (!orderId || !paymentId || !signature || !planId) {
       return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'orderId, paymentId, signature, and planId are required.'));
     }
+    // Client-side success is not trusted until the Razorpay HMAC and stored
+    // SoulMatch payment order both match the signed payment payload.
     const expectedSig = crypto.createHmac('sha256', getRazorpayCredentials().key_secret).update(orderId+'|'+paymentId).digest('hex');
     if (expectedSig !== signature) {
       return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Payment verification failed. Please retry the payment confirmation.'));
@@ -518,6 +522,8 @@ exports.handleWebhook = async (req, res, next) => {
     }
     const signature = req.headers['x-razorpay-signature'];
     const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '');
+    // Webhook verification must use the exact raw body bytes; parsing before
+    // HMAC verification would make legitimate signatures fail.
     const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
     if (!signature || expected !== signature) {
       return res.status(400).json({ success:false, error:{ code:'VALIDATION_ERROR', message:'Invalid webhook signature.' } });

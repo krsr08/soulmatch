@@ -67,6 +67,8 @@ const USAGE_COLUMNS = {
 
 function normalizePlanId(planId) {
   const value = String(planId || '').trim().toLowerCase();
+  // Public copy calls the free tier "Bronze"; normalize older/free values here
+  // so every entitlement check uses one canonical plan key.
   if (!value || value === 'free') return 'bronze';
   if (value === 'fixed_access') return 'platinum';
   return Object.prototype.hasOwnProperty.call(DEFAULT_MEMBER_PLAN_ENTITLEMENTS, value) ? value : 'bronze';
@@ -144,6 +146,8 @@ async function ensureUsageRecord(db, userId, planId = 'free') {
   const row = existing.rows[0];
   const expired = row?.period_ends_at && new Date(row.period_ends_at).getTime() <= Date.now();
   const planChanged = row && normalizePlanId(row.plan_id) !== normalizedPlanId;
+  // Usage limits reset on the monthly boundary and immediately on upgrade or
+  // downgrade, keeping paid access changes effective without waiting for cron.
   if (!row) {
     const created = await db.query(
       `INSERT INTO member_subscription_usage (
@@ -200,6 +204,8 @@ async function consumeMeter(db, { userId, targetProfileId, eventType, limit, usa
     throw new Error(`Unsupported subscription usage column for ${eventType}`);
   }
   const currentPeriod = periodKey();
+  // Metered actions are idempotent per target profile and monthly period. This
+  // prevents retries or double taps from burning multiple contact/view credits.
   const alreadyRecorded = targetProfileId
     ? await hasMeterEvent(db, { userId, targetProfileId, eventType, period: currentPeriod })
     : false;

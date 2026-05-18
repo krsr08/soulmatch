@@ -873,6 +873,8 @@ async function upsertConfigSection(db, key, value, updatedBy = 'system', isPubli
     throw error;
   }
   validateConfigSection(resolvedKey, value);
+  // Public/private config is decided here, not in admin-web. Keep operational
+  // sections such as `operations` private unless explicitly overridden.
   const isPublic = isPublicOverride === null ? PUBLIC_CONFIG_KEYS.has(resolvedKey) : isPublicOverride;
   const merged = deepMerge(DEFAULT_CONFIG[resolvedKey] || {}, value);
   const normalized = resolvedKey === 'monetization' ? normalizeMonetization(merged) : merged;
@@ -948,6 +950,8 @@ function getPlanById(monetization, planId) {
 }
 
 function getPublicRuntimeConfig(configMap) {
+  // Only return client-safe sections. Secrets, operational topology, and admin
+  // controls stay server-side even though they share the same app_config table.
   const content = {
     ...configMap.content,
     navigation: deepMerge(configMap.content?.navigation || {}, configMap.navigation || {})

@@ -42,14 +42,15 @@ Budget rule: do not add paid Azure resources while the app is still in developme
 | A4-05 | Extension Placeholders | Add config placeholder for `SEARCH_ENGINE_PROVIDER` | Completed | Added to search env template and shared helper; PostgreSQL remains primary. |
 | A4-06 | Extension Placeholders | Add config placeholder for `OBSERVABILITY_PROVIDER` | Completed | Added to env templates and shared helper; no monitoring containers activated. |
 | A4-07 | Extension Placeholders | Add private runtime config schema for operational architecture | Completed | Added `operations` config and schema; not exposed to Android public runtime config. |
-| A5-01 | Code Clarity | Add useful comments to critical shared logic | Not Started | Only after selecting specific code areas. |
+| A5-01 | Code Clarity | Add useful comments to critical shared logic | Completed | Added targeted comments to privacy redaction, entitlement metering, private config, and payment idempotency/signature gates. |
 | A5-02 | Code Clarity | Avoid rewriting business flows unless required | Completed | This pass is documentation-only. |
 | A5-03 | Code Clarity | Add README links to architecture/developer docs | Completed | README now points to developer architecture docs. |
 | A6-01 | Validation | Run backend unit tests | Not Started | Not required for docs-only pass; run before code changes. |
 | A6-02 | Validation | Run Android unit tests if code changed | Not Started | No Android code changed in this pass. |
 | A6-03 | Validation | Run admin-web build if frontend touched | Not Started | No frontend code changed in this pass. |
 | A6-04 | Validation | Verify no secrets added | Completed | Docs contain placeholders only. |
-| A7-01 | Git | Commit local architecture foundation changes | Not Started | Ready after review. |
+| A6-05 | Validation | Run lightweight syntax and diff checks for A5 | Completed | `node -c` passed for touched JS files; `git diff --check` passed. |
+| A7-01 | Git | Commit local architecture foundation changes | Completed | Local branch has architecture foundation commits through A5. |
 | A7-02 | Git | Push only after confirmation | Not Started | Do not push until approved. |
 | A7-03 | Deploy | Deploy to VM only when approved | Not Started | VM is not required for this phase. |
 
@@ -65,6 +66,7 @@ Scope completed in this pass:
 - Folder structure links and future placement rules.
 - Cost-safe extension point guide.
 - Code/env placeholders for future adapters, with current behavior unchanged.
+- Targeted comments around high-risk shared backend gates.
 
 Scope intentionally not changed:
 
@@ -73,3 +75,16 @@ Scope intentionally not changed:
 - No database migration.
 - No deployment.
 - No paid infrastructure.
+
+## Remaining Work Snapshot
+
+| Area | Status | Notes |
+| --- | --- | --- |
+| A0 Baseline | Completed | Branch and architecture baseline recorded. |
+| A1 Architecture Docs | Completed | Current and target architecture documented. |
+| A2 Developer Boundaries | Completed | Service ownership and UI/API mappings documented. |
+| A3 Folder Structure | Completed | Project map updated with future folder reservations. |
+| A4 Extension Placeholders | Completed | Env/config placeholders added without enabling infrastructure. |
+| A5 Code Clarity | Completed | Critical comments added; no logic changed. |
+| A6 Validation | Inprogress | Lightweight checks are run per phase; full backend/Android/admin tests remain for runtime-code phases. |
+| A7 Git/Deploy | Inprogress | Local commits exist on `codex/architecture-foundation`; push/deploy not done until approved. |
