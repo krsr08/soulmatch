@@ -45,11 +45,12 @@ Budget rule: do not add paid Azure resources while the app is still in developme
 | A5-01 | Code Clarity | Add useful comments to critical shared logic | Completed | Added targeted comments to privacy redaction, entitlement metering, private config, and payment idempotency/signature gates. |
 | A5-02 | Code Clarity | Avoid rewriting business flows unless required | Completed | This pass is documentation-only. |
 | A5-03 | Code Clarity | Add README links to architecture/developer docs | Completed | README now points to developer architecture docs. |
-| A6-01 | Validation | Run backend unit tests | Not Started | Not required for docs-only pass; run before code changes. |
-| A6-02 | Validation | Run Android unit tests if code changed | Not Started | No Android code changed in this pass. |
-| A6-03 | Validation | Run admin-web build if frontend touched | Not Started | No frontend code changed in this pass. |
-| A6-04 | Validation | Verify no secrets added | Completed | Docs contain placeholders only. |
+| A6-01 | Validation | Run backend unit tests | Completed | `node --test` ran 64 backend tests; all passed. |
+| A6-02 | Validation | Run Android unit tests if code changed | Completed | `android/gradlew.bat testDebugUnitTest` passed. |
+| A6-03 | Validation | Run admin-web build if frontend touched | Completed | `npm run build` in `admin-web` compiled successfully. |
+| A6-04 | Validation | Verify no secrets added | Completed | Secret-pattern checks found no live keys in staged architecture changes. |
 | A6-05 | Validation | Run lightweight syntax and diff checks for A5 | Completed | `node -c` passed for touched JS files; `git diff --check` passed. |
+| A6-06 | Validation | Run Docker-backed smoke tests | Completed | `auth-flow-smoke.js`, `api-smoke.js`, and `p2_ux_correctness.test.js` passed against local Docker services. |
 | A7-01 | Git | Commit local architecture foundation changes | Completed | Local branch has architecture foundation commits through A5. |
 | A7-02 | Git | Push only after confirmation | Not Started | Do not push until approved. |
 | A7-03 | Deploy | Deploy to VM only when approved | Not Started | VM is not required for this phase. |
@@ -67,6 +68,7 @@ Scope completed in this pass:
 - Cost-safe extension point guide.
 - Code/env placeholders for future adapters, with current behavior unchanged.
 - Targeted comments around high-risk shared backend gates.
+- Local validation across backend tests, Docker smoke tests, Android unit tests, and admin build.
 
 Scope intentionally not changed:
 
@@ -86,5 +88,17 @@ Scope intentionally not changed:
 | A3 Folder Structure | Completed | Project map updated with future folder reservations. |
 | A4 Extension Placeholders | Completed | Env/config placeholders added without enabling infrastructure. |
 | A5 Code Clarity | Completed | Critical comments added; no logic changed. |
-| A6 Validation | Inprogress | Lightweight checks are run per phase; full backend/Android/admin tests remain for runtime-code phases. |
+| A6 Validation | Completed | Backend tests, smoke tests, Android unit tests, and admin-web build passed locally. |
 | A7 Git/Deploy | Inprogress | Local commits exist on `codex/architecture-foundation`; push/deploy not done until approved. |
+
+## Latest Validation Results
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Docker stack status | `docker compose -f docker/docker-compose.dev.yml ps` | Core backend services running locally. |
+| Auth smoke | `node test_folder/auth-flow-smoke.js` | Passed. |
+| API smoke | `node test_folder/api-smoke.js` | Passed. |
+| UX correctness static test | `node --test test_folder/p2_ux_correctness.test.js` | 3 passed. |
+| Backend unit/static tests | `node --test <backend test files>` | 64 passed. |
+| Android unit tests | `android/gradlew.bat testDebugUnitTest` | Passed. |
+| Admin web build | `npm run build` from `admin-web` | Passed. |
