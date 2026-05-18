@@ -1,39 +1,7 @@
 const { getDB } = require('../config/database');
-const fcmService = require('../services/fcmService');
-const logger = require('../utils/logger');
-const { getConfigSection, renderTemplate } = require('../../shared/controlPlane');
+const { getConfigSection, renderTemplate } = require('../../../shared/controlPlane');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
-
-async function resolveToken(db, userId) {
-  const result = await db.query('SELECT fcm_token FROM users WHERE user_id=$1', [userId]);
-  return result.rows[0]?.fcm_token;
-}
-
-async function deliverPush(db, { userId, title, body, data }) {
-  const notification = await db.query(
-    `INSERT INTO notifications (notification_id,user_id,title,body,data,status,created_at)
-     VALUES (gen_random_uuid(),$1,$2,$3,$4::jsonb,'queued',NOW())
-     RETURNING notification_id`,
-    [userId, title, body, JSON.stringify(data || {})]
-  );
-  const notificationId = notification.rows[0].notification_id;
-  const fcmToken = await resolveToken(db, userId);
-  if (fcmToken) {
-    try {
-      await fcmService.sendToDevice(fcmToken, title, body, data || {});
-      await db.query("UPDATE notifications SET status='sent', delivered_at=NOW() WHERE notification_id=$1", [notificationId]);
-      return { notificationId, status: 'sent' };
-    } catch (err) {
-      await db.query("UPDATE notifications SET status='failed' WHERE notification_id=$1", [notificationId]);
-      logger.error('FCM delivery failed for notification ' + notificationId + ': ' + err.message);
-      return { notificationId, status: 'failed', error: err.message };
-    }
-  } else {
-    await db.query("UPDATE notifications SET status='no_token' WHERE notification_id=$1", [notificationId]);
-    logger.info('No FCM token for user ' + userId);
-    return { notificationId, status: 'no_token' };
-  }
-}
+const outbox = require('../services/notificationOutboxService');
 
 exports.getNotifications = async (req, res, next) => {
   try {
@@ -87,7 +55,7 @@ exports.sendPush = async (req, res, next) => {
       return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'userId, title, and body are required.'));
     }
     const db = await getDB();
-    const delivery = await deliverPush(db, { userId, title, body, data });
+    const delivery = await outbox.queueNotification(db, { userId, title, body, data });
     res.json({ success:true, data: delivery, message:'Notification queued' });
   } catch (err) { next(err); }
 };
@@ -99,16 +67,33 @@ exports.sendTemplate = async (req, res, next) => {
       return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'userId and templateKey are required.'));
     }
     const db = await getDB();
+    const storedTemplate = await db.query(
+      'SELECT title_template, body_template FROM notification_templates WHERE template_key=$1 AND is_active=true LIMIT 1',
+      [templateKey]
+    );
     const templates = await getConfigSection(db, 'notification_templates');
-    const template = templates[templateKey];
+    const template = storedTemplate.rows[0]
+      ? { title: storedTemplate.rows[0].title_template, body: storedTemplate.rows[0].body_template }
+      : templates[templateKey];
     if (!template) {
       return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Notification template not found.'));
     }
     const title = renderTemplate(template.title, variables || {});
     const body = renderTemplate(template.body, variables || {});
-    const delivery = await deliverPush(db, { userId, title, body, data });
+    const delivery = await outbox.queueNotification(db, { userId, title, body, data });
     res.json({ success:true, data:{ title, body, delivery }, message:'Notification queued' });
   } catch (err) {
     next(err);
   }
+};
+
+exports.getDeliveryStats = async (req, res, next) => {
+  try {
+    const db = await getDB();
+    res.json({ success: true, data: await outbox.deliveryStats(db) });
+  } catch (err) { next(err); }
+};
+
+exports._test = {
+  isInvalidFcmTokenError: outbox.isInvalidFcmTokenError
 };

@@ -137,7 +137,11 @@ fun SubscriptionScreen(
     LaunchedEffect(checkoutRequest?.order?.orderId) {
         val pending = checkoutRequest ?: return@LaunchedEffect
         if (pending.order.gateway == "mock") {
-            vm.completeMockCheckout()
+            if (BuildConfig.DEBUG) {
+                vm.completeMockCheckout()
+            } else {
+                vm.failCheckout("SoulMatch payments are unavailable. Please try again later.")
+            }
             return@LaunchedEffect
         }
         val activity = context as? Activity

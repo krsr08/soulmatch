@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "googleWebClientId": { "type": "string" },
+    "razorpayKeyId": { "type": "string" },
+    "supportEmail": { "type": "string" }
+  },
+  "additionalProperties": true
+}

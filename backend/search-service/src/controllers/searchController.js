@@ -4,18 +4,30 @@ const { randomUUID } = require('crypto');
 const normalizeFilters = (raw = {}) => ({
   ageMin: raw.ageMin ? parseInt(raw.ageMin, 10) : null,
   ageMax: raw.ageMax ? parseInt(raw.ageMax, 10) : null,
+  heightMinCm: raw.heightMinCm || raw.height_min_cm ? parseInt(raw.heightMinCm || raw.height_min_cm, 10) : null,
+  heightMaxCm: raw.heightMaxCm || raw.height_max_cm ? parseInt(raw.heightMaxCm || raw.height_max_cm, 10) : null,
   religion: raw.religion || null,
   community: raw.community || raw.caste || null,
   motherTongue: raw.motherTongue || null,
+  country: raw.country || null,
+  state: raw.state || raw.familyState || raw.workingState || null,
   city: raw.city || raw.location || null,
   gender: raw.gender || null,
   diet: raw.diet || null,
   education: raw.education || raw.educationLevel || null,
+  employedIn: raw.employedIn || raw.employmentType || null,
+  isEmployed: raw.isEmployed === true || raw.currentlyEmployed === true ? true : raw.isEmployed === false || raw.currentlyEmployed === false ? false : null,
   occupation: raw.occupation || null,
   income: raw.income || raw.annualIncome || null,
   familyType: raw.familyType || null,
   maritalStatus: raw.maritalStatus || null,
   manglik: raw.manglik || null,
+  horoscope: raw.horoscope || raw.hasHoroscope || null,
+  profilePostedBy: raw.profilePostedBy || raw.profileCreatedBy || raw.createdBy || null,
+  activityOnSite: raw.activityOnSite || null,
+  onlineStatus: raw.onlineStatus || null,
+  viewedOnly: raw.viewedOnly === true,
+  nearbyOnly: raw.nearbyOnly === true || raw.nearby === true,
   verifiedOnly: raw.verifiedOnly === true,
   photoOnly: raw.photoOnly === true || raw.hasPhotoOnly === true,
   recentlyActiveOnly: raw.recentlyActiveOnly === true,
@@ -112,6 +124,12 @@ const buildMatchReasons = (profile, filters) => {
   return reasons.slice(0, 4);
 };
 
+const paginationFor = (filters) => {
+  const page = Math.max(parseInt(filters.page, 10) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(filters.limit, 10) || 20, 1), 50);
+  return { page, limit, offset: (page - 1) * limit };
+};
+
 const searchProfiles = async (filters, userId) => {
   const db = await getDB();
   const values = [userId];
@@ -132,13 +150,23 @@ const searchProfiles = async (filters, userId) => {
   let idx = values.length + 1;
   if (filters.ageMin) { conditions.push('EXTRACT(YEAR FROM AGE(p.dob))>=$' + idx++); values.push(filters.ageMin); }
   if (filters.ageMax) { conditions.push('EXTRACT(YEAR FROM AGE(p.dob))<=$' + idx++); values.push(filters.ageMax); }
+  if (filters.heightMinCm) { conditions.push('pd.height_cm>=$' + idx++); values.push(filters.heightMinCm); }
+  if (filters.heightMaxCm) { conditions.push('pd.height_cm<=$' + idx++); values.push(filters.heightMaxCm); }
   if (filters.gender) { conditions.push('p.gender=$' + idx++); values.push(filters.gender); }
   if (filters.religion) { conditions.push('p.religion=$' + idx++); values.push(filters.religion); }
   if (filters.community) { conditions.push('(p.caste ILIKE $' + idx + ' OR p.religion ILIKE $' + idx + ')'); values.push('%' + filters.community + '%'); idx++; }
   if (filters.motherTongue) { conditions.push('p.mother_tongue ILIKE $' + idx++); values.push('%' + filters.motherTongue + '%'); }
+  if (filters.country && String(filters.country).toLowerCase() !== 'all') {
+    const country = String(filters.country).toLowerCase();
+    if (country === 'india') conditions.push("(fd.family_state IS NOT NULL OR ec.working_state IS NOT NULL)");
+    if (country === 'abroad') conditions.push("(fd.family_state IS NULL AND ec.working_state IS NULL)");
+  }
+  if (filters.state) { conditions.push('(fd.family_state ILIKE $' + idx + ' OR ec.working_state ILIKE $' + idx + ')'); values.push('%' + filters.state + '%'); idx++; }
   if (filters.city) { conditions.push('ec.working_city ILIKE $' + idx++); values.push('%' + filters.city + '%'); }
   if (filters.diet) { conditions.push('ld.diet=$' + idx++); values.push(filters.diet); }
   if (filters.education) { conditions.push('ec.education_level ILIKE $' + idx++); values.push('%' + filters.education + '%'); }
+  if (filters.isEmployed !== null) { conditions.push('COALESCE(ec.is_employed,false)=$' + idx++); values.push(filters.isEmployed); }
+  if (filters.employedIn) { conditions.push('(ec.occupation ILIKE $' + idx + ' OR ec.working_city ILIKE $' + idx + ' OR ec.working_state ILIKE $' + idx + ')'); values.push('%' + filters.employedIn + '%'); idx++; }
   if (filters.occupation) { conditions.push('ec.occupation ILIKE $' + idx++); values.push('%' + filters.occupation + '%'); }
   if (filters.income) { conditions.push('ec.annual_income ILIKE $' + idx++); values.push('%' + filters.income + '%'); }
   if (filters.familyType) { conditions.push('fd.family_type ILIKE $' + idx++); values.push('%' + filters.familyType + '%'); }
@@ -147,8 +175,39 @@ const searchProfiles = async (filters, userId) => {
   if (filters.manglik && ['no','false','non-manglik'].includes(String(filters.manglik).toLowerCase())) conditions.push('COALESCE(hd.is_manglik,false)=false');
   if (filters.verifiedOnly) conditions.push("COALESCE(p.verification_status,'pending')='verified'");
   if (filters.photoOnly) conditions.push("NULLIF(p.primary_photo_url,'') IS NOT NULL");
+  if (filters.horoscope === true || String(filters.horoscope).toLowerCase() === 'yes') conditions.push("(NULLIF(hd.rashi,'') IS NOT NULL OR NULLIF(hd.nakshatra,'') IS NOT NULL OR NULLIF(hd.birth_city,'') IS NOT NULL)");
+  if (filters.profilePostedBy) { conditions.push('p.profile_created_by ILIKE $' + idx++); values.push('%' + filters.profilePostedBy + '%'); }
+  if (filters.viewedOnly) {
+    conditions.push(`EXISTS (
+      SELECT 1 FROM profile_views pv
+      JOIN profiles viewer_profile ON viewer_profile.profile_id=pv.viewer_id
+      WHERE viewer_profile.user_id=$1 AND pv.viewed_profile_id=p.profile_id
+    )`);
+  }
+  if (filters.nearbyOnly) {
+    conditions.push(`EXISTS (
+      SELECT 1
+      FROM profiles me
+      LEFT JOIN education_career my_ec ON my_ec.profile_id=me.profile_id
+      LEFT JOIN family_details my_fd ON my_fd.profile_id=me.profile_id
+      WHERE me.user_id=$1
+        AND (
+          NULLIF(LOWER(my_ec.working_city),'') = NULLIF(LOWER(ec.working_city),'')
+          OR NULLIF(LOWER(my_fd.family_city),'') = NULLIF(LOWER(fd.family_city),'')
+          OR NULLIF(LOWER(my_ec.working_state),'') = NULLIF(LOWER(ec.working_state),'')
+          OR NULLIF(LOWER(my_fd.family_state),'') = NULLIF(LOWER(fd.family_state),'')
+        )
+    )`);
+  }
   if (filters.recentlyActiveOnly) conditions.push("u.last_login >= NOW() - INTERVAL '30 days'");
-  const page = Math.max(parseInt(filters.page, 10)||1, 1); const limit = Math.min(Math.max(parseInt(filters.limit, 10)||20, 15), 100); const offset = (page-1)*limit;
+  if (filters.activityOnSite || filters.onlineStatus) {
+    const activity = String(filters.activityOnSite || filters.onlineStatus).toLowerCase();
+    if (['online', 'active_now'].includes(activity)) conditions.push("u.last_login >= NOW() - INTERVAL '15 minutes'");
+    else if (['recent', 'recently_active'].includes(activity)) conditions.push("u.last_login >= NOW() - INTERVAL '3 days'");
+    else if (['today', 'active_today'].includes(activity)) conditions.push("u.last_login >= NOW() - INTERVAL '1 day'");
+    else if (['inactive'].includes(activity)) conditions.push("(u.last_login IS NULL OR u.last_login < NOW() - INTERVAL '30 days')");
+  }
+  const { page, limit, offset } = paginationFor(filters);
   const where = conditions.join(' AND ');
   const from = ' FROM profiles p JOIN users u ON u.user_id=p.user_id LEFT JOIN education_career ec ON p.profile_id=ec.profile_id LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id LEFT JOIN family_details fd ON p.profile_id=fd.profile_id LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id ';
   const visiblePhotoSql = `
@@ -268,7 +327,7 @@ exports.basicSearch = async (req, res, next) => {
   try {
     const filters = normalizeFilters(req.body);
     const result = await searchProfiles(filters, req.user.userId);
-    res.json({ success:true, data:result });
+    res.json({ success:true, data:{ ...result, appliedFilters: filters } });
   } catch (err) {
     next(err);
   }
@@ -277,11 +336,13 @@ exports.advancedSearch = async (req, res, next) => {
   try {
     const filters = normalizeFilters(req.body);
     const result = await searchProfiles(filters, req.user.userId);
-    res.json({ success:true, data:result });
+    res.json({ success:true, data:{ ...result, appliedFilters: filters } });
   } catch (err) {
     next(err);
   }
 };
+
+exports._test = { normalizeFilters, paginationFor };
 exports.getSavedSearches = async (req, res, next) => {
   try {
     const db = await getDB();

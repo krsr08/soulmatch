@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "primary": { "type": "string" },
+    "secondary": { "type": "string" },
+    "accent": { "type": "string" },
+    "background": { "type": "string" },
+    "surface": { "type": "string" }
+  },
+  "additionalProperties": true
+}

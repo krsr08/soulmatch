@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "currency": { "type": "string" },
+    "accessMode": { "type": "string", "enum": ["free", "fixed_price", "subscription"] },
+    "subscriptionModelEnabled": { "type": "boolean" },
+    "fixedPriceAmount": { "type": "number" },
+    "fixedPricePlanId": { "type": "string" },
+    "fixedPriceLabel": { "type": "string" },
+    "freeAccessLabel": { "type": "string" },
+    "refundGuaranteeEnabled": { "type": "boolean" },
+    "refundGuaranteeTitle": { "type": "string" },
+    "refundGuaranteeSubtitle": { "type": "string" },
+    "plans": { "type": "array" },
+    "memberPlanEntitlements": { "type": "object" },
+    "membershipFeatureMatrix": { "type": "array" },
+    "upgradePackageGroups": { "type": "array" }
+  },
+  "additionalProperties": true
+}

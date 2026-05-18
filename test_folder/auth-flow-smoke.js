@@ -66,7 +66,8 @@ async function main() {
       gender: 'male',
       religion: 'Hindu',
       caste: 'Any',
-      motherTongue: 'Hindi'
+      motherTongue: 'Hindi',
+      maritalStatus: 'never_married'
     })
   });
   results.push(step1);
@@ -90,6 +91,7 @@ async function main() {
 
   const logout = await request('logout', `${base.auth}/api/v1/auth/logout`, {
     method: 'POST',
+    headers: authz,
     body: JSON.stringify({ userId: auth.userId })
   });
   results.push(logout);

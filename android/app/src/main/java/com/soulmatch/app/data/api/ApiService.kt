@@ -18,6 +18,8 @@ interface AuthApiService {
 interface ProfileApiService {
     @POST("profile/create") suspend fun createProfileStep(@Body req: Map<String, @JvmSuppressWildcards Any>): Response<GenericResponse<ProfileStepResponse>>
     @GET("profile/me") suspend fun getMyProfile(): Response<GenericResponse<ProfileData>>
+    @GET("profile/export") suspend fun exportMyData(): Response<GenericResponse<Any>>
+    @POST("profile/delete-account") suspend fun deleteAccount(@Body req: Map<String, @JvmSuppressWildcards String>): Response<GenericResponse<Any>>
     @GET("profile/agent/me") suspend fun getAgentProfile(): Response<GenericResponse<AgentProfileData>>
     @PUT("profile/agent/me") suspend fun upsertAgentProfile(@Body req: AgentProfileUpsertRequest): Response<GenericResponse<AgentProfileData>>
     @POST("profile/agent/onboarding") suspend fun submitAgentOnboarding(@Body req: AgentOnboardingRequest): Response<GenericResponse<AgentProfileData>>
@@ -97,8 +99,9 @@ interface PaymentApiService {
     @GET("payment/invoices") suspend fun getInvoices(): Response<GenericResponse<List<InvoiceItem>>>
 }
 interface ControlPlaneApiService {
-    @GET("public/config") suspend fun getRuntimeConfig(): Response<GenericResponse<RuntimeConfigData>>
+    @GET("public/config") suspend fun getRuntimeConfig(@Header("If-None-Match") etag: String? = null): Response<GenericResponse<RuntimeConfigData>>
     @POST("public/analytics") suspend fun trackAnalytics(@Body req: AnalyticsEventRequest): Response<GenericResponse<Any>>
+    @POST("public/analytics") suspend fun trackAnalyticsBatch(@Body req: AnalyticsBatchRequest): Response<GenericResponse<Any>>
 }
 interface NotificationApiService {
     @POST("notifications/devices/fcm-token") suspend fun registerFcmToken(@Body req: FcmTokenRequest): Response<GenericResponse<Any>>

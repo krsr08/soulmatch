@@ -1,6 +1,33 @@
 const { getDB } = require('../config/database');
-const { DEFAULT_CONFIG, escapeHtml, getConfigMap, getPublicRuntimeConfig, recordAnalyticsEvent } = require('../../shared/controlPlane');
+const crypto = require('crypto');
+const { DEFAULT_CONFIG, escapeHtml, getConfigMap, getPublicRuntimeConfig, recordAnalyticsEvent } = require('../../../shared/controlPlane');
 const logger = require('../utils/logger');
+
+const ANALYTICS_RATE_BUCKETS = new Map();
+const ANALYTICS_EVENT_TYPES = new Set([
+  'page_view',
+  'click',
+  'sign_up',
+  'account_type_selected',
+  'payment_click',
+  'payment_success',
+  'match_made',
+  'profile_view',
+  'contact_unlock',
+  'ai_bio_suggestions',
+  'ai_icebreakers',
+  'chat_report',
+  'chat_message_safety',
+  'assist_updated',
+  'advisor_selected',
+  'advisors_selected',
+  'waiting_assignment',
+  'family_assisted_enabled'
+]);
+const PUBLIC_ANALYTICS_LIMIT = Number(process.env.PUBLIC_ANALYTICS_RATE_LIMIT || 30);
+const PUBLIC_ANALYTICS_WINDOW_MS = Number(process.env.PUBLIC_ANALYTICS_WINDOW_MS || 60 * 1000);
+const PUBLIC_ANALYTICS_MAX_PAYLOAD_BYTES = Number(process.env.PUBLIC_ANALYTICS_MAX_PAYLOAD_BYTES || 4096);
+const PUBLIC_ANALYTICS_MAX_BATCH = Number(process.env.PUBLIC_ANALYTICS_MAX_BATCH || 20);
 
 async function loadSharedConfig() {
   const db = await getDB();
@@ -154,44 +181,119 @@ function renderShareErrorPage({ appTitle, accentColor, title, message, linkUrl }
   });
 }
 
+function analyticsClientKey(req) {
+  return String(req.headers['x-forwarded-for'] || req.ip || req.socket?.remoteAddress || 'unknown')
+    .split(',')[0]
+    .trim();
+}
+
+function isPublicAnalyticsRateLimited(req) {
+  const key = analyticsClientKey(req);
+  const now = Date.now();
+  const bucket = (ANALYTICS_RATE_BUCKETS.get(key) || []).filter((stamp) => now - stamp < PUBLIC_ANALYTICS_WINDOW_MS);
+  if (bucket.length >= PUBLIC_ANALYTICS_LIMIT) {
+    ANALYTICS_RATE_BUCKETS.set(key, bucket);
+    return true;
+  }
+  bucket.push(now);
+  ANALYTICS_RATE_BUCKETS.set(key, bucket);
+  return false;
+}
+
+function payloadSizeBytes(value) {
+  return Buffer.byteLength(JSON.stringify(value || {}), 'utf8');
+}
+
+function normalizeAnalyticsEvent(rawEvent) {
+  const body = rawEvent || {};
+  const eventType = String(body.eventType || body.event_type || '').trim().slice(0, 80);
+  const payload = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload) ? body.payload : {};
+  return {
+    eventType,
+    serviceName: String(body.serviceName || body.service_name || 'android-app').slice(0, 80),
+    sessionId: body.sessionId || body.session_id || null,
+    payload: {
+      ...payload,
+      page: body.page || payload.page || null,
+      target: body.target || payload.target || null,
+      appVersion: body.appVersion || payload.appVersion || null,
+      clientBatchId: body.clientBatchId || payload.clientBatchId || null
+    }
+  };
+}
+
 exports.getRuntimeConfig = async (req, res) => {
   try {
     const { config } = await loadSharedConfig();
-    res.json({ success: true, data: getPublicRuntimeConfig(config) });
+    const body = JSON.stringify({ success: true, data: getPublicRuntimeConfig(config) });
+    const etag = `"${crypto.createHash('sha256').update(body).digest('hex')}"`;
+    res.set('Cache-Control', 'private, max-age=0, must-revalidate');
+    res.set('ETag', etag);
+    if (req.headers['if-none-match'] === etag) {
+      return res.status(304).end();
+    }
+    res.type('application/json').send(body);
   } catch (error) {
     logger.error(error.stack || error.message);
-    res.json({ success: true, data: getPublicRuntimeConfig(DEFAULT_CONFIG) });
+    const body = JSON.stringify({ success: true, data: getPublicRuntimeConfig(DEFAULT_CONFIG) });
+    const etag = `"${crypto.createHash('sha256').update(body).digest('hex')}"`;
+    res.set('Cache-Control', 'private, max-age=0, must-revalidate');
+    res.set('ETag', etag);
+    if (req.headers['if-none-match'] === etag) {
+      return res.status(304).end();
+    }
+    res.type('application/json').send(body);
   }
 };
 
 exports.trackAnalyticsEvent = async (req, res) => {
   try {
-    const db = await getDB();
-    const body = req.body || {};
-    const eventType = String(body.eventType || body.event_type || '').trim().slice(0, 80);
-    if (!eventType) {
-      return res.status(400).json({
+    if (isPublicAnalyticsRateLimited(req)) {
+      return res.status(429).json({
         success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'eventType is required.' }
+        error: { code: 'RATE_LIMITED', message: 'Too many analytics events. Please try again later.' }
       });
     }
-    const payload = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload) ? body.payload : {};
-    await recordAnalyticsEvent(db, {
-      eventType,
-      serviceName: String(body.serviceName || body.service_name || 'android-app').slice(0, 80),
-      userId: body.userId || body.user_id || null,
-      sessionId: body.sessionId || body.session_id || null,
-      payload: {
-        ...payload,
-        page: body.page || payload.page || null,
-        target: body.target || payload.target || null,
-        appVersion: body.appVersion || payload.appVersion || null
-      }
-    });
-    res.json({ success: true, data: { accepted: true } });
+    const body = req.body || {};
+    const rawEvents = Array.isArray(body.events) ? body.events : [body];
+    if (!rawEvents.length || rawEvents.length > PUBLIC_ANALYTICS_MAX_BATCH) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: `Send between 1 and ${PUBLIC_ANALYTICS_MAX_BATCH} analytics events per request.` }
+      });
+    }
+    const events = rawEvents.map(normalizeAnalyticsEvent);
+    if (events.some((event) => !event.eventType || !ANALYTICS_EVENT_TYPES.has(event.eventType))) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Unsupported analytics eventType.' }
+      });
+    }
+    if (events.some((event) => payloadSizeBytes(event.payload) > PUBLIC_ANALYTICS_MAX_PAYLOAD_BYTES)) {
+      return res.status(413).json({
+        success: false,
+        error: { code: 'PAYLOAD_TOO_LARGE', message: 'Analytics payload is too large.' }
+      });
+    }
+    const db = await getDB();
+    for (const event of events) {
+      await recordAnalyticsEvent(db, {
+        eventType: event.eventType,
+        serviceName: event.serviceName,
+        userId: null,
+        sessionId: event.sessionId,
+        payload: event.payload
+      });
+    }
+    res.json({ success: true, data: { accepted: true, count: events.length } });
   } catch (error) {
     sendJsonServerError(res, error, 'Unable to record analytics right now.');
   }
+};
+
+exports._test = {
+  ANALYTICS_EVENT_TYPES,
+  payloadSizeBytes
 };
 
 exports.getPublicProfile = async (req, res) => {

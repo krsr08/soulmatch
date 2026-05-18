@@ -31,7 +31,8 @@ async function fetchHealth(url, service) {
       ok: response.ok,
       status: response.status,
       latencyMs: Date.now() - startedAt,
-      service: body?.service || service.key
+      service: body?.service || service.key,
+      body
     };
   } catch (error) {
     if (timeout) clearTimeout(timeout);
@@ -68,6 +69,14 @@ async function probeService(service) {
 }
 
 async function getServiceHealth() {
+  const gatewayHealthUrl = process.env.GATEWAY_HEALTH_URL
+    || (process.env.API_GATEWAY_URL ? `${process.env.API_GATEWAY_URL.replace(/\/$/, '')}/health/services` : null);
+  if (gatewayHealthUrl) {
+    const gateway = await fetchHealth(gatewayHealthUrl, { key: 'gateway', label: 'API Gateway' });
+    if (gateway.ok && Array.isArray(gateway.body?.services)) {
+      return gateway.body.services;
+    }
+  }
   return Promise.all(SERVICES.map(probeService));
 }
 

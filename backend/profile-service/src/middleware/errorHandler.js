@@ -56,6 +56,17 @@ function errorHandler(err, req, res, next) {
       }
     });
   }
+  if (err.message === 'JPG/PNG/WebP/PDF only' || /Uploaded (image|document)|MIME type/.test(err.message || '')) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: err.message === 'JPG/PNG/WebP/PDF only'
+          ? 'Only JPG, PNG, WebP, or PDF documents are supported.'
+          : err.message
+      }
+    });
+  }
   res.status(500).json({
     success: false,
     error: {

@@ -39,8 +39,8 @@ services:
 
   auth-service:
     build:
-      context: ../backend/auth-service
-      dockerfile: Dockerfile
+      context: ../backend
+      dockerfile: auth-service/Dockerfile
     container_name: soulmatch-auth
     ports:
       - '3001:3001'
@@ -58,8 +58,8 @@ services:
 
   profile-service:
     build:
-      context: ../backend/profile-service
-      dockerfile: Dockerfile
+      context: ../backend
+      dockerfile: profile-service/Dockerfile
     container_name: soulmatch-profile
     ports:
       - '3002:3002'
@@ -98,8 +98,8 @@ services:
 
   search-service:
     build:
-      context: ../backend/search-service
-      dockerfile: Dockerfile
+      context: ../backend
+      dockerfile: search-service/Dockerfile
     container_name: soulmatch-search
     ports:
       - '3004:3004'
@@ -116,8 +116,8 @@ services:
 
   chat-service:
     build:
-      context: ../backend/chat-service
-      dockerfile: Dockerfile
+      context: ../backend
+      dockerfile: chat-service/Dockerfile
     container_name: soulmatch-chat
     ports:
       - '3005:3005'
@@ -138,8 +138,8 @@ services:
 
   notification-service:
     build:
-      context: ../backend/notification-service
-      dockerfile: Dockerfile
+      context: ../backend
+      dockerfile: notification-service/Dockerfile
     container_name: soulmatch-notification
     ports:
       - '3006:3006'
@@ -154,8 +154,8 @@ services:
 
   payment-service:
     build:
-      context: ../backend/payment-service
-      dockerfile: Dockerfile
+      context: ../backend
+      dockerfile: payment-service/Dockerfile
     container_name: soulmatch-payment
     ports:
       - '3007:3007'
@@ -170,8 +170,8 @@ services:
 
   admin-service:
     build:
-      context: ../backend/admin-service
-      dockerfile: Dockerfile
+      context: ../backend
+      dockerfile: admin-service/Dockerfile
     container_name: soulmatch-admin-api
     ports:
       - '3011:3011'
@@ -208,6 +208,7 @@ services:
       - '9090:9090'
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus-alert-rules.yml:/etc/prometheus/soulmatch-alert-rules.yml:ro
     depends_on:
       - admin-service
 

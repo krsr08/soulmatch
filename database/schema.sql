@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS users (
     referred_at TIMESTAMP,
     user_type VARCHAR(16) DEFAULT 'member',
     role_selected_at TIMESTAMP,
+    deleted_at TIMESTAMP,
+    deletion_reason TEXT,
     last_login TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
@@ -39,12 +41,17 @@ CREATE TABLE IF NOT EXISTS profiles (
     verification_status VARCHAR(24) DEFAULT 'pending',
     admin_status VARCHAR(24) DEFAULT 'active',
     moderation_score NUMERIC(5,2) DEFAULT 0,
+    trust_score INTEGER DEFAULT 0,
+    trust_level VARCHAR(16) DEFAULT 'low',
     primary_photo_url TEXT,
     video_url TEXT,
     photo_privacy VARCHAR(20) DEFAULT 'all',
     contact_privacy VARCHAR(20) DEFAULT 'visible' CHECK (contact_privacy IN ('visible', 'masked')),
     profile_visibility VARCHAR(20) DEFAULT 'all',
     hide_last_seen BOOLEAN DEFAULT FALSE,
+    consent_notice_version VARCHAR(48),
+    consent_granted_at TIMESTAMP,
+    consent_withdrawn_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -113,6 +120,10 @@ CREATE TABLE IF NOT EXISTS profile_photos (
     s3_key TEXT NOT NULL,
     is_primary BOOLEAN DEFAULT FALSE,
     is_approved BOOLEAN DEFAULT FALSE,
+    review_status VARCHAR(24) DEFAULT 'pending',
+    review_comment TEXT,
+    reviewed_at TIMESTAMP,
+    reviewed_by VARCHAR(255),
     sequence_order INTEGER,
     uploaded_at TIMESTAMP DEFAULT NOW()
 );
@@ -257,6 +268,55 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS outbox_events (
+    outbox_event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_type VARCHAR(80) NOT NULL,
+    aggregate_type VARCHAR(80) NOT NULL,
+    aggregate_id UUID,
+    payload JSONB NOT NULL DEFAULT '{}'::JSONB,
+    status VARCHAR(24) NOT NULL DEFAULT 'pending',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    available_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    last_error TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT outbox_events_status_check CHECK (status IN ('pending', 'retry', 'processing', 'completed', 'failed'))
+);
+
+CREATE TABLE IF NOT EXISTS notification_dlq (
+    notification_dlq_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    outbox_event_id UUID REFERENCES outbox_events(outbox_event_id) ON DELETE SET NULL,
+    notification_id UUID REFERENCES notifications(notification_id) ON DELETE SET NULL,
+    payload JSONB NOT NULL DEFAULT '{}'::JSONB,
+    error TEXT,
+    failed_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS notification_templates (
+    template_key VARCHAR(120) PRIMARY KEY,
+    title_template VARCHAR(160) NOT NULL,
+    body_template TEXT NOT NULL,
+    channel VARCHAR(32) DEFAULT 'push',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS chat_conversation_metadata (
+    chat_id TEXT PRIMARY KEY,
+    participant_user_ids TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    last_message_preview TEXT,
+    last_message_type TEXT,
+    last_message_at TIMESTAMP,
+    last_sender_user_id TEXT,
+    message_count INTEGER NOT NULL DEFAULT 0,
+    source TEXT,
+    interest_id TEXT,
+    archived_until TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS interests (
     interest_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     sender_id UUID REFERENCES profiles(profile_id),
@@ -322,6 +382,19 @@ CREATE TABLE IF NOT EXISTS member_meter_events (
     metadata JSONB DEFAULT '{}'::JSONB,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     UNIQUE(user_id, target_profile_id, event_type, period_key)
+);
+
+CREATE TABLE IF NOT EXISTS profile_spotlight_boosts (
+    spotlight_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id UUID NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    plan_id VARCHAR(24) NOT NULL DEFAULT 'bronze',
+    starts_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    ends_at TIMESTAMP NOT NULL,
+    status VARCHAR(24) NOT NULL DEFAULT 'active',
+    metadata JSONB DEFAULT '{}'::JSONB,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT profile_spotlight_status_check CHECK (status IN ('active', 'expired', 'cancelled'))
 );
 
 CREATE TABLE IF NOT EXISTS verifications (
@@ -616,11 +689,16 @@ CREATE TABLE IF NOT EXISTS consent_events (
     created_at TIMESTAMP DEFAULT NOW(),
     CONSTRAINT consent_events_type_check CHECK (
         consent_type IN (
+            'signup_terms',
+            'privacy_policy',
             'photo_upload',
             'kyc_upload',
             'agent_kyc_upload',
+            'agent_terms_acceptance',
             'agent_profile_share',
-            'soulmatch_assistance'
+            'soulmatch_assistance',
+            'data_export',
+            'account_deletion'
         )
     ),
     CONSTRAINT consent_events_status_check CHECK (status IN ('granted', 'withdrawn', 'updated'))
@@ -711,6 +789,11 @@ CREATE INDEX IF NOT EXISTS idx_payment_orders_provider ON payment_orders(provide
 CREATE UNIQUE INDEX IF NOT EXISTS uq_transactions_razorpay_payment_id ON transactions(razorpay_payment_id) WHERE razorpay_payment_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_status ON notifications(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_outbox_events_ready ON outbox_events(status, available_at, created_at) WHERE status IN ('pending', 'retry');
+CREATE INDEX IF NOT EXISTS idx_notification_dlq_failed_at ON notification_dlq(failed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_metadata_participants ON chat_conversation_metadata USING GIN (participant_user_ids);
+CREATE INDEX IF NOT EXISTS idx_chat_metadata_last_message ON chat_conversation_metadata(last_message_at DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS idx_chat_metadata_source ON chat_conversation_metadata(source);
 CREATE INDEX IF NOT EXISTS idx_verifications_status_created ON verifications(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_verifications_user_status ON verifications(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_blocks_blocker ON blocks(blocker_id);
@@ -724,6 +807,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_profile_views_pair ON profile_views(viewer_
 CREATE INDEX IF NOT EXISTS idx_partner_preferences_profile_updated ON partner_preferences(profile_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_match_feedback_user_target_created ON match_feedback(user_id, target_profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_match_feedback_action_created ON match_feedback(action, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_spotlight_profile_active ON profile_spotlight_boosts(profile_id, ends_at DESC) WHERE status='active';
+CREATE INDEX IF NOT EXISTS idx_spotlight_user_created ON profile_spotlight_boosts(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_family_details_state_city_pincode ON family_details(family_state, family_city, family_pincode);
 CREATE INDEX IF NOT EXISTS idx_referral_codes_owner ON referral_codes(owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_referral_redemptions_code ON referral_redemptions(referral_code_id);

@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "enabled": { "type": "boolean" },
+    "title": { "type": "string" },
+    "message": { "type": "string" },
+    "startsAt": { "type": ["string", "null"] },
+    "endsAt": { "type": ["string", "null"] }
+  },
+  "additionalProperties": true
+}

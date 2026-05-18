@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { DEFAULT_CONFIG, getPlanById, getPublicRuntimeConfig } = require('../shared/controlPlane');
+const { DEFAULT_CONFIG, getPlanById, getPublicRuntimeConfig } = require('../../shared/controlPlane');
 
 test('default upgrade packages expose canonical paid plan ids', () => {
   const packages = DEFAULT_CONFIG.monetization.upgradePackageGroups.flatMap((group) => group.packages);

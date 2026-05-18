@@ -2,7 +2,12 @@ const repo = require('../repositories/profileRepository');
 const media = require('../services/mediaService');
 const aiAssist = require('../services/aiAssistService');
 const secureDocuments = require('../services/secureDocumentService');
+const { invalidateAllMatchFeeds } = require('../services/feedCache');
+const { getDB } = require('../config/database');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
+const { redactProfileForViewer } = require('../../../shared/profileVisibility');
+const { getConfigSection, recordServerAnalyticsEvent } = require('../../../shared/controlPlane');
+const { getUsageContext } = require('../../../shared/memberEntitlements');
 
 const ALLOWED_VERIFICATION_TYPES = new Set(['profile', 'identity', 'photo', 'education', 'income', 'family']);
 const ALLOWED_ASSIST_SUPPORT_LEVELS = new Set(['self_service', 'family_assisted', 'advisor_assisted']);
@@ -61,6 +66,17 @@ async function requireEditableProfileForUser(req, profileId) {
     return profile;
   }
   return requireOwnedProfile(profileId, req.user.userId);
+}
+
+async function requireMemberFeature(req, featureKey, message) {
+  if (req.user?.userType && req.user.userType !== 'member') return null;
+  const db = await getDB();
+  const monetization = await getConfigSection(db, 'monetization');
+  const context = await getUsageContext(db, req.user.userId, monetization);
+  if (!context.entitlements?.[featureKey]) {
+    throw new AppError(403, ErrorCodes.FORBIDDEN, message);
+  }
+  return context;
 }
 
 function validateStepData(step, data) {
@@ -348,6 +364,7 @@ exports.createOrUpdateStep = async (req, res, next) => {
     const validationError = validateStepData(normalizedStep, dataForSave);
     if (validationError) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, validationError));
     const before = profile?.profile_id ? await repo.findFullById(profile.profile_id) : null;
+    const wasPublished = Boolean(before?.is_published || profile?.is_published);
     let result;
     switch (normalizedStep) {
       case 1: result = await repo.upsertBasicInfo(userId, dataForSave); break;
@@ -359,8 +376,23 @@ exports.createOrUpdateStep = async (req, res, next) => {
       default: return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Step must be 1-6'));
     }
     const score = await repo.calcCompletion(result.profile_id);
-    if (normalizedStep === 6 || score >= 60) await repo.setPublished(result.profile_id, true);
+    const shouldPublish = normalizedStep === 6 || score >= 60;
+    if (shouldPublish) await repo.setPublished(result.profile_id, true);
     const after = await repo.findFullById(result.profile_id);
+    if (shouldPublish && !wasPublished) {
+      const db = await getDB();
+      await recordServerAnalyticsEvent(db, {
+        eventType: 'profile_published',
+        serviceName: 'profile-service',
+        userId,
+        payload: {
+          profileId: result.profile_id,
+          completionScore: score,
+          step: normalizedStep,
+          profileCreatedBy: after?.profile_created_by || 'self'
+        }
+      });
+    }
     await auditUserChange(req, {
       profileId: result.profile_id,
       entityType: 'profile',
@@ -369,6 +401,7 @@ exports.createOrUpdateStep = async (req, res, next) => {
       beforeData: before || {},
       afterData: after || {}
     });
+    await invalidateAllMatchFeeds();
     res.json({ success: true, data: { profileId: result.profile_id, completionScore: score, step: normalizedStep } });
   } catch (err) { next(err); }
 };
@@ -380,6 +413,29 @@ exports.getMyProfile = async (req, res, next) => {
     res.json({ success: true, data: formatProfileForResponse(p), isNewProfile: !p });
   } catch (err) { next(err); }
 };
+
+exports.exportMyData = async (req, res, next) => {
+  try {
+    const exportData = await repo.exportUserData(req.user.userId, auditMeta(req));
+    if (!exportData) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Account not found'));
+    res.json({ success: true, data: exportData, message: 'Your SoulMatch data export is ready.' });
+  } catch (err) { next(err); }
+};
+
+exports.deleteMyAccount = async (req, res, next) => {
+  try {
+    const reason = String(req.body?.reason || 'user_requested').trim().slice(0, 500) || 'user_requested';
+    const result = await repo.deleteAccount(req.user.userId, { reason, audit: auditMeta(req) });
+    if (!result) return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Account not found'));
+    await invalidateAllMatchFeeds();
+    res.json({
+      success: true,
+      data: result,
+      message: 'Your account has been deleted and personal details were anonymized.'
+    });
+  } catch (err) { next(err); }
+};
+
 exports.getAssistStatus = async (req, res, next) => {
   try {
     const status = await repo.getAssistStatusByUserId(req.user.userId);
@@ -397,6 +453,9 @@ exports.updateAssistStatus = async (req, res, next) => {
     const payload = normalizeAssistPayload(req.body);
     if (!payload) {
       return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Support level must be self_service, family_assisted, or advisor_assisted.'));
+    }
+    if (payload.isOptedIn && payload.supportLevel !== 'self_service') {
+      await requireMemberFeature(req, 'matchAssistance', 'Upgrade to Gold or above to use SoulMatch Assistance.');
     }
     const before = await repo.getAssistStatusByUserId(req.user.userId);
     const updated = await repo.upsertAssistStatus(req.user.userId, { ...payload, audit: auditMeta(req) });
@@ -448,6 +507,11 @@ exports.getProfile = async (req, res, next) => {
     p.completion_score = await repo.calcCompletion(p.profile_id);
     await attachTrustSummary(p);
     p = await repo.decorateContactPrivacy(p, req.user.userId, access.owner);
+    p = redactProfileForViewer(p, {
+      owner: access.owner,
+      canViewPhoto: p.can_view_photo !== false,
+      canViewContact: ['owner', 'unlocked'].includes(p.contact_access_status)
+    });
     if (!access.owner) {
       const meteredView = await repo.recordView(req.params.profileId, req.user.userId);
       if (meteredView?.allowed === false && meteredView.reason === 'limit_reached') {
@@ -488,6 +552,7 @@ exports.unlockContact = async (req, res, next) => {
 
 exports.suggestProfileBio = async (req, res, next) => {
   try {
+    await requireMemberFeature(req, 'engagePlus', 'Upgrade to Silver or above to unlock Engage+ profile optimization.');
     const profile = await requireOwnedProfile(req.params.profileId, req.user.userId);
     const fullProfile = await repo.findFullById(profile.profile_id);
     const result = await aiAssist.suggestBio({
@@ -519,6 +584,7 @@ exports.suggestProfileBio = async (req, res, next) => {
 
 exports.generateIcebreakers = async (req, res, next) => {
   try {
+    await requireMemberFeature(req, 'engagePlus', 'Upgrade to Silver or above to unlock Engage+ conversation starters.');
     const access = await repo.canViewProfile(req.params.profileId, req.user.userId);
     if (!access.allowed || access.owner) {
       const status = access.reason === 'not_found' ? 404 : 403;
@@ -553,6 +619,35 @@ exports.generateIcebreakers = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+exports.activateSpotlight = async (req, res, next) => {
+  try {
+    const result = await repo.activateSpotlightBoost(req.params.profileId, req.user.userId, req.body || {});
+    if (result.status === 'not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
+    if (result.status === 'not_owner') return next(new AppError(403, ErrorCodes.FORBIDDEN, 'You can activate spotlight only for your own profile.'));
+    if (result.status === 'upgrade_required' || result.status === 'limit_reached') {
+      return res.status(403).json({
+        success: false,
+        data: result,
+        error: {
+          code: 'UPGRADE_REQUIRED',
+          message: result.message
+        },
+        message: result.message
+      });
+    }
+    await auditUserChange(req, {
+      profileId: req.params.profileId,
+      entityType: 'profile_spotlight',
+      entityId: result.spotlight?.spotlight_id,
+      action: 'profile_spotlight.activate',
+      beforeData: {},
+      afterData: result.spotlight || {}
+    });
+    await invalidateAllMatchFeeds();
+    res.json({ success: true, data: result, message: 'Spotlight boost activated.' });
+  } catch (err) { next(err); }
+};
+
 exports.updateProfile = async (req, res, next) => {
   try {
     await requireOwnedProfile(req.params.profileId, req.user.userId);
@@ -576,6 +671,13 @@ exports.getPhotos = async (req, res, next) => {
     res.json({ success: true, data: await repo.getPhotos(req.params.profileId) });
   } catch (err) { next(err); }
 };
+
+exports.redirectMedia = async (req, res, next) => {
+  try {
+    await media.redirectToSignedMedia(req.params.token, res);
+  } catch (err) { next(err); }
+};
+
 exports.uploadPhotos = async (req, res, next) => {
   try {
     await requireEditableProfileForUser(req, req.params.profileId);
@@ -709,6 +811,7 @@ exports.updatePrivacy = async (req, res, next) => {
       beforeData: before || {},
       afterData: after || {}
     });
+    await invalidateAllMatchFeeds();
     res.json({ success: true });
   } catch (err) { next(err); }
 };
@@ -732,6 +835,7 @@ exports.updateProfileStatus = async (req, res, next) => {
         profileVisibility: updated.profile_visibility
       }
     });
+    await invalidateAllMatchFeeds();
     res.json({
       success: true,
       data: {

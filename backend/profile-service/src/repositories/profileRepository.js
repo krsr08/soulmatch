@@ -1,8 +1,10 @@
 const { getDB } = require('../config/database');
 const { createHash, createHmac, randomUUID } = require('crypto');
 const { scoreAdvisorCandidate, normalizeList } = require('../services/assistAllocationService');
-const { getConfigSection } = require('../../shared/controlPlane');
-const { consumeMeter, ensureUsageRecord, getActivePlanId, getEntitlements, periodKey } = require('../../shared/memberEntitlements');
+const { getConfigSection } = require('../../../shared/controlPlane');
+const { consumeMeter, ensureUsageRecord, getActivePlanId, getEntitlements, periodKey } = require('../../../shared/memberEntitlements');
+const { evaluateProfileVisibility } = require('../../../shared/profileVisibility');
+const { invalidateMatchFeed } = require('../services/feedCache');
 const logger = require('../utils/logger');
 const DPDP_NOTICE_VERSION = 'dpdp-2026-05-10-v1';
 
@@ -663,12 +665,13 @@ exports.canViewProfile = async (profileId, viewerUserId) => {
     [profileId, viewerUserId]
   );
   const profile = r.rows[0];
-  if (!profile) return { allowed: false, reason: 'not_found' };
-  if (profile.user_id === viewerUserId) return { allowed: true, owner: true, profile };
-  if (profile.blocked) return { allowed: false, reason: 'blocked', profile };
-  if (!profile.is_published || profile.admin_status !== 'active') return { allowed: false, reason: 'not_available', profile };
-  if (profile.profile_status === 'inactive') return { allowed: false, reason: 'inactive', profile };
-  if (profile.profile_visibility === 'hidden') return { allowed: false, reason: 'hidden', profile };
+  const visibility = evaluateProfileVisibility(profile, viewerUserId);
+  if (!visibility.allowed && visibility.reason === 'matches_only') {
+    if (await exports.hasAcceptedInterestWithViewer(profileId, viewerUserId)) {
+      return { allowed: true, owner: false, profile };
+    }
+  }
+  if (!visibility.allowed) return { ...visibility, profile };
   return { allowed: true, owner: false, profile };
 };
 exports.hasAcceptedInterestWithViewer = async (profileId, viewerUserId) => {
@@ -898,6 +901,9 @@ exports.getPhotos = async (profileId) => {
        photo_id,
        photo_url,
        is_primary,
+       is_approved,
+       COALESCE(review_status, CASE WHEN is_approved THEN 'approved' ELSE 'pending' END) AS review_status,
+       review_comment,
        sequence_order,
        uploaded_at
      FROM profile_photos
@@ -2046,10 +2052,306 @@ exports.unlockContactDetails = async (profileId, viewerUserId) => {
   };
 };
 
+exports.activateSpotlightBoost = async (profileId, userId, payload = {}) => {
+  const db = await getDB();
+  const profile = await exports.findById(profileId);
+  if (!profile) return { status: 'not_found' };
+  if (profile.user_id !== userId) return { status: 'not_owner' };
+  const monetization = await getConfigSection(db, 'monetization');
+  const planId = await getActivePlanId(db, userId);
+  const entitlements = getEntitlements(monetization, planId);
+  const limit = Number(entitlements.spotlightBoosts || 0);
+  if (limit <= 0) {
+    return {
+      status: 'upgrade_required',
+      planId: entitlements.planId,
+      entitlements,
+      message: 'Upgrade to Gold or above to use Spotlight Boost.'
+    };
+  }
+  await ensureUsageRecord(db, userId, entitlements.planId);
+  const consumed = await consumeMeter(db, {
+    userId,
+    eventType: 'spotlight',
+    limit,
+    metadata: { profileId }
+  });
+  if (!consumed.allowed) {
+    return {
+      status: 'limit_reached',
+      planId: entitlements.planId,
+      entitlements,
+      remaining: 0,
+      message: 'Limit reached. Extend your subscription to continue.'
+    };
+  }
+  const requestedHours = Number(payload.durationHours || payload.duration_hours || 24);
+  const durationHours = Math.min(Math.max(Number.isFinite(requestedHours) ? requestedHours : 24, 1), 72);
+  const inserted = await db.query(
+    `INSERT INTO profile_spotlight_boosts (
+       profile_id,user_id,plan_id,starts_at,ends_at,status,metadata
+     )
+     VALUES ($1,$2,$3,NOW(),NOW() + ($4::text || ' hours')::interval,'active',$5::jsonb)
+     RETURNING *`,
+    [
+      profileId,
+      userId,
+      entitlements.planId,
+      String(durationHours),
+      JSON.stringify({
+        source: payload.source || 'member_app',
+        requestedHours: durationHours,
+        remaining: consumed.remaining
+      })
+    ]
+  );
+  return {
+    status: 'active',
+    spotlight: inserted.rows[0],
+    planId: entitlements.planId,
+    remaining: consumed.remaining,
+    message: 'Spotlight boost activated.'
+  };
+};
+
 exports.recordConsentEvent = async (event) => {
   const db = await getDB();
   return insertConsentEvent(db, event);
 };
+
+async function rowsFor(db, sql, params = []) {
+  const result = await db.query(sql, params);
+  return result.rows || [];
+}
+
+function stripInternalPhotoFields(photo) {
+  if (!photo) return photo;
+  const { s3_key, ...safe } = photo;
+  return safe;
+}
+
+function stripInternalDocumentFields(document) {
+  if (!document) return document;
+  const { file_url, document_url, ...safe } = document;
+  return {
+    ...safe,
+    file_stored: Boolean(file_url || document_url)
+  };
+}
+
+exports.exportUserData = async (userId, audit = {}) => {
+  const db = await getDB();
+  const userRows = await rowsFor(
+    db,
+    `SELECT user_id, phone, email, is_verified, is_active, is_banned, user_type,
+            role_selected_at, last_login, created_at, updated_at, deleted_at
+     FROM users
+     WHERE user_id=$1`,
+    [userId]
+  );
+  const user = userRows[0] || null;
+  if (!user) return null;
+
+  const profiles = await rowsFor(db, 'SELECT * FROM profiles WHERE user_id=$1 ORDER BY created_at DESC', [userId]);
+  const profileIds = profiles.map((profile) => profile.profile_id);
+  const profileIdArray = profileIds.length ? profileIds : [randomUUID()];
+
+  const [
+    physical,
+    education,
+    family,
+    lifestyle,
+    horoscope,
+    preferences,
+    photos,
+    verifications,
+    profileDocuments,
+    assist,
+    photoAccess,
+    interestsSent,
+    interestsReceived,
+    blocks,
+    reports,
+    matchFeedback,
+    subscriptions,
+    paymentOrders,
+    consentEvents
+  ] = await Promise.all([
+    rowsFor(db, 'SELECT * FROM physical_details WHERE profile_id = ANY($1::uuid[])', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM education_career WHERE profile_id = ANY($1::uuid[])', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM family_details WHERE profile_id = ANY($1::uuid[])', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM lifestyle_details WHERE profile_id = ANY($1::uuid[])', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM horoscope_details WHERE profile_id = ANY($1::uuid[])', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM partner_preferences WHERE profile_id = ANY($1::uuid[])', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM profile_photos WHERE profile_id = ANY($1::uuid[]) ORDER BY uploaded_at DESC', [profileIdArray]),
+    rowsFor(db, 'SELECT verification_id, user_id, type, status, reviewer_email, review_note, reviewed_at, created_at, document_url IS NOT NULL AS document_stored FROM verifications WHERE user_id=$1 ORDER BY created_at DESC', [userId]),
+    rowsFor(db, 'SELECT * FROM profile_documents WHERE profile_id = ANY($1::uuid[]) ORDER BY uploaded_at DESC', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM assisted_match_profiles WHERE profile_id = ANY($1::uuid[])', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM profile_photo_access_requests WHERE target_user_id=$1 OR requester_user_id=$1 ORDER BY requested_at DESC', [userId]),
+    rowsFor(db, 'SELECT * FROM interests WHERE sender_id = ANY($1::uuid[]) ORDER BY sent_at DESC', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM interests WHERE receiver_id = ANY($1::uuid[]) ORDER BY sent_at DESC', [profileIdArray]),
+    rowsFor(db, 'SELECT * FROM blocks WHERE blocker_id=$1 OR blocked_id=$1 ORDER BY blocked_at DESC', [userId]),
+    rowsFor(db, 'SELECT * FROM reports WHERE reporter_id=$1 OR reported_id=$1 ORDER BY created_at DESC', [userId]),
+    rowsFor(db, 'SELECT * FROM match_feedback WHERE user_id=$1 OR source_profile_id = ANY($2::uuid[]) OR target_profile_id = ANY($2::uuid[]) ORDER BY created_at DESC', [userId, profileIdArray]),
+    rowsFor(db, 'SELECT * FROM subscriptions WHERE user_id=$1 ORDER BY created_at DESC', [userId]),
+    rowsFor(db, 'SELECT payment_order_id, user_id, plan_id, amount, currency, gateway, status, support_contacted, support_comments, support_contacted_at, metadata, created_at, updated_at FROM payment_orders WHERE user_id=$1 ORDER BY created_at DESC', [userId]),
+    rowsFor(db, 'SELECT * FROM consent_events WHERE user_id=$1 OR profile_id = ANY($2::uuid[]) ORDER BY created_at DESC', [userId, profileIdArray])
+  ]);
+
+  await insertConsentEvent(db, {
+    userId,
+    consentType: 'data_export',
+    status: 'granted',
+    purpose: 'Member requested a copy of their SoulMatch profile and account data.',
+    metadata: { profileCount: profiles.length },
+    audit
+  });
+
+  return {
+    exportedAt: new Date().toISOString(),
+    noticeVersion: DPDP_NOTICE_VERSION,
+    user,
+    profiles,
+    physical,
+    education,
+    family,
+    lifestyle,
+    horoscope,
+    partnerPreferences: preferences,
+    photos: photos.map(stripInternalPhotoFields),
+    verifications,
+    profileDocuments: profileDocuments.map(stripInternalDocumentFields),
+    soulmatchAssistance: assist,
+    photoAccessRequests: photoAccess,
+    interests: {
+      sent: interestsSent,
+      received: interestsReceived
+    },
+    blocks,
+    reports,
+    matchFeedback,
+    subscriptions,
+    paymentOrders,
+    consentEvents
+  };
+};
+
+exports.deleteAccount = async (userId, { reason = 'user_requested', audit = {} } = {}) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const userResult = await client.query(
+      'SELECT user_id, phone, email, user_type FROM users WHERE user_id=$1 FOR UPDATE',
+      [userId]
+    );
+    const user = userResult.rows[0];
+    if (!user) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    const profileResult = await client.query('SELECT profile_id FROM profiles WHERE user_id=$1', [userId]);
+    const profileIds = profileResult.rows.map((row) => row.profile_id);
+    const profileIdArray = profileIds.length ? profileIds : [randomUUID()];
+
+    await insertConsentEvent(client, {
+      userId,
+      consentType: 'account_deletion',
+      status: 'withdrawn',
+      purpose: 'Member requested account deletion and withdrawal of account processing consent.',
+      metadata: { reason, profileIds },
+      audit
+    });
+
+    await client.query(
+      `UPDATE profile_documents
+       SET file_url='redacted_after_account_deletion',
+           status='rejected',
+           review_comment=COALESCE(review_comment, 'Removed after account deletion request'),
+           updated_at=NOW()
+       WHERE profile_id = ANY($1::uuid[])`,
+      [profileIdArray]
+    );
+    await client.query(
+      `UPDATE profile_photos
+       SET photo_url='redacted_after_account_deletion',
+           s3_key='redacted_after_account_deletion',
+           is_primary=false,
+           is_approved=false,
+           review_status='rejected',
+           review_comment=COALESCE(review_comment, 'Removed after account deletion request'),
+           reviewed_at=NOW()
+       WHERE profile_id = ANY($1::uuid[])`,
+      [profileIdArray]
+    );
+    await client.query(
+      `UPDATE verifications
+       SET document_url=NULL,
+           status='rejected',
+           review_note=COALESCE(review_note, 'Document removed after account deletion request'),
+           reviewed_at=NOW()
+       WHERE user_id=$1`,
+      [userId]
+    );
+    await client.query(
+      `UPDATE assisted_match_profiles
+       SET is_opted_in=false,
+           request_status='paused',
+           family_contact_name=NULL,
+           family_contact_phone=NULL,
+           notes=NULL,
+           consent_withdrawn_at=NOW(),
+           updated_at=NOW()
+       WHERE profile_id = ANY($1::uuid[])`,
+      [profileIdArray]
+    );
+    await client.query(
+      `UPDATE profiles
+       SET first_name='Deleted',
+           last_name='Member',
+           primary_photo_url=NULL,
+           video_url=NULL,
+           is_published=false,
+           profile_status='inactive',
+           profile_visibility='hidden',
+           photo_privacy='private',
+           contact_privacy='masked',
+           admin_status='deleted',
+           consent_withdrawn_at=NOW(),
+           updated_at=NOW()
+       WHERE profile_id = ANY($1::uuid[])`,
+      [profileIdArray]
+    );
+    await client.query(
+      `UPDATE users
+       SET phone=NULL,
+           email=NULL,
+           google_id=NULL,
+           fcm_token=NULL,
+           is_active=false,
+           is_banned=true,
+           deleted_at=NOW(),
+           deletion_reason=$2,
+           updated_at=NOW()
+       WHERE user_id=$1`,
+      [userId, String(reason || 'user_requested').slice(0, 500)]
+    );
+    await client.query('COMMIT');
+    return {
+      status: 'deleted',
+      userId,
+      userType: user.user_type,
+      profileIds,
+      deletedAt: new Date().toISOString()
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 exports.recordAiAssistEvent = async ({
   userId,
   profileId,
@@ -2094,22 +2396,22 @@ exports.updateVideoUrl = async (profileId, url) => { const db = await getDB(); a
 exports.getPhotoCount = async (profileId) => { const db = await getDB(); const r = await db.query('SELECT COUNT(*) FROM profile_photos WHERE profile_id=$1', [profileId]); return parseInt(r.rows[0].count); };
 exports.setPrimaryPhoto = async (profileId, photoId) => {
   const db = await getDB();
-  const photo = await db.query('SELECT photo_url FROM profile_photos WHERE profile_id=$1 AND photo_id=$2 LIMIT 1', [profileId, photoId]);
+  const photo = await db.query('SELECT photo_url,is_approved FROM profile_photos WHERE profile_id=$1 AND photo_id=$2 LIMIT 1', [profileId, photoId]);
   if (!photo.rows[0]) return false;
   await db.query('UPDATE profile_photos SET is_primary=false WHERE profile_id=$1', [profileId]);
   await db.query('UPDATE profile_photos SET is_primary=true WHERE profile_id=$1 AND photo_id=$2', [profileId, photoId]);
-  await db.query('UPDATE profiles SET primary_photo_url=$1,updated_at=NOW() WHERE profile_id=$2', [photo.rows[0].photo_url, profileId]);
+  await db.query('UPDATE profiles SET primary_photo_url=$1,updated_at=NOW() WHERE profile_id=$2', [photo.rows[0].is_approved ? photo.rows[0].photo_url : null, profileId]);
   return true;
 };
 exports.deletePhoto = async (profileId, photoId) => {
   const db = await getDB();
   await db.query('DELETE FROM profile_photos WHERE photo_id=$1 AND profile_id=$2', [photoId,profileId]);
-  const primary = await db.query('SELECT photo_url FROM profile_photos WHERE profile_id=$1 AND is_primary=true LIMIT 1', [profileId]);
+  const primary = await db.query('SELECT photo_url FROM profile_photos WHERE profile_id=$1 AND is_primary=true AND is_approved=true LIMIT 1', [profileId]);
   if (primary.rows[0]) {
     await db.query('UPDATE profiles SET primary_photo_url=$1,updated_at=NOW() WHERE profile_id=$2', [primary.rows[0].photo_url, profileId]);
     return;
   }
-  const fallback = await db.query('SELECT photo_id,photo_url FROM profile_photos WHERE profile_id=$1 ORDER BY sequence_order ASC, uploaded_at ASC LIMIT 1', [profileId]);
+  const fallback = await db.query('SELECT photo_id,photo_url FROM profile_photos WHERE profile_id=$1 AND is_approved=true ORDER BY sequence_order ASC, uploaded_at ASC LIMIT 1', [profileId]);
   if (!fallback.rows[0]) {
     await db.query('UPDATE profiles SET primary_photo_url=NULL,updated_at=NOW() WHERE profile_id=$1', [profileId]);
     return;
@@ -2151,10 +2453,32 @@ exports.blockProfile = async (blockerUserId, profileId) => {
   const db = await getDB();
   const target = await exports.findById(profileId);
   if (!target) return false;
-  await db.query(
-    'INSERT INTO blocks (block_id,blocker_id,blocked_id) VALUES ($1,$2,$3) ON CONFLICT (blocker_id, blocked_id) DO NOTHING',
-    [randomUUID(), blockerUserId, target.user_id]
-  );
+  const blocker = await db.query('SELECT profile_id FROM profiles WHERE user_id=$1 LIMIT 1', [blockerUserId]);
+  const blockerProfileId = blocker.rows[0]?.profile_id || null;
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      'INSERT INTO blocks (block_id,blocker_id,blocked_id) VALUES ($1,$2,$3) ON CONFLICT (blocker_id, blocked_id) DO NOTHING',
+      [randomUUID(), blockerUserId, target.user_id]
+    );
+    if (blockerProfileId) {
+      await client.query(
+        `UPDATE interests
+         SET status='blocked', responded_at=NOW()
+         WHERE status='pending'
+           AND ((sender_id=$1 AND receiver_id=$2) OR (sender_id=$2 AND receiver_id=$1))`,
+        [blockerProfileId, target.profile_id]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+  await invalidateMatchFeed(blockerUserId, target.user_id);
   return true;
 };
 exports.reportProfile = async (reporterUserId, profileId, reason, description) => {

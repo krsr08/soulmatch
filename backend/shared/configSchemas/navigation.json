@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "home": { "type": "string" },
+    "search": { "type": "string" },
+    "activity": { "type": "string" },
+    "chat": { "type": "string" },
+    "profile": { "type": "string" },
+    "upgrade": { "type": "string" }
+  },
+  "additionalProperties": true
+}

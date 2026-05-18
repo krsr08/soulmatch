@@ -6,13 +6,17 @@ const userRepo = require('../repositories/userRepository');
 const logger = require('../utils/logger');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const { getDB } = require('../config/database');
-const { recordAnalyticsEvent } = require('../../shared/controlPlane');
+const { recordServerAnalyticsEvent } = require('../../../shared/controlPlane');
 
 function normalizeRequestedUserType(value) {
   if (value === undefined || value === null) return null;
   const text = String(value).trim();
   if (!text) return null;
   return userRepo.normalizeUserType(text);
+}
+
+function requestDeviceId(req) {
+  return req.get('x-device-id') || req.get('x-installation-id') || req.body?.deviceId || null;
 }
 
 function ensureRequestedUserType(user, requestedUserType) {
@@ -82,6 +86,14 @@ async function buildAuthPayload(user, tokens, options = {}) {
   };
 }
 
+async function recordNewUserConsent(req, user, method) {
+  await userRepo.recordSignupConsent(user.user_id, {
+    method,
+    ipAddress: req.ip || req.socket?.remoteAddress || null,
+    userAgent: req.get('user-agent') || null
+  });
+}
+
 exports.sendOTP = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -143,12 +155,14 @@ exports.verifyOTP = async (req, res, next) => {
       user = await userRepo.create({
         phone: normalizedPhone,
         is_verified: true,
+        device_id: requestDeviceId(req),
         user_type: newUserType,
         role_selected_at: requestedUserType ? new Date() : null,
         referred_by_code: referral?.code || null,
         acquisition_source: acquisitionSource || referral?.channel || null,
         referred_at: referral ? new Date() : null
       });
+      await recordNewUserConsent(req, user, 'otp');
       if (referral) {
         await userRepo.recordReferralRedemption({
           referralCodeId: referral.referral_code_id,
@@ -159,6 +173,7 @@ exports.verifyOTP = async (req, res, next) => {
       }
     } else {
       ensureRequestedUserType(user, requestedUserType);
+      await userRepo.recordAccountSignal(user.user_id, { phone: normalizedPhone, deviceId: requestDeviceId(req) });
       await userRepo.updateLastLogin(user.user_id);
     }
     const resolvedUserType = ensureRequestedUserType(user, requestedUserType);
@@ -166,7 +181,7 @@ exports.verifyOTP = async (req, res, next) => {
     await tokenService.storeRefresh(user.user_id, refreshToken);
     if (isNewUser) {
       const db = await getDB();
-      await recordAnalyticsEvent(db, {
+      await recordServerAnalyticsEvent(db, {
         eventType: 'sign_up',
         serviceName: 'auth-service',
         userId: user.user_id,
@@ -197,6 +212,9 @@ exports.googleLogin = async (req, res, next) => {
     if (!googleToken) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'googleToken required'));
     const payload = await tokenService.verifyGoogleToken(googleToken);
     const { sub: googleId, email } = payload;
+    if (!payload.email_verified) {
+      return next(new AppError(401, ErrorCodes.UNAUTHORIZED, 'Google email must be verified before sign in.'));
+    }
     let user = await userRepo.findByGoogleId(googleId);
     if (!user && email) {
       user = await userRepo.findByEmail(email);
@@ -216,12 +234,14 @@ exports.googleLogin = async (req, res, next) => {
         google_id: googleId,
         email,
         is_verified: true,
+        device_id: requestDeviceId(req),
         user_type: newUserType,
         role_selected_at: requestedUserType ? new Date() : null,
         referred_by_code: referral?.code || null,
         acquisition_source: acquisitionSource || referral?.channel || null,
         referred_at: referral ? new Date() : null
       });
+      await recordNewUserConsent(req, user, 'google');
       if (referral) {
         await userRepo.recordReferralRedemption({
           referralCodeId: referral.referral_code_id,
@@ -232,6 +252,7 @@ exports.googleLogin = async (req, res, next) => {
       }
     } else {
       ensureRequestedUserType(user, requestedUserType);
+      await userRepo.recordAccountSignal(user.user_id, { phone: user.phone, deviceId: requestDeviceId(req) });
       await userRepo.updateLastLogin(user.user_id);
     }
     const resolvedUserType = ensureRequestedUserType(user, requestedUserType);
@@ -239,7 +260,7 @@ exports.googleLogin = async (req, res, next) => {
     await tokenService.storeRefresh(user.user_id, refreshToken);
     if (isNewUser) {
       const db = await getDB();
-      await recordAnalyticsEvent(db, {
+      await recordServerAnalyticsEvent(db, {
         eventType: 'sign_up',
         serviceName: 'auth-service',
         userId: user.user_id,
@@ -291,12 +312,14 @@ exports.firebasePhoneLogin = async (req, res, next) => {
       user = await userRepo.create({
         phone: verifiedPhone,
         is_verified: true,
+        device_id: requestDeviceId(req),
         user_type: newUserType,
         role_selected_at: requestedUserType ? new Date() : null,
         referred_by_code: referral?.code || null,
         acquisition_source: acquisitionSource || referral?.channel || null,
         referred_at: referral ? new Date() : null
       });
+      await recordNewUserConsent(req, user, 'firebase_phone');
       if (referral) {
         await userRepo.recordReferralRedemption({
           referralCodeId: referral.referral_code_id,
@@ -307,6 +330,7 @@ exports.firebasePhoneLogin = async (req, res, next) => {
       }
     } else {
       ensureRequestedUserType(user, requestedUserType);
+      await userRepo.recordAccountSignal(user.user_id, { phone: verifiedPhone, deviceId: requestDeviceId(req) });
       await userRepo.updateLastLogin(user.user_id);
     }
 
@@ -316,7 +340,7 @@ exports.firebasePhoneLogin = async (req, res, next) => {
 
     if (isNewUser) {
       const db = await getDB();
-      await recordAnalyticsEvent(db, {
+      await recordServerAnalyticsEvent(db, {
         eventType: 'sign_up',
         serviceName: 'auth-service',
         userId: user.user_id,
@@ -344,11 +368,15 @@ exports.refreshToken = async (req, res, next) => {
     const { refreshToken } = req.body;
     if (!refreshToken) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'refreshToken required'));
     const decoded = tokenService.verifyRefresh(refreshToken);
+    if (await tokenService.isRefreshRevoked(decoded)) {
+      return next(new AppError(401, ErrorCodes.UNAUTHORIZED, 'Invalid refresh token'));
+    }
     const stored = await tokenService.getRefresh(decoded.userId);
     if (stored !== refreshToken) return next(new AppError(401, ErrorCodes.UNAUTHORIZED, 'Invalid refresh token'));
     const user = await userRepo.findById(decoded.userId);
     const resolvedUserType = userRepo.normalizeUserType(user?.user_type || decoded.userType);
     const tokens = tokenService.generatePair({ userId: decoded.userId, userType: resolvedUserType });
+    await tokenService.revokeRefresh(decoded);
     await tokenService.storeRefresh(decoded.userId, tokens.refreshToken);
     res.json({
       success: true,
@@ -424,7 +452,7 @@ exports.selectUserType = async (req, res, next) => {
     await tokenService.storeRefresh(updated.user_id, refreshToken);
 
     const db = await getDB();
-    await recordAnalyticsEvent(db, {
+    await recordServerAnalyticsEvent(db, {
       eventType: 'account_type_selected',
       serviceName: 'auth-service',
       userId: updated.user_id,

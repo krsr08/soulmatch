@@ -1,7 +1,53 @@
 const jwt = require('jsonwebtoken');
-exports.authenticateAdmin = (req, res, next) => {
+
+function adminVerifyOptions() {
+  return {
+    issuer: process.env.ADMIN_JWT_ISSUER || 'soulmatch-admin',
+    audience: process.env.ADMIN_JWT_AUDIENCE || 'soulmatch-admin-api',
+    clockTolerance: Number(process.env.JWT_CLOCK_TOLERANCE_SECONDS || 30)
+  };
+}
+
+function readCookie(header, name) {
+  return String(header || '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => part.split('='))
+    .find(([key]) => key === name)?.slice(1).join('=') || null;
+}
+
+function getToken(req) {
   const h = req.headers['authorization'];
-  if (!h || !h.startsWith('Bearer ')) {
+  if (h && h.startsWith('Bearer ')) {
+    req.adminAuthSource = 'bearer';
+    return h.split(' ')[1];
+  }
+  req.adminAuthSource = 'cookie';
+  return readCookie(req.headers.cookie, 'soulmatch_admin_session');
+}
+
+function isUnsafeMethod(method) {
+  return !['GET', 'HEAD', 'OPTIONS'].includes(String(method || '').toUpperCase());
+}
+
+exports.requireAdminCsrf = (req, res, next) => {
+  if (!isUnsafeMethod(req.method) || req.adminAuthSource !== 'cookie') return next();
+  const csrfCookie = readCookie(req.headers.cookie, 'soulmatch_admin_csrf');
+  const csrfHeader = req.headers['x-csrf-token'];
+  if (csrfCookie && csrfHeader && csrfCookie === csrfHeader) return next();
+  return res.status(403).json({
+    success: false,
+    error: {
+      code: 'CSRF_TOKEN_REQUIRED',
+      message: 'A valid CSRF token is required for this admin action.'
+    }
+  });
+};
+
+exports.authenticateAdmin = (req, res, next) => {
+  const token = getToken(req);
+  if (!token) {
     return res.status(401).json({
       success: false,
       error: {
@@ -11,7 +57,7 @@ exports.authenticateAdmin = (req, res, next) => {
     });
   }
   try {
-    const d = jwt.verify(h.split(' ')[1], process.env.ADMIN_JWT_SECRET||process.env.JWT_SECRET);
+    const d = jwt.verify(token, process.env.ADMIN_JWT_SECRET||process.env.JWT_SECRET, adminVerifyOptions());
     if (!d.role) {
       return res.status(403).json({
         success: false,
@@ -32,6 +78,18 @@ exports.authenticateAdmin = (req, res, next) => {
       }
     });
   }
+};
+
+exports.requirePermission = (permission) => (req, res, next) => {
+  const permissions = Array.isArray(req.admin?.permissions) ? req.admin.permissions : [];
+  if (permissions.includes('*') || permissions.includes(permission)) return next();
+  return res.status(403).json({
+    success: false,
+    error: {
+      code: 'FORBIDDEN',
+      message: 'Your admin role does not allow this action.'
+    }
+  });
 };
 
 exports.authorizeAdminRoles = (...roles) => (req, res, next) => {

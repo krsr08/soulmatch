@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const { getDB } = require('../config/database');
 const logger = require('../utils/logger');
-const { CONFIG_KEYS, DEFAULT_CONFIG, getConfigMap, getConfigSection, getPublicRuntimeConfig, upsertConfigSection } = require('../../shared/controlPlane');
+const { CONFIG_KEYS, DEFAULT_CONFIG, getConfigMap, getConfigSection, getPublicRuntimeConfig, resolveConfigKey, upsertConfigSection } = require('../../../shared/controlPlane');
 const { getServiceHealth } = require('../services/serviceHealth');
 const { broadcastAdminEvent, getRealtimeSnapshot } = require('../realtime/adminRealtime');
 
@@ -15,6 +15,106 @@ function getAdminSecret() {
 
 function getAdminEmail() {
   return process.env.ADMIN_EMAIL || 'admin@soulmatch.app';
+}
+
+const LOGIN_FAILURES = new Map();
+const ADMIN_LOCKOUT_LIMIT = Number(process.env.ADMIN_LOCKOUT_LIMIT || 5);
+const ADMIN_LOCKOUT_WINDOW_MS = Number(process.env.ADMIN_LOCKOUT_WINDOW_MS || 15 * 60 * 1000);
+
+function loginFailureKey(email, ip) {
+  return `${String(email || '').trim().toLowerCase()}|${String(ip || '')}`;
+}
+
+function loginFailureState(email, ip) {
+  const key = loginFailureKey(email, ip);
+  const now = Date.now();
+  const bucket = (LOGIN_FAILURES.get(key) || []).filter((stamp) => now - stamp < ADMIN_LOCKOUT_WINDOW_MS);
+  LOGIN_FAILURES.set(key, bucket);
+  return { key, bucket };
+}
+
+function isAdminLoginLocked(email, ip) {
+  return loginFailureState(email, ip).bucket.length >= ADMIN_LOCKOUT_LIMIT;
+}
+
+function recordAdminLoginFailure(email, ip) {
+  const state = loginFailureState(email, ip);
+  state.bucket.push(Date.now());
+  LOGIN_FAILURES.set(state.key, state.bucket);
+}
+
+function clearAdminLoginFailures(email, ip) {
+  LOGIN_FAILURES.delete(loginFailureKey(email, ip));
+}
+
+function adminJwtOptions() {
+  return {
+    expiresIn: process.env.ADMIN_SESSION_TTL || '8h',
+    issuer: process.env.ADMIN_JWT_ISSUER || 'soulmatch-admin',
+    audience: process.env.ADMIN_JWT_AUDIENCE || 'soulmatch-admin-api',
+    jwtid: crypto.randomUUID()
+  };
+}
+
+function setAdminSessionCookie(res, token) {
+  const csrfToken = crypto.randomBytes(24).toString('hex');
+  res.cookie('soulmatch_admin_session', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 8 * 60 * 60 * 1000
+  });
+  res.cookie('soulmatch_admin_csrf', csrfToken, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 8 * 60 * 60 * 1000
+  });
+  return csrfToken;
+}
+
+function clearAdminSessionCookie(res) {
+  res.clearCookie('soulmatch_admin_session', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  });
+  res.clearCookie('soulmatch_admin_csrf', {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  });
+}
+
+function decodeBase32(secret) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = '';
+  String(secret || '').replace(/=+$/g, '').toUpperCase().split('').forEach((char) => {
+    const value = alphabet.indexOf(char);
+    if (value >= 0) bits += value.toString(2).padStart(5, '0');
+  });
+  const bytes = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8) {
+    bytes.push(parseInt(bits.slice(i, i + 8), 2));
+  }
+  return Buffer.from(bytes);
+}
+
+function generateTotp(secret, timeStep) {
+  const counter = Buffer.alloc(8);
+  counter.writeUInt32BE(0, 0);
+  counter.writeUInt32BE(timeStep, 4);
+  const hmac = crypto.createHmac('sha1', decodeBase32(secret)).update(counter).digest();
+  const offset = hmac[hmac.length - 1] & 0x0f;
+  const code = ((hmac.readUInt32BE(offset) & 0x7fffffff) % 1000000).toString().padStart(6, '0');
+  return code;
+}
+
+function verifyTotpCode(secret, code) {
+  const normalized = String(code || '').replace(/\s+/g, '');
+  if (!/^\d{6}$/.test(normalized)) return false;
+  const step = Math.floor(Date.now() / 30000);
+  return [-1, 0, 1].some((drift) => generateTotp(secret, step + drift) === normalized);
 }
 
 function maskValue(value) {
@@ -471,6 +571,73 @@ async function notifyMember(db, userId, title, body, data = {}) {
   return false;
 }
 
+function trustLevelForScore(score) {
+  if (score >= 80) return 'high';
+  if (score >= 55) return 'medium';
+  return 'low';
+}
+
+async function recalculateTrustScore(db, profileIdOrUserId, mode = 'profile') {
+  const result = await db.query(
+    `SELECT
+       p.profile_id,
+       LEAST(
+         100,
+         (CASE WHEN u.is_verified THEN 12 ELSE 0 END) +
+         (CASE WHEN u.email IS NOT NULL AND u.email <> '' THEN 5 ELSE 0 END) +
+         (CASE WHEN u.google_id IS NOT NULL THEN 8 ELSE 0 END) +
+         (CASE WHEN COALESCE(p.completion_score,0) >= 90 THEN 15 WHEN COALESCE(p.completion_score,0) >= 70 THEN 12 WHEN COALESCE(p.completion_score,0) >= 50 THEN 8 ELSE 0 END) +
+         (CASE WHEN COALESCE(p.verification_status,'pending')='verified' THEN 15 WHEN COALESCE(p.verification_status,'pending')='pending' THEN 5 ELSE 0 END) +
+         (CASE WHEN COALESCE(approved_docs.total,0) > 0 THEN 8 ELSE 0 END) +
+         (CASE WHEN COALESCE(approved_types.has_education,false) THEN 8 ELSE 0 END) +
+         (CASE WHEN COALESCE(approved_types.has_income,false) THEN 8 ELSE 0 END) +
+         (CASE WHEN COALESCE(approved_types.has_family,false) THEN 8 WHEN fd.family_city IS NOT NULL OR fd.family_pincode IS NOT NULL THEN 4 ELSE 0 END) +
+         (CASE WHEN COALESCE(approved_photos.total,0) >= 3 THEN 10 WHEN COALESCE(approved_photos.total,0) >= 1 THEN 7 ELSE 0 END) +
+         (CASE WHEN COALESCE(p.profile_status,'active')='active' THEN 5 ELSE -8 END) +
+         (CASE WHEN u.last_login >= NOW() - INTERVAL '30 days' THEN 6 ELSE 0 END) +
+         (CASE WHEN COALESCE(open_reports.total,0)=0 THEN 10 ELSE -LEAST(35, COALESCE(open_reports.total,0) * 12) END)
+       )::int AS trust_score
+     FROM profiles p
+     JOIN users u ON u.user_id=p.user_id
+     LEFT JOIN family_details fd ON fd.profile_id=p.profile_id
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS total
+       FROM profile_photos pp
+       WHERE pp.profile_id=p.profile_id AND pp.is_approved=true
+     ) approved_photos ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS total
+       FROM verifications v
+       WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')
+     ) approved_docs ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT
+         BOOL_OR(v.type='education') AS has_education,
+         BOOL_OR(v.type='income') AS has_income,
+         BOOL_OR(v.type='family') AS has_family
+       FROM verifications v
+       WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')
+     ) approved_types ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS total
+       FROM reports r
+       WHERE r.reported_id=p.user_id AND r.status IN ('pending','open','reviewing')
+     ) open_reports ON TRUE
+     WHERE ${mode === 'user' ? 'p.user_id=$1' : 'p.profile_id=$1'}
+     LIMIT 1`,
+    [profileIdOrUserId]
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  const score = Math.max(0, Math.min(100, Number(row.trust_score) || 0));
+  const level = trustLevelForScore(score);
+  await db.query(
+    'UPDATE profiles SET trust_score=$1, trust_level=$2, updated_at=NOW() WHERE profile_id=$3',
+    [score, level, row.profile_id]
+  );
+  return { profileId: row.profile_id, trustScore: score, trustLevel: level };
+}
+
 function profileScore(body) {
   const checks = [
     body.firstName || body.first_name,
@@ -492,8 +659,24 @@ function profileScore(body) {
 
 exports.adminLogin = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, totpCode } = req.body;
     const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (isAdminLoginLocked(normalizedEmail, req.ip)) {
+      return res.status(429).json({
+        success: false,
+        error: {
+          code: 'ADMIN_LOGIN_LOCKED',
+          message: 'Too many failed admin sign-in attempts. Please wait and try again.'
+        }
+      });
+    }
+    const failLogin = async (db, reason = 'invalid_credentials') => {
+      recordAdminLoginFailure(normalizedEmail, req.ip);
+      if (db) {
+        await auditLog(db, { ...req, admin: { email: normalizedEmail, role: 'unknown' } }, 'admin.login_failed', 'admin_session', null, { reason });
+      }
+      return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid admin email or password.' } });
+    };
     const db = await getDB().catch((error) => {
       logger.warn(`Admin login database lookup skipped: ${error.message}`);
       return null;
@@ -517,7 +700,7 @@ exports.adminLogin = async (req, res) => {
         }
         const validDbPassword = await bcrypt.compare(String(password || ''), adminUser.password_hash);
         if (!validDbPassword) {
-          return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid admin email or password.' } });
+          return failLogin(db, 'password_mismatch');
         }
         role = adminUser.role || 'admin';
         await db.query('UPDATE admin_console_users SET last_login=NOW(), updated_at=NOW() WHERE admin_user_id=$1', [adminUser.admin_user_id]);
@@ -526,17 +709,29 @@ exports.adminLogin = async (req, res) => {
 
     if (!adminUser) {
       if (normalizedEmail !== getAdminEmail().toLowerCase()) {
-        return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid admin email or password.' } });
+        return failLogin(db, 'unknown_email');
       }
       const valid = await isValidAdminPassword(String(password || ''));
-      if (!valid) return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid admin email or password.' } });
+      if (!valid) return failLogin(db, 'fallback_password_mismatch');
+    }
+
+    if (process.env.ADMIN_MFA_TOTP_SECRET && !verifyTotpCode(process.env.ADMIN_MFA_TOTP_SECRET, totpCode)) {
+      return failLogin(db, 'mfa_failed');
     }
 
     try {
       const configDb = db || await getDB();
-      const configured = await getConfigSection(configDb, 'admin_roles');
-      const match = (configured.roles || []).find((item) => item.role === role);
-      if (match && Array.isArray(match.permissions)) permissions = match.permissions;
+      const roleRow = await configDb.query(
+        "SELECT permissions FROM admin_roles WHERE role=$1 AND status='active' LIMIT 1",
+        [role]
+      ).catch(() => ({ rows: [] }));
+      if (Array.isArray(roleRow.rows[0]?.permissions)) {
+        permissions = roleRow.rows[0].permissions;
+      } else {
+        const configured = await getConfigSection(configDb, 'admin_roles');
+        const match = (configured.roles || []).find((item) => item.role === role);
+        if (match && Array.isArray(match.permissions)) permissions = match.permissions;
+      }
     } catch (error) {
       logger.warn(`Admin role permissions fallback used: ${error.message}`);
     }
@@ -549,11 +744,29 @@ exports.adminLogin = async (req, res) => {
         adminUserId: adminUser?.admin_user_id || null
       },
       getAdminSecret(),
-      { expiresIn: '8h' }
+      adminJwtOptions()
     );
-    res.json({ success: true, data: { token, role, permissions, displayName: adminUser?.display_name || null } });
+    clearAdminLoginFailures(normalizedEmail, req.ip);
+    const csrfToken = setAdminSessionCookie(res, token);
+    if (db) {
+      await auditLog(db, { ...req, admin: { email: normalizedEmail, role } }, 'admin.login_success', 'admin_session', adminUser?.admin_user_id || normalizedEmail, {});
+    }
+    res.json({ success: true, data: { token, csrfToken, role, permissions, displayName: adminUser?.display_name || null } });
   } catch (err) {
     respondServerError(res, err, 'Unable to complete admin sign-in right now.');
+  }
+};
+
+exports.adminLogout = async (req, res) => {
+  try {
+    clearAdminSessionCookie(res);
+    const db = await getDB().catch(() => null);
+    if (db) {
+      await auditLog(db, req, 'admin.logout', 'admin_session', req.admin?.adminUserId || req.admin?.email || null, {});
+    }
+    res.json({ success: true });
+  } catch (err) {
+    respondServerError(res, err, 'Unable to complete admin logout right now.');
   }
 };
 
@@ -964,6 +1177,8 @@ exports.getProfiles = async (req, res) => {
          p.mother_tongue,
          p.marital_status,
          p.completion_score,
+         COALESCE(p.trust_score, 0) AS trust_score,
+         COALESCE(p.trust_level, 'low') AS trust_level,
          p.is_published,
          p.is_partner_pref_set,
          p.profile_status,
@@ -1043,6 +1258,10 @@ exports.getProfiles = async (req, res) => {
              'photo_url', phs.photo_url,
              'is_primary', phs.is_primary,
              'is_approved', phs.is_approved,
+             'review_status', COALESCE(phs.review_status, CASE WHEN phs.is_approved THEN 'approved' ELSE 'pending' END),
+             'review_comment', phs.review_comment,
+             'reviewed_at', phs.reviewed_at,
+             'reviewed_by', phs.reviewed_by,
              'sequence_order', phs.sequence_order,
              'uploaded_at', phs.uploaded_at
            ) ORDER BY phs.is_primary DESC, phs.sequence_order NULLS LAST, phs.uploaded_at DESC)
@@ -2063,11 +2282,12 @@ exports.addProfilePhoto = async (req, res) => {
     if (makePrimary) {
       await client.query('UPDATE profile_photos SET is_primary=false WHERE profile_id=$1', [profileId]);
     }
+    const isApproved = parseBool(req.body?.isApproved ?? req.body?.is_approved, true);
     const inserted = await client.query(
-      `INSERT INTO profile_photos (photo_id, profile_id, photo_url, s3_key, is_primary, is_approved, sequence_order, uploaded_at)
-       VALUES ($1,$2,$3,$4,$5,$6,(SELECT COALESCE(MAX(sequence_order),0)+1 FROM profile_photos WHERE profile_id=$2),NOW())
-       RETURNING photo_id, profile_id, photo_url, is_primary, is_approved, sequence_order, uploaded_at`,
-      [photoId, profileId, photoUrl, uploadedPhoto?.s3Key || `admin/manual/${profileId}/${photoId}`, makePrimary, parseBool(req.body?.isApproved ?? req.body?.is_approved, true)]
+      `INSERT INTO profile_photos (photo_id, profile_id, photo_url, s3_key, is_primary, is_approved, review_status, reviewed_at, reviewed_by, sequence_order, uploaded_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,CASE WHEN $6 THEN NOW() ELSE NULL END,CASE WHEN $6 THEN $8 ELSE NULL END,(SELECT COALESCE(MAX(sequence_order),0)+1 FROM profile_photos WHERE profile_id=$2),NOW())
+       RETURNING photo_id, profile_id, photo_url, is_primary, is_approved, review_status, review_comment, reviewed_at, reviewed_by, sequence_order, uploaded_at`,
+      [photoId, profileId, photoUrl, uploadedPhoto?.s3Key || `admin/manual/${profileId}/${photoId}`, makePrimary, isApproved, isApproved ? 'approved' : 'pending', req.admin?.email || 'admin']
     );
     if (makePrimary) {
       await client.query('UPDATE profiles SET primary_photo_url=$1, updated_at=NOW() WHERE profile_id=$2', [photoUrl, profileId]);
@@ -2114,16 +2334,26 @@ exports.updateProfilePhoto = async (req, res) => {
        SET photo_url=COALESCE($3, photo_url),
            is_primary=COALESCE($4, is_primary),
            is_approved=COALESCE($5, is_approved),
+           review_status=CASE
+             WHEN $5 IS TRUE THEN 'approved'
+             WHEN $5 IS FALSE THEN 'rejected'
+             ELSE COALESCE(review_status, CASE WHEN is_approved THEN 'approved' ELSE 'pending' END)
+           END,
+           review_comment=COALESCE($7, review_comment),
+           reviewed_at=CASE WHEN $5 IS NOT NULL THEN NOW() ELSE reviewed_at END,
+           reviewed_by=CASE WHEN $5 IS NOT NULL THEN $8 ELSE reviewed_by END,
            s3_key=COALESCE($6, s3_key)
        WHERE profile_id=$1 AND photo_id=$2
-       RETURNING photo_id, profile_id, photo_url, is_primary, is_approved, sequence_order, uploaded_at`,
+       RETURNING photo_id, profile_id, photo_url, is_primary, is_approved, review_status, review_comment, reviewed_at, reviewed_by, sequence_order, uploaded_at`,
       [
         profileId,
         photoId,
         photoUrl,
         makePrimary,
         req.body?.isApproved !== undefined || req.body?.is_approved !== undefined ? parseBool(req.body?.isApproved ?? req.body?.is_approved) : null,
-        uploadedPhoto?.s3Key || null
+        uploadedPhoto?.s3Key || null,
+        req.body?.reviewComment || req.body?.review_comment || null,
+        req.admin?.email || 'admin'
       ]
     );
     if (makePrimary === true || (photoUrl && current.rows[0].is_primary)) {
@@ -2156,7 +2386,7 @@ exports.deleteProfilePhoto = async (req, res) => {
     }
     if (removed.rows[0].is_primary) {
       const fallback = await client.query(
-        'SELECT photo_id, photo_url FROM profile_photos WHERE profile_id=$1 ORDER BY sequence_order ASC NULLS LAST, uploaded_at ASC LIMIT 1',
+        'SELECT photo_id, photo_url FROM profile_photos WHERE profile_id=$1 AND is_approved=true ORDER BY sequence_order ASC NULLS LAST, uploaded_at ASC LIMIT 1',
         [profileId]
       );
       if (fallback.rows[0]) {
@@ -2173,6 +2403,219 @@ exports.deleteProfilePhoto = async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     respondServerError(res, err, 'Unable to delete profile photo right now.');
+  } finally {
+    client.release();
+  }
+};
+
+exports.getPendingPhotoModeration = async (req, res) => {
+  try {
+    const db = await getDB();
+    const result = await db.query(
+      `SELECT
+         pp.photo_id,
+         pp.profile_id,
+         pp.photo_url,
+         pp.is_primary,
+         pp.is_approved,
+         COALESCE(pp.review_status, CASE WHEN pp.is_approved THEN 'approved' ELSE 'pending' END) AS review_status,
+         pp.review_comment,
+         pp.uploaded_at,
+         p.first_name,
+         p.last_name,
+         p.user_id,
+         u.email,
+         u.phone
+       FROM profile_photos pp
+       JOIN profiles p ON p.profile_id=pp.profile_id
+       JOIN users u ON u.user_id=p.user_id
+       WHERE COALESCE(pp.review_status, CASE WHEN pp.is_approved THEN 'approved' ELSE 'pending' END)='pending'
+       ORDER BY pp.uploaded_at ASC
+       LIMIT 100`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    respondDegraded(res, err, [], 'Photo moderation queue is unavailable.');
+  }
+};
+
+exports.getModerationInbox = async (req, res) => {
+  try {
+    const db = await getDB();
+    const result = await db.query(
+      `SELECT *
+       FROM (
+         SELECT
+           'report' AS item_type,
+           r.report_id::text AS item_id,
+           COALESCE(r.reason, 'Profile report') AS title,
+           COALESCE(r.description, 'A member reported this profile.') AS body,
+           r.status,
+           r.created_at,
+           90 AS severity_score,
+           r.reported_id::text AS target_id,
+           reporter.phone AS reporter_phone,
+           reported.phone AS target_phone
+         FROM reports r
+         LEFT JOIN users reporter ON reporter.user_id=r.reporter_id
+         LEFT JOIN users reported ON reported.user_id=r.reported_id
+         WHERE COALESCE(r.status,'pending') IN ('pending','reviewing')
+
+         UNION ALL
+
+         SELECT
+           'chat_report' AS item_type,
+           cmr.chat_message_report_id::text AS item_id,
+           COALESCE(cmr.reason, 'Chat message report') AS title,
+           COALESCE(cmr.description, cmr.message_id) AS body,
+           cmr.status,
+           cmr.created_at,
+           85 AS severity_score,
+           cmr.reported_user_id::text AS target_id,
+           reporter.phone AS reporter_phone,
+           reported.phone AS target_phone
+         FROM chat_message_reports cmr
+         LEFT JOIN users reporter ON reporter.user_id=cmr.reporter_user_id
+         LEFT JOIN users reported ON reported.user_id=cmr.reported_user_id
+         WHERE COALESCE(cmr.status,'pending') IN ('pending','reviewing')
+
+         UNION ALL
+
+         SELECT
+           'photo' AS item_type,
+           pp.photo_id::text AS item_id,
+           'Photo moderation' AS title,
+           CONCAT(COALESCE(p.first_name,''), ' ', COALESCE(p.last_name,''), ' profile photo needs review') AS body,
+           COALESCE(pp.review_status, CASE WHEN pp.is_approved THEN 'approved' ELSE 'pending' END) AS status,
+           pp.uploaded_at AS created_at,
+           70 AS severity_score,
+           pp.profile_id::text AS target_id,
+           NULL AS reporter_phone,
+           u.phone AS target_phone
+         FROM profile_photos pp
+         JOIN profiles p ON p.profile_id=pp.profile_id
+         JOIN users u ON u.user_id=p.user_id
+         WHERE COALESCE(pp.review_status, CASE WHEN pp.is_approved THEN 'approved' ELSE 'pending' END) IN ('pending','under_review')
+
+         UNION ALL
+
+         SELECT
+           'verification' AS item_type,
+           v.verification_id::text AS item_id,
+           CONCAT('Verification: ', COALESCE(v.type, 'profile')) AS title,
+           COALESCE(v.review_note, 'Member verification is waiting for admin review.') AS body,
+           v.status,
+           v.created_at,
+           65 AS severity_score,
+           v.user_id::text AS target_id,
+           NULL AS reporter_phone,
+           u.phone AS target_phone
+         FROM verifications v
+         LEFT JOIN users u ON u.user_id=v.user_id
+         WHERE COALESCE(v.status,'pending') IN ('pending','submitted','under_review')
+       ) inbox
+       ORDER BY severity_score DESC, created_at ASC
+       LIMIT 150`
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    respondDegraded(res, err, [], 'Unified moderation inbox is unavailable right now.');
+  }
+};
+
+exports.approveProfilePhoto = async (req, res) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    const note = String(req.body?.note || '').trim() || null;
+    await client.query('BEGIN');
+    const updated = await client.query(
+      `UPDATE profile_photos
+       SET is_approved=true,
+           review_status='approved',
+           review_comment=$3,
+           reviewed_at=NOW(),
+           reviewed_by=$4
+       WHERE profile_id=$1 AND photo_id=$2
+       RETURNING *`,
+      [req.params.id, req.params.photoId, note, req.admin?.email || 'admin']
+    );
+    const photo = updated.rows[0];
+    if (!photo) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Photo not found.' } });
+    }
+    const profile = await client.query('SELECT user_id, primary_photo_url FROM profiles WHERE profile_id=$1 FOR UPDATE', [req.params.id]);
+    if (photo.is_primary || !profile.rows[0]?.primary_photo_url) {
+      await client.query('UPDATE profiles SET primary_photo_url=$1, updated_at=NOW() WHERE profile_id=$2', [photo.photo_url, req.params.id]);
+    }
+    const trust = await recalculateTrustScore(client, req.params.id);
+    await auditLog(client, req, 'profile_photo.approve', 'profile_photo', req.params.photoId, { profileId: req.params.id, note });
+    await client.query('COMMIT');
+    if (profile.rows[0]?.user_id) {
+      await notifyMember(db, profile.rows[0].user_id, 'Profile photo approved', 'Your uploaded SoulMatch profile photo is approved.', {
+        type: 'profile_photo_review',
+        status: 'approved',
+        profileId: req.params.id,
+        photoId: req.params.photoId
+      }).catch((error) => logger.warn(`Photo approval notification skipped: ${error.message}`));
+    }
+    broadcastAdminEvent('admin:photo_moderation', { action: 'approve', photo, trust });
+    res.json({ success: true, data: photo, trust });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    respondServerError(res, err, 'Unable to approve profile photo right now.');
+  } finally {
+    client.release();
+  }
+};
+
+exports.rejectProfilePhoto = async (req, res) => {
+  const db = await getDB();
+  const client = await db.connect();
+  try {
+    const note = String(req.body?.note || '').trim() || 'Photo does not meet SoulMatch profile photo guidelines.';
+    await client.query('BEGIN');
+    const updated = await client.query(
+      `UPDATE profile_photos
+       SET is_approved=false,
+           review_status='rejected',
+           review_comment=$3,
+           reviewed_at=NOW(),
+           reviewed_by=$4
+       WHERE profile_id=$1 AND photo_id=$2
+       RETURNING *`,
+      [req.params.id, req.params.photoId, note, req.admin?.email || 'admin']
+    );
+    const photo = updated.rows[0];
+    if (!photo) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Photo not found.' } });
+    }
+    const profile = await client.query('SELECT user_id, primary_photo_url FROM profiles WHERE profile_id=$1 FOR UPDATE', [req.params.id]);
+    if (profile.rows[0]?.primary_photo_url === photo.photo_url) {
+      const fallback = await client.query(
+        'SELECT photo_url FROM profile_photos WHERE profile_id=$1 AND is_approved=true ORDER BY is_primary DESC, sequence_order ASC NULLS LAST, uploaded_at ASC LIMIT 1',
+        [req.params.id]
+      );
+      await client.query('UPDATE profiles SET primary_photo_url=$1, updated_at=NOW() WHERE profile_id=$2', [fallback.rows[0]?.photo_url || null, req.params.id]);
+    }
+    const trust = await recalculateTrustScore(client, req.params.id);
+    await auditLog(client, req, 'profile_photo.reject', 'profile_photo', req.params.photoId, { profileId: req.params.id, note });
+    await client.query('COMMIT');
+    if (profile.rows[0]?.user_id) {
+      await notifyMember(db, profile.rows[0].user_id, 'Profile photo needs attention', note, {
+        type: 'profile_photo_review',
+        status: 'rejected',
+        profileId: req.params.id,
+        photoId: req.params.photoId
+      }).catch((error) => logger.warn(`Photo rejection notification skipped: ${error.message}`));
+    }
+    broadcastAdminEvent('admin:photo_moderation', { action: 'reject', photo, trust });
+    res.json({ success: true, data: photo, trust });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    respondServerError(res, err, 'Unable to reject profile photo right now.');
   } finally {
     client.release();
   }
@@ -2231,9 +2674,10 @@ exports.updateProfileStatus = async (req, res) => {
       [profileId, updates.published, updates.verification, updates.admin, updates.review, reason]
     );
     if (!result.rows[0]) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile not found.' } });
+    const trust = await recalculateTrustScore(db, profileId);
     await auditLog(db, req, `profile.${action}`, 'profile', profileId, { reason });
-    broadcastAdminEvent('admin:profile_status', { action, profile: result.rows[0] });
-    res.json({ success: true, data: result.rows[0] });
+    broadcastAdminEvent('admin:profile_status', { action, profile: result.rows[0], trust });
+    res.json({ success: true, data: result.rows[0], trust });
   } catch (err) {
     respondServerError(res, err, 'Unable to update profile status right now.');
   }
@@ -2320,6 +2764,7 @@ exports.approveVerification = async (req, res) => {
     }
     await client.query("UPDATE users SET is_verified=true, updated_at=NOW() WHERE user_id=$1", [result.rows[0].user_id]);
     await client.query("UPDATE profiles SET verification_status='verified', updated_at=NOW() WHERE user_id=$1", [result.rows[0].user_id]);
+    const trust = await recalculateTrustScore(client, result.rows[0].user_id, 'user');
     await auditLog(client, req, 'verification.approve', 'verification', req.params.id, { type: result.rows[0].type });
     await client.query('COMMIT');
     await notifyMember(
@@ -2333,8 +2778,8 @@ exports.approveVerification = async (req, res) => {
         verificationId: result.rows[0].verification_id
       }
     );
-    broadcastAdminEvent('admin:verification_updated', { action: 'approve', verification: result.rows[0] });
-    res.json({ success: true, data: result.rows[0] });
+    broadcastAdminEvent('admin:verification_updated', { action: 'approve', verification: result.rows[0], trust });
+    res.json({ success: true, data: result.rows[0], trust });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     respondServerError(res, err, 'Unable to approve this verification request right now.');
@@ -2359,6 +2804,7 @@ exports.rejectVerification = async (req, res) => {
     }
     await client.query("UPDATE users SET is_verified=false, updated_at=NOW() WHERE user_id=$1", [result.rows[0].user_id]);
     await client.query("UPDATE profiles SET verification_status='rejected', updated_at=NOW() WHERE user_id=$1", [result.rows[0].user_id]);
+    const trust = await recalculateTrustScore(client, result.rows[0].user_id, 'user');
     await auditLog(client, req, 'verification.reject', 'verification', req.params.id, { type: result.rows[0].type, note: note || null });
     await client.query('COMMIT');
     await notifyMember(
@@ -2372,8 +2818,8 @@ exports.rejectVerification = async (req, res) => {
         verificationId: result.rows[0].verification_id
       }
     );
-    broadcastAdminEvent('admin:verification_updated', { action: 'reject', verification: result.rows[0] });
-    res.json({ success: true, data: result.rows[0] });
+    broadcastAdminEvent('admin:verification_updated', { action: 'reject', verification: result.rows[0], trust });
+    res.json({ success: true, data: result.rows[0], trust });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     respondServerError(res, err, 'Unable to reject this verification request right now.');
@@ -2431,6 +2877,7 @@ exports.approveProfileDocument = async (req, res) => {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Profile document not found.' } });
     }
     const publishResult = await publishManagedProfileIfReady(client, document.profile_id, note);
+    const trust = await recalculateTrustScore(client, document.profile_id);
     await auditLog(client, req, 'profile_document.approve', 'profile_document', req.params.id, {
       note,
       managedProfilePublished: publishResult.published === true,
@@ -2440,7 +2887,7 @@ exports.approveProfileDocument = async (req, res) => {
     if (publishResult.published) {
       broadcastAdminEvent('admin:profile_status', { action: 'auto_publish', profile: publishResult.profile });
     }
-    res.json({ success: true, data: document, profileReview: publishResult });
+    res.json({ success: true, data: document, profileReview: publishResult, trust });
   } catch (err) {
     if (client) await client.query('ROLLBACK').catch(() => {});
     respondServerError(res, err, 'Unable to approve this profile document right now.');
@@ -2477,6 +2924,7 @@ exports.rejectProfileDocument = async (req, res) => {
       [document.profile_id, note]
     );
     await auditLog(db, req, 'profile_document.reject', 'profile_document', req.params.id, { note });
+    const trust = await recalculateTrustScore(db, document.profile_id);
     const profileUserId = profileResult.rows[0]?.user_id;
     if (profileUserId) {
       await notifyMember(
@@ -2487,7 +2935,7 @@ exports.rejectProfileDocument = async (req, res) => {
         { type: 'profile_document_review', status: 'rejected', profileDocumentId: req.params.id, profileId: document.profile_id }
       ).catch((error) => logger.warn(`Profile document rejection notification skipped: ${error.message}`));
     }
-    res.json({ success: true, data: document });
+    res.json({ success: true, data: document, trust });
   } catch (err) {
     respondServerError(res, err, 'Unable to reject this profile document right now.');
   }
@@ -2816,10 +3264,22 @@ exports.getRoles = async (req, res) => {
   }));
   try {
     const db = await getDB();
-    const configured = await getConfigSection(db, 'admin_roles');
-    const roles = Array.isArray(configured.roles) && configured.roles.length
-      ? configured.roles
-      : defaultRoles;
+    const roleRows = await db.query(
+      `SELECT role, description, status, permissions, updated_at
+       FROM admin_roles
+       WHERE status <> 'deleted'
+       ORDER BY role`
+    ).catch(() => ({ rows: [] }));
+    const configured = roleRows.rows.length
+      ? { roles: roleRows.rows.map((role) => ({
+          role: role.role,
+          title: role.role,
+          description: role.description,
+          status: role.status,
+          permissions: Array.isArray(role.permissions) ? role.permissions : []
+        })) }
+      : await getConfigSection(db, 'admin_roles');
+    const roles = Array.isArray(configured.roles) && configured.roles.length ? configured.roles : defaultRoles;
     res.json({
       success: true,
       data: roles.map((role) => ({
@@ -3020,7 +3480,7 @@ exports.getConfig = async (req, res) => {
 exports.updateConfig = async (req, res) => {
   try {
     const db = await getDB();
-    const key = req.params.key;
+    const key = resolveConfigKey(req.params.key);
     if (!CONFIG_KEYS.includes(key)) {
       return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: `Unknown config key: ${key}` } });
     }
@@ -3173,20 +3633,83 @@ exports.createReferralCode = async (req, res) => {
 exports.getAnalyticsFunnel = async (req, res) => {
   try {
     const db = await getDB();
-    const lookbackDays = Math.min(parseInt(req.query.days, 10) || 30, 365);
+    const lookbackDays = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
     const result = await db.query(
-      `SELECT
-         event_type,
-         COUNT(*) AS total
-       FROM analytics_events
-       WHERE created_at >= NOW() - ($1 * INTERVAL '1 day')
-       GROUP BY event_type
-       ORDER BY total DESC`,
+      `WITH params AS (
+         SELECT NOW() - ($1 * INTERVAL '1 day') AS since
+       ),
+       paid_users AS (
+         SELECT user_id
+         FROM transactions, params
+         WHERE created_at >= params.since
+           AND status IN ('paid','success','captured')
+         UNION
+         SELECT user_id
+         FROM payment_orders, params
+         WHERE updated_at >= params.since
+           AND status IN ('paid','success','captured')
+         UNION
+         SELECT user_id
+         FROM subscriptions, params
+         WHERE created_at >= params.since
+           AND is_active=true
+           AND COALESCE(amount_paid,0) > 0
+       ),
+       funnel AS (
+         SELECT
+           1 AS sort_order,
+           'sign_up'::text AS event_type,
+           'Signup completed'::text AS label,
+           COUNT(*)::int AS total,
+           'users.created_at'::text AS source
+         FROM users, params
+         WHERE users.created_at >= params.since
+           AND users.deleted_at IS NULL
+         UNION ALL
+         SELECT
+           2,
+           'profile_published',
+           'Profile published',
+           COUNT(*)::int,
+           'profiles.is_published'
+         FROM profiles, params
+         WHERE profiles.updated_at >= params.since
+           AND profiles.is_published=true
+         UNION ALL
+         SELECT
+           3,
+           'interest_sent',
+           'Interest sent',
+           COUNT(*)::int,
+           'interests.sent_at'
+         FROM interests, params
+         WHERE interests.sent_at >= params.since
+         UNION ALL
+         SELECT
+           4,
+           'chat_created',
+           'Chat created',
+           COUNT(*)::int,
+           'chat_conversation_metadata.created_at'
+         FROM chat_conversation_metadata, params
+         WHERE chat_conversation_metadata.created_at >= params.since
+         UNION ALL
+         SELECT
+           5,
+           'payment_success',
+           'Payment completed',
+           COUNT(DISTINCT user_id)::int,
+           'transactions/payment_orders/subscriptions'
+         FROM paid_users
+       )
+       SELECT event_type, label, total, source
+       FROM funnel
+       ORDER BY sort_order`,
       [lookbackDays]
     );
-    res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: result.rows, meta: { lookbackDays, generatedAt: new Date().toISOString() } });
   } catch (err) {
-    respondDegraded(res, err, [], 'Analytics funnel is unavailable. Showing empty analytics data.');
+    respondServerError(res, err, 'Analytics funnel is unavailable.');
   }
 };
 
@@ -3195,7 +3718,16 @@ exports.getAnalyticsEvents = async (req, res) => {
     const db = await getDB();
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 250);
     const result = await db.query(
-      `SELECT event_id, event_type, service_name, user_id, session_id, payload, created_at
+      `SELECT
+         event_id,
+         event_type,
+         service_name,
+         user_id,
+         session_id,
+         payload,
+         (payload->>'serverSigned') = 'true' AS is_server_signed,
+         COALESCE(payload->>'recordedBy', service_name) AS source,
+         created_at
        FROM analytics_events
        ORDER BY created_at DESC
        LIMIT $1`,
@@ -3203,7 +3735,7 @@ exports.getAnalyticsEvents = async (req, res) => {
     );
     res.json({ success: true, data: result.rows });
   } catch (err) {
-    respondDegraded(res, err, [], 'Analytics events are unavailable. Showing an empty event stream.');
+    respondServerError(res, err, 'Analytics events are unavailable.');
   }
 };
 

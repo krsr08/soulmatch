@@ -33,7 +33,15 @@ fun OTPVerificationScreen(phone: String, userType: String? = null, onVerified: (
     var countdown by remember { mutableIntStateOf(30) }
     var canResend by remember { mutableStateOf(false) }
     var resendCycle by remember { mutableIntStateOf(0) }
-    LaunchedEffect(resendCycle) { while (countdown > 0) { delay(1000); countdown-- }; canResend = true }
+    LaunchedEffect(phone, resendCycle) {
+        countdown = 30
+        canResend = false
+        while (countdown > 0) {
+            delay(1000)
+            countdown--
+        }
+        canResend = true
+    }
     LaunchedEffect(state) { when (state) { is AuthUiState.Verified -> onVerified((state as AuthUiState.Verified).route); is AuthUiState.Error -> { boxes.forEachIndexed { i, _ -> boxes[i] = "" }; focusers[0].requestFocus() }; else -> {} } }
     LaunchedEffect(Unit) { delay(200); focusers[0].requestFocus() }
     Scaffold(topBar = { TopAppBar(title = {}, navigationIcon = { IconButton(onClick=onBack) { Icon(Icons.Filled.ArrowBack,"Back") } }) }) { padding ->
@@ -52,8 +60,6 @@ fun OTPVerificationScreen(phone: String, userType: String? = null, onVerified: (
             Spacer(Modifier.height(32.dp))
             if (canResend) TextButton(onClick = {
                 vm.sendOTP(phone, userType)
-                countdown=30
-                canResend=false
                 resendCycle++
             }) { Text("Resend OTP", color = Primary) }
             else Text("Resend in 00:${countdown.toString().padStart(2,'0')}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.5f))

@@ -1,0 +1,43 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /admin-web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: /backend/auth-service
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /backend/profile-service
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /backend/search-service
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /backend/chat-service
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /backend/notification-service
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /backend/payment-service
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /backend/admin-service
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /backend/matching-service
+    schedule:
+      interval: weekly
+  - package-ecosystem: gradle
+    directory: /android
+    schedule:
+      interval: weekly

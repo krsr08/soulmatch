@@ -2,13 +2,19 @@ const jwt = require('jsonwebtoken');
 const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
 const { getDB } = require('../config/database');
-const { isChatEnabled } = require('../middleware/featureGate');
+const { isChatEnabled, memberHasChatAccess } = require('../middleware/featureGate');
 const { moderateMessage } = require('../services/safetyModerationService');
+const { upsertConversationMetadata } = require('../services/chatMetadataService');
 const logger = require('../utils/logger');
 const makeChatId = (a, b) => [a, b].sort().join('_');
 const MAX_MESSAGE_LENGTH = parseInt(process.env.MAX_CHAT_MESSAGE_LENGTH || '2000', 10);
 const NOTIFICATION_API_URL = process.env.NOTIFICATION_API_URL;
 const INTERNAL_SERVICE_SECRET = process.env.INTERNAL_SERVICE_SECRET;
+const verifyOptions = () => ({
+  issuer: process.env.JWT_ISSUER || 'soulmatch-auth',
+  audience: process.env.JWT_AUDIENCE || 'soulmatch-api',
+  clockTolerance: Number(process.env.JWT_CLOCK_TOLERANCE_SECONDS || 30)
+});
 
 const buildMessagePreview = (type, content) => {
   if (type && type !== 'text') return 'You received a new ' + type + ' message on SoulMatch.';
@@ -113,8 +119,18 @@ exports.setupSocketHandlers = (io) => {
     if (!await isChatEnabled()) return next(new Error('Chat is temporarily unavailable'));
     const token = socket.handshake.auth?.token;
     if (!token) return next(new Error('Token required'));
-    try { const d = jwt.verify(token, process.env.JWT_SECRET); socket.userId = d.userId; next(); }
-    catch { next(new Error('Invalid token')); }
+    let d;
+    try {
+      d = jwt.verify(token, process.env.JWT_SECRET, verifyOptions());
+    }
+    catch { return next(new Error('Invalid token')); }
+    socket.userId = d.userId;
+    socket.userType = d.userType || d.role || 'member';
+    if (socket.userType === 'member' || !socket.userType) {
+      const access = await memberHasChatAccess(socket.userId);
+      if (!access.allowed) return next(new Error(access.message));
+    }
+    next();
   });
   io.on('connection', (socket) => {
     logger.info('Socket connected: ' + socket.id);
@@ -143,7 +159,7 @@ exports.setupSocketHandlers = (io) => {
         }
         const safetyFlags = moderation.flags || [];
         const msg = await Message.create({ chatId:cid, senderId:socket.userId, receiverId, type:resolvedType, content, duration, safetyFlags });
-        await Conversation.findOneAndUpdate(
+        const conversation = await Conversation.findOneAndUpdate(
           { chatId:cid },
           {
             $set:{
@@ -161,6 +177,14 @@ exports.setupSocketHandlers = (io) => {
           { upsert:true, new:true }
         );
         const msgData = { messageId:msg._id.toString(), chatId:cid, senderId:socket.userId, receiverId, type:resolvedType, content, duration, sentAt:msg.sentAt, status:'sent' };
+        await upsertConversationMetadata({
+          chatId: cid,
+          participants: conversation.participants || [socket.userId, receiverId],
+          lastMessage: { type: resolvedType, content, sentAt: msg.sentAt, senderId: socket.userId },
+          source: conversation.source || 'socket',
+          interestId: conversation.interestId || null,
+          incrementMessageCount: true
+        });
         io.to('user:'+receiverId).emit('message:received', msgData);
         await sendChatNotification({ receiverId, senderId: socket.userId, chatId: cid, type: resolvedType, content });
         cb && cb({ success:true, message:msgData });

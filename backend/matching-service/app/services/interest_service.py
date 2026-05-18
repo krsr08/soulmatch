@@ -6,6 +6,7 @@ from typing import Optional
 import httpx
 
 from app.config.database import get_db_pool
+from app.services.feed_cache import invalidate_feed
 
 PLAN_ENTITLEMENTS = {
     "free": {"interests": 5, "shortlist": 5},
@@ -156,13 +157,73 @@ async def _get_profile_summary(conn, profile_id: str) -> dict:
 
 
 async def _record_analytics(conn, event_type: str, user_id: Optional[str], payload: dict) -> None:
+    signed_payload = {
+        **(payload or {}),
+        "serverSigned": True,
+        "recordedBy": "matching-service",
+        "schemaVersion": "2026-05-17",
+    }
     await conn.execute(
         'INSERT INTO analytics_events (event_type, service_name, user_id, payload) VALUES ($1,$2,$3,$4::jsonb)',
         event_type,
         'matching-service',
         user_id,
-        json.dumps(payload or {})
+        json.dumps(signed_payload)
     )
+
+
+async def _ensure_matching_outbox(conn) -> None:
+    await conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS matching_outbox (
+            outbox_id UUID PRIMARY KEY,
+            event_type VARCHAR(80) NOT NULL,
+            aggregate_id VARCHAR(120),
+            payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+            status VARCHAR(24) NOT NULL DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT NOW(),
+            processed_at TIMESTAMP
+        )
+        """
+    )
+
+
+async def _queue_outbox(conn, event_type: str, aggregate_id: str, payload: dict) -> None:
+    await _ensure_matching_outbox(conn)
+    await conn.execute(
+        """
+        INSERT INTO matching_outbox (outbox_id,event_type,aggregate_id,payload,status,created_at)
+        VALUES ($1,$2,$3,$4::jsonb,'pending',NOW())
+        """,
+        str(uuid.uuid4()),
+        event_type,
+        aggregate_id,
+        json.dumps(payload or {}),
+    )
+
+
+async def _create_chat_conversation(sender_user_id: str, receiver_user_id: str, interest_id: str) -> Optional[str]:
+    base_url = os.getenv('CHAT_API_URL', 'http://localhost:3004/api/v1/chat')
+    service_secret = os.getenv('INTERNAL_SERVICE_SECRET', '')
+    if not base_url or not service_secret:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.post(
+                f'{base_url.rstrip("/")}/internal/conversations',
+                headers={'x-internal-service-secret': service_secret},
+                json={
+                    'participants': [str(sender_user_id), str(receiver_user_id)],
+                    'interestId': str(interest_id),
+                    'source': 'matching-service'
+                }
+            )
+            response.raise_for_status()
+            payload = response.json()
+            return payload.get('data', {}).get('chatId')
+    except Exception as exc:
+        print(f'Chat conversation creation failed for interest={interest_id}: {exc}', flush=True)
+        return None
 
 
 async def _send_template_notification(user_id: str, template_key: str, variables: dict, data: Optional[dict] = None) -> None:
@@ -236,6 +297,19 @@ async def send_interest(sender_user_id: str, receiver_id: str) -> dict:
         mutual = await conn.fetchrow("SELECT * FROM interests WHERE sender_id=$1 AND receiver_id=$2 AND status='accepted'", receiver_profile_id, sender_profile_id)
         sender_profile = await _get_profile_summary(conn, sender_profile_id)
         receiver_profile = await _get_profile_summary(conn, receiver_profile_id)
+        await _record_analytics(
+            conn,
+            "interest_sent",
+            sender_profile.get("user_id"),
+            {
+                "interestId": interest_id,
+                "senderProfileId": sender_profile_id,
+                "receiverProfileId": receiver_profile_id,
+                "receiverUserId": receiver_profile.get("user_id"),
+                "resent": resent,
+            },
+        )
+        await invalidate_feed(sender_profile.get('user_id'), receiver_profile.get('user_id'))
         if receiver_profile.get('user_id'):
             await _send_template_notification(
                 receiver_profile['user_id'],
@@ -323,23 +397,82 @@ async def respond_to_interest(interest_id: str, status: str, user_id: str) -> di
         current_profile_id = await _get_profile_id_for_user(conn, user_id)
         if not current_profile_id:
             raise ValueError("Profile not found")
-        interest = await conn.fetchrow(
-            'SELECT sender_id, receiver_id FROM interests WHERE interest_id=$1 AND receiver_id=$2',
-            interest_id,
-            current_profile_id
-        )
-        if not interest:
-            raise ValueError("Interest not found for this profile")
-        await conn.execute('UPDATE interests SET status=$1,responded_at=NOW() WHERE interest_id=$2 AND receiver_id=$3', status, interest_id, current_profile_id)
-        sender_profile = await _get_profile_summary(conn, interest['sender_id'])
-        receiver_profile = await _get_profile_summary(conn, interest['receiver_id'])
-        if status == 'accepted' and interest:
+        sender_profile = {}
+        receiver_profile = {}
+        async with conn.transaction():
+            interest = await conn.fetchrow(
+                'SELECT sender_id, receiver_id FROM interests WHERE interest_id=$1 AND receiver_id=$2 FOR UPDATE',
+                interest_id,
+                current_profile_id
+            )
+            if not interest:
+                raise ValueError("Interest not found for this profile")
+            await conn.execute('UPDATE interests SET status=$1,responded_at=NOW() WHERE interest_id=$2 AND receiver_id=$3', status, interest_id, current_profile_id)
+            sender_profile = await _get_profile_summary(conn, interest['sender_id'])
+            receiver_profile = await _get_profile_summary(conn, interest['receiver_id'])
+            if status == 'accepted':
+                await _record_analytics(
+                    conn,
+                    'match_made',
+                    receiver_profile.get('user_id'),
+                    {
+                        'interestId': interest_id,
+                        'senderUserId': sender_profile.get('user_id'),
+                        'receiverUserId': receiver_profile.get('user_id')
+                    }
+                )
+                await _record_analytics(
+                    conn,
+                    'interest_accepted',
+                    receiver_profile.get('user_id'),
+                    {
+                        'interestId': interest_id,
+                        'senderUserId': sender_profile.get('user_id'),
+                        'receiverUserId': receiver_profile.get('user_id')
+                    }
+                )
+                await _queue_outbox(
+                    conn,
+                    'chat_conversation_create',
+                    interest_id,
+                    {
+                        'interestId': interest_id,
+                        'senderUserId': str(sender_profile.get('user_id', '')),
+                        'receiverUserId': str(receiver_profile.get('user_id', ''))
+                    }
+                )
+                await _queue_outbox(
+                    conn,
+                    'notification_template',
+                    interest_id,
+                    {
+                        'userId': str(sender_profile.get('user_id', '')),
+                        'templateKey': 'match_made',
+                        'profileId': str(receiver_profile.get('profile_id', ''))
+                    }
+                )
+            if status == 'declined':
+                await _queue_outbox(
+                    conn,
+                    'notification_template',
+                    interest_id,
+                    {
+                        'userId': str(sender_profile.get('user_id', '')),
+                        'templateKey': 'interest_declined',
+                        'profileId': str(receiver_profile.get('profile_id', ''))
+                    }
+                )
+        chat_id = None
+        await invalidate_feed(sender_profile.get('user_id'), receiver_profile.get('user_id'))
+        if status == 'accepted' and sender_profile.get('user_id') and receiver_profile.get('user_id'):
+            chat_id = await _create_chat_conversation(sender_profile['user_id'], receiver_profile['user_id'], interest_id)
             await _record_analytics(
                 conn,
-                'match_made',
+                'chat_created',
                 receiver_profile.get('user_id'),
                 {
                     'interestId': interest_id,
+                    'chatId': str(chat_id or ''),
                     'senderUserId': sender_profile.get('user_id'),
                     'receiverUserId': receiver_profile.get('user_id')
                 }
@@ -353,7 +486,8 @@ async def respond_to_interest(interest_id: str, status: str, user_id: str) -> di
                         'type': 'interest_accepted',
                         'interestId': interest_id,
                         'profileId': str(receiver_profile.get('profile_id', '')),
-                        'receiverUserId': str(receiver_profile.get('user_id', ''))
+                        'receiverUserId': str(receiver_profile.get('user_id', '')),
+                        'chatId': str(chat_id or '')
                     }
                 )
         if status == 'declined' and sender_profile.get('user_id'):
@@ -368,7 +502,7 @@ async def respond_to_interest(interest_id: str, status: str, user_id: str) -> di
                     'receiverUserId': str(receiver_profile.get('user_id', ''))
                 }
             )
-        return {"status": status, "interestId": interest_id}
+        return {"status": status, "interestId": interest_id, "chatId": chat_id}
 
 
 async def toggle_shortlist(user_id: str, profile_id: str) -> dict:

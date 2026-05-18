@@ -3,17 +3,18 @@ from datetime import datetime, timezone
 
 import numpy as np
 from app.config.database import get_db_pool
+from app.services.feed_cache import get_feed, set_feed
 
 RELIGION_MAP = {"Hindu": 0, "Muslim": 1, "Christian": 2, "Sikh": 3, "Buddhist": 4, "Jain": 5, "Other": 6}
 EDUCATION_MAP = {"High School": 1, "Graduate": 2, "Post Graduate": 3, "Doctorate": 4, "Professional": 5}
 INCOME_MAP = {"< 3 LPA": 1, "3-5 LPA": 2, "5-10 LPA": 3, "10-20 LPA": 4, "20+ LPA": 5}
 
 DEFAULT_PLAN_ENTITLEMENTS = {
-    "free": {"visibleMatches": 80},
-    "bronze": {"visibleMatches": 80},
-    "silver": {"visibleMatches": 80},
-    "gold": {"visibleMatches": 80},
-    "platinum": {"visibleMatches": 80},
+    "free": {"visibleMatches": 80, "verifiedOnly": True},
+    "bronze": {"visibleMatches": 80, "verifiedOnly": True},
+    "silver": {"visibleMatches": 80, "verifiedOnly": True},
+    "gold": {"visibleMatches": 80, "verifiedOnly": True},
+    "platinum": {"visibleMatches": 80, "verifiedOnly": True},
 }
 
 
@@ -33,6 +34,21 @@ def config_dict(value):
     return {}
 
 
+def bool_config(value, fallback=False):
+    if value is None or value == "":
+        return fallback
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    normalized = str(value).strip().lower()
+    if normalized in {"false", "0", "no", "off", "disabled"}:
+        return False
+    if normalized in {"true", "1", "yes", "on", "enabled"}:
+        return True
+    return fallback
+
+
 async def active_plan_id(conn, user_id: str) -> str:
     row = await conn.fetchval(
         """
@@ -49,17 +65,28 @@ async def active_plan_id(conn, user_id: str) -> str:
     return normalize_plan_id(row)
 
 
-async def visible_match_limit(conn, user_id: str) -> int:
+async def match_entitlements(conn, user_id: str) -> dict:
     plan_id = await active_plan_id(conn, user_id)
     monetization = config_dict(
         await conn.fetchval("SELECT config_value FROM app_config WHERE config_key='monetization' LIMIT 1")
     )
     configured = config_dict(monetization.get("memberPlanEntitlements"))
-    plan_config = config_dict(configured.get(plan_id)) or DEFAULT_PLAN_ENTITLEMENTS.get(plan_id, DEFAULT_PLAN_ENTITLEMENTS["bronze"])
+    base = DEFAULT_PLAN_ENTITLEMENTS.get(plan_id, DEFAULT_PLAN_ENTITLEMENTS["bronze"])
+    plan_config = config_dict(configured.get(plan_id)) or base
     try:
-        return max(0, int(plan_config.get("visibleMatches") or DEFAULT_PLAN_ENTITLEMENTS[plan_id]["visibleMatches"]))
+        visible_matches = max(0, int(plan_config.get("visibleMatches") or base["visibleMatches"]))
     except Exception:
-        return DEFAULT_PLAN_ENTITLEMENTS["bronze"]["visibleMatches"]
+        visible_matches = DEFAULT_PLAN_ENTITLEMENTS["bronze"]["visibleMatches"]
+    return {
+        "planId": plan_id,
+        "visibleMatches": visible_matches,
+        "verifiedOnly": bool_config(plan_config.get("verifiedOnly"), base.get("verifiedOnly", True)),
+    }
+
+
+async def visible_match_limit(conn, user_id: str) -> int:
+    entitlements = await match_entitlements(conn, user_id)
+    return entitlements["visibleMatches"]
 
 
 def number_or(value, fallback):
@@ -295,6 +322,11 @@ def build_match_reasons(user, candidate, preference_score, vector_score, horosco
 
 
 async def get_recommended_matches(user_id: str, page: int, limit: int, verified_only: bool = False) -> dict:
+    page = max(int(page or 1), 1)
+    limit = min(max(int(limit or 25), 1), 50)
+    cached = await get_feed(user_id, page, limit, verified_only)
+    if cached is not None:
+        return cached
     pool = await get_db_pool()
     async with pool.acquire() as conn:
         user_row = await conn.fetchrow(
@@ -322,9 +354,10 @@ async def get_recommended_matches(user_id: str, page: int, limit: int, verified_
         user = dict(user_row)
         gender = (user.get("gender") or "").lower()
         opp_gender = "female" if gender == "male" else "male" if gender == "female" else None
-        page = max(int(page or 1), 1)
-        limit = min(max(int(limit or 25), 15), 100)
-        access_limit = await visible_match_limit(conn, user_id)
+        entitlements = await match_entitlements(conn, user_id)
+        if verified_only and not entitlements.get("verifiedOnly", True):
+            raise PermissionError("Upgrade your membership to use verified-only match filtering.")
+        access_limit = entitlements["visibleMatches"]
         candidates = await conn.fetch(
             """
             SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
@@ -391,9 +424,28 @@ async def get_recommended_matches(user_id: str, page: int, limit: int, verified_
               AND COALESCE(p.admin_status,'active')='active'
               AND COALESCE(p.profile_status,'active')='active'
               AND COALESCE(p.profile_visibility,'all')!='hidden'
+              AND (
+                COALESCE(p.profile_visibility,'all')!='matches_only'
+                OR EXISTS (
+                  SELECT 1 FROM interests i
+                  WHERE ((i.sender_id=$3 AND i.receiver_id=p.profile_id) OR (i.sender_id=p.profile_id AND i.receiver_id=$3))
+                    AND i.status='accepted'
+                )
+              )
               AND u.is_active=true
               AND COALESCE(u.is_banned,false)=false
               AND ($4::boolean=false OR COALESCE(p.verification_status,'pending')='verified')
+              AND ($5::int IS NULL OR EXTRACT(YEAR FROM AGE(p.dob))::int >= $5)
+              AND ($6::int IS NULL OR EXTRACT(YEAR FROM AGE(p.dob))::int <= $6)
+              AND ($7::int IS NULL OR pd.height_cm >= $7)
+              AND ($8::int IS NULL OR pd.height_cm <= $8)
+              AND ($9::text IS NULL OR $9='' OR p.religion=$9)
+              AND (COALESCE(array_length($10::text[], 1), 0)=0 OR LOWER(COALESCE(ec.education_level,''))=ANY($10::text[]))
+              AND (COALESCE(array_length($11::text[], 1), 0)=0 OR LOWER(COALESCE(ec.occupation,''))=ANY($11::text[]))
+              AND (COALESCE(array_length($12::text[], 1), 0)=0 OR LOWER(COALESCE(ec.working_city,''))=ANY($12::text[]) OR LOWER(COALESCE(fd.family_city,''))=ANY($12::text[]))
+              AND (COALESCE(array_length($13::text[], 1), 0)=0 OR LOWER(COALESCE(ld.diet,''))=ANY($13::text[]))
+              AND (COALESCE(array_length($14::text[], 1), 0)=0 OR LOWER(COALESCE(p.marital_status,''))=ANY($14::text[]))
+              AND (COALESCE(array_length($15::text[], 1), 0)=0 OR LOWER(COALESCE(fd.family_type,''))=ANY($15::text[]))
               AND p.user_id!=$1
               AND NOT EXISTS (
                 SELECT 1 FROM blocks b
@@ -407,6 +459,17 @@ async def get_recommended_matches(user_id: str, page: int, limit: int, verified_
             opp_gender,
             user["profile_id"],
             verified_only,
+            user.get("age_min"),
+            user.get("age_max"),
+            user.get("height_min_cm"),
+            user.get("height_max_cm"),
+            user.get("pref_religion"),
+            normalize_list(user.get("education_levels")),
+            normalize_list(user.get("occupations")),
+            normalize_list(user.get("locations")),
+            normalize_list(user.get("diet_prefs")),
+            normalize_list(user.get("marital_statuses")),
+            normalize_list(user.get("family_types")),
         )
         user_vec = build_vector(user)
         scored = []
@@ -459,7 +522,9 @@ async def get_recommended_matches(user_id: str, page: int, limit: int, verified_
         scored.sort(key=lambda x: (x["compatibilityScore"], x["trustScore"]), reverse=True)
         scored = scored[:access_limit]
         start = (page - 1) * limit
-        return {"matches": scored[start : start + limit], "total": len(scored), "page": page, "limit": limit}
+        result = {"matches": scored[start : start + limit], "total": len(scored), "page": page, "limit": limit}
+        await set_feed(user_id, page, limit, verified_only, result)
+        return result
 
 
 async def get_compatibility(user_id: str, target_profile_id: str) -> dict:
@@ -490,8 +555,17 @@ async def get_compatibility(user_id: str, target_profile_id: str) -> dict:
             """
             SELECT p.*,EXTRACT(YEAR FROM AGE(p.dob))::int AS age,
                    ec.education_level,ec.annual_income,ec.occupation,ec.working_city,
-                   pd.height_cm,ld.diet,hd.is_manglik,fd.family_city,fd.family_pincode,fd.family_type
+                   pd.height_cm,ld.diet,hd.is_manglik,fd.family_city,fd.family_pincode,fd.family_type,
+                   u.is_verified AS is_phone_verified,
+                   (u.google_id IS NOT NULL) AS firebase_verified,
+                   u.last_login,
+                   COALESCE((SELECT COUNT(*)::int FROM profile_photos pp WHERE pp.profile_id=p.profile_id), 0) AS photo_count,
+                   COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')), 0) AS approved_verifications,
+                   COALESCE((SELECT array_agg(DISTINCT v.type) FROM verifications v WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')), ARRAY[]::text[]) AS approved_verification_types,
+                   COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='pending'), 0) AS pending_verifications,
+                   COALESCE((SELECT COUNT(*)::int FROM reports rp WHERE rp.reported_id=p.user_id AND rp.status IN ('pending','open','reviewing')), 0) AS report_count
             FROM profiles p
+            JOIN users u ON u.user_id=p.user_id
             LEFT JOIN education_career ec ON p.profile_id=ec.profile_id
             LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id
             LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id
@@ -502,6 +576,15 @@ async def get_compatibility(user_id: str, target_profile_id: str) -> dict:
               AND COALESCE(p.admin_status,'active')='active'
               AND COALESCE(p.profile_status,'active')='active'
               AND COALESCE(p.profile_visibility,'all')!='hidden'
+              AND (
+                COALESCE(p.profile_visibility,'all')!='matches_only'
+                OR EXISTS (
+                  SELECT 1 FROM interests i
+                  JOIN profiles viewer ON viewer.user_id=$2
+                  WHERE ((i.sender_id=viewer.profile_id AND i.receiver_id=p.profile_id) OR (i.sender_id=p.profile_id AND i.receiver_id=viewer.profile_id))
+                    AND i.status='accepted'
+                )
+              )
               AND NOT EXISTS (
                 SELECT 1 FROM blocks b
                 WHERE (b.blocker_id=$2 AND b.blocked_id=p.user_id)
@@ -518,8 +601,10 @@ async def get_compatibility(user_id: str, target_profile_id: str) -> dict:
         vec_s = cosine_sim(build_vector(u), build_vector(t)) * 100
         pre_s = pref_score(t, u)
         hor_s = horoscope_score(u, t)
+        trust = build_trust_summary(t)
         total = int(vec_s * 0.35 + pre_s * 0.40 + hor_s * 0.25)
         return {
             "overallScore": min(99, total),
             "breakdown": {"preferences": int(pre_s), "personality": int(vec_s), "horoscope": int(hor_s)},
+            "explanations": build_match_reasons(u, t, pre_s, vec_s, hor_s, trust),
         }

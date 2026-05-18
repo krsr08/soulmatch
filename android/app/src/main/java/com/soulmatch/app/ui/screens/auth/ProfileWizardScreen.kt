@@ -417,7 +417,7 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
                 "Date of birth",
                 keyboardType = KeyboardType.Number,
                 isError = dobHasError,
-                supportingText = if (dobHasError) "Use DD-MM-YYYY. Example: 24-05-1998." else "Format: DD-MM-YYYY"
+                supportingText = if (dobHasError) "Use DD-MM-YYYY. Age must be between 18 and 80 years." else "Format: DD-MM-YYYY. Age must be 18 or above."
             )
             ChipRow("Gender", listOf("male", "female"), gender) { gender = it }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

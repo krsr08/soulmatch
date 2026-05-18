@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "enabled": { "type": "boolean" },
+    "assignments": { "type": "object" },
+    "rolloutPercentages": { "type": "object" }
+  },
+  "additionalProperties": true
+}

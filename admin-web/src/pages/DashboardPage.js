@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import {
   ADMIN_SOCKET_URL,
@@ -18,10 +18,12 @@ import {
   getAlerts,
   getAnalyticsEvents,
   getAnalyticsFunnel,
+  getAssistedAssignments,
   getAuditLogs,
   getConfig,
   getConsentEvents,
   getDashboard,
+  getModerationInbox,
   getPayments,
   getProfiles,
   getProfileDocuments,
@@ -39,11 +41,13 @@ import {
   updateAdminUser,
   updateAdvisor,
   updateAdvisorStatus,
+  updateAssistedAssignment,
   updateConfig,
   updateProfile,
   updateProfilePhoto,
   updateProfileStatus
 } from '../api/adminApi';
+import AssistPanel from './AssistPanel';
 import './DashboardPage.css';
 
 const EMPTY_STATS = {
@@ -96,6 +100,15 @@ const DEFAULT_CONFIG = {
   admin_roles: { roles: [] },
   notification_templates: {},
   legal: {},
+  branding: {},
+  feature_flags: {},
+  navigation: {},
+  maintenance: {},
+  client_integrations: {},
+  experiments: {},
+  payment_gateways: {},
+  seo_defaults: {},
+  analytics: {},
   content: {},
   theme: {}
 };
@@ -109,6 +122,8 @@ const MENU_GROUPS = [
       { id: 'agents', label: 'Agents', icon: 'agent' },
       { id: 'subscriptions', label: 'Subscriptions', icon: 'tag' },
       { id: 'content', label: 'Content', icon: 'content' },
+      { id: 'analytics', label: 'Analytics', icon: 'trend' },
+      { id: 'assist', label: 'Assist', icon: 'target' },
       { id: 'system', label: 'System', icon: 'gear' }
     ]
   },
@@ -187,6 +202,68 @@ const MENU_GROUPS = [
     ]
   }
 ];
+
+const ROUTE_TO_TAB = {
+  overview: 'dashboard',
+  dashboard: 'dashboard',
+  members: 'members',
+  agents: 'agents',
+  verification: 'member-verify',
+  payments: 'member-payments',
+  subscriptions: 'subscriptions',
+  moderation: 'content',
+  cms: 'cms-management',
+  analytics: 'analytics',
+  system: 'system',
+  assist: 'assist'
+};
+
+const TAB_TO_ROUTE = {
+  dashboard: 'overview',
+  overview: 'overview',
+  members: 'members',
+  'members-all': 'members',
+  'member-profile': 'members',
+  'member-signup': 'members',
+  'member-password': 'members',
+  'member-block': 'members',
+  'member-verify': 'verification',
+  'member-validity': 'members',
+  agents: 'agents',
+  'agents-all': 'agents',
+  'agent-verification': 'verification',
+  'agent-ratings': 'agents',
+  'agent-performance': 'agents',
+  'agent-profiles': 'agents',
+  subscriptions: 'subscriptions',
+  'member-plans': 'subscriptions',
+  'agent-plans': 'subscriptions',
+  'member-upgrades': 'payments',
+  'member-payments': 'payments',
+  'member-invoices': 'payments',
+  'agent-upgrades': 'payments',
+  'agent-payments': 'payments',
+  'agent-invoices': 'payments',
+  content: 'moderation',
+  'photo-moderation': 'moderation',
+  'chat-moderation': 'moderation',
+  'flagged-content': 'moderation',
+  'visitor-enquiry': 'moderation',
+  'lead-management': 'moderation',
+  notifications: 'system',
+  'dynamic-config': 'cms',
+  'cms-management': 'cms',
+  analytics: 'analytics',
+  system: 'system',
+  'role-master': 'system',
+  'user-master': 'system',
+  'data-export': 'system',
+  'audit-logs': 'system',
+  'service-health': 'system',
+  settings: 'system',
+  'change-password': 'system',
+  assist: 'assist'
+};
 
 const MEMBER_PLAN_FALLBACK = [
   { planId: 'bronze', id: 'bronze', name: 'Bronze', displayName: 'Bronze (Free)', price: 0, durationDays: 30, contactViews: 5, visibleMatches: 80, profileViews: 10, shortlistLimit: 5, interestLimit: 5, chat: false, engagePlus: false, matchAssistance: false, spotlightBoosts: 0, profileBoost: false },
@@ -1981,11 +2058,75 @@ function PaymentsTable({ payments }) {
   );
 }
 
-function ContentPanel({ reports, alerts, consentEvents, onResolve, onAck }) {
+function AnalyticsPanel({ stats, funnel, events, payments }) {
+  const paidTransactions = payments.transactions || [];
+  return (
+    <div className="admin-content analytics-page">
+      <SectionHeader title="Analytics" description="Real funnel, payment and product event telemetry from production tables." />
+      <div className="metric-grid">
+        <StatCard tone="terracotta" label="Signups" value={compactNumber(stats.analytics?.signups || stats.newUsersToday || 0)} sub="Auth milestone events" />
+        <StatCard tone="gold" label="Published Profiles" value={compactNumber(stats.totalProfiles || 0)} sub="Profiles eligible for discovery" />
+        <StatCard tone="sage" label="Payments" value={compactNumber(paidTransactions.length)} sub={`Revenue ${money(stats.revenue30d || stats.totalRevenue || 0)}`} />
+        <StatCard tone="mauve" label="Conversion" value={`${numberValue(stats.conversionRate || 0).toFixed(1)}%`} sub="Signup to paid journey" />
+      </div>
+      <div className="workspace-columns even">
+        <section className="admin-card">
+          <h3>Signup to Payment Funnel</h3>
+          <div className="review-list">
+            {(funnel || []).map((step, index) => (
+              <article key={step.event_type || step.label || index}>
+                <span><strong>{titleFromKey(step.event_type || step.label || `Step ${index + 1}`)}</strong><small>{compactNumber(step.count || step.total)} users</small></span>
+                <StatusPill status="neutral">{index + 1}</StatusPill>
+              </article>
+            ))}
+            {!funnel?.length ? <EmptyState title="No funnel events" body="Server-signed milestone events will populate the funnel here." /> : null}
+          </div>
+        </section>
+        <section className="admin-card">
+          <h3>Latest Product Events</h3>
+          <div className="review-list">
+            {(events || []).slice(0, 15).map((event, index) => (
+              <article key={event.event_id || `${event.event_type}-${index}`}>
+                <span><strong>{titleFromKey(event.event_type || 'event')}</strong><small>{dateTime(event.created_at)} | {event.source || 'server'}</small></span>
+                <StatusPill status={event.is_server_signed ? 'active' : 'pending'}>{event.is_server_signed ? 'signed' : 'client'}</StatusPill>
+              </article>
+            ))}
+            {!events?.length ? <EmptyState title="No analytics events" body="Events appear once Android/backend batching is active." /> : null}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function ContentPanel({ inbox = [], reports, alerts, consentEvents, onResolve, onAck }) {
+  const sortedInbox = [...(inbox || [])].sort((a, b) => {
+    const severity = numberValue(b.severity_score) - numberValue(a.severity_score);
+    if (severity !== 0) return severity;
+    return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+  });
   return (
     <div className="admin-content">
       <SectionHeader title="Content & Moderation" description="Review profile reports, flagged content, DPDP consent activity and platform alerts." />
       <div className="workspace-columns even">
+        <div className="admin-card full">
+          <div className="card-title-row">
+            <h3>Unified Moderation Inbox</h3>
+            <StatusPill status="warning">{sortedInbox.length} open</StatusPill>
+          </div>
+          <div className="review-list moderation-inbox">
+            {sortedInbox.slice(0, 40).map((item) => (
+              <article key={`${item.item_type}-${item.item_id}`}>
+                <span>
+                  <strong>{item.title}</strong>
+                  <small>{titleFromKey(item.item_type)} | {item.body || 'Review required'} | {dateTime(item.created_at)}</small>
+                </span>
+                <StatusPill status={numberValue(item.severity_score) >= 85 ? 'rejected' : 'pending'}>{item.severity_score}</StatusPill>
+              </article>
+            ))}
+            {!sortedInbox.length ? <EmptyState title="Moderation queue clear" body="Reports, photo reviews, chat flags and verifications will appear here by severity and age." /> : null}
+          </div>
+        </div>
         <div className="admin-card">
           <h3>Flagged Content</h3>
           <div className="review-list">
@@ -2552,7 +2693,24 @@ function DynamicConfigPanel({ config, onSave }) {
   const [selected, setSelected] = useState('monetization');
   const [json, setJson] = useState(JSON.stringify(config.monetization || {}, null, 2));
   const [error, setError] = useState('');
-  const keys = ['monetization', 'assisted_matchmaking', 'admin_roles', 'notification_templates', 'legal', 'content', 'theme'];
+  const keys = [
+    'branding',
+    'theme',
+    'feature_flags',
+    'navigation',
+    'maintenance',
+    'monetization',
+    'legal',
+    'content',
+    'experiments',
+    'assisted_matchmaking',
+    'admin_roles',
+    'notification_templates',
+    'client_integrations',
+    'payment_gateways',
+    'seo_defaults',
+    'analytics'
+  ];
 
   useEffect(() => {
     setJson(JSON.stringify(config[selected] || {}, null, 2));
@@ -3030,16 +3188,21 @@ function StatusTile({ label, value }) {
 }
 
 export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const navigate = useNavigate();
+  const { section } = useParams();
+  const routeTab = ROUTE_TO_TAB[section || 'overview'] || 'dashboard';
+  const [activeTab, setActiveTab] = useState(routeTab);
   const [search, setSearch] = useState('');
   const [stats, setStats] = useState(EMPTY_STATS);
   const [profiles, setProfiles] = useState([]);
   const [advisors, setAdvisors] = useState([]);
+  const [assistAssignments, setAssistAssignments] = useState([]);
   const [verifications, setVerifications] = useState([]);
   const [profileDocuments, setProfileDocuments] = useState([]);
   const [payments, setPayments] = useState({ transactions: [], plans: [], coupons: [], pendingOrders: [], invoices: [], revenueSummary: [] });
   const [alerts, setAlerts] = useState([]);
   const [reports, setReports] = useState([]);
+  const [moderationInbox, setModerationInbox] = useState([]);
   const [consentEvents, setConsentEvents] = useState([]);
   const [roles, setRoles] = useState([]);
   const [users, setUsers] = useState([]);
@@ -3055,6 +3218,16 @@ export default function DashboardPage() {
   const session = useMemo(decodeSession, []);
 
   useEffect(() => {
+    setActiveTab(routeTab);
+  }, [routeTab]);
+
+  const navigateTab = useCallback((tabId) => {
+    setActiveTab(tabId);
+    const route = TAB_TO_ROUTE[tabId] || 'overview';
+    navigate(`/dashboard/${route}`);
+  }, [navigate]);
+
+  useEffect(() => {
     if (!notice) return undefined;
     const timer = window.setTimeout(() => setNotice(''), 5000);
     return () => window.clearTimeout(timer);
@@ -3066,11 +3239,13 @@ export default function DashboardPage() {
       realtimeRes,
       profilesRes,
       advisorsRes,
+      assignmentsRes,
       verificationsRes,
       profileDocumentsRes,
       paymentsRes,
       alertsRes,
       reportsRes,
+      moderationRes,
       consentRes,
       rolesRes,
       adminUsersRes,
@@ -3086,11 +3261,13 @@ export default function DashboardPage() {
       getRealtimeSnapshot().catch(() => ({ data: { data: null } })),
       getProfiles({ page: 1, limit: 100, search: '' }).catch(() => ({ data: { data: [] } })),
       getAdvisors().catch(() => ({ data: { data: [] } })),
+      getAssistedAssignments().catch(() => ({ data: { data: [] } })),
       getVerifications().catch(() => ({ data: { data: [] } })),
       getProfileDocuments().catch(() => ({ data: { data: [] } })),
       getPayments().catch(() => ({ data: { data: { transactions: [], plans: [], coupons: [], pendingOrders: [], invoices: [], revenueSummary: [] } } })),
       getAlerts().catch(() => ({ data: { data: [] } })),
       getReports().catch(() => ({ data: { data: [] } })),
+      getModerationInbox().catch(() => ({ data: { data: [] } })),
       getConsentEvents().catch(() => ({ data: { data: [] } })),
       getRoles().catch(() => ({ data: { data: [] } })),
       getAdminUsers().catch(() => ({ data: { data: [] } })),
@@ -3106,11 +3283,13 @@ export default function DashboardPage() {
     setStats({ ...baseStats, ...(realtimeRes.data?.data || {}) });
     setProfiles(profilesRes.data?.data || []);
     setAdvisors(advisorsRes.data?.data || []);
+    setAssistAssignments(assignmentsRes.data?.data || []);
     setVerifications(verificationsRes.data?.data || []);
     setProfileDocuments(profileDocumentsRes.data?.data || []);
     setPayments(paymentsRes.data?.data || { transactions: [], plans: [], coupons: [], pendingOrders: [], invoices: [], revenueSummary: [] });
     setAlerts(alertsRes.data?.data || []);
     setReports(reportsRes.data?.data || []);
+    setModerationInbox(moderationRes.data?.data || []);
     setConsentEvents(consentRes.data?.data || []);
     setRoles(rolesRes.data?.data || []);
     setAdminUsers(adminUsersRes.data?.data || []);
@@ -3235,6 +3414,10 @@ export default function DashboardPage() {
     await withNotice(updateConfig('admin_roles', payload), 'Role permissions saved.');
   };
 
+  const handleUpdateAssignment = async (id, payload) => {
+    await withNotice(updateAssistedAssignment(id, payload), 'Assist assignment updated.');
+  };
+
   const handleSaveAdminUser = async (payload) => {
     if (payload.admin_user_id) {
       const { admin_user_id: id, ...rest } = payload;
@@ -3251,7 +3434,7 @@ export default function DashboardPage() {
 
   const renderContent = () => {
     if (['dashboard', 'overview'].includes(activeTab)) {
-      return <DashboardHome stats={stats} profiles={profiles} advisors={advisors} payments={payments} alerts={alerts} auditLogs={auditLogs} search={search} onTab={setActiveTab} onMember={(profile) => setDrawer({ type: 'member', entity: profile })} onAgent={(agent) => setDrawer({ type: 'agent', entity: agent })} onCreateMember={() => setDrawer({ type: 'member', entity: null })} />;
+      return <DashboardHome stats={stats} profiles={profiles} advisors={advisors} payments={payments} alerts={alerts} auditLogs={auditLogs} search={search} onTab={navigateTab} onMember={(profile) => setDrawer({ type: 'member', entity: profile })} onAgent={(agent) => setDrawer({ type: 'agent', entity: agent })} onCreateMember={() => setDrawer({ type: 'member', entity: null })} />;
     }
     if (activeTab === 'members') {
       return <MembersDirectoryPanel profiles={profiles} search={search} onOpen={(profile) => setDrawer({ type: 'member', entity: profile })} onCreate={() => setDrawer({ type: 'member', entity: null })} />;
@@ -3290,7 +3473,23 @@ export default function DashboardPage() {
       return <SubscriptionPanel config={config} payments={payments} type="agent" onSave={handleConfigSave} />;
     }
     if (['content', 'photo-moderation', 'chat-moderation', 'flagged-content', 'visitor-enquiry', 'lead-management', 'notifications'].includes(activeTab)) {
-      return <ContentPanel reports={reports} alerts={alerts} consentEvents={consentEvents} onResolve={(id) => withNotice(resolveReport(id), 'Report resolved.')} onAck={(id) => withNotice(acknowledgeAlert(id), 'Alert acknowledged.')} />;
+      return <ContentPanel inbox={moderationInbox} reports={reports} alerts={alerts} consentEvents={consentEvents} onResolve={(id) => withNotice(resolveReport(id), 'Report resolved.')} onAck={(id) => withNotice(acknowledgeAlert(id), 'Alert acknowledged.')} />;
+    }
+    if (activeTab === 'assist') {
+      return (
+        <AssistPanel
+          advisors={advisors}
+          assignments={assistAssignments}
+          assistConfig={config.assisted_matchmaking || {}}
+          onSaveConfig={(payload) => handleConfigSave('assisted_matchmaking', payload)}
+          onCreateAdvisor={(payload) => withNotice(createAdvisor(payload), 'Agent advisor created.')}
+          onUpdateAdvisor={(id, payload) => withNotice(updateAdvisor(id, payload), 'Agent advisor updated.')}
+          onUpdateAdvisorStatus={handleAdvisorStatus}
+          onUpdateAssignment={handleUpdateAssignment}
+          canManageAdvisors
+          canManageAssignments
+        />
+      );
     }
     if (activeTab === 'dynamic-config') {
       return <DynamicConfigPanel config={config} onSave={handleConfigSave} />;
@@ -3298,10 +3497,13 @@ export default function DashboardPage() {
     if (activeTab === 'cms-management') {
       return <CmsManagementPanel config={config} onSave={handleConfigSave} />;
     }
-    if (['system', 'role-master', 'user-master', 'notifications', 'data-export', 'audit-logs', 'service-health', 'settings', 'change-password'].includes(activeTab)) {
-      return <SystemPanel roles={roles} users={users} adminUsers={adminUsers} auditLogs={auditLogs} services={services} activeTab={activeTab} search={search} onSearch={setSearch} session={session} onSaveRoles={handleSaveRoles} onTab={setActiveTab} funnel={funnel} events={events} systemInventory={systemInventory} onSaveAdminUser={handleSaveAdminUser} onDeleteAdminUser={handleDeleteAdminUser} />;
+    if (activeTab === 'analytics') {
+      return <AnalyticsPanel stats={stats} funnel={funnel} events={events} payments={payments} />;
     }
-    return <DashboardHome stats={stats} profiles={profiles} advisors={advisors} payments={payments} alerts={alerts} auditLogs={auditLogs} search={search} onTab={setActiveTab} onMember={(profile) => setDrawer({ type: 'member', entity: profile })} onAgent={(agent) => setDrawer({ type: 'agent', entity: agent })} onCreateMember={() => setDrawer({ type: 'member', entity: null })} />;
+    if (['system', 'role-master', 'user-master', 'notifications', 'data-export', 'audit-logs', 'service-health', 'settings', 'change-password'].includes(activeTab)) {
+      return <SystemPanel roles={roles} users={users} adminUsers={adminUsers} auditLogs={auditLogs} services={services} activeTab={activeTab} search={search} onSearch={setSearch} session={session} onSaveRoles={handleSaveRoles} onTab={navigateTab} funnel={funnel} events={events} systemInventory={systemInventory} onSaveAdminUser={handleSaveAdminUser} onDeleteAdminUser={handleDeleteAdminUser} />;
+    }
+    return <DashboardHome stats={stats} profiles={profiles} advisors={advisors} payments={payments} alerts={alerts} auditLogs={auditLogs} search={search} onTab={navigateTab} onMember={(profile) => setDrawer({ type: 'member', entity: profile })} onAgent={(agent) => setDrawer({ type: 'agent', entity: agent })} onCreateMember={() => setDrawer({ type: 'member', entity: null })} />;
   };
 
   const linkedProfiles = drawer?.type === 'agent'
@@ -3309,7 +3511,7 @@ export default function DashboardPage() {
     : [];
 
   return (
-    <AdminShell activeTab={activeTab} onTab={setActiveTab} session={session} search={search} onSearch={setSearch} onHelp={() => setDrawer({ type: 'help' })}>
+    <AdminShell activeTab={activeTab} onTab={navigateTab} session={session} search={search} onSearch={setSearch} onHelp={() => setDrawer({ type: 'help' })}>
       {notice ? <div className="toast-notice" role="status" aria-live="polite"><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss notification"><Icon name="close" /></button></div> : null}
       {renderContent()}
       {drawer?.type === 'member' ? (

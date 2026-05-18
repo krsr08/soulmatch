@@ -14,13 +14,38 @@ class RuntimeConfigRepository @Inject constructor(
 ) {
     private val _config = MutableStateFlow(RuntimeConfigData())
     val config: StateFlow<RuntimeConfigData> = _config.asStateFlow()
+    private var etag: String? = null
+    private var failureCount = 0
 
-    suspend fun refresh() {
-        runCatching { controlPlaneApi.getRuntimeConfig() }
-            .getOrNull()
-            ?.body()
-            ?.takeIf { it.success }
-            ?.data
-            ?.let { _config.value = it }
+    suspend fun refresh(): Long {
+        val response = runCatching { controlPlaneApi.getRuntimeConfig(etag) }.getOrElse {
+            failureCount += 1
+            return nextDelayMs()
+        }
+        if (response.code() == 304) {
+            failureCount = 0
+            return DEFAULT_POLL_MS
+        }
+        if (response.isSuccessful) {
+            response.headers()["ETag"]?.let { etag = it }
+            response.body()
+                ?.takeIf { it.success }
+                ?.data
+                ?.let { _config.value = it }
+            failureCount = 0
+            return DEFAULT_POLL_MS
+        }
+        failureCount += 1
+        return nextDelayMs()
+    }
+
+    private fun nextDelayMs(): Long {
+        val factor = 1L shl failureCount.coerceIn(0, 4)
+        return (DEFAULT_POLL_MS * factor).coerceAtMost(MAX_POLL_MS)
+    }
+
+    companion object {
+        private const val DEFAULT_POLL_MS = 45_000L
+        private const val MAX_POLL_MS = 5 * 60_000L
     }
 }

@@ -1,11 +1,16 @@
 const express = require('express');
 const controller = require('../controllers/adminController');
-const { authenticateAdmin, authorizeAdminRoles } = require('../middleware/adminAuthMiddleware');
+const { authenticateAdmin, authorizeAdminRoles, requireAdminCsrf } = require('../middleware/adminAuthMiddleware');
 const { authenticateService } = require('../middleware/serviceAuthMiddleware');
 
 const router = express.Router();
 
 router.post('/login', controller.adminLogin);
+router.post('/system/alerts', authenticateService, controller.createSystemAlert);
+
+router.use(authenticateAdmin, requireAdminCsrf);
+
+router.post('/logout', authenticateAdmin, controller.adminLogout);
 
 router.get('/dashboard', authenticateAdmin, controller.getDashboard);
 router.get('/realtime/snapshot', authenticateAdmin, controller.getRealtimeSnapshot);
@@ -20,6 +25,8 @@ router.put('/profiles/:id', authenticateAdmin, authorizeAdminRoles('super_admin'
 router.post('/profiles/:id/photos', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.addProfilePhoto);
 router.put('/profiles/:id/photos/:photoId', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.updateProfilePhoto);
 router.delete('/profiles/:id/photos/:photoId', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.deleteProfilePhoto);
+router.put('/profiles/:id/photos/:photoId/approve', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.approveProfilePhoto);
+router.put('/profiles/:id/photos/:photoId/reject', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.rejectProfilePhoto);
 router.delete('/profiles/:id', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin'), controller.deleteProfile);
 router.put('/profiles/:id/status', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.updateProfileStatus);
 
@@ -42,6 +49,8 @@ router.put('/profile-documents/:id/reject', authenticateAdmin, authorizeAdminRol
 router.get('/reports', authenticateAdmin, controller.getReports);
 router.put('/reports/:id/resolve', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator'), controller.resolveReport);
 router.get('/moderation/reports', authenticateAdmin, controller.getReports);
+router.get('/moderation/inbox', authenticateAdmin, controller.getModerationInbox);
+router.get('/moderation/photos', authenticateAdmin, controller.getPendingPhotoModeration);
 router.get('/moderation/chat-logs', authenticateAdmin, controller.getChatLogs);
 
 router.get('/payments', authenticateAdmin, controller.getPayments);
@@ -49,7 +58,6 @@ router.post('/payments/refunds', authenticateAdmin, authorizeAdminRoles('super_a
 
 router.get('/alerts', authenticateAdmin, controller.getAlerts);
 router.put('/alerts/:id/ack', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator', 'support_agent'), controller.ackAlert);
-router.post('/system/alerts', authenticateService, controller.createSystemAlert);
 router.get('/consent-events', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator', 'support_agent'), controller.getConsentEvents);
 router.post('/campaigns', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'marketing_manager'), controller.createCampaign);
 router.get('/audit-logs', authenticateAdmin, controller.getAuditLogs);

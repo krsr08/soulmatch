@@ -10,7 +10,8 @@ const DEFAULT_MEMBER_PLAN_ENTITLEMENTS = {
     interests: 5,
     matchAssistance: false,
     chat: false,
-    spotlightBoosts: 0
+    spotlightBoosts: 0,
+    verifiedOnly: true
   },
   silver: {
     planId: 'silver',
@@ -23,7 +24,8 @@ const DEFAULT_MEMBER_PLAN_ENTITLEMENTS = {
     interests: 20,
     matchAssistance: false,
     chat: true,
-    spotlightBoosts: 0
+    spotlightBoosts: 0,
+    verifiedOnly: true
   },
   gold: {
     planId: 'gold',
@@ -36,7 +38,8 @@ const DEFAULT_MEMBER_PLAN_ENTITLEMENTS = {
     interests: 40,
     matchAssistance: true,
     chat: true,
-    spotlightBoosts: 2
+    spotlightBoosts: 2,
+    verifiedOnly: true
   },
   platinum: {
     planId: 'platinum',
@@ -49,7 +52,8 @@ const DEFAULT_MEMBER_PLAN_ENTITLEMENTS = {
     interests: 80,
     matchAssistance: true,
     chat: true,
-    spotlightBoosts: 4
+    spotlightBoosts: 4,
+    verifiedOnly: true
   }
 };
 
@@ -68,6 +72,16 @@ function normalizePlanId(planId) {
   return Object.prototype.hasOwnProperty.call(DEFAULT_MEMBER_PLAN_ENTITLEMENTS, value) ? value : 'bronze';
 }
 
+function booleanValue(value, fallback = false) {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  const normalized = String(value).trim().toLowerCase();
+  if (['false', '0', 'no', 'off', 'disabled'].includes(normalized)) return false;
+  if (['true', '1', 'yes', 'on', 'enabled'].includes(normalized)) return true;
+  return fallback;
+}
+
 function normalizeEntitlements(raw = {}) {
   const planId = normalizePlanId(raw.planId || raw.plan_id || raw.id);
   const base = DEFAULT_MEMBER_PLAN_ENTITLEMENTS[planId] || DEFAULT_MEMBER_PLAN_ENTITLEMENTS.bronze;
@@ -79,12 +93,13 @@ function normalizeEntitlements(raw = {}) {
     visibleMatches: Number(raw.visibleMatches ?? raw.visible_matches ?? base.visibleMatches),
     profileViews: Number(raw.profileViews ?? raw.profile_views ?? base.profileViews),
     contactDetails: Number(raw.contactDetails ?? raw.contact_details ?? base.contactDetails),
-    engagePlus: Boolean(raw.engagePlus ?? raw.engage_plus ?? base.engagePlus),
+    engagePlus: booleanValue(raw.engagePlus ?? raw.engage_plus, base.engagePlus),
     shortlist: Number(raw.shortlist ?? raw.shortlists ?? base.shortlist),
     interests: Number(raw.interests ?? base.interests),
-    matchAssistance: Boolean(raw.matchAssistance ?? raw.match_assistance ?? base.matchAssistance),
-    chat: Boolean(raw.chat ?? base.chat),
-    spotlightBoosts: Number(raw.spotlightBoosts ?? raw.spotlight_boosts ?? base.spotlightBoosts)
+    matchAssistance: booleanValue(raw.matchAssistance ?? raw.match_assistance, base.matchAssistance),
+    chat: booleanValue(raw.chat, base.chat),
+    spotlightBoosts: Number(raw.spotlightBoosts ?? raw.spotlight_boosts ?? base.spotlightBoosts),
+    verifiedOnly: booleanValue(raw.verifiedOnly ?? raw.verified_only, base.verifiedOnly)
   };
 }
 
@@ -229,5 +244,6 @@ module.exports = {
   getEntitlements,
   getUsageContext,
   normalizePlanId,
+  normalizeEntitlements,
   periodKey
 };

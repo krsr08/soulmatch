@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "appTitle": { "type": "string" },
+    "tagline": { "type": "string" },
+    "logoUrl": { "type": "string" },
+    "squareLogoUrl": { "type": "string" },
+    "previewImageUrl": { "type": "string" },
+    "shareBaseUrl": { "type": "string" }
+  },
+  "additionalProperties": true
+}

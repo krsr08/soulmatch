@@ -1,18 +1,41 @@
 package com.soulmatch.app.data.local
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "soulmatch_prefs")
 @Singleton
 class UserPreferences @Inject constructor(@ApplicationContext private val context: Context) {
     private val store = context.dataStore
+    private val securePrefs: SharedPreferences by lazy {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        EncryptedSharedPreferences.create(
+            context,
+            "soulmatch_secure_prefs",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+    private val authTokenState = MutableStateFlow(securePrefs.getString(SECURE_AUTH_TOKEN, null))
+    private val refreshTokenState = MutableStateFlow(securePrefs.getString(SECURE_REFRESH_TOKEN, null))
+
     companion object {
+        private const val SECURE_AUTH_TOKEN = "auth_token"
+        private const val SECURE_REFRESH_TOKEN = "refresh_token"
+        private const val SECURE_INSTALLATION_ID = "installation_id"
         val AUTH_TOKEN = stringPreferencesKey("auth_token")
         val REFRESH_TOKEN = stringPreferencesKey("refresh_token")
         val USER_ID = stringPreferencesKey("user_id")
@@ -31,8 +54,8 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
         val PENDING_OTP_PHONE = stringPreferencesKey("pending_otp_phone")
         val PENDING_OTP_VERIFICATION_ID = stringPreferencesKey("pending_otp_verification_id")
     }
-    val authToken: Flow<String?> = store.data.map { it[AUTH_TOKEN] }
-    val refreshToken: Flow<String?> = store.data.map { it[REFRESH_TOKEN] }
+    val authToken: Flow<String?> = authTokenState
+    val refreshToken: Flow<String?> = refreshTokenState
     val userId: Flow<String?> = store.data.map { it[USER_ID] }
     val userType: Flow<String?> = store.data.map { it[USER_TYPE] }
     val advisorId: Flow<String?> = store.data.map { it[ADVISOR_ID] }
@@ -48,8 +71,23 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
     val profileVisibility: Flow<String> = store.data.map { it[PROFILE_VISIBILITY] ?: "all" }
     val pendingOtpPhone: Flow<String?> = store.data.map { it[PENDING_OTP_PHONE] }
     val pendingOtpVerificationId: Flow<String?> = store.data.map { it[PENDING_OTP_VERIFICATION_ID] }
-    suspend fun saveAuthToken(t: String) { store.edit { it[AUTH_TOKEN] = t } }
-    suspend fun saveRefreshToken(t: String) { store.edit { it[REFRESH_TOKEN] = t } }
+    fun currentAuthToken(): String? = authTokenState.value
+    fun currentRefreshToken(): String? = refreshTokenState.value
+    fun installationId(): String {
+        val existing = securePrefs.getString(SECURE_INSTALLATION_ID, null)
+        if (!existing.isNullOrBlank()) return existing
+        val created = UUID.randomUUID().toString()
+        securePrefs.edit().putString(SECURE_INSTALLATION_ID, created).apply()
+        return created
+    }
+    suspend fun saveAuthToken(t: String) {
+        securePrefs.edit().putString(SECURE_AUTH_TOKEN, t).apply()
+        authTokenState.value = t
+    }
+    suspend fun saveRefreshToken(t: String) {
+        securePrefs.edit().putString(SECURE_REFRESH_TOKEN, t).apply()
+        refreshTokenState.value = t
+    }
     suspend fun saveUserId(id: String) { store.edit { it[USER_ID] = id } }
     suspend fun saveUserType(type: String) { store.edit { it[USER_TYPE] = type } }
     suspend fun clearUserType() { store.edit { it.remove(USER_TYPE) } }
@@ -87,5 +125,10 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
             it.remove(WIZARD_STEP)
         }
     }
-    suspend fun clearAll() { store.edit { it.clear() } }
+    suspend fun clearAll() {
+        securePrefs.edit().clear().apply()
+        authTokenState.value = null
+        refreshTokenState.value = null
+        store.edit { it.clear() }
+    }
 }

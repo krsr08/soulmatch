@@ -84,7 +84,8 @@ async function main() {
         gender: 'male',
         religion: 'Hindu',
         caste: 'Any',
-        motherTongue: 'Hindi'
+        motherTongue: 'Hindi',
+        maritalStatus: 'never_married'
       })
     }),
     await request('search-basic', `${base.search}/api/v1/search/basic`, {
@@ -110,9 +111,9 @@ async function main() {
 
   expectStatus(protectedResults[0], 200);
   expectStatus(protectedResults[1], 200);
-  expectStatus(protectedResults[2], 200);
+  expectStatus(protectedResults[2], 403);
   expectStatus(protectedResults[3], 400);
-  expectStatus(protectedResults[4], 400);
+  expectStatus(protectedResults[4], 401);
 
   console.log(JSON.stringify({ success: true, results }, null, 2));
 }
