@@ -11,6 +11,26 @@ const storage = multer.diskStorage({
 });
 const photoUpload = multer({ storage, limits: { fileSize: 5*1024*1024 }, fileFilter: (req, file, cb) => { const ok = ['image/jpeg','image/png','image/webp'].includes(file.mimetype); cb(ok?null:new Error('JPG/PNG/WebP only'), ok); } });
 const documentUpload = multer({ storage, limits: { fileSize: 10*1024*1024 }, fileFilter: (req, file, cb) => { const ok = ['image/jpeg','image/png','image/webp','application/pdf'].includes(file.mimetype); cb(ok?null:new Error('JPG/PNG/WebP/PDF only'), ok); } });
+const profileViewBuckets = new Map();
+function profileViewRateLimit(req, res, next) {
+  const userId = req.user?.userId || req.user?.sub || req.ip || 'anonymous';
+  const windowMs = Number(process.env.PROFILE_VIEW_RATE_WINDOW_MS || 60 * 1000);
+  const maxViews = Number(process.env.PROFILE_VIEW_RATE_LIMIT || 60);
+  const now = Date.now();
+  const bucket = (profileViewBuckets.get(userId) || []).filter((stamp) => now - stamp < windowMs);
+  if (bucket.length >= maxViews) {
+    return res.status(429).json({
+      success: false,
+      error: {
+        code: 'PROFILE_VIEW_RATE_LIMITED',
+        message: 'Too many profile views. Please slow down and try again shortly.'
+      }
+    });
+  }
+  bucket.push(now);
+  profileViewBuckets.set(userId, bucket);
+  next();
+}
 router.post('/create', authenticate, ctrl.createOrUpdateStep);
 router.get('/me', authenticate, ctrl.getMyProfile);
 router.get('/export', authenticate, ctrl.exportMyData);
@@ -40,7 +60,7 @@ router.get('/family-decisions', authenticate, ctrl.getFamilyDecisions);
 router.post('/family-decisions/:familyDecisionId/comments', authenticate, ctrl.addFamilyDecisionComment);
 router.put('/family-decisions/:targetProfileId', authenticate, ctrl.upsertFamilyDecision);
 router.post('/:profileId/match-feedback', authenticate, ctrl.recordMatchFeedback);
-router.get('/:profileId', authenticate, ctrl.getProfile);
+router.get('/:profileId', authenticate, profileViewRateLimit, ctrl.getProfile);
 router.post('/:profileId/contact/unmask', authenticate, ctrl.unlockContact);
 router.post('/:profileId/ai/bio-suggestions', authenticate, ctrl.suggestProfileBio);
 router.post('/:profileId/ai/icebreakers', authenticate, ctrl.generateIcebreakers);
@@ -58,7 +78,7 @@ router.get('/:profileId/preferences', authenticate, ctrl.getPreferences);
 router.put('/:profileId/preferences', authenticate, ctrl.updatePreferences);
 router.get('/:profileId/completion', authenticate, ctrl.getCompletion);
 router.put('/:profileId/privacy', authenticate, ctrl.updatePrivacy);
-router.post('/:profileId/view', authenticate, ctrl.recordView);
+router.post('/:profileId/view', authenticate, profileViewRateLimit, ctrl.recordView);
 router.get('/:profileId/viewers', authenticate, ctrl.getViewers);
 router.post('/:profileId/block', authenticate, ctrl.blockProfile);
 router.post('/:profileId/report', authenticate, ctrl.reportProfile);

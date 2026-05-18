@@ -10,6 +10,7 @@ const REFRESH_TTL = 7 * 24 * 60 * 60;
 const ACCESS_ISSUER = process.env.JWT_ISSUER || 'soulmatch-auth';
 const ACCESS_AUDIENCE = process.env.JWT_AUDIENCE || 'soulmatch-api';
 const REFRESH_AUDIENCE = process.env.JWT_REFRESH_AUDIENCE || 'soulmatch-refresh';
+const CLOCK_TOLERANCE_SECONDS = Number(process.env.JWT_CLOCK_TOLERANCE_SECONDS || 30);
 
 function normalizePayload(payload = {}) {
   const userId = payload.userId || payload.sub;
@@ -35,14 +36,14 @@ exports.generatePair = (payload) => ({
 });
 exports.verifyAccess = (token) => {
   try {
-    return jwt.verify(token, process.env.JWT_SECRET, { issuer: ACCESS_ISSUER, audience: ACCESS_AUDIENCE });
+    return jwt.verify(token, process.env.JWT_SECRET, { issuer: ACCESS_ISSUER, audience: ACCESS_AUDIENCE, clockTolerance: CLOCK_TOLERANCE_SECONDS });
   } catch {
     throw new AppError(401, ErrorCodes.UNAUTHORIZED, 'Invalid or expired token');
   }
 };
 exports.verifyRefresh = (token) => {
   try {
-    return jwt.verify(token, process.env.REFRESH_TOKEN_SECRET, { issuer: ACCESS_ISSUER, audience: REFRESH_AUDIENCE });
+    return jwt.verify(token, process.env.REFRESH_TOKEN_SECRET, { issuer: ACCESS_ISSUER, audience: REFRESH_AUDIENCE, clockTolerance: CLOCK_TOLERANCE_SECONDS });
   } catch {
     throw new AppError(401, ErrorCodes.UNAUTHORIZED, 'Invalid refresh token');
   }

@@ -7,8 +7,10 @@ const profileRoutes = require('./routes/profileRoutes');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
 const { buildCorsOptions } = require('./utils/corsOptions');
+const { installExpressObservability } = require('../../shared/observability');
 const app = express();
 app.use(helmet()); app.use(cors(buildCorsOptions())); app.use(express.json({ limit: '10mb' }));
+installExpressObservability(app, { serviceName: 'profile-service' });
 if (process.env.USE_LOCAL_STORAGE === 'true')
   app.use('/uploads', require('express').static(path.join(__dirname, '..', 'uploads')));
 app.use('/api/v1/profile', profileRoutes);

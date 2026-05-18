@@ -10,6 +10,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "soulmatch_prefs")
@@ -34,6 +35,7 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
     companion object {
         private const val SECURE_AUTH_TOKEN = "auth_token"
         private const val SECURE_REFRESH_TOKEN = "refresh_token"
+        private const val SECURE_INSTALLATION_ID = "installation_id"
         val AUTH_TOKEN = stringPreferencesKey("auth_token")
         val REFRESH_TOKEN = stringPreferencesKey("refresh_token")
         val USER_ID = stringPreferencesKey("user_id")
@@ -71,6 +73,13 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
     val pendingOtpVerificationId: Flow<String?> = store.data.map { it[PENDING_OTP_VERIFICATION_ID] }
     fun currentAuthToken(): String? = authTokenState.value
     fun currentRefreshToken(): String? = refreshTokenState.value
+    fun installationId(): String {
+        val existing = securePrefs.getString(SECURE_INSTALLATION_ID, null)
+        if (!existing.isNullOrBlank()) return existing
+        val created = UUID.randomUUID().toString()
+        securePrefs.edit().putString(SECURE_INSTALLATION_ID, created).apply()
+        return created
+    }
     suspend fun saveAuthToken(t: String) {
         securePrefs.edit().putString(SECURE_AUTH_TOKEN, t).apply()
         authTokenState.value = t

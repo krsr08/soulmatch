@@ -1,11 +1,15 @@
 const express = require('express');
 const controller = require('../controllers/adminController');
-const { authenticateAdmin, authorizeAdminRoles } = require('../middleware/adminAuthMiddleware');
+const { authenticateAdmin, authorizeAdminRoles, requireAdminCsrf } = require('../middleware/adminAuthMiddleware');
 const { authenticateService } = require('../middleware/serviceAuthMiddleware');
 
 const router = express.Router();
 
 router.post('/login', controller.adminLogin);
+router.post('/system/alerts', authenticateService, controller.createSystemAlert);
+
+router.use(authenticateAdmin, requireAdminCsrf);
+
 router.post('/logout', authenticateAdmin, controller.adminLogout);
 
 router.get('/dashboard', authenticateAdmin, controller.getDashboard);
@@ -54,7 +58,6 @@ router.post('/payments/refunds', authenticateAdmin, authorizeAdminRoles('super_a
 
 router.get('/alerts', authenticateAdmin, controller.getAlerts);
 router.put('/alerts/:id/ack', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator', 'support_agent'), controller.ackAlert);
-router.post('/system/alerts', authenticateService, controller.createSystemAlert);
 router.get('/consent-events', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'moderator', 'support_agent'), controller.getConsentEvents);
 router.post('/campaigns', authenticateAdmin, authorizeAdminRoles('super_admin', 'admin', 'marketing_manager'), controller.createCampaign);
 router.get('/audit-logs', authenticateAdmin, controller.getAuditLogs);

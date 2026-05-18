@@ -12,7 +12,8 @@ const NOTIFICATION_API_URL = process.env.NOTIFICATION_API_URL;
 const INTERNAL_SERVICE_SECRET = process.env.INTERNAL_SERVICE_SECRET;
 const verifyOptions = () => ({
   issuer: process.env.JWT_ISSUER || 'soulmatch-auth',
-  audience: process.env.JWT_AUDIENCE || 'soulmatch-api'
+  audience: process.env.JWT_AUDIENCE || 'soulmatch-api',
+  clockTolerance: Number(process.env.JWT_CLOCK_TOLERANCE_SECONDS || 30)
 });
 
 const buildMessagePreview = (type, content) => {

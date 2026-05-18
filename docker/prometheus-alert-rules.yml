@@ -1,0 +1,42 @@
+groups:
+  - name: soulmatch-production
+    rules:
+      - alert: SoulMatchHigh5xxRate
+        expr: |
+          sum(rate(soulmatch_http_requests_total{status_class="5xx"}[5m]))
+            /
+          clamp_min(sum(rate(soulmatch_http_requests_total[5m])), 1)
+            > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SoulMatch service 5xx rate above 1%"
+          description: "More than 1% of backend requests are failing with 5xx responses."
+
+      - alert: SoulMatchWebhookFailures
+        expr: sum(rate(soulmatch_http_requests_total{route=~".*webhook.*",status_class=~"4xx|5xx"}[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Payment webhook failures detected"
+          description: "Razorpay webhook requests are returning non-success status codes."
+
+      - alert: SoulMatchNotificationDLQGrowing
+        expr: soulmatch_notification_dlq_depth > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Notification DLQ contains failed events"
+          description: "Notification worker retries have exhausted for one or more events."
+
+      - alert: SoulMatchServiceDown
+        expr: up{job="soulmatch-services"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SoulMatch backend service is down"
+          description: "{{ $labels.instance }} has not been scrapeable for at least 2 minutes."

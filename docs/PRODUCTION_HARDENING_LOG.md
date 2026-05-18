@@ -50,3 +50,24 @@
 - Docker smoke services started locally on 2026-05-18 after replaying all idempotent migrations against the existing local Postgres Docker volume.
 - `node test_folder\auth-flow-smoke.js` passed: OTP send/verify, profile step 1, profile fetch, refresh-token, and logout.
 - `node test_folder\api-smoke.js` passed: admin health, public config, payment plans, OTP validation, profile creation, search, Bronze chat entitlement denial, payment validation, and internal notification auth denial.
+
+## Phase 3 Status
+| ID | Item | Status | Commit | Notes |
+|----|------|--------|--------|-------|
+| P3-01 | CI pipeline | Done | Pending commit | Added `.github/workflows/ci.yml` for PR checks: Docker dev stack, migrations, auth/API smoke tests, backend tests, npm/pip critical audits, gitleaks, admin-web build, and Android `testDebugUnitTest`. Added Dependabot config for npm, pip, and Gradle ecosystems. |
+| P3-02 | Observability | Done | Pending commit | Added shared Express observability middleware, FastAPI matching metrics/logging, Prometheus scrapes for all services, alert rules, Grafana dashboard JSON, and `docs/OBSERVABILITY.md`. Logs now include request id, route, status, and duration. |
+| P3-03 | Backups & DR | Done | Pending commit | Added Postgres and Mongo backup/restore scripts in `recovery-kit/scripts/` with checksum output and retention controls. Added `docs/RUNBOOK.md` with RTO/RPO, incident handling, restore drills, rollback, and on-call checklist. |
+| P3-04 | Load & security tests | Done | Pending commit | Added k6 scripts for search 100 RPS, match endpoint load, and chat connection checks. Added `docs/SECURITY_TESTS.md` covering IDOR suites for profile, chat, payment, and admin routes. |
+| P3-05 | Production blockers checklist | Done | Pending commit | Added `docs/PRODUCTION_BLOCKERS_CHECKLIST.md` and closed gaps: subscription expiry cron, profile-view rate limiting, duplicate account signals, admin CSRF for cookie sessions, Android WebSocket token-refresh reconnect, JWT clock-skew leeway, free-text sanitization, prod compose without demo auto-seed, PgBouncer/GST docs, Play Store data-safety notes, and README setup accuracy. |
+| P3-06 | Release documentation | Done | Pending commit | Added `docs/RELEASE_CHECKLIST.md` and `docs/PLAY_STORE_DATA_SAFETY.md`, and expanded `docs/DEPLOYMENT.md` with production release, invoice, PgBouncer, seeding, and audit guidance. |
+
+## Phase 3 Verification
+- Syntax checks passed for changed Node services, shared observability, payment expiry worker, admin middleware/routes/controllers, and matching Python modules.
+- Backend unit/integration tests passed for auth, profile, search, chat, notification, payment, and admin services.
+- Matching service tests passed with `python -m unittest discover -s backend\matching-service\test`.
+- Android unit tests passed with `.\gradlew.bat testDebugUnitTest` from `android`.
+- Docker dev services rebuilt and started with `docker compose -f docker\docker-compose.dev.yml up -d --build ...`.
+- All database migrations, including `037_production_ops_release_gates.sql`, replayed successfully against the local Docker Postgres volume.
+- `node test_folder\auth-flow-smoke.js` passed against the Docker stack.
+- `node test_folder\api-smoke.js` passed against the Docker stack.
+- k6 load scripts were added but not executed locally; run them against staging after production-like data and rate limits are configured.

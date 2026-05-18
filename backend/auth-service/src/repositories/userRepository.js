@@ -1,5 +1,5 @@
 const { getDB } = require('../config/database');
-const { randomUUID } = require('crypto');
+const { createHmac, randomUUID } = require('crypto');
 
 const LEGAL_NOTICE_VERSION = process.env.LEGAL_NOTICE_VERSION || process.env.PRIVACY_POLICY_VERSION || 'dpdp-2026-05-10-v1';
 
@@ -40,6 +40,14 @@ function buildPhoneCandidates(phone) {
   return candidates;
 }
 
+function accountHash(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return null;
+  const secret = process.env.ACCOUNT_HASH_SECRET || 'development-account-hash-secret';
+  return createHmac('sha256', secret).update(raw).digest('hex');
+}
+
+exports.accountHash = accountHash;
 exports.normalizePhone = normalizePhone;
 function normalizeUserType(userType) {
   const normalized = String(userType || 'member').trim().toLowerCase();
@@ -95,10 +103,13 @@ exports.create = async (data) => {
   const db = await getDB();
   const normalizedPhone = normalizePhone(data.phone);
   const userType = normalizeUserType(data.user_type);
+  const phoneHash = accountHash(normalizedPhone);
+  const deviceHash = accountHash(data.device_id);
   const r = await db.query(
     `INSERT INTO users (
-       user_id, phone, email, google_id, is_verified, referred_by_code, acquisition_source, referred_at, user_type, role_selected_at
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+       user_id, phone, email, google_id, is_verified, referred_by_code, acquisition_source, referred_at,
+       user_type, role_selected_at, phone_hash, device_id_hash, duplicate_signal
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb) RETURNING *`,
     [
       randomUUID(),
       normalizedPhone || null,
@@ -109,12 +120,42 @@ exports.create = async (data) => {
       data.acquisition_source || null,
       data.referred_at || null,
       userType,
-      data.role_selected_at || null
+      data.role_selected_at || null,
+      phoneHash,
+      deviceHash,
+      JSON.stringify({
+        phoneHashPresent: Boolean(phoneHash),
+        deviceHashPresent: Boolean(deviceHash),
+        detectedAt: new Date().toISOString()
+      })
     ]
   );
   return r.rows[0];
 };
 exports.updateLastLogin = async (userId) => { const db = await getDB(); await db.query('UPDATE users SET last_login=NOW() WHERE user_id=$1', [userId]); };
+exports.recordAccountSignal = async (userId, { phone, deviceId } = {}) => {
+  const db = await getDB();
+  const phoneHash = accountHash(normalizePhone(phone));
+  const deviceHash = accountHash(deviceId);
+  await db.query(
+    `UPDATE users
+     SET phone_hash = COALESCE(phone_hash, $2),
+         device_id_hash = COALESCE($3, device_id_hash),
+         duplicate_signal = COALESCE(duplicate_signal, '{}'::jsonb) || $4::jsonb,
+         updated_at = NOW()
+     WHERE user_id=$1`,
+    [
+      userId,
+      phoneHash,
+      deviceHash,
+      JSON.stringify({
+        phoneHashPresent: Boolean(phoneHash),
+        deviceHashPresent: Boolean(deviceHash),
+        lastSignalAt: new Date().toISOString()
+      })
+    ]
+  );
+};
 exports.findReferralCode = async (code) => {
   const db = await getDB();
   const r = await db.query(

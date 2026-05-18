@@ -11,7 +11,8 @@ function getAdminSecret() {
 function adminVerifyOptions() {
   return {
     issuer: process.env.ADMIN_JWT_ISSUER || 'soulmatch-admin',
-    audience: process.env.ADMIN_JWT_AUDIENCE || 'soulmatch-admin-api'
+    audience: process.env.ADMIN_JWT_AUDIENCE || 'soulmatch-admin-api',
+    clockTolerance: Number(process.env.JWT_CLOCK_TOLERANCE_SECONDS || 30)
   };
 }
 

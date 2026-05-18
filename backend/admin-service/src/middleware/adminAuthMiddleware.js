@@ -3,7 +3,8 @@ const jwt = require('jsonwebtoken');
 function adminVerifyOptions() {
   return {
     issuer: process.env.ADMIN_JWT_ISSUER || 'soulmatch-admin',
-    audience: process.env.ADMIN_JWT_AUDIENCE || 'soulmatch-admin-api'
+    audience: process.env.ADMIN_JWT_AUDIENCE || 'soulmatch-admin-api',
+    clockTolerance: Number(process.env.JWT_CLOCK_TOLERANCE_SECONDS || 30)
   };
 }
 
@@ -18,9 +19,31 @@ function readCookie(header, name) {
 
 function getToken(req) {
   const h = req.headers['authorization'];
-  if (h && h.startsWith('Bearer ')) return h.split(' ')[1];
+  if (h && h.startsWith('Bearer ')) {
+    req.adminAuthSource = 'bearer';
+    return h.split(' ')[1];
+  }
+  req.adminAuthSource = 'cookie';
   return readCookie(req.headers.cookie, 'soulmatch_admin_session');
 }
+
+function isUnsafeMethod(method) {
+  return !['GET', 'HEAD', 'OPTIONS'].includes(String(method || '').toUpperCase());
+}
+
+exports.requireAdminCsrf = (req, res, next) => {
+  if (!isUnsafeMethod(req.method) || req.adminAuthSource !== 'cookie') return next();
+  const csrfCookie = readCookie(req.headers.cookie, 'soulmatch_admin_csrf');
+  const csrfHeader = req.headers['x-csrf-token'];
+  if (csrfCookie && csrfHeader && csrfCookie === csrfHeader) return next();
+  return res.status(403).json({
+    success: false,
+    error: {
+      code: 'CSRF_TOKEN_REQUIRED',
+      message: 'A valid CSRF token is required for this admin action.'
+    }
+  });
+};
 
 exports.authenticateAdmin = (req, res, next) => {
   const token = getToken(req);

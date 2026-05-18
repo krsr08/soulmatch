@@ -1,0 +1,166 @@
+name: SoulMatch CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  production-gates:
+    name: Production release gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      JWT_SECRET: ci-jwt-secret-change-me
+      REFRESH_TOKEN_SECRET: ci-refresh-secret-change-me
+      INTERNAL_SERVICE_SECRET: ci-internal-secret-change-me
+      ADMIN_PASSWORD_HASH: $2a$10$0t9p3P4Tt2v5A1Zs0G1Wg.7hQ2LM3GEx7kQ1rVfM6Sb2Jf0Yv8UV2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Create CI service env files
+        shell: bash
+        run: |
+          set -euo pipefail
+          for service in auth-service profile-service matching-service search-service chat-service notification-service payment-service admin-service; do
+            mkdir -p "backend/${service}"
+          done
+          common_env='NODE_ENV=development
+          PORT=
+          DB_HOST=postgres
+          DB_PORT=5432
+          DB_NAME=soulmatch_db
+          DB_USER=soulmatch_user
+          DB_PASSWORD=soulmatch_pass
+          JWT_SECRET=ci-jwt-secret-change-me
+          REFRESH_TOKEN_SECRET=ci-refresh-secret-change-me
+          INTERNAL_SERVICE_SECRET=ci-internal-secret-change-me
+          CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+          MOCK_OTP=true
+          MOCK_OTP_CODE=123456
+          GOOGLE_CLIENT_ID=ci-google-client
+          RAZORPAY_KEY_ID=rzp_test_ci_key
+          RAZORPAY_KEY_SECRET=ci_razorpay_secret
+          RAZORPAY_WEBHOOK_SECRET=ci_razorpay_webhook
+          ADMIN_PASSWORD_HASH='"${ADMIN_PASSWORD_HASH}"'
+          ADMIN_EMAIL=admin@soulmatch.local
+          ACCOUNT_HASH_SECRET=ci-account-hash-secret'
+          for service in auth-service profile-service search-service chat-service notification-service payment-service admin-service; do
+            printf "%s\nPORT=%s\n" "$common_env" "$(case "$service" in auth-service) echo 3001;; profile-service) echo 3002;; search-service) echo 3004;; chat-service) echo 3005;; notification-service) echo 3006;; payment-service) echo 3007;; admin-service) echo 3011;; esac)" > "backend/${service}/.env"
+          done
+          cat > backend/matching-service/.env <<'ENV'
+          ENVIRONMENT=development
+          PORT=3003
+          DB_HOST=postgres
+          DB_PORT=5432
+          DB_NAME=soulmatch_db
+          DB_USER=soulmatch_user
+          DB_PASSWORD=soulmatch_pass
+          JWT_SECRET=ci-jwt-secret-change-me
+          JWT_AUDIENCE=soulmatch-api
+          JWT_ISSUER=soulmatch-auth
+          CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+          INTERNAL_SERVICE_SECRET=ci-internal-secret-change-me
+          ENV
+
+      - name: Install backend dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          for service in backend/*-service; do
+            if [ -f "${service}/package-lock.json" ]; then
+              (cd "${service}" && npm ci)
+            fi
+          done
+          (cd admin-web && npm ci)
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/matching-service/requirements.txt
+          python -m pip install pip-audit
+
+      - name: Dependency audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          for service in backend/*-service; do
+            if [ -f "${service}/package-lock.json" ]; then
+              (cd "${service}" && npm audit --omit=dev --audit-level=critical)
+            fi
+          done
+          (cd admin-web && npm audit --omit=dev --audit-level=critical)
+          pip-audit -r backend/matching-service/requirements.txt
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
+          GITLEAKS_NOTIFY_USER_LIST: ""
+
+      - name: Start Docker dev stack
+        shell: bash
+        run: |
+          docker compose -f docker/docker-compose.dev.yml up -d --build postgres mongodb redis auth-service profile-service matching-service search-service chat-service notification-service payment-service admin-service
+
+      - name: Apply database migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for migration in database/migrations/*.sql; do
+            echo "Applying ${migration}"
+            docker compose -f docker/docker-compose.dev.yml exec -T postgres psql -U soulmatch_user -d soulmatch_db < "${migration}"
+          done
+
+      - name: Smoke tests
+        shell: bash
+        run: |
+          node test_folder/auth-flow-smoke.js
+          node test_folder/api-smoke.js
+
+      - name: Backend unit and integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test backend/auth-service/test/*.test.js
+          node --test backend/profile-service/test/*.test.js
+          node --test backend/search-service/test/*.test.js
+          node --test backend/chat-service/test/*.test.js
+          node --test backend/notification-service/test/*.test.js
+          node --test backend/payment-service/test/*.test.js
+          node --test backend/admin-service/test/*.test.js
+          python -m py_compile backend/matching-service/app/main.py backend/matching-service/app/middleware/auth.py
+          python -m unittest discover -s backend/matching-service/test
+          (cd admin-web && npm run build)
+
+      - name: Android unit tests
+        shell: bash
+        run: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew testDebugUnitTest
+
+      - name: Stop Docker stack
+        if: always()
+        shell: bash
+        run: docker compose -f docker/docker-compose.dev.yml down -v

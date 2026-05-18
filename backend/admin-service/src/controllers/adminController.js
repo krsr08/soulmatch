@@ -57,17 +57,30 @@ function adminJwtOptions() {
 }
 
 function setAdminSessionCookie(res, token) {
+  const csrfToken = crypto.randomBytes(24).toString('hex');
   res.cookie('soulmatch_admin_session', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
     maxAge: 8 * 60 * 60 * 1000
   });
+  res.cookie('soulmatch_admin_csrf', csrfToken, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 8 * 60 * 60 * 1000
+  });
+  return csrfToken;
 }
 
 function clearAdminSessionCookie(res) {
   res.clearCookie('soulmatch_admin_session', {
     httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  });
+  res.clearCookie('soulmatch_admin_csrf', {
+    httpOnly: false,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict'
   });
@@ -734,11 +747,11 @@ exports.adminLogin = async (req, res) => {
       adminJwtOptions()
     );
     clearAdminLoginFailures(normalizedEmail, req.ip);
-    setAdminSessionCookie(res, token);
+    const csrfToken = setAdminSessionCookie(res, token);
     if (db) {
       await auditLog(db, { ...req, admin: { email: normalizedEmail, role } }, 'admin.login_success', 'admin_session', adminUser?.admin_user_id || normalizedEmail, {});
     }
-    res.json({ success: true, data: { token, role, permissions, displayName: adminUser?.display_name || null } });
+    res.json({ success: true, data: { token, csrfToken, role, permissions, displayName: adminUser?.display_name || null } });
   } catch (err) {
     respondServerError(res, err, 'Unable to complete admin sign-in right now.');
   }

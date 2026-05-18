@@ -101,7 +101,10 @@ object NetworkModule {
     fun provideOkHttpClient(prefs: UserPreferences): OkHttpClient {
         val auth = Interceptor { chain ->
             val token = prefs.currentAuthToken()
-            val req = if (!token.isNullOrEmpty()) chain.request().newBuilder().addHeader("Authorization","Bearer $token").build() else chain.request()
+            val builder = chain.request().newBuilder()
+                .addHeader("x-device-id", prefs.installationId())
+            if (!token.isNullOrEmpty()) builder.addHeader("Authorization","Bearer $token")
+            val req = builder.build()
             chain.proceed(req)
         }
         val authenticator = Authenticator { _: Route?, response: Response ->

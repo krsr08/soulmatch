@@ -59,3 +59,39 @@ The production gateway must route only these public paths:
 - `/api/v1/admin/`
 - `/api/v1/public/`
 - `/uploads/` only when local storage is intentionally enabled.
+
+## Production Database Pooling
+
+Before paid launch, put PgBouncer in front of Postgres or use a managed Postgres pooler.
+
+Recommended starting point:
+
+- Pool mode: transaction.
+- Default pool size: 20.
+- Reserve pool size: 5.
+- Max client connections: 200.
+- Each service uses PgBouncer as `DB_HOST`.
+
+Keep direct Postgres access available only for migrations and emergency admin tasks.
+
+## Invoices, GST, and Razorpay
+
+SoulMatch stores payment orders, transactions, and subscriptions locally and reconciles Razorpay webhooks idempotently. Production invoicing options:
+
+- Use Razorpay invoices for legally formatted receipts when GST registration is active.
+- Store generated invoice number, Razorpay invoice ID, transaction ID, amount, tax, plan, validity, and issued timestamp against the subscription.
+- Keep the current app invoice view as a stub until GST/business details are finalized.
+
+## Production Seeding
+
+`docker/docker-compose.prod.yml` must never mount demo seed files. Demo/sample profiles are allowed only in local development or staging with explicit seed scripts.
+
+## Release Audit
+
+Every production deployment should write a release audit entry with:
+
+- Commit SHA and release version.
+- Timestamp and operator.
+- Release description and changed areas.
+- Deployment result.
+- Migration list.

@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const verifyOptions = () => ({
   issuer: process.env.JWT_ISSUER || 'soulmatch-auth',
-  audience: process.env.JWT_AUDIENCE || 'soulmatch-api'
+  audience: process.env.JWT_AUDIENCE || 'soulmatch-api',
+  clockTolerance: Number(process.env.JWT_CLOCK_TOLERANCE_SECONDS || 30)
 });
 
 exports.authenticate = (req, res, next) => {

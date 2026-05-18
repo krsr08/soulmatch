@@ -17,6 +17,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -33,11 +34,23 @@ class ChatThreadViewModel @Inject constructor(
     private val _sendStatus = MutableStateFlow<String?>(null)
     private var socket: Socket? = null
     private var activePartnerId: String? = null
+    private var socketToken: String? = null
 
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
     val currentUserId: StateFlow<String> = _currentUserId.asStateFlow()
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     val sendStatus: StateFlow<String?> = _sendStatus.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            prefs.authToken.distinctUntilChanged().collect { token ->
+                val partnerId = activePartnerId ?: return@collect
+                if (!token.isNullOrBlank() && token != socketToken) {
+                    connectSocket(partnerId)
+                }
+            }
+        }
+    }
 
     fun load(participantUserId: String) {
         viewModelScope.launch {
@@ -114,9 +127,10 @@ class ChatThreadViewModel @Inject constructor(
     private suspend fun connectSocket(participantUserId: String) {
         val token = prefs.authToken.first()
         if (token.isNullOrBlank()) return
-        if (socket?.connected() == true && activePartnerId == participantUserId) return
+        if (socket?.connected() == true && activePartnerId == participantUserId && socketToken == token) return
         socket?.off()
         socket?.disconnect()
+        socketToken = token
 
         val options = IO.Options()
         options.forceNew = true
@@ -140,6 +154,7 @@ class ChatThreadViewModel @Inject constructor(
     override fun onCleared() {
         socket?.off()
         socket?.disconnect()
+        socketToken = null
         super.onCleared()
     }
 }

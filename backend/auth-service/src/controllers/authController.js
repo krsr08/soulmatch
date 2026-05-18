@@ -15,6 +15,10 @@ function normalizeRequestedUserType(value) {
   return userRepo.normalizeUserType(text);
 }
 
+function requestDeviceId(req) {
+  return req.get('x-device-id') || req.get('x-installation-id') || req.body?.deviceId || null;
+}
+
 function ensureRequestedUserType(user, requestedUserType) {
   const currentUserType = userRepo.normalizeUserType(user?.user_type);
   if (!requestedUserType) return currentUserType;
@@ -151,6 +155,7 @@ exports.verifyOTP = async (req, res, next) => {
       user = await userRepo.create({
         phone: normalizedPhone,
         is_verified: true,
+        device_id: requestDeviceId(req),
         user_type: newUserType,
         role_selected_at: requestedUserType ? new Date() : null,
         referred_by_code: referral?.code || null,
@@ -168,6 +173,7 @@ exports.verifyOTP = async (req, res, next) => {
       }
     } else {
       ensureRequestedUserType(user, requestedUserType);
+      await userRepo.recordAccountSignal(user.user_id, { phone: normalizedPhone, deviceId: requestDeviceId(req) });
       await userRepo.updateLastLogin(user.user_id);
     }
     const resolvedUserType = ensureRequestedUserType(user, requestedUserType);
@@ -228,6 +234,7 @@ exports.googleLogin = async (req, res, next) => {
         google_id: googleId,
         email,
         is_verified: true,
+        device_id: requestDeviceId(req),
         user_type: newUserType,
         role_selected_at: requestedUserType ? new Date() : null,
         referred_by_code: referral?.code || null,
@@ -245,6 +252,7 @@ exports.googleLogin = async (req, res, next) => {
       }
     } else {
       ensureRequestedUserType(user, requestedUserType);
+      await userRepo.recordAccountSignal(user.user_id, { phone: user.phone, deviceId: requestDeviceId(req) });
       await userRepo.updateLastLogin(user.user_id);
     }
     const resolvedUserType = ensureRequestedUserType(user, requestedUserType);
@@ -304,6 +312,7 @@ exports.firebasePhoneLogin = async (req, res, next) => {
       user = await userRepo.create({
         phone: verifiedPhone,
         is_verified: true,
+        device_id: requestDeviceId(req),
         user_type: newUserType,
         role_selected_at: requestedUserType ? new Date() : null,
         referred_by_code: referral?.code || null,
@@ -321,6 +330,7 @@ exports.firebasePhoneLogin = async (req, res, next) => {
       }
     } else {
       ensureRequestedUserType(user, requestedUserType);
+      await userRepo.recordAccountSignal(user.user_id, { phone: verifiedPhone, deviceId: requestDeviceId(req) });
       await userRepo.updateLastLogin(user.user_id);
     }
 

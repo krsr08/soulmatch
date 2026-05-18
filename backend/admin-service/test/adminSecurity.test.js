@@ -26,11 +26,13 @@ const realtimeSource = fs.readFileSync(
 
 test('admin sessions use issuer/audience checked httpOnly cookie support', () => {
   assert.match(controllerSource, /res\.cookie\('soulmatch_admin_session'/);
+  assert.match(controllerSource, /res\.cookie\('soulmatch_admin_csrf'/);
   assert.match(controllerSource, /httpOnly:\s*true/);
   assert.match(controllerSource, /issuer:\s*process\.env\.ADMIN_JWT_ISSUER/);
   assert.match(controllerSource, /audience:\s*process\.env\.ADMIN_JWT_AUDIENCE/);
   assert.match(middlewareSource, /readCookie\(req\.headers\.cookie,\s*'soulmatch_admin_session'\)/);
   assert.match(middlewareSource, /jwt\.verify\(token,\s*process\.env\.ADMIN_JWT_SECRET\|\|process\.env\.JWT_SECRET,\s*adminVerifyOptions\(\)\)/);
+  assert.match(middlewareSource, /exports\.requireAdminCsrf/);
 });
 
 test('admin login has lockout, optional TOTP, and logout route', () => {
