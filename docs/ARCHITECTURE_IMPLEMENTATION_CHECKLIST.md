@@ -53,7 +53,12 @@ Budget rule: do not add paid Azure resources while the app is still in developme
 | A6-06 | Validation | Run Docker-backed smoke tests | Completed | `auth-flow-smoke.js`, `api-smoke.js`, and `p2_ux_correctness.test.js` passed against local Docker services. |
 | A7-01 | Git | Commit local architecture foundation changes | Completed | Local branch has architecture foundation commits through A5. |
 | A7-02 | Git | Push only after confirmation | Completed | `codex/architecture-foundation` pushed to GitHub. |
-| A7-03 | Deploy | Deploy to VM only when approved | Not Started | VM is not required for this phase. |
+| A7-03 | Deploy | Deploy to VM only when approved | Completed | User approved proceed; architecture branch merged to `main` and production workflow completed successfully. |
+| A8-01 | Production Smoke | Check public endpoint reachability after deploy | Failed | Public IP `20.204.142.19` timed out because Azure VM is currently deallocated. This is not a code failure. |
+| A8-02 | Production Smoke | Confirm Azure VM state and IP | Completed | VM state is `VM deallocated`; static public IP remains `20.204.142.19`; NSG allows 22/80/443. |
+| A8-03 | Production Smoke | Document safe smoke steps for when VM is intentionally started | Completed | Captured in `docs/PRODUCTION_SMOKE_STATUS.md`. |
+| A9-01 | Developer Navigation | Create module ownership map for Member, Agent, Admin, and shared rules | Completed | Captured in `docs/MODULE_OWNERSHIP_MAP.md`. |
+| A9-02 | Developer Navigation | Create runtime config/control-plane guide | Completed | Captured in `docs/RUNTIME_CONFIG_CONTROL_PLANE.md`. |
 
 ## Current Phase Summary
 
@@ -89,7 +94,9 @@ Scope intentionally not changed:
 | A4 Extension Placeholders | Completed | Env/config placeholders added without enabling infrastructure. |
 | A5 Code Clarity | Completed | Critical comments added; no logic changed. |
 | A6 Validation | Completed | Backend tests, smoke tests, Android unit tests, and admin-web build passed locally. |
-| A7 Git/Deploy | Inprogress | Branch pushed to GitHub; deploy remains pending. |
+| A7 Git/Deploy | Completed | Architecture foundation merged to `main`; production workflow passed. |
+| A8 Production Smoke | Started | Public smoke is blocked while the VM is deallocated for cost control. |
+| A9 Developer Navigation | Completed | Module ownership and runtime config guides added. |
 
 ## Latest Validation Results
 
