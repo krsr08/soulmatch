@@ -48,6 +48,7 @@ import {
   updateProfileStatus
 } from '../api/adminApi';
 import { AdminButton, EmptyState, Icon, SectionHeader, StatusPill } from '../components/AdminPrimitives';
+import AdminShell from '../components/AdminShell';
 import AssistPanel from './AssistPanel';
 import './DashboardPage.css';
 
@@ -573,73 +574,6 @@ function makeAdvisorPayload(form) {
     notes: form.notes,
     yearsExperience: form.years_experience
   };
-}
-
-function AdminShell({ activeTab, onTab, session, search, onSearch, onHelp, children }) {
-  const navigate = useNavigate();
-  const roleSurfaceTabs = ['system', 'role-master', 'user-master', 'settings', 'change-password'];
-  const isRoleSurface = roleSurfaceTabs.includes(activeTab);
-  const handleTab = (id) => {
-    if (id === 'logout') {
-      localStorage.removeItem('adminToken');
-      navigate('/login');
-      return;
-    }
-    onTab(id);
-  };
-
-  return (
-    <div className="admin-console">
-      <aside className="console-sidebar">
-        <div className="console-brand">
-          <h1>SoulMatch</h1>
-          <span>Admin Portal</span>
-        </div>
-        <nav className="console-nav">
-          {MENU_GROUPS.map((group) => (
-            <section key={group.label}>
-              {group.label !== 'Control' ? <p>{group.label}</p> : null}
-              {group.items.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={activeTab === item.id ? 'active' : ''}
-                  onClick={() => handleTab(item.id)}
-                >
-                  <Icon name={item.icon} />
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </section>
-          ))}
-        </nav>
-        <div className="console-user">
-          <div className="console-avatar">{(session.email || 'SA').slice(0, 2).toUpperCase()}</div>
-          <div>
-            <span>Logged in as</span>
-            <strong>{session.role === 'super_admin' ? 'Super Admin' : session.role || 'Admin'}</strong>
-          </div>
-        </div>
-      </aside>
-      <main className={`console-main ${isRoleSurface ? 'role-surface-main' : ''}`}>
-        {!isRoleSurface ? (
-          <header className="console-topbar">
-            <label className="global-search">
-              <Icon name="search" />
-              <input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search records..." />
-            </label>
-            <div className="topbar-actions">
-              <button type="button" title="Notifications" onClick={() => handleTab('notifications')}><Icon name="bell" /></button>
-              <button type="button" title="Help" onClick={onHelp}><Icon name="help" /></button>
-              <button type="button" className="settings-link" onClick={() => handleTab('settings')}>Admin Settings</button>
-              <div className="small-avatar">{(session.email || 'A').charAt(0).toUpperCase()}</div>
-            </div>
-          </header>
-        ) : null}
-        {children}
-      </main>
-    </div>
-  );
 }
 
 function StatCard({ tone, label, value, sub, link = 'View Details', onClick }) {
@@ -3381,7 +3315,7 @@ export default function DashboardPage() {
     : [];
 
   return (
-    <AdminShell activeTab={activeTab} onTab={navigateTab} session={session} search={search} onSearch={setSearch} onHelp={() => setDrawer({ type: 'help' })}>
+    <AdminShell activeTab={activeTab} onTab={navigateTab} session={session} search={search} onSearch={setSearch} onHelp={() => setDrawer({ type: 'help' })} menuGroups={MENU_GROUPS}>
       {notice ? <div className="toast-notice" role="status" aria-live="polite"><span>{notice}</span><button onClick={() => setNotice('')} aria-label="Dismiss notification"><Icon name="close" /></button></div> : null}
       {renderContent()}
       {drawer?.type === 'member' ? (

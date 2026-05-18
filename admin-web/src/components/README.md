@@ -7,6 +7,7 @@ Reusable Admin Portal UI primitives live here. Keep page-specific data fetching 
 | File | Purpose |
 | --- | --- |
 | `AdminPrimitives.js` | Shared `Icon`, `StatusPill`, `AdminButton`, `SectionHeader`, and `EmptyState` components used across admin pages. |
+| `AdminShell.js` | Shared Admin Portal frame with sidebar, topbar, search, and logout behavior. |
 
 ## Rules
 
@@ -14,4 +15,3 @@ Reusable Admin Portal UI primitives live here. Keep page-specific data fetching 
 2. Do not call admin APIs directly from these components.
 3. Keep permission, audit, verification, and payment decisions in backend/admin routes.
 4. Move UI here only when it is shared or clearly reusable.
-
