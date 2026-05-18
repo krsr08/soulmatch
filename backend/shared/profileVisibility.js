@@ -5,6 +5,8 @@ function normalized(value, fallback = '') {
 
 function evaluateProfileVisibility(profile = {}, viewerUserId = null) {
   if (!profile || !profile.profile_id) return { allowed: false, reason: 'not_found' };
+  // Owners can review their own draft or hidden profile; everyone else must pass
+  // this server-side gate before search, matching, or profile detail responses.
   const owner = Boolean(viewerUserId && profile.user_id === viewerUserId);
   if (owner) return { allowed: true, owner: true, reason: 'owner' };
   if (profile.blocked === true) return { allowed: false, owner: false, reason: 'blocked' };
@@ -24,6 +26,8 @@ function evaluateProfileVisibility(profile = {}, viewerUserId = null) {
 function redactProfileForViewer(profile = {}, options = {}) {
   const owner = options.owner === true;
   const redacted = { ...profile };
+  // Redaction is a backend responsibility. Android may hide more for UX, but it
+  // must never be the only layer protecting last-seen, photos, or contact data.
   if (!owner && redacted.hide_last_seen) {
     redacted.last_login = null;
     redacted.last_seen = null;

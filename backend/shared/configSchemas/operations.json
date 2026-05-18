@@ -1,0 +1,57 @@
+{
+  "type": "object",
+  "properties": {
+    "architectureVersion": { "type": "string" },
+    "edge": {
+      "type": "object",
+      "properties": {
+        "wafMode": { "type": "string", "enum": ["off", "nginx-basic", "managed"] },
+        "mobileBffEnabled": { "type": "boolean" },
+        "mobileBffUrl": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "storage": {
+      "type": "object",
+      "properties": {
+        "blobStorageProvider": { "type": "string", "enum": ["local", "s3", "azure-blob"] },
+        "signedUrlsRequired": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "async": {
+      "type": "object",
+      "properties": {
+        "queueProvider": { "type": "string", "enum": ["none", "redis-streams", "bullmq"] },
+        "workersEnabled": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "search": {
+      "type": "object",
+      "properties": {
+        "searchEngineProvider": { "type": "string", "enum": ["postgres", "opensearch"] },
+        "openSearchEnabled": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "observability": {
+      "type": "object",
+      "properties": {
+        "provider": { "type": "string", "enum": ["none", "local-prometheus", "managed"] },
+        "prometheusEnabled": { "type": "boolean" },
+        "grafanaEnabled": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "maxMonthlyInr": { "type": "number" },
+        "requireApprovalForPaidResources": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
