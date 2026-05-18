@@ -35,12 +35,13 @@ Budget rule: do not add paid Azure resources while the app is still in developme
 | A3-03 | Folder Structure | Define where future workers should live | Completed | Captured as `backend/workers/` future placeholder. |
 | A3-04 | Folder Structure | Define where future BFF should live | Completed | Captured as `backend/mobile-bff/` future placeholder. |
 | A3-05 | Folder Structure | Define where future Blob/OpenSearch integrations should live | Completed | Captured as service adapter boundaries. |
-| A4-01 | Extension Placeholders | Add config placeholder for `EDGE_WAF_MODE` | Not Started | Documentation first; code config in later phase. |
-| A4-02 | Extension Placeholders | Add config placeholder for `MOBILE_BFF_ENABLED` | Not Started | Documentation first; no BFF runtime yet. |
-| A4-03 | Extension Placeholders | Add config placeholder for `BLOB_STORAGE_PROVIDER` | Not Started | Existing upload storage remains unchanged. |
-| A4-04 | Extension Placeholders | Add config placeholder for `ASYNC_QUEUE_PROVIDER` | Not Started | Existing Redis remains unchanged. |
-| A4-05 | Extension Placeholders | Add config placeholder for `SEARCH_ENGINE_PROVIDER` | Not Started | PostgreSQL search remains primary. |
-| A4-06 | Extension Placeholders | Add config placeholder for `OBSERVABILITY_PROVIDER` | Not Started | Existing metrics docs remain unchanged. |
+| A4-01 | Extension Placeholders | Add config placeholder for `EDGE_WAF_MODE` | Completed | Added to env templates and `backend/shared/architectureFlags.js`; default keeps Nginx basic mode. |
+| A4-02 | Extension Placeholders | Add config placeholder for `MOBILE_BFF_ENABLED` | Completed | Added to env templates and private operations config; no BFF runtime created. |
+| A4-03 | Extension Placeholders | Add config placeholder for `BLOB_STORAGE_PROVIDER` | Completed | Added to profile env template and shared helper; local storage remains unchanged. |
+| A4-04 | Extension Placeholders | Add config placeholder for `ASYNC_QUEUE_PROVIDER` | Completed | Added to matching/notification env templates and shared helper; workers remain disabled. |
+| A4-05 | Extension Placeholders | Add config placeholder for `SEARCH_ENGINE_PROVIDER` | Completed | Added to search env template and shared helper; PostgreSQL remains primary. |
+| A4-06 | Extension Placeholders | Add config placeholder for `OBSERVABILITY_PROVIDER` | Completed | Added to env templates and shared helper; no monitoring containers activated. |
+| A4-07 | Extension Placeholders | Add private runtime config schema for operational architecture | Completed | Added `operations` config and schema; not exposed to Android public runtime config. |
 | A5-01 | Code Clarity | Add useful comments to critical shared logic | Not Started | Only after selecting specific code areas. |
 | A5-02 | Code Clarity | Avoid rewriting business flows unless required | Completed | This pass is documentation-only. |
 | A5-03 | Code Clarity | Add README links to architecture/developer docs | Completed | README now points to developer architecture docs. |
@@ -63,6 +64,7 @@ Scope completed in this pass:
 - Developer ownership boundaries.
 - Folder structure links and future placement rules.
 - Cost-safe extension point guide.
+- Code/env placeholders for future adapters, with current behavior unchanged.
 
 Scope intentionally not changed:
 

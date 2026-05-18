@@ -26,6 +26,34 @@ Default rule:
 | Key Vault/secret manager | Environment files/GitHub secrets today | Public launch or multiple operators | Low/medium | DevOps/security |
 | Observability stack | Metrics endpoints and docs ready | Before beta users or recurring QA cycles | Low on current VM; higher with managed monitoring | DevOps |
 
+## Shared Placeholder Configuration
+
+The placeholder modes are normalized in:
+
+```text
+backend/shared/architectureFlags.js
+```
+
+The private runtime-config section is:
+
+```text
+backend/shared/configSchemas/operations.json
+backend/shared/controlPlane.js -> DEFAULT_CONFIG.operations
+```
+
+These settings are intentionally private. They should not be sent to Android through public runtime config.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `EDGE_WAF_MODE` | `nginx-basic` | Current Nginx edge with room for stricter rules. |
+| `MOBILE_BFF_ENABLED` | `false` | Future Android aggregation service is disabled. |
+| `BLOB_STORAGE_PROVIDER` | `local` | Profile uploads remain on current local/volume storage. |
+| `ASYNC_QUEUE_PROVIDER` | `none` | No new worker queue is activated. |
+| `SEARCH_ENGINE_PROVIDER` | `postgres` | Search remains PostgreSQL-based. |
+| `OBSERVABILITY_PROVIDER` | `none` | No extra monitoring stack is activated by default. |
+| `MAX_MONTHLY_CLOUD_COST_INR` | `1000` | Developer budget guardrail for planning. |
+| `REQUIRE_APPROVAL_FOR_PAID_RESOURCES` | `true` | Paid services need explicit approval. |
+
 ## Mobile BFF Placeholder
 
 Purpose: provide Android-specific responses without forcing the Android app to call many backend services.
@@ -202,4 +230,3 @@ Do not add high-volume managed log ingestion until:
 5. Update `docs/DEPLOYMENT.md`.
 6. Confirm monthly cost impact with the owner.
 7. Deploy to staging or local Docker first.
-

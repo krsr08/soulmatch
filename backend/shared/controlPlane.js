@@ -673,6 +673,35 @@ const DEFAULT_CONFIG = {
     enabled: true,
     retentionDays: 180,
     dashboardLookbackDays: 30
+  },
+  operations: {
+    architectureVersion: 'single-vm-dev',
+    edge: {
+      wafMode: 'nginx-basic',
+      mobileBffEnabled: false,
+      mobileBffUrl: ''
+    },
+    storage: {
+      blobStorageProvider: 'local',
+      signedUrlsRequired: false
+    },
+    async: {
+      queueProvider: 'none',
+      workersEnabled: false
+    },
+    search: {
+      searchEngineProvider: 'postgres',
+      openSearchEnabled: false
+    },
+    observability: {
+      provider: 'none',
+      prometheusEnabled: false,
+      grafanaEnabled: false
+    },
+    budget: {
+      maxMonthlyInr: 1000,
+      requireApprovalForPaidResources: true
+    }
   }
 };
 

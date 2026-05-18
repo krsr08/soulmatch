@@ -54,7 +54,7 @@ backend/
   notification-service/  Push/email/notification APIs
   payment-service/       Razorpay/payment APIs
   admin-service/         Admin review and control APIs
-  shared/                Cross-service helpers
+  shared/                Cross-service helpers, config schemas, visibility, entitlements
 ```
 
 Each Node service follows the same internal shape:
@@ -79,6 +79,7 @@ src/
 - New API endpoint binding: `data/api/ApiService.kt`.
 - New backend profile/agent behavior: `backend/profile-service/src/controllers`, `repositories`, and `services`.
 - New admin review behavior: `backend/admin-service`.
+- New future infrastructure mode placeholder: `backend/shared/architectureFlags.js` and `backend/shared/configSchemas/operations.json`.
 
 ## Architecture References
 

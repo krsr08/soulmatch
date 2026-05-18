@@ -134,6 +134,7 @@ flowchart TB
 | Admin | React admin + admin API | SSO/MFA enforcement and stronger admin audit workflows | Partially implemented |
 | Observability | `/metrics`, docs, dashboard JSON | Run Prometheus/Grafana/alerts in production | Placeholder/ready |
 | Backups | Backup/restore scripts | Automated scheduled backup + restore drill | Placeholder/ready |
+| Operational config | Private `operations` config and `architectureFlags` helper | Adapter activation gates for BFF, workers, blob, search, WAF, observability | Placeholder/ready |
 
 ## Request Flow
 
@@ -221,4 +222,3 @@ flowchart LR
 | Future | OpenSearch only if PostgreSQL search becomes slow | Medium/high |
 | Future | Extra VM/load balancer | Ignored for now |
 | Future | Managed DB/Redis/WAF | Later live-production stage |
-

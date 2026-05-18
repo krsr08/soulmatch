@@ -91,6 +91,7 @@ PostgreSQL is currently shared. Treat table ownership as logical ownership until
 Use `backend/shared/` for:
 
 - `controlPlane.js`: runtime config read/normalize helpers.
+- `architectureFlags.js`: cost-safe infrastructure mode placeholders for future adapters.
 - `memberEntitlements.js`: plan/feature access rules.
 - `profileVisibility.js`: privacy and redaction rules.
 - `observability.js`: Express metrics/log middleware.
@@ -133,4 +134,3 @@ Add comments only for:
 - Non-obvious compatibility or matching formulas.
 
 Avoid comments that repeat the code.
-
