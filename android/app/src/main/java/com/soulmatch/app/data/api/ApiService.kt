@@ -101,6 +101,7 @@ interface PaymentApiService {
 interface ControlPlaneApiService {
     @GET("public/config") suspend fun getRuntimeConfig(@Header("If-None-Match") etag: String? = null): Response<GenericResponse<RuntimeConfigData>>
     @POST("public/analytics") suspend fun trackAnalytics(@Body req: AnalyticsEventRequest): Response<GenericResponse<Any>>
+    @POST("public/analytics") suspend fun trackAnalyticsBatch(@Body req: AnalyticsBatchRequest): Response<GenericResponse<Any>>
 }
 interface NotificationApiService {
     @POST("notifications/devices/fcm-token") suspend fun registerFcmToken(@Body req: FcmTokenRequest): Response<GenericResponse<Any>>

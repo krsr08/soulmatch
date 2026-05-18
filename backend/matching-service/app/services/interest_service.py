@@ -157,12 +157,18 @@ async def _get_profile_summary(conn, profile_id: str) -> dict:
 
 
 async def _record_analytics(conn, event_type: str, user_id: Optional[str], payload: dict) -> None:
+    signed_payload = {
+        **(payload or {}),
+        "serverSigned": True,
+        "recordedBy": "matching-service",
+        "schemaVersion": "2026-05-17",
+    }
     await conn.execute(
         'INSERT INTO analytics_events (event_type, service_name, user_id, payload) VALUES ($1,$2,$3,$4::jsonb)',
         event_type,
         'matching-service',
         user_id,
-        json.dumps(payload or {})
+        json.dumps(signed_payload)
     )
 
 
@@ -291,6 +297,18 @@ async def send_interest(sender_user_id: str, receiver_id: str) -> dict:
         mutual = await conn.fetchrow("SELECT * FROM interests WHERE sender_id=$1 AND receiver_id=$2 AND status='accepted'", receiver_profile_id, sender_profile_id)
         sender_profile = await _get_profile_summary(conn, sender_profile_id)
         receiver_profile = await _get_profile_summary(conn, receiver_profile_id)
+        await _record_analytics(
+            conn,
+            "interest_sent",
+            sender_profile.get("user_id"),
+            {
+                "interestId": interest_id,
+                "senderProfileId": sender_profile_id,
+                "receiverProfileId": receiver_profile_id,
+                "receiverUserId": receiver_profile.get("user_id"),
+                "resent": resent,
+            },
+        )
         await invalidate_feed(sender_profile.get('user_id'), receiver_profile.get('user_id'))
         if receiver_profile.get('user_id'):
             await _send_template_notification(
@@ -403,6 +421,16 @@ async def respond_to_interest(interest_id: str, status: str, user_id: str) -> di
                         'receiverUserId': receiver_profile.get('user_id')
                     }
                 )
+                await _record_analytics(
+                    conn,
+                    'interest_accepted',
+                    receiver_profile.get('user_id'),
+                    {
+                        'interestId': interest_id,
+                        'senderUserId': sender_profile.get('user_id'),
+                        'receiverUserId': receiver_profile.get('user_id')
+                    }
+                )
                 await _queue_outbox(
                     conn,
                     'chat_conversation_create',
@@ -438,6 +466,17 @@ async def respond_to_interest(interest_id: str, status: str, user_id: str) -> di
         await invalidate_feed(sender_profile.get('user_id'), receiver_profile.get('user_id'))
         if status == 'accepted' and sender_profile.get('user_id') and receiver_profile.get('user_id'):
             chat_id = await _create_chat_conversation(sender_profile['user_id'], receiver_profile['user_id'], interest_id)
+            await _record_analytics(
+                conn,
+                'chat_created',
+                receiver_profile.get('user_id'),
+                {
+                    'interestId': interest_id,
+                    'chatId': str(chat_id or ''),
+                    'senderUserId': sender_profile.get('user_id'),
+                    'receiverUserId': receiver_profile.get('user_id')
+                }
+            )
             if sender_profile.get('user_id'):
                 await _send_template_notification(
                     sender_profile['user_id'],

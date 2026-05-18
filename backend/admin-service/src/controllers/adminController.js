@@ -3620,20 +3620,83 @@ exports.createReferralCode = async (req, res) => {
 exports.getAnalyticsFunnel = async (req, res) => {
   try {
     const db = await getDB();
-    const lookbackDays = Math.min(parseInt(req.query.days, 10) || 30, 365);
+    const lookbackDays = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
     const result = await db.query(
-      `SELECT
-         event_type,
-         COUNT(*) AS total
-       FROM analytics_events
-       WHERE created_at >= NOW() - ($1 * INTERVAL '1 day')
-       GROUP BY event_type
-       ORDER BY total DESC`,
+      `WITH params AS (
+         SELECT NOW() - ($1 * INTERVAL '1 day') AS since
+       ),
+       paid_users AS (
+         SELECT user_id
+         FROM transactions, params
+         WHERE created_at >= params.since
+           AND status IN ('paid','success','captured')
+         UNION
+         SELECT user_id
+         FROM payment_orders, params
+         WHERE updated_at >= params.since
+           AND status IN ('paid','success','captured')
+         UNION
+         SELECT user_id
+         FROM subscriptions, params
+         WHERE created_at >= params.since
+           AND is_active=true
+           AND COALESCE(amount_paid,0) > 0
+       ),
+       funnel AS (
+         SELECT
+           1 AS sort_order,
+           'sign_up'::text AS event_type,
+           'Signup completed'::text AS label,
+           COUNT(*)::int AS total,
+           'users.created_at'::text AS source
+         FROM users, params
+         WHERE users.created_at >= params.since
+           AND users.deleted_at IS NULL
+         UNION ALL
+         SELECT
+           2,
+           'profile_published',
+           'Profile published',
+           COUNT(*)::int,
+           'profiles.is_published'
+         FROM profiles, params
+         WHERE profiles.updated_at >= params.since
+           AND profiles.is_published=true
+         UNION ALL
+         SELECT
+           3,
+           'interest_sent',
+           'Interest sent',
+           COUNT(*)::int,
+           'interests.sent_at'
+         FROM interests, params
+         WHERE interests.sent_at >= params.since
+         UNION ALL
+         SELECT
+           4,
+           'chat_created',
+           'Chat created',
+           COUNT(*)::int,
+           'chat_conversation_metadata.created_at'
+         FROM chat_conversation_metadata, params
+         WHERE chat_conversation_metadata.created_at >= params.since
+         UNION ALL
+         SELECT
+           5,
+           'payment_success',
+           'Payment completed',
+           COUNT(DISTINCT user_id)::int,
+           'transactions/payment_orders/subscriptions'
+         FROM paid_users
+       )
+       SELECT event_type, label, total, source
+       FROM funnel
+       ORDER BY sort_order`,
       [lookbackDays]
     );
-    res.json({ success: true, data: result.rows });
+    res.json({ success: true, data: result.rows, meta: { lookbackDays, generatedAt: new Date().toISOString() } });
   } catch (err) {
-    respondDegraded(res, err, [], 'Analytics funnel is unavailable. Showing empty analytics data.');
+    respondServerError(res, err, 'Analytics funnel is unavailable.');
   }
 };
 
@@ -3642,7 +3705,16 @@ exports.getAnalyticsEvents = async (req, res) => {
     const db = await getDB();
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 250);
     const result = await db.query(
-      `SELECT event_id, event_type, service_name, user_id, session_id, payload, created_at
+      `SELECT
+         event_id,
+         event_type,
+         service_name,
+         user_id,
+         session_id,
+         payload,
+         (payload->>'serverSigned') = 'true' AS is_server_signed,
+         COALESCE(payload->>'recordedBy', service_name) AS source,
+         created_at
        FROM analytics_events
        ORDER BY created_at DESC
        LIMIT $1`,
@@ -3650,7 +3722,7 @@ exports.getAnalyticsEvents = async (req, res) => {
     );
     res.json({ success: true, data: result.rows });
   } catch (err) {
-    respondDegraded(res, err, [], 'Analytics events are unavailable. Showing an empty event stream.');
+    respondServerError(res, err, 'Analytics events are unavailable.');
   }
 };
 

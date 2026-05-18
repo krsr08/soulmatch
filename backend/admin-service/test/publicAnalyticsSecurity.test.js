@@ -16,8 +16,9 @@ test('public analytics uses an event allowlist and rate limiter', () => {
 
 test('public analytics caps payload size and rejects unsupported events', () => {
   assert.match(source, /PUBLIC_ANALYTICS_MAX_PAYLOAD_BYTES/);
+  assert.match(source, /PUBLIC_ANALYTICS_MAX_BATCH/);
   assert.match(source, /status\(413\)/);
-  assert.match(source, /!ANALYTICS_EVENT_TYPES\.has\(eventType\)/);
+  assert.match(source, /!ANALYTICS_EVENT_TYPES\.has\(event\.eventType\)/);
 });
 
 test('public analytics does not trust caller supplied user ids', () => {

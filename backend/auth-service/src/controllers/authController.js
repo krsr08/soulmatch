@@ -6,7 +6,7 @@ const userRepo = require('../repositories/userRepository');
 const logger = require('../utils/logger');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const { getDB } = require('../config/database');
-const { recordAnalyticsEvent } = require('../../../shared/controlPlane');
+const { recordServerAnalyticsEvent } = require('../../../shared/controlPlane');
 
 function normalizeRequestedUserType(value) {
   if (value === undefined || value === null) return null;
@@ -175,7 +175,7 @@ exports.verifyOTP = async (req, res, next) => {
     await tokenService.storeRefresh(user.user_id, refreshToken);
     if (isNewUser) {
       const db = await getDB();
-      await recordAnalyticsEvent(db, {
+      await recordServerAnalyticsEvent(db, {
         eventType: 'sign_up',
         serviceName: 'auth-service',
         userId: user.user_id,
@@ -252,7 +252,7 @@ exports.googleLogin = async (req, res, next) => {
     await tokenService.storeRefresh(user.user_id, refreshToken);
     if (isNewUser) {
       const db = await getDB();
-      await recordAnalyticsEvent(db, {
+      await recordServerAnalyticsEvent(db, {
         eventType: 'sign_up',
         serviceName: 'auth-service',
         userId: user.user_id,
@@ -330,7 +330,7 @@ exports.firebasePhoneLogin = async (req, res, next) => {
 
     if (isNewUser) {
       const db = await getDB();
-      await recordAnalyticsEvent(db, {
+      await recordServerAnalyticsEvent(db, {
         eventType: 'sign_up',
         serviceName: 'auth-service',
         userId: user.user_id,
@@ -442,7 +442,7 @@ exports.selectUserType = async (req, res, next) => {
     await tokenService.storeRefresh(updated.user_id, refreshToken);
 
     const db = await getDB();
-    await recordAnalyticsEvent(db, {
+    await recordServerAnalyticsEvent(db, {
       eventType: 'account_type_selected',
       serviceName: 'auth-service',
       userId: updated.user_id,

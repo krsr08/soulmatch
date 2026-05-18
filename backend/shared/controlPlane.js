@@ -865,6 +865,21 @@ async function recordAnalyticsEvent(db, { eventType, serviceName, userId = null,
   );
 }
 
+async function recordServerAnalyticsEvent(db, { eventType, serviceName, userId = null, sessionId = null, payload = {} }) {
+  await recordAnalyticsEvent(db, {
+    eventType,
+    serviceName,
+    userId,
+    sessionId,
+    payload: {
+      ...(payload || {}),
+      serverSigned: true,
+      recordedBy: serviceName,
+      schemaVersion: '2026-05-17'
+    }
+  });
+}
+
 function renderTemplate(template, variables = {}) {
   return String(template || '').replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key) => {
     const value = variables[key];
@@ -974,6 +989,7 @@ module.exports = {
   normalizeMonetization,
   normalizeUpgradePackageGroups,
   recordAnalyticsEvent,
+  recordServerAnalyticsEvent,
   renderTemplate,
   resolveConfigKey,
   upsertConfigSection,

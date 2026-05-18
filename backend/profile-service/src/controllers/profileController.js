@@ -6,7 +6,7 @@ const { invalidateAllMatchFeeds } = require('../services/feedCache');
 const { getDB } = require('../config/database');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
 const { redactProfileForViewer } = require('../../../shared/profileVisibility');
-const { getConfigSection } = require('../../../shared/controlPlane');
+const { getConfigSection, recordServerAnalyticsEvent } = require('../../../shared/controlPlane');
 const { getUsageContext } = require('../../../shared/memberEntitlements');
 
 const ALLOWED_VERIFICATION_TYPES = new Set(['profile', 'identity', 'photo', 'education', 'income', 'family']);
@@ -364,6 +364,7 @@ exports.createOrUpdateStep = async (req, res, next) => {
     const validationError = validateStepData(normalizedStep, dataForSave);
     if (validationError) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, validationError));
     const before = profile?.profile_id ? await repo.findFullById(profile.profile_id) : null;
+    const wasPublished = Boolean(before?.is_published || profile?.is_published);
     let result;
     switch (normalizedStep) {
       case 1: result = await repo.upsertBasicInfo(userId, dataForSave); break;
@@ -375,8 +376,23 @@ exports.createOrUpdateStep = async (req, res, next) => {
       default: return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Step must be 1-6'));
     }
     const score = await repo.calcCompletion(result.profile_id);
-    if (normalizedStep === 6 || score >= 60) await repo.setPublished(result.profile_id, true);
+    const shouldPublish = normalizedStep === 6 || score >= 60;
+    if (shouldPublish) await repo.setPublished(result.profile_id, true);
     const after = await repo.findFullById(result.profile_id);
+    if (shouldPublish && !wasPublished) {
+      const db = await getDB();
+      await recordServerAnalyticsEvent(db, {
+        eventType: 'profile_published',
+        serviceName: 'profile-service',
+        userId,
+        payload: {
+          profileId: result.profile_id,
+          completionScore: score,
+          step: normalizedStep,
+          profileCreatedBy: after?.profile_created_by || 'self'
+        }
+      });
+    }
     await auditUserChange(req, {
       profileId: result.profile_id,
       entityType: 'profile',

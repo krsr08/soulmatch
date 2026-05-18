@@ -8,6 +8,7 @@ const { getDB } = require('../config/database');
 const { detectTextSafety } = require('../services/safetyModerationService');
 const { touchConversationMetadata } = require('../services/chatMetadataService');
 const crypto = require('crypto');
+const { recordServerAnalyticsEvent } = require('../../../shared/controlPlane');
 
 const router = express.Router();
 const MAX_PAGE_SIZE = 100;
@@ -235,6 +236,18 @@ router.post('/internal/conversations', authenticateService, async (req, res, nex
       { upsert: true, new: true }
     );
     await touchConversationMetadata(conversation);
+    const db = await getDB();
+    await recordServerAnalyticsEvent(db, {
+      eventType: 'chat_created',
+      serviceName: 'chat-service',
+      userId: participants[0],
+      payload: {
+        chatId,
+        participantUserIds: participants,
+        interestId: req.body?.interestId || null,
+        source: req.body?.source || 'matching-service'
+      }
+    });
     res.json({ success: true, data: { chatId, conversationId: conversation._id.toString() } });
   } catch (err) {
     next(err);

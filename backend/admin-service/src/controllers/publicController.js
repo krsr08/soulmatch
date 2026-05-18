@@ -27,6 +27,7 @@ const ANALYTICS_EVENT_TYPES = new Set([
 const PUBLIC_ANALYTICS_LIMIT = Number(process.env.PUBLIC_ANALYTICS_RATE_LIMIT || 30);
 const PUBLIC_ANALYTICS_WINDOW_MS = Number(process.env.PUBLIC_ANALYTICS_WINDOW_MS || 60 * 1000);
 const PUBLIC_ANALYTICS_MAX_PAYLOAD_BYTES = Number(process.env.PUBLIC_ANALYTICS_MAX_PAYLOAD_BYTES || 4096);
+const PUBLIC_ANALYTICS_MAX_BATCH = Number(process.env.PUBLIC_ANALYTICS_MAX_BATCH || 20);
 
 async function loadSharedConfig() {
   const db = await getDB();
@@ -203,6 +204,24 @@ function payloadSizeBytes(value) {
   return Buffer.byteLength(JSON.stringify(value || {}), 'utf8');
 }
 
+function normalizeAnalyticsEvent(rawEvent) {
+  const body = rawEvent || {};
+  const eventType = String(body.eventType || body.event_type || '').trim().slice(0, 80);
+  const payload = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload) ? body.payload : {};
+  return {
+    eventType,
+    serviceName: String(body.serviceName || body.service_name || 'android-app').slice(0, 80),
+    sessionId: body.sessionId || body.session_id || null,
+    payload: {
+      ...payload,
+      page: body.page || payload.page || null,
+      target: body.target || payload.target || null,
+      appVersion: body.appVersion || payload.appVersion || null,
+      clientBatchId: body.clientBatchId || payload.clientBatchId || null
+    }
+  };
+}
+
 exports.getRuntimeConfig = async (req, res) => {
   try {
     const { config } = await loadSharedConfig();
@@ -235,35 +254,38 @@ exports.trackAnalyticsEvent = async (req, res) => {
         error: { code: 'RATE_LIMITED', message: 'Too many analytics events. Please try again later.' }
       });
     }
-    const db = await getDB();
     const body = req.body || {};
-    const eventType = String(body.eventType || body.event_type || '').trim().slice(0, 80);
-    if (!eventType || !ANALYTICS_EVENT_TYPES.has(eventType)) {
+    const rawEvents = Array.isArray(body.events) ? body.events : [body];
+    if (!rawEvents.length || rawEvents.length > PUBLIC_ANALYTICS_MAX_BATCH) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: `Send between 1 and ${PUBLIC_ANALYTICS_MAX_BATCH} analytics events per request.` }
+      });
+    }
+    const events = rawEvents.map(normalizeAnalyticsEvent);
+    if (events.some((event) => !event.eventType || !ANALYTICS_EVENT_TYPES.has(event.eventType))) {
       return res.status(400).json({
         success: false,
         error: { code: 'VALIDATION_ERROR', message: 'Unsupported analytics eventType.' }
       });
     }
-    const payload = body.payload && typeof body.payload === 'object' && !Array.isArray(body.payload) ? body.payload : {};
-    if (payloadSizeBytes(payload) > PUBLIC_ANALYTICS_MAX_PAYLOAD_BYTES) {
+    if (events.some((event) => payloadSizeBytes(event.payload) > PUBLIC_ANALYTICS_MAX_PAYLOAD_BYTES)) {
       return res.status(413).json({
         success: false,
         error: { code: 'PAYLOAD_TOO_LARGE', message: 'Analytics payload is too large.' }
       });
     }
-    await recordAnalyticsEvent(db, {
-      eventType,
-      serviceName: String(body.serviceName || body.service_name || 'android-app').slice(0, 80),
-      userId: null,
-      sessionId: body.sessionId || body.session_id || null,
-      payload: {
-        ...payload,
-        page: body.page || payload.page || null,
-        target: body.target || payload.target || null,
-        appVersion: body.appVersion || payload.appVersion || null
-      }
-    });
-    res.json({ success: true, data: { accepted: true } });
+    const db = await getDB();
+    for (const event of events) {
+      await recordAnalyticsEvent(db, {
+        eventType: event.eventType,
+        serviceName: event.serviceName,
+        userId: null,
+        sessionId: event.sessionId,
+        payload: event.payload
+      });
+    }
+    res.json({ success: true, data: { accepted: true, count: events.length } });
   } catch (error) {
     sendJsonServerError(res, error, 'Unable to record analytics right now.');
   }

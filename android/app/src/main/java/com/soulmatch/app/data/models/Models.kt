@@ -46,6 +46,9 @@ data class AnalyticsEventRequest(
     val appVersion: String? = null,
     val payload: Map<String, String> = emptyMap()
 )
+data class AnalyticsBatchRequest(
+    val events: List<AnalyticsEventRequest>
+)
 
 data class AuthData(
     val accessToken: String,

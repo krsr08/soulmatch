@@ -4,7 +4,7 @@ const { randomUUID } = crypto;
 const { getDB } = require('../config/database');
 const logger = require('../utils/logger');
 const { AppError, ErrorCodes } = require('../middleware/errorHandler');
-const { getConfigSection, getPlanById, recordAnalyticsEvent } = require('../../../shared/controlPlane');
+const { getConfigSection, getPlanById, recordServerAnalyticsEvent } = require('../../../shared/controlPlane');
 const { ensureUsageRecord, getEntitlements, normalizePlanId } = require('../../../shared/memberEntitlements');
 
 const RENEWAL_WINDOW_DAYS = 7;
@@ -270,8 +270,14 @@ async function activatePaidOrder(db, { order, plan, paymentId, signature = null,
     client.release();
   }
 
-  await recordAnalyticsEvent(db, {
+  await recordServerAnalyticsEvent(db, {
     eventType: 'payment_success',
+    serviceName: 'payment-service',
+    userId: order.user_id,
+    payload: { planId: plan.planId, gateway: 'razorpay', amount: Number(order.amount), subscriptionId: subId, source }
+  });
+  await recordServerAnalyticsEvent(db, {
+    eventType: 'subscription_activated',
     serviceName: 'payment-service',
     userId: order.user_id,
     payload: { planId: plan.planId, gateway: 'razorpay', amount: Number(order.amount), subscriptionId: subId, source }
@@ -436,11 +442,17 @@ exports.createOrder = async (req, res, next) => {
        VALUES ($1,$2,$3,$4,$5,'razorpay',$6,'created',$7::jsonb)`,
       [randomUUID(), req.user.userId, plan.planId, amount, currency, order.id, JSON.stringify({ receipt, gatewayOrder: order, requestedPlanId: planId, purchaseAction: planChangeContext.action })]
     );
-    await recordAnalyticsEvent(db, {
+    await recordServerAnalyticsEvent(db, {
       eventType: 'payment_click',
       serviceName: 'payment-service',
       userId: req.user.userId,
       payload: { planId: plan.planId, requestedPlanId: planId, gateway: 'razorpay', amount: plan.price, purchaseAction: planChangeContext.action }
+    });
+    await recordServerAnalyticsEvent(db, {
+      eventType: 'payment_order_created',
+      serviceName: 'payment-service',
+      userId: req.user.userId,
+      payload: { planId: plan.planId, requestedPlanId: planId, gateway: 'razorpay', amount: plan.price, purchaseAction: planChangeContext.action, providerOrderId: order.id }
     });
     res.json({ success:true, data:{ orderId:order.id, amount:order.amount, currency:order.currency, planId:plan.planId, gateway:'razorpay', keyId:getRazorpayCredentials().key_id } });
   } catch (err) { next(err); }
@@ -545,6 +557,21 @@ exports.handleWebhook = async (req, res, next) => {
            WHERE provider_order_id=$4`,
           [status, paymentId, JSON.stringify(event), orderId]
         );
+        if (paymentOrder && status === 'failed') {
+          await recordServerAnalyticsEvent(db, {
+            eventType: 'payment_failed',
+            serviceName: 'payment-service',
+            userId: paymentOrder.user_id,
+            payload: {
+              planId: paymentOrder.plan_id,
+              gateway: 'razorpay',
+              amount: Number(paymentOrder.amount || 0),
+              providerOrderId: orderId,
+              providerPaymentId: paymentId,
+              source: 'razorpay_webhook'
+            }
+          });
+        }
       }
     }
     res.json({ success:true });
