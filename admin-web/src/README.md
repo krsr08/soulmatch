@@ -8,6 +8,7 @@ The admin web app is the operator console for verification, CMS/config, subscrip
 | --- | --- |
 | `App.js` | Admin route shell and protected routes. |
 | `api/adminApi.js` | Central admin API client. Add new admin endpoints here before using them in screens. |
+| `components/` | Shared presentational admin UI primitives. |
 | `context/RuntimeConfigContext.js` | Loads runtime/CMS config for admin editing. |
 | `pages/LoginPage.js` | Admin login. |
 | `pages/DashboardPage.js` | Current main admin console with sections for members, agents, payments, moderation, CMS, system, and RBAC. |
@@ -47,4 +48,3 @@ pages/admin/
 ```
 
 Split routes one section at a time and keep behavior unchanged during each move.
-

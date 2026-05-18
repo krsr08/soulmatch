@@ -64,6 +64,7 @@ Budget rule: do not add paid Azure resources while the app is still in developme
 | A10-03 | Source Signposts | Add Android screen map near screen source | Completed | Captured in `android/app/src/main/java/com/soulmatch/app/ui/screens/README.md`. |
 | A10-04 | Source Signposts | Add admin web source map | Completed | Captured in `admin-web/src/README.md`. |
 | A10-05 | Developer Workflow | Add branch/change/testing/deployment workflow guide | Completed | Captured in `docs/DEVELOPMENT_WORKFLOW.md`. |
+| A11-01 | Admin Refactor | Extract reusable admin UI primitives from `DashboardPage.js` | Completed | `Icon`, `StatusPill`, `AdminButton`, `SectionHeader`, and `EmptyState` moved to `admin-web/src/components/AdminPrimitives.js`; admin production build passed. |
 
 ## Current Phase Summary
 
@@ -103,6 +104,7 @@ Scope intentionally not changed:
 | A8 Production Smoke | Started | Public smoke is blocked while the VM is deallocated for cost control. |
 | A9 Developer Navigation | Completed | Module ownership and runtime config guides added. |
 | A10 Source Signposts | Completed | Source-adjacent READMEs and development workflow added without behavior changes. |
+| A11 Admin Refactor | Started | First behavior-preserving extraction completed; future work can split `DashboardPage.js` by route one section at a time. |
 
 ## Latest Validation Results
 
