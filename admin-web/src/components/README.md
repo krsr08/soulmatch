@@ -6,7 +6,7 @@ Reusable Admin Portal UI primitives live here. Keep page-specific data fetching 
 
 | File | Purpose |
 | --- | --- |
-| `AdminPrimitives.js` | Shared `Icon`, `StatusPill`, `AdminButton`, `SectionHeader`, `EmptyState`, `ProfileAvatar`, and `ManagementToolbar` components used across admin pages. |
+| `AdminPrimitives.js` | Shared `Icon`, `StatusPill`, `AdminButton`, `SectionHeader`, `EmptyState`, `ProfileAvatar`, `ManagementToolbar`, and `StatCard` components used across admin pages. |
 | `AdminShell.js` | Shared Admin Portal frame with sidebar, topbar, search, and logout behavior. |
 
 ## Extracted Section Panels

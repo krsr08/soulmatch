@@ -48,4 +48,4 @@ pages/admin/
   RoleMasterPage.js
 ```
 
-Split routes one section at a time and keep behavior unchanged during each move.
+The members and agents panels have started this split under `pages/admin/`. Continue moving one section at a time and keep behavior unchanged during each move.

@@ -156,3 +156,15 @@ export function ManagementToolbar({ title, subtitle, onCreate, createLabel, chil
     </div>
   );
 }
+
+export function StatCard({ tone, label, value, sub, link = 'View Details', onClick }) {
+  return (
+    <button type="button" className={`stat-tile ${tone || ''}`} onClick={onClick}>
+      <div className="stat-icon"><Icon name="trend" /></div>
+      <strong>{value}</strong>
+      <span>{label}</span>
+      <small>{sub}</small>
+      <em>{link}</em>
+    </button>
+  );
+}
