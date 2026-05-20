@@ -66,6 +66,7 @@ Budget rule: do not add paid Azure resources while the app is still in developme
 | A10-05 | Developer Workflow | Add branch/change/testing/deployment workflow guide | Completed | Captured in `docs/DEVELOPMENT_WORKFLOW.md`. |
 | A11-01 | Admin Refactor | Extract reusable admin UI primitives from `DashboardPage.js` | Completed | `Icon`, `StatusPill`, `AdminButton`, `SectionHeader`, and `EmptyState` moved to `admin-web/src/components/AdminPrimitives.js`; admin production build passed. |
 | A11-02 | Admin Refactor | Extract admin shell/sidebar/topbar from `DashboardPage.js` | Completed | `AdminShell` moved to `admin-web/src/components/AdminShell.js`; admin production build passed. |
+| A11-03 | Admin Refactor | Split Members management panels from `DashboardPage.js` | Completed | `MembersPanel` and `MembersDirectoryPanel` moved to `admin-web/src/pages/admin/MembersPanels.js`; admin production build passed. |
 
 ## Current Phase Summary
 

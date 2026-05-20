@@ -47,8 +47,17 @@ import {
   updateProfilePhoto,
   updateProfileStatus
 } from '../api/adminApi';
-import { AdminButton, EmptyState, Icon, SectionHeader, StatusPill } from '../components/AdminPrimitives';
+import {
+  AdminButton,
+  EmptyState,
+  Icon,
+  ManagementToolbar,
+  ProfileAvatar,
+  SectionHeader,
+  StatusPill
+} from '../components/AdminPrimitives';
 import AdminShell from '../components/AdminShell';
+import { MembersDirectoryPanel, MembersPanel } from './admin/MembersPanels';
 import AssistPanel from './AssistPanel';
 import './DashboardPage.css';
 
@@ -901,209 +910,6 @@ function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs,
         </div>
         <AuditLogTable logs={dashboardAudit} />
       </div>
-    </div>
-  );
-}
-
-function ProfileAvatar({ profile }) {
-  const url = profile.primary_photo_url || profile.profile_photo_url;
-  return url
-    ? <img className="profile-avatar" src={url} alt="" />
-    : <div className="profile-avatar fallback">{fullName(profile).charAt(0).toUpperCase()}</div>;
-}
-
-function ManagementToolbar({ title, subtitle, onCreate, createLabel, children }) {
-  return (
-    <div className="management-toolbar">
-      <div>
-        <h3>{title}</h3>
-        <p>{subtitle}</p>
-      </div>
-      <div>
-        {children}
-        {onCreate ? <AdminButton variant="primary" onClick={onCreate}><Icon name="plus" /> {createLabel}</AdminButton> : null}
-      </div>
-    </div>
-  );
-}
-
-function MembersPanel({ profiles, search, onOpen, onCreate, onStatus, onBlock }) {
-  const rows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return profiles;
-    return profiles.filter((profile) => [
-      fullName(profile),
-      profile.phone,
-      profile.email,
-      profile.religion,
-      profile.caste,
-      profile.occupation,
-      profile.working_city,
-      profile.family_city,
-      profile.advisor_name
-    ].filter(Boolean).join(' ').toLowerCase().includes(q));
-  }, [profiles, search]);
-
-  return (
-    <div className="admin-content">
-      <ManagementToolbar
-        title="Members Management"
-        subtitle={`${rows.length} profiles · full 360-degree member control`}
-        onCreate={onCreate}
-        createLabel="Add Member"
-      />
-      <div className="admin-card data-table tall">
-        <table>
-          <thead>
-            <tr>
-              <th>Member</th>
-              <th>Gender</th>
-              <th>Plan</th>
-              <th>Source</th>
-              <th>Verification</th>
-              <th>Visibility</th>
-              <th>Validity</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((profile) => (
-              <tr key={profile.profile_id}>
-                <td>
-                  <div className="identity-cell">
-                    <ProfileAvatar profile={profile} />
-                    <span><strong>{fullName(profile)}</strong><small>{memberDisplayId(profile)} | {profile.phone || profile.email || '-'}</small></span>
-                  </div>
-                </td>
-                <td>{profile.gender || '-'}</td>
-                <td><StatusPill status={profile.plan_id === 'free' ? 'neutral' : 'success'}>{profile.plan_id || 'free'}</StatusPill></td>
-                <td>{profile.created_by_advisor_id ? `Agent | ${profile.advisor_name || 'Linked'}` : 'Self'}</td>
-                <td><StatusPill status={profile.verification_status}>{profile.verification_status}</StatusPill></td>
-                <td><StatusPill status={profile.is_published ? 'active' : 'pending'}>{profile.is_published ? 'Visible' : 'Hidden'}</StatusPill></td>
-                <td>{dateOnly(profile.subscription_end_date)}</td>
-                <td>
-                  <div className="row-actions">
-                    <button onClick={() => onOpen(profile)} title="360 view"><Icon name="eye" /></button>
-                    <button
-                      onClick={() => onStatus(profile, String(profile.verification_status || '').toLowerCase() === 'verified' ? 'unverify' : 'approve')}
-                      title={String(profile.verification_status || '').toLowerCase() === 'verified' ? 'Make unverified' : 'Verify'}
-                    >
-                      <Icon name={String(profile.verification_status || '').toLowerCase() === 'verified' ? 'close' : 'check'} />
-                    </button>
-                    <button onClick={() => onStatus(profile, profile.is_published ? 'suspend' : 'restore')} title="Visibility"><Icon name="sliders" /></button>
-                    <button onClick={() => onBlock(profile)} title="Block / unblock"><Icon name="ban" /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function MembersDirectoryPanel({ profiles, search, onOpen, onCreate }) {
-  const [viewMode, setViewMode] = useState('cards');
-  const [sourceFilter, setSourceFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const rows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return profiles.filter((profile) => {
-      const source = profile.created_by_advisor_id ? 'agent' : (profile.profile_created_by === 'admin' ? 'admin' : 'self');
-      if (sourceFilter !== 'all' && source !== sourceFilter) return false;
-      if (statusFilter !== 'all' && String(profile.verification_status || profile.review_status || '').toLowerCase() !== statusFilter) return false;
-      if (!q) return true;
-      return [
-        memberDisplayId(profile),
-        fullName(profile),
-        profile.phone,
-        profile.email,
-        profile.religion,
-        profile.caste,
-        profile.occupation,
-        profile.working_city,
-        profile.family_city,
-        profile.advisor_name
-      ].filter(Boolean).join(' ').toLowerCase().includes(q);
-    });
-  }, [profiles, search, sourceFilter, statusFilter]);
-
-  return (
-    <div className="admin-content members-directory-page">
-      <ManagementToolbar
-        title="Members Directory"
-        subtitle={`${rows.length} profiles | open any row or card for complete 360-degree details`}
-        onCreate={onCreate}
-        createLabel="Add Member"
-      >
-        <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
-          <option value="all">All sources</option>
-          <option value="self">Self</option>
-          <option value="agent">Agent</option>
-          <option value="admin">Admin</option>
-        </select>
-        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-          <option value="all">All verification</option>
-          <option value="verified">Verified</option>
-          <option value="pending">Pending</option>
-          <option value="rejected">Rejected</option>
-        </select>
-        <div className="view-switcher">
-          <button type="button" className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')}>List</button>
-          <button type="button" className={viewMode === 'cards' ? 'active' : ''} onClick={() => setViewMode('cards')}>Cards</button>
-        </div>
-      </ManagementToolbar>
-
-      {viewMode === 'cards' ? (
-        <div className="member-card-grid">
-          {rows.map((profile) => (
-            <article key={profile.profile_id} className="member-directory-card" onClick={() => onOpen(profile)}>
-              <div className="member-card-top">
-                <ProfileAvatar profile={profile} />
-                <div>
-                  <strong>{fullName(profile)}</strong>
-                  <small>{memberDisplayId(profile)} | {profile.gender || '-'} | {profile.plan_id || 'free'}</small>
-                </div>
-                <StatusPill status={profile.verification_status}>{profile.verification_status || 'pending'}</StatusPill>
-              </div>
-              <div className="member-card-facts">
-                <span>{profile.occupation || 'Occupation not set'}</span>
-                <span>{profile.working_city || profile.family_city || 'City not set'}</span>
-                <span>{profile.education_level || 'Education not set'}</span>
-              </div>
-              <div className="member-card-footer">
-                <span>{profile.created_by_advisor_id ? `Agent: ${profile.advisor_name || 'Linked'}` : (profile.profile_created_by === 'admin' ? 'Created by Admin' : 'Created by Self')}</span>
-                <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(profile); }}>360 View</button>
-              </div>
-            </article>
-          ))}
-          {!rows.length ? <EmptyState title="No members found" body="Try changing the search or filters." /> : null}
-        </div>
-      ) : (
-        <div className="admin-card data-table tall">
-          <table>
-            <thead>
-              <tr><th>Profile ID</th><th>Name</th><th>Gender</th><th>Plan</th><th>Source</th><th>Verification</th><th>Created</th><th>Action</th></tr>
-            </thead>
-            <tbody>
-              {rows.map((profile) => (
-                <tr key={profile.profile_id} onClick={() => onOpen(profile)}>
-                  <td><code>{memberDisplayId(profile)}</code></td>
-                  <td><div className="identity-cell"><ProfileAvatar profile={profile} /><span><strong>{fullName(profile)}</strong><small>{profile.phone || profile.email || '-'}</small></span></div></td>
-                  <td>{profile.gender || '-'}</td>
-                  <td>{profile.plan_id || 'free'}</td>
-                  <td>{profile.created_by_advisor_id ? `Agent | ${profile.advisor_name || 'Linked'}` : (profile.profile_created_by === 'admin' ? 'Admin' : 'Self')}</td>
-                  <td><StatusPill status={profile.verification_status}>{profile.verification_status || 'pending'}</StatusPill></td>
-                  <td>{dateOnly(profile.created_at)}</td>
-                  <td><button type="button" onClick={(event) => { event.stopPropagation(); onOpen(profile); }}>360 View</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!rows.length ? <EmptyState title="No members found" body="Try changing the search or filters." /> : null}
-        </div>
-      )}
     </div>
   );
 }

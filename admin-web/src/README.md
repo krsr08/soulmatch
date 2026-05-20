@@ -12,6 +12,7 @@ The admin web app is the operator console for verification, CMS/config, subscrip
 | `context/RuntimeConfigContext.js` | Loads runtime/CMS config for admin editing. |
 | `pages/LoginPage.js` | Admin login. |
 | `pages/DashboardPage.js` | Current main admin console with sections for members, agents, payments, moderation, CMS, system, and RBAC. |
+| `pages/admin/` | Extracted admin section panels that are split out of the main dashboard page. |
 | `pages/AssistPanel.js` | SoulMatch Assist admin queue/support panel. |
 | `pages/UsersPage.js` | Admin user management surface. |
 

@@ -131,3 +131,28 @@ export function EmptyState({ title, body }) {
   );
 }
 
+function displayName(row) {
+  return [row?.first_name || row?.firstName, row?.last_name || row?.lastName].filter(Boolean).join(' ') || row?.full_name || 'Unnamed';
+}
+
+export function ProfileAvatar({ profile }) {
+  const url = profile?.primary_photo_url || profile?.profile_photo_url;
+  return url
+    ? <img className="profile-avatar" src={url} alt="" />
+    : <div className="profile-avatar fallback">{displayName(profile).charAt(0).toUpperCase()}</div>;
+}
+
+export function ManagementToolbar({ title, subtitle, onCreate, createLabel, children }) {
+  return (
+    <div className="management-toolbar">
+      <div>
+        <h3>{title}</h3>
+        <p>{subtitle}</p>
+      </div>
+      <div>
+        {children}
+        {onCreate ? <AdminButton variant="primary" onClick={onCreate}><Icon name="plus" /> {createLabel}</AdminButton> : null}
+      </div>
+    </div>
+  );
+}
