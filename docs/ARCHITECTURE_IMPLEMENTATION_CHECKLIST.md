@@ -68,6 +68,7 @@ Budget rule: do not add paid Azure resources while the app is still in developme
 | A11-02 | Admin Refactor | Extract admin shell/sidebar/topbar from `DashboardPage.js` | Completed | `AdminShell` moved to `admin-web/src/components/AdminShell.js`; admin production build passed. |
 | A11-03 | Admin Refactor | Split Members management panels from `DashboardPage.js` | Completed | `MembersPanel` and `MembersDirectoryPanel` moved to `admin-web/src/pages/admin/MembersPanels.js`; admin production build passed. |
 | A11-04 | Admin Refactor | Split Agents management panel from `DashboardPage.js` | Completed | `AgentsPanel` moved to `admin-web/src/pages/admin/AgentsPanels.js`; admin production build passed. |
+| A11-05 | Admin Refactor | Split Verification Command Center from `DashboardPage.js` | Completed | `VerificationPanel` moved to `admin-web/src/pages/admin/VerificationPanels.js`; admin production build passed. |
 
 ## Current Phase Summary
 

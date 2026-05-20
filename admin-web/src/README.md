@@ -48,4 +48,4 @@ pages/admin/
   RoleMasterPage.js
 ```
 
-The members and agents panels have started this split under `pages/admin/`. Continue moving one section at a time and keep behavior unchanged during each move.
+The members, agents, and verification panels have started this split under `pages/admin/`. Continue moving one section at a time and keep behavior unchanged during each move.
