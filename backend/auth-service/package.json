@@ -21,7 +21,7 @@
     "morgan": "^1.10.0",
     "pg": "^8.11.3",
     "redis": "^4.6.10",
-    "twilio": "^4.19.0",
+    "twilio": "^6.0.2",
     "winston": "^3.11.0"
   },
   "devDependencies": {
