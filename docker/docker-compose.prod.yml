@@ -171,7 +171,7 @@ services:
       context: ../admin-web
       dockerfile: Dockerfile.prod
       args:
-        REACT_APP_ADMIN_API_URL: ${ADMIN_API_PUBLIC_URL:-http://localhost:3011/api/v1/admin}
+        REACT_APP_ADMIN_API_URL: ${ADMIN_API_PUBLIC_URL:?ADMIN_API_PUBLIC_URL must be set to the public Azure admin API URL}
     restart: unless-stopped
     ports:
       - '127.0.0.1:3000:80'

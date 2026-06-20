@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
 import {
+  AdminButton,
   EmptyState,
   Icon,
-  SectionHeader,
   StatusPill
 } from '../../components/AdminPrimitives';
 
@@ -101,23 +101,24 @@ export default function GrowthReportsPanel({ stats, profiles, advisors, payments
   const recentEvents = Array.isArray(events) ? events.slice(0, 8) : [];
 
   return (
-    <div className="admin-content growth-reports-page">
-      <SectionHeader
-        eyebrow="Business Intelligence"
-        title="Growth Reports"
-        description="Acquisition, revenue, conversion, moderation and operator workload in one place."
-      />
+    <div className="admin-content enterprise-screen growth-reports-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>Growth Reports</h2>
+          <p>Acquisition, revenue, conversion, moderation and operator workload in one place.</p>
+        </div>
+        <div className="enterprise-actions"><AdminButton variant="secondary"><Icon name="export" /> Export Report</AdminButton></div>
+      </div>
 
-      <div className="growth-metrics-grid">
-        <GrowthMetric icon="users" label="Members" value={number(report.profileTotal)} sub={`${number(stats.activeProfiles)} active profiles`} tone="ink" />
-        <GrowthMetric icon="trend" label="DAU / MAU" value={`${number(stats.dau)} / ${number(stats.mau)}`} sub="Realtime activity snapshot" tone="steel" />
-        <GrowthMetric icon="rupee" label="Revenue" value={formatCurrency(stats.revenue30d || report.revenue)} sub={`${number(report.successfulPayments.length)} successful payments`} tone="gold" />
-        <GrowthMetric icon="target" label="Conversion" value={percent(stats.conversionRate)} sub={`${percent(stats.matchSuccessRate)} match success`} tone="success" />
-        <GrowthMetric icon="flag" label="Risk Queue" value={number(report.openReports.length + report.verificationBacklog)} sub={`${number(report.openReports.length)} reports open`} tone="danger" />
+      <div className="enterprise-kpi-grid growth-metrics-grid">
+        <button type="button" className="enterprise-kpi"><Icon name="users" /><span>Members</span><strong>{number(report.profileTotal)}</strong><small>{number(stats.activeProfiles)} active profiles</small></button>
+        <button type="button" className="enterprise-kpi"><Icon name="trend" /><span>DAU / MAU</span><strong>{number(stats.dau)} / {number(stats.mau)}</strong><small>Realtime activity snapshot</small></button>
+        <button type="button" className="enterprise-kpi success"><Icon name="rupee" /><span>Revenue</span><strong>{formatCurrency(stats.revenue30d || report.revenue)}</strong><small>{number(report.successfulPayments.length)} successful payments</small></button>
+        <button type="button" className="enterprise-kpi warning"><Icon name="target" /><span>Conversion</span><strong>{percent(stats.conversionRate)}</strong><small>{percent(stats.matchSuccessRate)} match success</small></button>
       </div>
 
       <div className="workspace-columns even growth-grid">
-        <section className="admin-card report-card">
+        <section className="enterprise-panel report-card">
           <div className="card-title-row">
             <div>
               <h3>Acquisition Mix</h3>
@@ -132,7 +133,7 @@ export default function GrowthReportsPanel({ stats, profiles, advisors, payments
           </div>
         </section>
 
-        <section className="admin-card report-card">
+        <section className="enterprise-panel report-card">
           <div className="card-title-row">
             <div>
               <h3>Plan Health</h3>
@@ -147,7 +148,7 @@ export default function GrowthReportsPanel({ stats, profiles, advisors, payments
           </div>
         </section>
 
-        <section className="admin-card report-card">
+        <section className="enterprise-panel report-card">
           <div className="card-title-row">
             <div>
               <h3>Conversion Funnel</h3>
@@ -169,7 +170,7 @@ export default function GrowthReportsPanel({ stats, profiles, advisors, payments
           </div>
         </section>
 
-        <section className="admin-card report-card">
+        <section className="enterprise-panel report-card">
           <div className="card-title-row">
             <div>
               <h3>Operations Load</h3>
@@ -187,7 +188,7 @@ export default function GrowthReportsPanel({ stats, profiles, advisors, payments
       </div>
 
       <div className="workspace-columns even growth-grid">
-        <section className="admin-card report-card data-table compact-table">
+        <section className="enterprise-panel enterprise-table report-card compact-table">
           <div className="card-title-row">
             <div>
               <h3>Recent Payment Signals</h3>
@@ -210,7 +211,7 @@ export default function GrowthReportsPanel({ stats, profiles, advisors, payments
           {!(payments.transactions || []).length ? <EmptyState title="No payments found" body="Payment activity will appear here after checkout events." /> : null}
         </section>
 
-        <section className="admin-card report-card data-table compact-table">
+        <section className="enterprise-panel enterprise-table report-card compact-table">
           <div className="card-title-row">
             <div>
               <h3>Recent Product Events</h3>

@@ -29,8 +29,11 @@ export default function AdminShell({
     <div className="admin-console">
       <aside className="console-sidebar">
         <div className="console-brand">
-          <h1>SoulMatch</h1>
-          <span>Admin Portal</span>
+          <div className="console-brand-mark"><Icon name="heart" /></div>
+          <div>
+            <h1>SoulMatch</h1>
+            <span>Admin Operations</span>
+          </div>
         </div>
         <nav className="console-nav">
           {(menuGroups || []).map((group) => (
@@ -68,7 +71,11 @@ export default function AdminShell({
             <div className="topbar-actions">
               <button type="button" title="Notifications" onClick={() => handleTab('notifications')}><Icon name="bell" /></button>
               <button type="button" title="Help" onClick={onHelp}><Icon name="help" /></button>
-              <button type="button" className="settings-link" onClick={() => handleTab('settings')}>Admin Settings</button>
+              <button type="button" title="Settings" onClick={() => handleTab('settings')}><Icon name="gear" /></button>
+              <div className="topbar-admin-copy">
+                <strong>{session.email || 'Admin User'}</strong>
+                <span>{session.role === 'super_admin' ? 'Super Admin' : session.role || 'Admin'}</span>
+              </div>
               <div className="small-avatar">{(session.email || 'A').charAt(0).toUpperCase()}</div>
             </div>
           </header>

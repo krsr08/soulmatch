@@ -2,9 +2,7 @@ import React, { useMemo } from 'react';
 import {
   AdminButton,
   Icon,
-  ManagementToolbar,
   ProfileAvatar,
-  StatCard,
   StatusPill
 } from '../../components/AdminPrimitives';
 
@@ -51,26 +49,54 @@ export function AgentsPanel({ advisors, profiles, search, onOpen, onCreate, onSt
   const averageRating = rows.reduce((sum, agent) => sum + numberValue(agent.average_rating), 0) / Math.max(rows.length, 1);
 
   return (
-    <div className="admin-content">
-      <ManagementToolbar
-        title="Agent Management"
-        subtitle={`${rows.length} agents | KYC, bank, T&C, plans and linked member profiles`}
-        onCreate={onCreate}
-        createLabel="Invite Agent"
-      >
-        <AdminButton variant="secondary"><Icon name="export" /> Export</AdminButton>
-      </ManagementToolbar>
+    <div className="admin-content enterprise-screen agents-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>Agent Control</h2>
+          <p>{rows.length} agents | KYC, bank, T&C, plans and linked member profiles</p>
+        </div>
+        <div className="enterprise-actions">
+          <AdminButton variant="secondary"><Icon name="export" /> Export</AdminButton>
+          <AdminButton variant="primary" onClick={onCreate}><Icon name="plus" /> Invite Agent</AdminButton>
+        </div>
+      </div>
 
       <div className="agent-management-layout">
         <div>
-          <div className="stat-grid four compact">
-            <StatCard tone="terracotta" label="Total Agents" value={compactNumber(rows.length)} sub="Registered advisors" />
-            <StatCard tone="peach" label="Pending Approval" value={compactNumber(pendingApprovalCount)} sub="KYC review required" />
-            <StatCard tone="mauve" label="Members Added" value={compactNumber(membersAddedCount)} sub="Agent-created profiles" />
-            <StatCard tone="sage" label="Avg Rating" value={averageRating.toFixed(2)} sub="Live advisor quality" />
+          <div className="enterprise-kpi-grid">
+            <button type="button" className="enterprise-kpi">
+              <Icon name="agent" />
+              <span>Total agents</span>
+              <strong>{compactNumber(rows.length)}</strong>
+              <small>Registered advisors</small>
+            </button>
+            <button type="button" className="enterprise-kpi warning">
+              <Icon name="clock" />
+              <span>Pending approval</span>
+              <strong>{compactNumber(pendingApprovalCount)}</strong>
+              <small>KYC review required</small>
+            </button>
+            <button type="button" className="enterprise-kpi success">
+              <Icon name="users" />
+              <span>Members added</span>
+              <strong>{compactNumber(membersAddedCount)}</strong>
+              <small>Agent-created profiles</small>
+            </button>
+            <button type="button" className="enterprise-kpi">
+              <Icon name="star" />
+              <span>Avg rating</span>
+              <strong>{averageRating.toFixed(2)}</strong>
+              <small>Live advisor quality</small>
+            </button>
           </div>
 
-          <div className="admin-card data-table tall">
+          <div className="enterprise-filter-bar">
+            <strong>Agent Queue</strong>
+            <span className="mini-token">Approve or reject KYC</span>
+            <span className="mini-token">Open 360 view for profile, bank, plans, and members</span>
+          </div>
+
+          <div className="enterprise-panel enterprise-table">
             <table>
               <thead>
                 <tr>

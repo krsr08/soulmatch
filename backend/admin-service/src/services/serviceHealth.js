@@ -1,3 +1,5 @@
+const fs = require('fs');
+
 const SERVICES = [
   { key: 'admin', label: 'Admin', envKey: 'ADMIN_SERVICE_URL', dockerUrl: 'http://admin-service:3011/health', localUrl: 'http://localhost:3011/health' },
   { key: 'auth', label: 'Auth', envKey: 'AUTH_SERVICE_URL', dockerUrl: 'http://auth-service:3001/health', localUrl: 'http://localhost:3001/health' },
@@ -11,8 +13,18 @@ const SERVICES = [
 
 function getServiceUrls(service) {
   const configuredUrl = process.env[service.envKey];
-  if (configuredUrl) return [configuredUrl];
-  return [service.dockerUrl, service.localUrl].filter(Boolean);
+  if (configuredUrl) return [normalizeHealthUrl(configuredUrl)];
+  const isDockerRuntime = fs.existsSync('/.dockerenv') || process.env.DOCKER_CONTAINER === 'true';
+  return isDockerRuntime
+    ? [service.dockerUrl, service.localUrl].filter(Boolean)
+    : [service.localUrl].filter(Boolean);
+}
+
+function normalizeHealthUrl(value) {
+  const url = String(value || '').trim();
+  if (!url) return url;
+  if (/\/health\/?$/.test(url) || /\/health\/services\/?$/.test(url)) return url;
+  return `${url.replace(/\/$/, '')}/health`;
 }
 
 async function fetchHealth(url, service) {
@@ -29,7 +41,8 @@ async function fetchHealth(url, service) {
       label: service.label,
       url,
       ok: response.ok,
-      status: response.status,
+      status: response.ok ? 'healthy' : 'down',
+      httpStatus: response.status,
       latencyMs: Date.now() - startedAt,
       service: body?.service || service.key,
       body
@@ -41,7 +54,8 @@ async function fetchHealth(url, service) {
       label: service.label,
       url,
       ok: false,
-      status: 0,
+      status: 'down',
+      httpStatus: 0,
       latencyMs: Date.now() - startedAt,
       error: error.message
     };
@@ -49,6 +63,20 @@ async function fetchHealth(url, service) {
 }
 
 async function probeService(service) {
+  if (service.key === 'admin') {
+    return {
+      key: service.key,
+      label: service.label,
+      url: service.localUrl,
+      ok: true,
+      status: 'healthy',
+      httpStatus: 200,
+      latencyMs: 0,
+      service: 'admin-service',
+      body: { status: 'ok', service: 'admin-service' },
+      self: true
+    };
+  }
   const urls = getServiceUrls(service);
   const attempts = [];
   for (const url of urls) {
@@ -61,9 +89,10 @@ async function probeService(service) {
     label: service.label,
     url: attempts[0]?.url || urls[0],
     ok: false,
-    status: attempts[0]?.status || 0,
+    status: 'down',
+    httpStatus: attempts[0]?.httpStatus || 0,
     latencyMs: attempts.reduce((total, item) => total + (item.latencyMs || 0), 0),
-    error: attempts.map(item => item.error || `HTTP ${item.status}`).join('; '),
+    error: attempts.map(item => item.error || `HTTP ${item.httpStatus || item.status}`).join('; '),
     attemptedUrls: urls
   };
 }

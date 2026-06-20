@@ -25,6 +25,7 @@ export function Icon({ name }) {
         <rect x="14" y="14" width="7" height="7" rx="1.5" {...common} />
       </>
     ),
+    heart: <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z" {...common} />,
     users: (
       <>
         <circle cx="9" cy="7" r="4" {...common} />

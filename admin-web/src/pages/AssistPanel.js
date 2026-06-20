@@ -207,32 +207,22 @@ export default function AssistPanel({
   };
 
   return (
-    <>
-      <div className="metric-grid">
-        <div className="metric-card">
-          <div className="metric-icon">AA</div>
-          <span>Active advisors</span>
-          <strong>{compactNumber(stats.activeAdvisors)}</strong>
-          <small>Currently taking SoulMatch Assist leads</small>
+    <div className="admin-content enterprise-screen assist-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>Assisted Matchmaking</h2>
+          <p>Advisor operations, program settings, trusted local network, and assignment queue.</p>
         </div>
-        <div className="metric-card amber">
-          <div className="metric-icon">KY</div>
-          <span>KYC pending</span>
-          <strong>{compactNumber(stats.pendingKyc)}</strong>
-          <small>Needs trust approval before assignments</small>
+        <div className="enterprise-actions">
+          <button className="secondary-btn" type="button">Export Queue</button>
         </div>
-        <div className="metric-card amber">
-          <div className="metric-icon">WA</div>
-          <span>Waiting assignment</span>
-          <strong>{compactNumber(stats.waitingAssignments)}</strong>
-          <small>Families opted in but no advisor yet</small>
-        </div>
-        <div className="metric-card green">
-          <div className="metric-icon">AS</div>
-          <span>Assigned members</span>
-          <strong>{compactNumber(stats.assignedMembers)}</strong>
-          <small>Live assisted matchmaking relationships</small>
-        </div>
+      </div>
+
+      <div className="enterprise-kpi-grid">
+        <button type="button" className="enterprise-kpi"><span>Active advisors</span><strong>{compactNumber(stats.activeAdvisors)}</strong><small>Currently taking SoulMatch Assist leads</small></button>
+        <button type="button" className="enterprise-kpi warning"><span>KYC pending</span><strong>{compactNumber(stats.pendingKyc)}</strong><small>Needs trust approval before assignments</small></button>
+        <button type="button" className="enterprise-kpi warning"><span>Waiting assignment</span><strong>{compactNumber(stats.waitingAssignments)}</strong><small>Families opted in but no advisor yet</small></button>
+        <button type="button" className="enterprise-kpi success"><span>Assigned members</span><strong>{compactNumber(stats.assignedMembers)}</strong><small>Live assisted matchmaking relationships</small></button>
       </div>
 
       <div className="two-col">
@@ -504,6 +494,6 @@ export default function AssistPanel({
           </table>
         </div>
       </section>
-    </>
+    </div>
   );
 }

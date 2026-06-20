@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import {
+  AdminButton,
   EmptyState,
   Icon,
-  ManagementToolbar,
   ProfileAvatar,
   StatusPill
 } from '../../components/AdminPrimitives';
@@ -48,16 +48,58 @@ export function MembersPanel({ profiles, search, onOpen, onCreate, onStatus, onB
     if (!q) return profiles;
     return profiles.filter((profile) => memberSearchHaystack(profile).includes(q));
   }, [profiles, search]);
+  const verifiedCount = rows.filter((profile) => String(profile.verification_status || '').toLowerCase() === 'verified').length;
+  const pendingCount = rows.filter((profile) => ['pending', 'submitted', 'under_review'].includes(String(profile.verification_status || profile.review_status || '').toLowerCase())).length;
+  const hiddenCount = rows.filter((profile) => !profile.is_published).length;
+  const paidCount = rows.filter((profile) => profile.plan_id && profile.plan_id !== 'free').length;
 
   return (
-    <div className="admin-content">
-      <ManagementToolbar
-        title="Members Management"
-        subtitle={`${rows.length} profiles | full 360-degree member control`}
-        onCreate={onCreate}
-        createLabel="Add Member"
-      />
-      <div className="admin-card data-table tall">
+    <div className="admin-content enterprise-screen members-management-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>Members Management</h2>
+          <p>{rows.length} profiles | full 360-degree member control</p>
+        </div>
+        <div className="enterprise-actions">
+          <AdminButton variant="secondary"><Icon name="export" /> Export</AdminButton>
+          <AdminButton variant="primary" onClick={onCreate}><Icon name="plus" /> Add Member</AdminButton>
+        </div>
+      </div>
+
+      <div className="enterprise-kpi-grid">
+        <button type="button" className="enterprise-kpi">
+          <Icon name="users" />
+          <span>Total members</span>
+          <strong>{rows.length}</strong>
+          <small>{paidCount} paid | {rows.length - paidCount} free</small>
+        </button>
+        <button type="button" className="enterprise-kpi warning">
+          <Icon name="clock" />
+          <span>Pending review</span>
+          <strong>{pendingCount}</strong>
+          <small>KYC, profile, and document checks</small>
+        </button>
+        <button type="button" className="enterprise-kpi success">
+          <Icon name="check" />
+          <span>Verified profiles</span>
+          <strong>{verifiedCount}</strong>
+          <small>{rows.length ? Math.round((verifiedCount / rows.length) * 100) : 0}% verification coverage</small>
+        </button>
+        <button type="button" className="enterprise-kpi danger">
+          <Icon name="eye" />
+          <span>Hidden profiles</span>
+          <strong>{hiddenCount}</strong>
+          <small>Suspended or unpublished visibility</small>
+        </button>
+      </div>
+
+      <div className="enterprise-filter-bar">
+        <strong>Live Controls</strong>
+        <span className="mini-token">Search follows global header</span>
+        <span className="mini-token">Verify, hide, block, or open 360 view</span>
+      </div>
+
+      <div className="enterprise-panel enterprise-table">
         <table>
           <thead>
             <tr>
@@ -106,6 +148,7 @@ export function MembersPanel({ profiles, search, onOpen, onCreate, onStatus, onB
             })}
           </tbody>
         </table>
+        {!rows.length ? <EmptyState title="No members found" body="Try changing the search text in the dashboard header." /> : null}
       </div>
     </div>
   );
@@ -125,15 +168,56 @@ export function MembersDirectoryPanel({ profiles, search, onOpen, onCreate }) {
       return memberSearchHaystack(profile).includes(q);
     });
   }, [profiles, search, sourceFilter, statusFilter]);
+  const verifiedCount = rows.filter((profile) => String(profile.verification_status || '').toLowerCase() === 'verified').length;
+  const pendingCount = rows.filter((profile) => ['pending', 'submitted', 'under_review'].includes(String(profile.verification_status || profile.review_status || '').toLowerCase())).length;
+  const activeToday = rows.filter((profile) => {
+    const lastSeen = new Date(profile.last_seen_at || profile.updated_at || profile.created_at);
+    return !Number.isNaN(lastSeen.getTime()) && Date.now() - lastSeen.getTime() < 24 * 60 * 60 * 1000;
+  }).length;
 
   return (
-    <div className="admin-content members-directory-page">
-      <ManagementToolbar
-        title="Members Directory"
-        subtitle={`${rows.length} profiles | open any row or card for complete 360-degree details`}
-        onCreate={onCreate}
-        createLabel="Add Member"
-      >
+    <div className="admin-content enterprise-screen members-directory-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>Member Directory</h2>
+          <p>{rows.length} profiles | open any row or card for complete 360-degree details</p>
+        </div>
+        <div className="enterprise-actions">
+          <AdminButton variant="secondary"><Icon name="export" /> Export</AdminButton>
+          <AdminButton variant="primary" onClick={onCreate}><Icon name="plus" /> Add Member</AdminButton>
+        </div>
+      </div>
+
+      <div className="enterprise-kpi-grid member-directory-kpis">
+        <button type="button" className="enterprise-kpi">
+          <span>Total Members</span>
+          <strong>{rows.length}</strong>
+          <small>{profiles.length ? `${Math.round((rows.length / profiles.length) * 100)}% of loaded profiles` : 'No members loaded'}</small>
+          <Icon name="users" />
+        </button>
+        <button type="button" className="enterprise-kpi success">
+          <span>Verified</span>
+          <strong>{verifiedCount}</strong>
+          <small>{rows.length ? `${Math.round((verifiedCount / rows.length) * 100)}% verified` : 'No verified members'}</small>
+          <Icon name="check" />
+        </button>
+        <button type="button" className="enterprise-kpi warning">
+          <span>Pending Verification</span>
+          <strong>{pendingCount}</strong>
+          <small>Identity and profile review queue</small>
+          <Icon name="clock" />
+        </button>
+        <button type="button" className="enterprise-kpi">
+          <span>Active Today</span>
+          <strong>{activeToday}</strong>
+          <small>Based on latest profile activity</small>
+          <Icon name="pulse" />
+        </button>
+      </div>
+
+      <div className="enterprise-filter-bar">
+        <strong>Directory Controls</strong>
+        <button type="button" className="filter-chip"><Icon name="sliders" /> Advanced Filters</button>
         <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
           <option value="all">All sources</option>
           <option value="self">Self</option>
@@ -150,7 +234,7 @@ export function MembersDirectoryPanel({ profiles, search, onOpen, onCreate }) {
           <button type="button" className={viewMode === 'list' ? 'active' : ''} onClick={() => setViewMode('list')}>List</button>
           <button type="button" className={viewMode === 'cards' ? 'active' : ''} onClick={() => setViewMode('cards')}>Cards</button>
         </div>
-      </ManagementToolbar>
+      </div>
 
       {viewMode === 'cards' ? (
         <div className="member-card-grid">
@@ -176,9 +260,15 @@ export function MembersDirectoryPanel({ profiles, search, onOpen, onCreate }) {
             </article>
           ))}
           {!rows.length ? <EmptyState title="No members found" body="Try changing the search or filters." /> : null}
+          {rows.length ? (
+            <div className="table-pagination-bar">
+              <span>Showing 1 - {rows.length} of {rows.length} members</span>
+              <div><button disabled>‹</button><button className="active">1</button><button disabled>›</button></div>
+            </div>
+          ) : null}
         </div>
       ) : (
-        <div className="admin-card data-table tall">
+        <div className="enterprise-panel enterprise-table">
           <table>
             <thead>
               <tr><th>Profile ID</th><th>Name</th><th>Gender</th><th>Plan</th><th>Source</th><th>Verification</th><th>Created</th><th>Action</th></tr>
@@ -199,6 +289,12 @@ export function MembersDirectoryPanel({ profiles, search, onOpen, onCreate }) {
             </tbody>
           </table>
           {!rows.length ? <EmptyState title="No members found" body="Try changing the search or filters." /> : null}
+          {rows.length ? (
+            <div className="table-pagination-bar">
+              <span>Showing 1 - {rows.length} of {rows.length} members</span>
+              <div><button disabled>‹</button><button className="active">1</button><button disabled>›</button></div>
+            </div>
+          ) : null}
         </div>
       )}
     </div>

@@ -181,6 +181,10 @@ services:
       - profile_uploads:/app/uploads
     environment:
       - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=soulmatch_db
+      - DB_USER=soulmatch_user
+      - DB_PASSWORD=${DB_PASSWORD:-soulmatch_pass}
       - ADMIN_ROLE=super_admin
       - ADMIN_REALTIME_INTERVAL_MS=10000
     depends_on:

@@ -3,7 +3,6 @@ import {
   AdminButton,
   EmptyState,
   Icon,
-  ManagementToolbar,
   ProfileAvatar,
   StatusPill
 } from '../../components/AdminPrimitives';
@@ -161,12 +160,18 @@ export default function UserControlPanel({
 
   return (
     <div className="admin-content user-control-page">
-      <ManagementToolbar
-        title="User Control"
-        subtitle={`${rows.length} of ${profiles.length} members | view, edit, block, verify, suspend, restore or delete`}
-        onCreate={onCreate}
-        createLabel="Add Member"
-      >
+      <div className="enterprise-page-head">
+        <div>
+          <h2>User Control</h2>
+          <p>{rows.length} of {profiles.length} members | manage profile, verification, visibility, login access and bulk controls.</p>
+        </div>
+        <div className="enterprise-actions">
+          <AdminButton variant="primary" onClick={onCreate}><Icon name="plus" /> Add User</AdminButton>
+        </div>
+      </div>
+
+      <div className="enterprise-filter-bar user-control-filter-bar">
+        <strong>Filters:</strong>
         <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
           <option value="all">All sources</option>
           <option value="self">Self signup</option>
@@ -192,18 +197,17 @@ export default function UserControlPanel({
           <option value="visible">Visible</option>
           <option value="hidden">Hidden</option>
         </select>
-      </ManagementToolbar>
-
-      <div className="control-metrics-grid">
-        <ControlMetric label="Total users" value={profiles.length} sub="Profiles loaded in admin scope" tone="ink" />
-        <ControlMetric label="Visible" value={metrics.visible} sub="Published in discovery" tone="success" />
-        <ControlMetric label="Verified" value={metrics.verified} sub="Approved identity status" tone="steel" />
-        <ControlMetric label="Premium" value={metrics.premium} sub="Paid or upgraded plans" tone="gold" />
-        <ControlMetric label="Needs action" value={metrics.blocked + metrics.pendingReports} sub="Blocked users and open reports" tone="danger" />
+        <button type="button" className="filter-chip"><Icon name="sliders" /> Advanced Filters</button>
+        <button type="button" className="filter-chip" onClick={() => {
+          setSourceFilter('all');
+          setPlanFilter('all');
+          setVerificationFilter('all');
+          setVisibilityFilter('all');
+        }}><Icon name="clock" /> Reset</button>
       </div>
 
       <div className="admin-card control-table-card">
-        <div className="bulk-action-bar">
+        <div className="bulk-action-bar inline">
           <div>
             <strong>{selectedProfiles.length} selected</strong>
             <small>Bulk actions run through the existing secured admin APIs and refresh the dashboard after completion.</small>
@@ -286,7 +290,23 @@ export default function UserControlPanel({
           </table>
           {!rows.length ? <EmptyState title="No users found" body="Try changing search or filters." /> : null}
         </div>
+        {rows.length ? (
+          <div className="table-pagination-bar">
+            <span>Showing {rows.length} of {profiles.length} members</span>
+            <div><button disabled>‹</button><button className="active">1</button><button>2</button><button>3</button><button disabled>›</button></div>
+          </div>
+        ) : null}
       </div>
+
+      {selectedProfiles.length ? (
+        <div className="floating-bulk-actions">
+          <span><strong>{selectedProfiles.length}</strong> Selected</span>
+          <button type="button" onClick={() => afterBulk((items) => onBulkStatus(items, 'approve'))}><Icon name="check" /> Verify</button>
+          <button type="button" onClick={() => afterBulk((items) => onBulkStatus(items, 'suspend'))}><Icon name="ban" /> Suspend</button>
+          <button type="button" onClick={() => afterBulk((items) => onBulkStatus(items, 'restore'))}><Icon name="eye" /> Restore</button>
+          <button type="button" onClick={() => afterBulk(onBulkDelete)}><Icon name="close" /> Delete</button>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -52,10 +52,7 @@ import {
   AdminButton,
   EmptyState,
   Icon,
-  ManagementToolbar,
   ProfileAvatar,
-  SectionHeader,
-  StatCard,
   StatusPill
 } from '../components/AdminPrimitives';
 import AdminShell from '../components/AdminShell';
@@ -172,16 +169,52 @@ const ROUTE_TO_TAB = {
   'user-control': 'user-control',
   users: 'user-control',
   members: 'members',
+  'members-all': 'members-all',
+  'member-profile': 'member-profile',
+  'member-signup': 'member-signup',
+  'member-password': 'member-password',
+  'member-block': 'member-block',
+  'member-validity': 'member-validity',
   agents: 'agents',
+  'agents-all': 'agents-all',
+  'agent-ratings': 'agent-ratings',
+  'agent-performance': 'agent-performance',
+  'agent-profiles': 'agent-profiles',
   verification: 'member-verify',
+  'member-verify': 'member-verify',
+  'agent-verification': 'agent-verification',
   payments: 'member-payments',
+  'member-upgrades': 'member-upgrades',
+  'member-payments': 'member-payments',
+  'member-invoices': 'member-invoices',
+  'agent-upgrades': 'agent-upgrades',
+  'agent-payments': 'agent-payments',
+  'agent-invoices': 'agent-invoices',
   subscriptions: 'subscriptions',
+  'member-plans': 'member-plans',
+  'agent-plans': 'agent-plans',
   moderation: 'content',
+  content: 'content',
+  'photo-moderation': 'photo-moderation',
+  'chat-moderation': 'chat-moderation',
+  'flagged-content': 'flagged-content',
+  'visitor-enquiry': 'visitor-enquiry',
+  'lead-management': 'lead-management',
+  notifications: 'notifications',
   cms: 'cms-management',
+  'cms-management': 'cms-management',
+  'dynamic-config': 'dynamic-config',
   analytics: 'analytics',
   reports: 'growth-reports',
   'growth-reports': 'growth-reports',
   system: 'system',
+  'data-export': 'data-export',
+  'role-master': 'role-master',
+  'user-master': 'user-master',
+  'audit-logs': 'audit-logs',
+  'service-health': 'service-health',
+  settings: 'settings',
+  'change-password': 'change-password',
   assist: 'assist'
 };
 
@@ -190,47 +223,47 @@ const TAB_TO_ROUTE = {
   overview: 'overview',
   'user-control': 'user-control',
   members: 'members',
-  'members-all': 'members',
-  'member-profile': 'members',
-  'member-signup': 'members',
-  'member-password': 'members',
-  'member-block': 'members',
-  'member-verify': 'verification',
-  'member-validity': 'members',
+  'members-all': 'members-all',
+  'member-profile': 'member-profile',
+  'member-signup': 'member-signup',
+  'member-password': 'member-password',
+  'member-block': 'member-block',
+  'member-verify': 'member-verify',
+  'member-validity': 'member-validity',
   agents: 'agents',
-  'agents-all': 'agents',
-  'agent-verification': 'verification',
-  'agent-ratings': 'agents',
-  'agent-performance': 'agents',
-  'agent-profiles': 'agents',
+  'agents-all': 'agents-all',
+  'agent-verification': 'agent-verification',
+  'agent-ratings': 'agent-ratings',
+  'agent-performance': 'agent-performance',
+  'agent-profiles': 'agent-profiles',
   subscriptions: 'subscriptions',
-  'member-plans': 'subscriptions',
-  'agent-plans': 'subscriptions',
-  'member-upgrades': 'payments',
-  'member-payments': 'payments',
-  'member-invoices': 'payments',
-  'agent-upgrades': 'payments',
-  'agent-payments': 'payments',
-  'agent-invoices': 'payments',
-  content: 'moderation',
-  'photo-moderation': 'moderation',
-  'chat-moderation': 'moderation',
-  'flagged-content': 'moderation',
-  'visitor-enquiry': 'moderation',
-  'lead-management': 'moderation',
-  notifications: 'system',
-  'dynamic-config': 'cms',
-  'cms-management': 'cms',
+  'member-plans': 'member-plans',
+  'agent-plans': 'agent-plans',
+  'member-upgrades': 'member-upgrades',
+  'member-payments': 'member-payments',
+  'member-invoices': 'member-invoices',
+  'agent-upgrades': 'agent-upgrades',
+  'agent-payments': 'agent-payments',
+  'agent-invoices': 'agent-invoices',
+  content: 'content',
+  'photo-moderation': 'photo-moderation',
+  'chat-moderation': 'chat-moderation',
+  'flagged-content': 'flagged-content',
+  'visitor-enquiry': 'visitor-enquiry',
+  'lead-management': 'lead-management',
+  notifications: 'notifications',
+  'dynamic-config': 'dynamic-config',
+  'cms-management': 'cms-management',
   analytics: 'analytics',
-  'growth-reports': 'reports',
+  'growth-reports': 'growth-reports',
   system: 'system',
-  'role-master': 'system',
-  'user-master': 'system',
-  'data-export': 'system',
-  'audit-logs': 'system',
-  'service-health': 'system',
-  settings: 'system',
-  'change-password': 'system',
+  'role-master': 'role-master',
+  'user-master': 'user-master',
+  'data-export': 'data-export',
+  'audit-logs': 'audit-logs',
+  'service-health': 'service-health',
+  settings: 'settings',
+  'change-password': 'change-password',
   assist: 'assist'
 };
 
@@ -723,136 +756,127 @@ function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs,
   const dashboardAudit = (admin.recentAudit?.length ? admin.recentAudit : auditLogs)
     .filter((log) => !/deploy|deployment|version|service health|release/i.test(`${log.action || ''} ${log.entity_type || ''}`))
     .slice(0, 8);
-  const revenueTrend = admin.revenueTrend || [];
+  const revenueTrend = admin.revenueTrend?.length
+    ? admin.revenueTrend
+    : createMonthlyTrend(profiles).map((row) => ({ ...row, revenue: row.value }));
+  const verificationRows = profiles
+    .filter((profile) => ['pending', 'submitted', 'under_review', 'rejected'].includes(String(profile.verification_status || '').toLowerCase()) || !profile.is_published)
+    .slice(0, 6);
+  const openTickets = numberValue(alerts.length + stats.pendingReports + queues.moderation);
 
   return (
-    <div className="admin-content dashboard-grid">
-      <SectionHeader
-        title="Good morning, Admin"
-        description={`${todayLong()} | Here's your platform overview`}
-        actions={(
-          <>
-            <AdminButton variant="secondary" onClick={onCreateMember}><Icon name="plus" /> Add Member</AdminButton>
-            <AdminButton variant="primary" onClick={() => onTab('member-verify')}><Icon name="check" /> Verify Pending ({quickPending})</AdminButton>
-            <AdminButton variant="secondary" onClick={() => onTab('data-export')}><Icon name="export" /> Export Report</AdminButton>
-          </>
-        )}
-      />
-
-      <div className="stat-grid five">
-        <StatCard tone="terracotta" label="Total Members" value={compactNumber(totalMembers)} sub={`Paid: ${paidMembers} | Free: ${freeMembers} | New Today: ${numberValue(members.new_today || stats.newUsersToday)}`} onClick={() => onTab('members-all')} />
-        <StatCard tone="peach" label="Grooms Registered" value={compactNumber(members.grooms)} sub={`Paid: ${Math.round(paidMembers * 0.62)} | Free: ${Math.max(numberValue(members.grooms) - Math.round(paidMembers * 0.62), 0)} | New Today: ${numberValue(members.grooms_today || 0)}`} onClick={() => onTab('members-all')} />
-        <StatCard tone="mauve" label="Brides Registered" value={compactNumber(members.brides)} sub={`Paid: ${Math.max(paidMembers - Math.round(paidMembers * 0.62), 0)} | Free: ${Math.max(numberValue(members.brides) - Math.max(paidMembers - Math.round(paidMembers * 0.62), 0), 0)} | New Today: ${numberValue(members.brides_today || 0)}`} onClick={() => onTab('members-all')} />
-        <StatCard tone="sage" label="Total Revenue" value={money(totalRevenue)} sub={`This Month: ${money(monthlyRevenue)} | Pending: ${money(pendingRevenue)} | New Today: ${money(stats.revenueToday || 0)}`} onClick={() => onTab('member-payments')} />
-        <StatCard tone="steel" label="Active Agents" value={compactNumber(activeAgents)} sub={`Verified: ${numberValue(agents.verified)} | Pending: ${numberValue(agents.pending)} | Suspended: ${numberValue(agents.suspended)}`} onClick={() => onTab('agents-all')} />
+    <div className="admin-content enterprise-dashboard">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>Command Center</h2>
+          <p>Daily operational overview for <strong>SoulMatch</strong> | {todayLong()}</p>
+        </div>
+        <div className="enterprise-actions">
+          <AdminButton variant="secondary" onClick={() => onTab('growth-reports')}><Icon name="clock" /> Past 30 Days</AdminButton>
+          <AdminButton variant="secondary" onClick={onCreateMember}><Icon name="plus" /> Add Member</AdminButton>
+          <AdminButton variant="primary" onClick={() => onTab('data-export')}><Icon name="export" /> Export Report</AdminButton>
+        </div>
       </div>
 
-      <div className="workspace-columns members-first">
-        <section className="workspace-left wide">
-          <div className="admin-card">
-            <div className="card-title-row">
-              <h3>New Registered Members</h3>
-              <div className="table-controls">
-                <select value={memberFilter} onChange={(event) => setMemberFilter(event.target.value)}>
-                  <option value="all">All sources</option>
-                  <option value="self">Created by Self</option>
-                  <option value="agent">Created by Agent</option>
-                  <option value="admin">Created by Admin</option>
-                </select>
-                <select value={memberSort} onChange={(event) => setMemberSort(event.target.value)}>
-                  <option value="newest">Newest first</option>
-                  <option value="oldest">Oldest first</option>
-                  <option value="name">Name A-Z</option>
-                </select>
-              </div>
-            </div>
-            <div className="data-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Profile ID</th>
-                    <th>Photo</th>
-                    <th>Name / ID</th>
-                    <th>Gender</th>
-                    <th>Joining Date</th>
-                    <th>Type</th>
-                    <th>Created By</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentMembers.map((profile) => {
-                    const source = memberSource(profile);
-                    return (
-                      <tr key={profile.profile_id || profile.user_id}>
-                        <td><code>{memberDisplayId(profile)}</code></td>
-                        <td><ProfileAvatar profile={profile} /></td>
-                        <td><strong>{fullName(profile)}</strong><small>{profile.phone || profile.email || profile.user_id?.slice(0, 8)}</small></td>
-                        <td><StatusPill status="neutral">{profile.gender || '-'}</StatusPill></td>
-                        <td>{dateOnly(profile.created_at)}</td>
-                        <td><StatusPill status={profile.plan_id === 'free' ? 'neutral' : 'approved'}>{profile.plan_id || 'free'}</StatusPill></td>
-                        <td>{source}</td>
-                        <td>
-                          <div className="row-actions">
-                            <button title="View" onClick={() => onMember(profile)}><Icon name="eye" /></button>
-                            <button title="Edit" onClick={() => onMember(profile)}><Icon name="edit" /></button>
-                            <button title="Verify" onClick={() => onTab('member-verify')}><Icon name="check" /></button>
-                            <button title="Block" onClick={() => onTab('member-block')}><Icon name="ban" /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="table-footer">Showing {recentMembers.length} of {totalMembers} members <button type="button" onClick={() => onTab('members-all')}>View all members</button></div>
-          </div>
+      <div className="enterprise-kpi-grid">
+        <button className="enterprise-kpi primary" type="button" onClick={() => onTab('user-control')}>
+          <span>Total Active Members</span>
+          <strong>{compactNumber(totalMembers)}</strong>
+          <small>{numberValue(members.new_today || stats.newUsersToday)} new today | {paidMembers} paid</small>
+          <Icon name="users" />
+        </button>
+        <button className="enterprise-kpi warning" type="button" onClick={() => onTab('member-verify')}>
+          <span>Pending Verifications</span>
+          <strong>{compactNumber(quickPending)}</strong>
+          <small>Average wait depends on verification queue load</small>
+          <Icon name="check" />
+        </button>
+        <button className="enterprise-kpi success" type="button" onClick={() => onTab('member-payments')}>
+          <span>Revenue This Month</span>
+          <strong>{money(monthlyRevenue || totalRevenue)}</strong>
+          <small>Pending payment value {money(pendingRevenue)}</small>
+          <Icon name="rupee" />
+        </button>
+        <button className="enterprise-kpi danger" type="button" onClick={() => onTab('content')}>
+          <span>Open Support Queue</span>
+          <strong>{compactNumber(openTickets)}</strong>
+          <small>{stats.pendingReports || 0} reports | {alerts.length} alerts</small>
+          <Icon name="flag" />
+        </button>
+      </div>
 
-          <div className="admin-card">
-            <div className="card-title-row">
-              <h3>Newly Registered Agents</h3>
-              <button type="button" onClick={() => onTab('agents-all')}>View all agents</button>
+      <div className="enterprise-bento-grid">
+        <section className="enterprise-panel enterprise-chart-panel">
+          <div className="enterprise-panel-head">
+            <div>
+              <h3>Growth Analytics</h3>
+              <p>User registration trend from live profile creation data.</p>
             </div>
-            <div className="data-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Agent</th>
-                    <th>Business</th>
-                    <th>City</th>
-                    <th>KYC</th>
-                    <th>Plan</th>
-                    <th>Joined</th>
-                    <th>Profiles</th>
-                    <th>Action</th>
+            <div className="chart-legend"><span /> Signups</div>
+          </div>
+          <div className="enterprise-bars" aria-label="Members added chart">
+            {revenueTrend.slice(-12).map((row, index) => {
+              const max = Math.max(...revenueTrend.map((item) => numberValue(item.revenue || item.value)), 1);
+              const value = numberValue(row.revenue || row.value);
+              return (
+                <div key={`${row.label}-${index}`} className="enterprise-bar-wrap">
+                  <span style={{ height: `${Math.max(8, Math.round((value / max) * 100))}%` }} />
+                  <small>{row.label || index + 1}</small>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="enterprise-panel recent-registrations">
+          <div className="enterprise-panel-head compact">
+            <h3>Recent Registrations</h3>
+            <button type="button" onClick={() => onTab('members')}>View All</button>
+          </div>
+          <div className="enterprise-list">
+            {recentMembers.slice(0, 5).map((profile) => (
+              <button key={profile.profile_id || profile.user_id} type="button" onClick={() => onMember(profile)}>
+                <ProfileAvatar profile={profile} />
+                <span><strong>{fullName(profile)}</strong><small>{profile.working_city || profile.family_city || memberDisplayId(profile)}</small></span>
+                <StatusPill status={profile.plan_id === 'free' ? 'neutral' : 'active'}>{profile.plan_id || 'free'}</StatusPill>
+              </button>
+            ))}
+            {!recentMembers.length ? <EmptyState title="No registrations" body="New members will appear here." /> : null}
+          </div>
+        </section>
+
+        <section className="enterprise-panel verification-queue">
+          <div className="enterprise-panel-head">
+            <div>
+              <h3>Urgent Verification Queue</h3>
+              <p>Members needing approval, document review, visibility restore or profile moderation.</p>
+            </div>
+            <StatusPill status="warning">{verificationRows.length} open</StatusPill>
+          </div>
+          <div className="enterprise-table">
+            <table>
+              <thead><tr><th>User Details</th><th>Documentation</th><th>Time in Queue</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>
+                {verificationRows.map((profile) => (
+                  <tr key={profile.profile_id}>
+                    <td><div className="identity-cell"><ProfileAvatar profile={profile} /><span><strong>{fullName(profile)}</strong><small>{profile.email || profile.phone || memberDisplayId(profile)}</small></span></div></td>
+                    <td><span className="mini-token"><Icon name="invoice" /> Profile / docs</span></td>
+                    <td>{dateOnly(profile.created_at)}</td>
+                    <td><StatusPill status={profile.verification_status}>{profile.verification_status || 'pending'}</StatusPill></td>
+                    <td><div className="row-actions"><button onClick={() => onMember(profile)}><Icon name="eye" /></button><button onClick={() => onTab('member-verify')}><Icon name="check" /></button></div></td>
                   </tr>
-                </thead>
-                <tbody>
-                  {newlyRegisteredAgents.map((agent) => (
-                    <tr key={agent.advisor_id || agent.agent_code}>
-                      <td><strong>{agent.full_name}</strong><small>{agent.agent_code || agent.phone || agent.email}</small></td>
-                      <td>{agent.business_name || '-'}</td>
-                      <td>{[agent.city, agent.state].filter(Boolean).join(', ') || '-'}</td>
-                      <td><StatusPill status={agent.kyc_status}>{agent.kyc_status || 'pending'}</StatusPill></td>
-                      <td>{agent.membership_plan || 'free'}</td>
-                      <td>{dateOnly(agent.created_at)}</td>
-                      <td>{agent.profiles_added || agent.active_assignments || 0}</td>
-                      <td><button type="button" onClick={() => onAgent(agent)}>View</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {!newlyRegisteredAgents.length ? <EmptyState title="No agents yet" body="New agent registrations will appear here." /> : null}
-            </div>
+                ))}
+              </tbody>
+            </table>
+            {!verificationRows.length ? <EmptyState title="Verification queue clear" body="Pending member reviews will appear here." /> : null}
           </div>
         </section>
       </div>
 
-      <div className="admin-card full">
-        <div className="card-title-row">
-          <h3>Dashboard Activity Audit</h3>
-          <button type="button" onClick={() => onTab('audit-logs')}>View full audit log</button>
+      <div className="enterprise-panel full">
+        <div className="enterprise-panel-head">
+          <div><h3>Dashboard Activity Audit</h3><p>Latest non-deployment admin actions.</p></div>
+          <button type="button" onClick={() => onTab('audit-logs')}>View Full Logs</button>
         </div>
         <AuditLogTable logs={dashboardAudit} />
       </div>
@@ -874,7 +898,8 @@ const REVENUE_TABS = [
 function RevenueTabs({ active, onTab }) {
   if (!onTab) return null;
   return (
-    <div className="admin-card revenue-tabs" role="tablist" aria-label="Revenue sections">
+    <div className="enterprise-filter-bar revenue-tabs" role="tablist" aria-label="Revenue sections">
+      <strong>Revenue Flow</strong>
       {REVENUE_TABS.map((tab) => (
         <button
           key={tab.id}
@@ -917,21 +942,32 @@ function SubscriptionPanel({ config, payments, type, onSave, activeTab, onTab })
   };
 
   return (
-    <div className="admin-content">
-      <SectionHeader
-        title={`${isAgent ? 'Agent' : 'Member'} Subscription Management`}
-        description="Plans, limits, pricing, payment history and upgrade rules are configurable from here."
-        actions={<AdminButton variant="primary" onClick={save}>Save Plan Configuration</AdminButton>}
-      />
+    <div className="admin-content enterprise-screen revenue-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>{isAgent ? 'Agent Plans & Revenue' : 'Plans & Revenue'}</h2>
+          <p>Plans, limits, pricing, payment history and upgrade rules are configurable from here.</p>
+        </div>
+        <div className="enterprise-actions">
+          <AdminButton variant="secondary"><Icon name="export" /> Export</AdminButton>
+          <AdminButton variant="primary" onClick={save}><Icon name="check" /> Save Plan Configuration</AdminButton>
+        </div>
+      </div>
       <RevenueTabs active={activeTab} onTab={onTab} />
+      <div className="enterprise-kpi-grid">
+        <button type="button" className="enterprise-kpi"><Icon name="rupee" /><span>Total Revenue</span><strong>{money(payments.transactions?.reduce((sum, tx) => sum + numberValue(tx.amount), 0) || 0)}</strong><small>Captured transaction value</small></button>
+        <button type="button" className="enterprise-kpi success"><Icon name="tag" /><span>Active Plans</span><strong>{initialPlans.length}</strong><small>{isAgent ? 'Agent plan variants' : 'Member plan variants'}</small></button>
+        <button type="button" className="enterprise-kpi warning"><Icon name="clock" /><span>Pending Upgrades</span><strong>{payments.pendingOrders?.length || 0}</strong><small>Payment follow-up queue</small></button>
+        <button type="button" className="enterprise-kpi"><Icon name="invoice" /><span>Invoices</span><strong>{payments.invoices?.length || 0}</strong><small>Generated billing documents</small></button>
+      </div>
       <div className="subscription-grid">
-        <div className="admin-card">
+        <div className="enterprise-panel">
           <h3>{isAgent ? 'Agent Plans JSON' : 'Member Plans JSON'}</h3>
           <p className="muted">Edit every plan field without a code change. Keep valid JSON array format.</p>
           <textarea className="json-editor" value={plansText} onChange={(event) => setPlansText(event.target.value)} />
           {error ? <p className="form-error">{error}</p> : null}
         </div>
-        <div className="admin-card">
+        <div className="enterprise-panel">
           <h3>Live Plan Preview</h3>
           <div className="plan-preview">
             {(JSON.parse(JSON.stringify(initialPlans)) || []).map((plan) => (
@@ -943,7 +979,7 @@ function SubscriptionPanel({ config, payments, type, onSave, activeTab, onTab })
             ))}
           </div>
         </div>
-        <div className="admin-card full">
+        <div className="enterprise-panel enterprise-table full">
           <h3>Payments & Invoices</h3>
           <PaymentsTable payments={payments} />
         </div>
@@ -955,10 +991,22 @@ function SubscriptionPanel({ config, payments, type, onSave, activeTab, onTab })
 function PendingUpgradesPanel({ payments, type, activeTab, onTab }) {
   const rows = (payments.pendingOrders || []).filter((order) => (type === 'agent') === (order.owner_type === 'agent'));
   return (
-    <div className="admin-content">
-      <SectionHeader title={`${titleFromKey(type)} Pending Upgrades`} description="Members or agents who selected a plan but did not complete payment." />
+    <div className="admin-content enterprise-screen pending-upgrades-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>{titleFromKey(type)} Pending Upgrades</h2>
+          <p>Members or agents who selected a plan but did not complete payment.</p>
+        </div>
+        <div className="enterprise-actions"><AdminButton variant="secondary"><Icon name="export" /> Export</AdminButton></div>
+      </div>
       <RevenueTabs active={activeTab} onTab={onTab} />
-      <div className="admin-card data-table tall">
+      <div className="enterprise-kpi-grid">
+        <button type="button" className="enterprise-kpi warning"><Icon name="clock" /><span>Pending upgrades</span><strong>{rows.length}</strong><small>Unpaid or interrupted checkout attempts</small></button>
+        <button type="button" className="enterprise-kpi"><Icon name="rupee" /><span>Potential value</span><strong>{money(rows.reduce((sum, row) => sum + numberValue(row.amount), 0))}</strong><small>Recoverable subscription revenue</small></button>
+        <button type="button" className="enterprise-kpi success"><Icon name="users" /><span>Support contacted</span><strong>{rows.filter((row) => row.support_contacted).length}</strong><small>Marked for follow-up</small></button>
+        <button type="button" className="enterprise-kpi danger"><Icon name="ban" /><span>No comment</span><strong>{rows.filter((row) => !row.support_comments).length}</strong><small>Needs sales/support update</small></button>
+      </div>
+      <div className="enterprise-panel enterprise-table">
         <table>
           <thead><tr><th>Profile ID</th><th>Name</th><th>Email</th><th>Phone Number</th><th>Issue Details</th><th>Issue Timestamp</th><th>Support Contacted</th><th>Support Comments</th></tr></thead>
           <tbody>
@@ -997,10 +1045,17 @@ function RevenuePaymentsPanel({ payments, type, activeTab, onTab }) {
   const planOptions = Array.from(new Set((payments.transactions || []).map((tx) => tx.plan_id).filter(Boolean)));
   const total = rows.reduce((sum, tx) => sum + numberValue(tx.amount), 0);
   return (
-    <div className="admin-content">
-      <SectionHeader title={`${titleFromKey(type)} Revenue & Payments`} description="Subscription payments with sales team follow-up fields." />
+    <div className="admin-content enterprise-screen payments-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>{titleFromKey(type)} Payments</h2>
+          <p>Subscription payments with sales team follow-up fields.</p>
+        </div>
+        <div className="enterprise-actions"><AdminButton variant="secondary"><Icon name="export" /> Export Report</AdminButton></div>
+      </div>
       <RevenueTabs active={activeTab} onTab={onTab} />
-      <div className="admin-card revenue-filter-card">
+      <div className="enterprise-filter-bar revenue-filter-card">
+        <strong>Filters</strong>
         <div className="mini-stat-row as-tags">
           <span>Revenue <strong>{money(total)}</strong></span>
           <span>Transactions <strong>{rows.length}</strong></span>
@@ -1012,7 +1067,7 @@ function RevenuePaymentsPanel({ payments, type, activeTab, onTab }) {
           <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
         </div>
       </div>
-      <div className="admin-card data-table tall">
+      <div className="enterprise-panel enterprise-table">
         <table>
           <thead><tr><th>Profile ID</th><th>Name</th><th>Email</th><th>Phone Number</th><th>Subscription</th><th>Paid Amount</th><th>Status</th><th>Transaction Number</th><th>Timestamp</th><th>Sales Connected</th><th>Sales Comments</th><th>Contacted Date</th></tr></thead>
           <tbody>
@@ -1043,9 +1098,21 @@ function RevenuePaymentsPanel({ payments, type, activeTab, onTab }) {
 function InvoicesPanel({ payments, type, activeTab, onTab }) {
   const rows = (payments.invoices || []).filter((invoice) => (type === 'agent') === (invoice.owner_type === 'agent'));
   return (
-    <div className="admin-content">
-      <SectionHeader title={`${titleFromKey(type)} Invoices`} description="Invoices are attached to paid member and agent profiles for each subscription cycle." />
+    <div className="admin-content enterprise-screen invoices-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>{titleFromKey(type)} Invoices</h2>
+          <p>Invoices are attached to paid member and agent profiles for each subscription cycle.</p>
+        </div>
+        <div className="enterprise-actions"><AdminButton variant="secondary"><Icon name="export" /> Export Tax Docs</AdminButton></div>
+      </div>
       <RevenueTabs active={activeTab} onTab={onTab} />
+      <div className="enterprise-kpi-grid">
+        <button type="button" className="enterprise-kpi"><Icon name="invoice" /><span>Total invoices</span><strong>{rows.length}</strong><small>Generated documents</small></button>
+        <button type="button" className="enterprise-kpi success"><Icon name="rupee" /><span>Invoice value</span><strong>{money(rows.reduce((sum, invoice) => sum + numberValue(invoice.amount), 0))}</strong><small>Gross invoice amount</small></button>
+        <button type="button" className="enterprise-kpi warning"><Icon name="clock" /><span>Open invoices</span><strong>{rows.filter((invoice) => !['paid', 'success', 'captured'].includes(String(invoice.status || '').toLowerCase())).length}</strong><small>Need billing attention</small></button>
+        <button type="button" className="enterprise-kpi"><Icon name="tag" /><span>Plans billed</span><strong>{new Set(rows.map((invoice) => invoice.plan_id).filter(Boolean)).size}</strong><small>Unique subscription plans</small></button>
+      </div>
       <div className="invoice-grid">
         {rows.map((invoice) => (
           <article className="invoice-card" key={invoice.invoice_id}>
@@ -1212,13 +1279,23 @@ function CmsManagementPanel({ config, onSave }) {
   };
 
   return (
-    <div className="admin-content cms-management-page">
-      <SectionHeader
-        eyebrow="CMS Management"
-        title="Best Matches Merchandising"
-        description="Configure upgrade cards, service cards, scam-awareness carousel content, and tier-based feature gates without an app release."
-        actions={<AdminButton variant="primary" onClick={saveHomeCms}>Save CMS Cards</AdminButton>}
-      />
+    <div className="admin-content enterprise-screen cms-management-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>Content Management</h2>
+          <p>Configure upgrade cards, service cards, scam-awareness carousel content, and tier-based feature gates without an app release.</p>
+        </div>
+        <div className="enterprise-actions">
+          <AdminButton variant="secondary"><Icon name="export" /> Export Content</AdminButton>
+          <AdminButton variant="primary" onClick={saveHomeCms}><Icon name="check" /> Save CMS Cards</AdminButton>
+        </div>
+      </div>
+      <div className="enterprise-kpi-grid">
+        <button type="button" className="enterprise-kpi"><Icon name="cms" /><span>Best match cards</span><strong>{Array.isArray(adCards) ? adCards.length : 0}</strong><small>Merchandising cards configured</small></button>
+        <button type="button" className="enterprise-kpi warning"><Icon name="flag" /><span>Safety cards</span><strong>{Array.isArray(scamCards) ? scamCards.length : 0}</strong><small>Scam awareness carousel</small></button>
+        <button type="button" className="enterprise-kpi success"><Icon name="bell" /><span>Prompt status</span><strong>{notificationPrompt.enabled === false ? 'Off' : 'On'}</strong><small>Push opt-in prompt</small></button>
+        <button type="button" className="enterprise-kpi"><Icon name="lock" /><span>Safety center</span><strong>{Array.isArray(safetyCenter.tiles) ? safetyCenter.tiles.length : 0}</strong><small>Mobile safety tiles</small></button>
+      </div>
       {error ? <p className="form-error cms-error">{error}</p> : null}
       <div className="cms-grid">
         <section className="admin-card cms-editor-card">
@@ -1369,12 +1446,15 @@ function CmsManagementPanel({ config, onSave }) {
           </div>
         </section>
       </div>
-      <SectionHeader
-        eyebrow="Membership Control"
-        title="Feature Access Matrix"
-        description="Every current or future paid capability should be registered here so Bronze, Silver, Gold and Platinum access stays auditable."
-        actions={<AdminButton variant="primary" onClick={saveFeatureMatrix}>Save Feature Matrix</AdminButton>}
-      />
+      <div className="enterprise-page-head compact-subhead">
+        <div>
+          <h2>Feature Access Matrix</h2>
+          <p>Every current or future paid capability should be registered here so Bronze, Silver, Gold and Platinum access stays auditable.</p>
+        </div>
+        <div className="enterprise-actions">
+          <AdminButton variant="primary" onClick={saveFeatureMatrix}><Icon name="check" /> Save Feature Matrix</AdminButton>
+        </div>
+      </div>
       <div className="cms-grid matrix-grid">
         <section className="admin-card cms-editor-card">
           <div className="card-title-row">
@@ -1490,17 +1570,23 @@ function PaymentsTable({ payments }) {
 function AnalyticsPanel({ stats, funnel, events, payments }) {
   const paidTransactions = payments.transactions || [];
   return (
-    <div className="admin-content analytics-page">
-      <SectionHeader title="Analytics" description="Real funnel, payment and product event telemetry from production tables." />
-      <div className="metric-grid">
-        <StatCard tone="terracotta" label="Signups" value={compactNumber(stats.analytics?.signups || stats.newUsersToday || 0)} sub="Auth milestone events" />
-        <StatCard tone="gold" label="Published Profiles" value={compactNumber(stats.totalProfiles || 0)} sub="Profiles eligible for discovery" />
-        <StatCard tone="sage" label="Payments" value={compactNumber(paidTransactions.length)} sub={`Revenue ${money(stats.revenue30d || stats.totalRevenue || 0)}`} />
-        <StatCard tone="mauve" label="Conversion" value={`${numberValue(stats.conversionRate || 0).toFixed(1)}%`} sub="Signup to paid journey" />
+    <div className="admin-content enterprise-screen analytics-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>System Analytics</h2>
+          <p>Real funnel, payment and product event telemetry from production tables.</p>
+        </div>
+        <div className="enterprise-actions"><AdminButton variant="secondary"><Icon name="export" /> Export Analytics</AdminButton></div>
+      </div>
+      <div className="enterprise-kpi-grid">
+        <button type="button" className="enterprise-kpi"><Icon name="users" /><span>Signups</span><strong>{compactNumber(stats.analytics?.signups || stats.newUsersToday || 0)}</strong><small>Auth milestone events</small></button>
+        <button type="button" className="enterprise-kpi success"><Icon name="check" /><span>Published profiles</span><strong>{compactNumber(stats.totalProfiles || 0)}</strong><small>Profiles eligible for discovery</small></button>
+        <button type="button" className="enterprise-kpi"><Icon name="rupee" /><span>Payments</span><strong>{compactNumber(paidTransactions.length)}</strong><small>Revenue {money(stats.revenue30d || stats.totalRevenue || 0)}</small></button>
+        <button type="button" className="enterprise-kpi warning"><Icon name="trend" /><span>Conversion</span><strong>{`${numberValue(stats.conversionRate || 0).toFixed(1)}%`}</strong><small>Signup to paid journey</small></button>
       </div>
       <div className="workspace-columns even">
-        <section className="admin-card">
-          <h3>Signup to Payment Funnel</h3>
+        <section className="enterprise-panel">
+          <div className="enterprise-panel-head"><div><h3>Signup to Payment Funnel</h3><p>Ordered milestone volume from production analytics.</p></div></div>
           <div className="review-list">
             {(funnel || []).map((step, index) => (
               <article key={step.event_type || step.label || index}>
@@ -1511,8 +1597,8 @@ function AnalyticsPanel({ stats, funnel, events, payments }) {
             {!funnel?.length ? <EmptyState title="No funnel events" body="Server-signed milestone events will populate the funnel here." /> : null}
           </div>
         </section>
-        <section className="admin-card">
-          <h3>Latest Product Events</h3>
+        <section className="enterprise-panel">
+          <div className="enterprise-panel-head"><div><h3>Latest Product Events</h3><p>Signed server and client activity stream.</p></div></div>
           <div className="review-list">
             {(events || []).slice(0, 15).map((event, index) => (
               <article key={event.event_id || `${event.event_type}-${index}`}>
@@ -1535,10 +1621,22 @@ function ContentPanel({ inbox = [], reports, alerts, consentEvents, onResolve, o
     return new Date(a.created_at || 0) - new Date(b.created_at || 0);
   });
   return (
-    <div className="admin-content">
-      <SectionHeader title="Content & Moderation" description="Review profile reports, flagged content, DPDP consent activity and platform alerts." />
+    <div className="admin-content enterprise-screen moderation-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>Reports & Moderation</h2>
+          <p>Review profile reports, flagged content, DPDP consent activity and platform alerts.</p>
+        </div>
+        <div className="enterprise-actions"><AdminButton variant="secondary"><Icon name="export" /> Export Queue</AdminButton></div>
+      </div>
+      <div className="enterprise-kpi-grid">
+        <button type="button" className="enterprise-kpi warning"><Icon name="flag" /><span>Moderation queue</span><strong>{sortedInbox.length}</strong><small>Open items by severity</small></button>
+        <button type="button" className="enterprise-kpi danger"><Icon name="ban" /><span>Open reports</span><strong>{reports.length}</strong><small>User and profile flags</small></button>
+        <button type="button" className="enterprise-kpi"><Icon name="bell" /><span>Platform alerts</span><strong>{alerts.length}</strong><small>Unacknowledged operational alerts</small></button>
+        <button type="button" className="enterprise-kpi success"><Icon name="check" /><span>Consent events</span><strong>{consentEvents.length}</strong><small>DPDP audit ledger</small></button>
+      </div>
       <div className="workspace-columns even">
-        <div className="admin-card full">
+        <div className="enterprise-panel full">
           <div className="card-title-row">
             <h3>Unified Moderation Inbox</h3>
             <StatusPill status="warning">{sortedInbox.length} open</StatusPill>
@@ -1556,8 +1654,8 @@ function ContentPanel({ inbox = [], reports, alerts, consentEvents, onResolve, o
             {!sortedInbox.length ? <EmptyState title="Moderation queue clear" body="Reports, photo reviews, chat flags and verifications will appear here by severity and age." /> : null}
           </div>
         </div>
-        <div className="admin-card">
-          <h3>Flagged Content</h3>
+        <div className="enterprise-panel">
+          <div className="enterprise-panel-head"><div><h3>Flagged Content</h3><p>Member-submitted reports that need closure.</p></div></div>
           <div className="review-list">
             {reports.map((report) => (
               <article key={report.report_id}>
@@ -1568,8 +1666,8 @@ function ContentPanel({ inbox = [], reports, alerts, consentEvents, onResolve, o
             {!reports.length ? <EmptyState title="No open reports" body="User reports and flagged content are clear." /> : null}
           </div>
         </div>
-        <div className="admin-card">
-          <h3>Platform Alerts</h3>
+        <div className="enterprise-panel">
+          <div className="enterprise-panel-head"><div><h3>Platform Alerts</h3><p>Operational notifications requiring acknowledgement.</p></div></div>
           <div className="review-list">
             {alerts.map((alert) => (
               <article key={alert.alert_id}>
@@ -1580,9 +1678,9 @@ function ContentPanel({ inbox = [], reports, alerts, consentEvents, onResolve, o
             {!alerts.length ? <EmptyState title="No open alerts" body="System monitoring has no unacknowledged alerts." /> : null}
           </div>
         </div>
-        <div className="admin-card full">
-          <h3>Consent Ledger</h3>
-          <div className="data-table compact-table">
+        <div className="enterprise-panel enterprise-table full">
+          <div className="enterprise-panel-head"><div><h3>Consent Ledger</h3><p>Privacy and consent events for compliance review.</p></div></div>
+          <div className="compact-table">
             <table>
               <thead><tr><th>User</th><th>Consent</th><th>Status</th><th>Purpose</th><th>Date</th></tr></thead>
               <tbody>
@@ -1724,8 +1822,8 @@ function RoleMasterView({ roles, users, auditLogs, search, onSearch, session, on
   };
 
   return (
-    <div className="admin-content role-master-page">
-      <div className="role-master-header">
+    <div className="admin-content enterprise-screen role-master-page">
+      <div className="enterprise-page-head role-master-header">
         <div>
           <h2>Role Master</h2>
           <p>{draftRoles.length} roles | {assignedUsers.length} admin identities from users and audit logs</p>
@@ -1779,7 +1877,7 @@ function RoleMasterView({ roles, users, auditLogs, search, onSearch, session, on
         </section>
 
         <section className="role-detail-panel">
-          <div className="admin-card permission-card">
+          <div className="enterprise-panel permission-card">
             <div className="permission-card-head">
               <h3><Icon name="lock" /> Permissions Matrix: {selectedRole.label}</h3>
               <label className="inline-switch">
@@ -1832,7 +1930,7 @@ function RoleMasterView({ roles, users, auditLogs, search, onSearch, session, on
             </div>
           </div>
 
-          <div className="admin-card assigned-users-card">
+          <div className="enterprise-panel assigned-users-card">
             <div className="permission-card-head">
               <h3><Icon name="users" /> Assigned Users</h3>
               <AdminButton variant="secondary" onClick={() => onTab('user-master')}><Icon name="plus" /> Assign New User</AdminButton>
@@ -1875,7 +1973,7 @@ function RoleMasterView({ roles, users, auditLogs, search, onSearch, session, on
             </div>
           </div>
 
-          <div className="admin-card permission-audit-card">
+          <div className="enterprise-panel permission-audit-card">
             <div className="card-title-row">
               <h3>Permission Audit Log</h3>
               <button type="button" onClick={() => onTab('audit-logs')}>View Full Logs</button>
@@ -1932,14 +2030,18 @@ function ChangePasswordPanel({ adminUsers, session, onSaveAdminUser, onTab }) {
     }
   };
   return (
-    <div className="admin-content settings-page">
-      <SectionHeader
-        title="Change Administrator Password"
-        description="Update the signed-in admin account password through the secured admin-user endpoint."
-        actions={<AdminButton variant="secondary" onClick={() => onTab('user-master')}><Icon name="person" /> User Master</AdminButton>}
-      />
+    <div className="admin-content enterprise-screen settings-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>Change Administrator Password</h2>
+          <p>Update the signed-in admin account password through the secured admin-user endpoint.</p>
+        </div>
+        <div className="enterprise-actions">
+          <AdminButton variant="secondary" onClick={() => onTab('user-master')}><Icon name="person" /> User Master</AdminButton>
+        </div>
+      </div>
       <div className="workspace-columns even">
-        <form className="admin-card admin-user-form" onSubmit={submit}>
+        <form className="enterprise-panel admin-user-form" onSubmit={submit}>
           <h3>Password Reset</h3>
           <p className="muted">{currentAdmin ? `Changing password for ${currentAdmin.email}.` : 'Current fallback admin is not yet present in User Master.'}</p>
           <Field label="New password">
@@ -1951,8 +2053,8 @@ function ChangePasswordPanel({ adminUsers, session, onSaveAdminUser, onTab }) {
           {error ? <p className="form-error">{error}</p> : null}
           <AdminButton variant="primary" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Update Password'}</AdminButton>
         </form>
-        <div className="admin-card settings-guidance">
-          <h3>Secure Password Rules</h3>
+        <div className="enterprise-panel settings-guidance">
+          <div className="enterprise-panel-head"><div><h3>Secure Password Rules</h3><p>Controls followed by dashboard password updates.</p></div></div>
           <div className="review-list">
             <article><span><strong>Minimum length</strong><small>Use at least 8 characters for admin-user passwords.</small></span><StatusPill status="active">Required</StatusPill></article>
             <article><span><strong>Fallback admin</strong><small>If using .env fallback login, rotate ADMIN_PASSWORD_HASH outside the dashboard.</small></span><StatusPill status="warning">Local only</StatusPill></article>
@@ -1983,18 +2085,24 @@ function SystemPanel({ roles, users, adminUsers, auditLogs, services, activeTab,
   }
   if (activeTab === 'service-health') {
     return (
-      <div className="admin-content">
-        <SectionHeader title="Service Health" description="Live status for backend services used by production." />
+      <div className="admin-content enterprise-screen service-health-page">
+        <div className="enterprise-page-head">
+          <div><h2>System Monitoring</h2><p>Live status for backend services used by production.</p></div>
+          <div className="enterprise-actions"><AdminButton variant="secondary"><Icon name="export" /> Export Health</AdminButton></div>
+        </div>
         <div className="service-grid">
           {services.map((service) => (
-            <div className="admin-card service-card" key={service.name || service.service}>
-              <StatusPill status={service.status || service.ok ? 'active' : 'failed'}>{service.status || (service.ok ? 'healthy' : 'down')}</StatusPill>
-              <h3>{service.name || service.service}</h3>
+            <div className="enterprise-panel service-card" key={service.key || service.name || service.service}>
+              <StatusPill status={service.ok || service.status === 'healthy' ? 'active' : 'failed'}>{service.ok || service.status === 'healthy' ? 'healthy' : 'down'}</StatusPill>
+              <h3>{service.label || service.name || service.service || service.key}</h3>
               <p>{service.url || service.message || 'No endpoint reported'}</p>
+              {service.error ? <small className="muted">{service.error}</small> : null}
+              {Array.isArray(service.attemptedUrls) && service.attemptedUrls.length > 1 ? <small className="muted">Tried: {service.attemptedUrls.join(', ')}</small> : null}
             </div>
           ))}
+          {!services.length ? <EmptyState title="No service telemetry" body="The admin service health endpoint did not return service rows." /> : null}
         </div>
-        <div className="admin-card full">
+        <div className="enterprise-panel enterprise-table full">
           <div className="card-title-row">
             <h3>Deployment / Version Audit</h3>
             <StatusPill status="neutral">{deploymentLogs.length} records</StatusPill>
@@ -2006,9 +2114,12 @@ function SystemPanel({ roles, users, adminUsers, auditLogs, services, activeTab,
   }
   if (activeTab === 'audit-logs') {
     return (
-      <div className="admin-content">
-        <SectionHeader title="Audit Logs" description="Every admin action should leave a recovery-grade audit trail." />
-        <div className="admin-card"><AuditLogTable logs={auditLogs} /></div>
+      <div className="admin-content enterprise-screen audit-logs-page">
+        <div className="enterprise-page-head">
+          <div><h2>System Health & Logs</h2><p>Every admin action should leave a recovery-grade audit trail.</p></div>
+          <div className="enterprise-actions"><AdminButton variant="secondary"><Icon name="export" /> Export Logs</AdminButton></div>
+        </div>
+        <div className="enterprise-panel enterprise-table"><AuditLogTable logs={auditLogs} /></div>
       </div>
     );
   }
@@ -2016,10 +2127,12 @@ function SystemPanel({ roles, users, adminUsers, auditLogs, services, activeTab,
     return <RoleMasterView roles={roles} users={users} auditLogs={auditLogs} search={search} onSearch={onSearch} session={session} onSaveRoles={onSaveRoles} onTab={onTab} />;
   }
   return (
-    <div className="admin-content">
-      <SectionHeader title="System Management" description="Roles, admin users, notifications, exports, settings and operational controls." />
+    <div className="admin-content enterprise-screen system-page">
+      <div className="enterprise-page-head">
+        <div><h2>System Management</h2><p>Roles, admin users, notifications, exports, settings and operational controls.</p></div>
+      </div>
       <div className="workspace-columns even">
-        <div className="admin-card">
+        <div className="enterprise-panel">
           <h3>Role Master</h3>
           <div className="role-list">
             {roles.map((role) => (
@@ -2030,7 +2143,7 @@ function SystemPanel({ roles, users, adminUsers, auditLogs, services, activeTab,
             ))}
           </div>
         </div>
-        <div className="admin-card">
+        <div className="enterprise-panel">
           <h3>User Master</h3>
           <div className="role-list">
             {users.slice(0, 12).map((user) => (
@@ -2041,7 +2154,7 @@ function SystemPanel({ roles, users, adminUsers, auditLogs, services, activeTab,
             ))}
           </div>
         </div>
-        <div className="admin-card full">
+        <div className="enterprise-panel full">
           <h3>Operational Notes</h3>
           <p className="muted">Password reset, admin-user creation, granular RBAC persistence and one-click exports need dedicated backend endpoints before they can be made destructive. The redesigned console exposes the control surface and keeps existing live APIs wired safely.</p>
         </div>
@@ -2077,29 +2190,38 @@ function DeploymentAuditTable({ rows }) {
 function SystemOverviewPanel({ services, inventory, deploymentAudit, compact = false, onTab }) {
   const exportSystemReport = () => window.print();
   return (
-    <div className="admin-content system-overview-page">
-      <SectionHeader
-        title="System Management"
-        description="Service health, deployment/version audit, configuration inventory and secure admin controls."
-        actions={<AdminButton variant="secondary" onClick={exportSystemReport}><Icon name="export" /> Export PDF</AdminButton>}
-      />
-      <div className="admin-card full">
+    <div className="admin-content enterprise-screen system-overview-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>System Management</h2>
+          <p>Service health, deployment/version audit, configuration inventory and secure admin controls.</p>
+        </div>
+        <div className="enterprise-actions"><AdminButton variant="secondary" onClick={exportSystemReport}><Icon name="export" /> Export PDF</AdminButton></div>
+      </div>
+      <div className="enterprise-kpi-grid">
+        <button type="button" className="enterprise-kpi"><Icon name="pulse" /><span>Services</span><strong>{services.length}</strong><small>Production service endpoints</small></button>
+        <button type="button" className="enterprise-kpi success"><Icon name="check" /><span>Healthy</span><strong>{services.filter((service) => service.status === 'healthy' || service.ok).length}</strong><small>Reported as available</small></button>
+        <button type="button" className="enterprise-kpi warning"><Icon name="log" /><span>Deploy records</span><strong>{deploymentAudit.length}</strong><small>Release and version history</small></button>
+        <button type="button" className="enterprise-kpi"><Icon name="sliders" /><span>Inventory</span><strong>{inventory?.inventory?.length || 0}</strong><small>Configuration sections</small></button>
+      </div>
+      <div className="enterprise-panel full">
         <div className="card-title-row">
           <h3>Service Health</h3>
           <StatusPill status="neutral">{services.length} services</StatusPill>
         </div>
         <div className="service-grid embedded">
           {services.map((service) => (
-            <div className="service-card compact" key={service.name || service.service}>
-              <StatusPill status={service.status || service.ok ? 'active' : 'failed'}>{service.status || (service.ok ? 'healthy' : 'down')}</StatusPill>
-              <h3>{service.name || service.service}</h3>
+            <div className="service-card compact" key={service.key || service.name || service.service}>
+              <StatusPill status={service.ok || service.status === 'healthy' ? 'active' : 'failed'}>{service.ok || service.status === 'healthy' ? 'healthy' : 'down'}</StatusPill>
+              <h3>{service.label || service.name || service.service || service.key}</h3>
               <p>{service.url || service.message || 'No endpoint reported'}</p>
+              {service.error ? <small className="muted">{service.error}</small> : null}
             </div>
           ))}
           {!services.length ? <EmptyState title="No service telemetry" body="Service health appears when the monitor endpoint is reachable." /> : null}
         </div>
       </div>
-      <div className="admin-card full">
+      <div className="enterprise-panel enterprise-table full">
         <div className="card-title-row">
           <h3>Deployment / Version Audit Details</h3>
           <StatusPill status="neutral">{deploymentAudit.length} records</StatusPill>
@@ -2107,7 +2229,7 @@ function SystemOverviewPanel({ services, inventory, deploymentAudit, compact = f
         <DeploymentAuditTable rows={deploymentAudit} />
       </div>
       {!compact ? (
-        <div className="admin-card full">
+        <div className="enterprise-panel full">
           <div className="card-title-row">
             <h3>Systems Configuration & Secrets Inventory</h3>
             {onTab ? <button type="button" onClick={() => onTab('dynamic-config')}>Open Dynamic Configuration</button> : null}
@@ -2151,10 +2273,16 @@ function AdminUsersPanel({ adminUsers, roles, search, onSave, onDelete }) {
     setForm({ email: user.email, password: '', displayName: user.display_name || '', role: user.role || 'admin', status: user.status || 'active' });
   };
   return (
-    <div className="admin-content admin-users-page">
-      <SectionHeader title="User Master" description="Create dashboard login emails, assign RBAC roles, suspend access, or reset passwords." />
+    <div className="admin-content enterprise-screen admin-users-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>User Master</h2>
+          <p>Create dashboard login emails, assign RBAC roles, suspend access, or reset passwords.</p>
+        </div>
+        <div className="enterprise-actions"><AdminButton variant="secondary"><Icon name="export" /> Export Users</AdminButton></div>
+      </div>
       <div className="workspace-columns even">
-        <form className="admin-card admin-user-form" onSubmit={save}>
+        <form className="enterprise-panel admin-user-form" onSubmit={save}>
           <h3>{editingId ? 'Edit Admin Login' : 'Create Admin Login'}</h3>
           <Field label="Email"><Input type="email" value={form.email} onChange={(value) => setForm((current) => ({ ...current, email: value }))} required /></Field>
           <Field label={editingId ? 'New password (optional)' : 'Password'}><Input type="password" value={form.password} onChange={(value) => setForm((current) => ({ ...current, password: value }))} required={!editingId} minLength={8} /></Field>
@@ -2167,7 +2295,7 @@ function AdminUsersPanel({ adminUsers, roles, search, onSave, onDelete }) {
           <Field label="Status"><Select value={form.status} onChange={(value) => setForm((current) => ({ ...current, status: value }))}><option>active</option><option>suspended</option></Select></Field>
           <AdminButton variant="primary" type="submit">{editingId ? 'Save Admin User' : 'Create Admin User'}</AdminButton>
         </form>
-        <div className="admin-card data-table">
+        <div className="enterprise-panel enterprise-table">
           <table>
             <thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Last login</th><th>Actions</th></tr></thead>
             <tbody>
@@ -2228,8 +2356,17 @@ function DynamicConfigPanel({ config, onSave }) {
   };
 
   return (
-    <div className="admin-content configuration-page">
-      <SectionHeader title="System Configuration" description="Control app variables, algorithm-facing weights, pricing constants, operational flags and integration settings without a mobile redeploy." actions={<AdminButton variant="primary" onClick={save}>Save Section</AdminButton>} />
+    <div className="admin-content enterprise-screen configuration-page">
+      <div className="enterprise-page-head">
+        <div>
+          <h2>System Configuration</h2>
+          <p>Control app variables, algorithm-facing weights, pricing constants, operational flags and integration settings without a mobile redeploy.</p>
+        </div>
+        <div className="enterprise-actions">
+          <AdminButton variant="secondary"><Icon name="export" /> Export Config</AdminButton>
+          <AdminButton variant="primary" onClick={save}><Icon name="check" /> Save Section</AdminButton>
+        </div>
+      </div>
       <div className="config-summary-grid">
         {configSections.slice(0, 4).map((section) => (
           <button type="button" key={section.key} className={`config-summary-card ${selected === section.key ? 'active' : ''}`} onClick={() => setSelected(section.key)}>
@@ -2240,7 +2377,7 @@ function DynamicConfigPanel({ config, onSave }) {
         ))}
       </div>
       <div className="config-layout">
-        <div className="admin-card config-nav">
+        <div className="enterprise-panel config-nav">
           {configSections.map((section) => (
             <button key={section.key} className={selected === section.key ? 'active' : ''} onClick={() => setSelected(section.key)}>
               <Icon name={section.icon} />
@@ -2248,7 +2385,7 @@ function DynamicConfigPanel({ config, onSave }) {
             </button>
           ))}
         </div>
-        <div className="admin-card config-editor-card">
+        <div className="enterprise-panel config-editor-card">
           <div className="card-title-row">
             <div>
               <h3>{selectedSection.label}</h3>
@@ -2352,6 +2489,13 @@ function MemberDrawer({ profile, onClose, onSave, onStatus, onPhotoAdd, onPhotoU
   const [newPhotoUpload, setNewPhotoUpload] = useState(null);
   const [saving, setSaving] = useState(false);
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const primaryPhoto = form.primary_photo_url
+    || form.profile_photo_url
+    || (Array.isArray(form.photos) ? (form.photos.find((photo) => photo.is_primary) || form.photos[0])?.photo_url : '');
+  const profileLocation = [form.working_city || form.family_city, form.working_state || form.family_state].filter(Boolean).join(', ') || 'Location not set';
+  const age = form.dob ? Math.max(0, Math.floor((Date.now() - new Date(form.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000))) : null;
+  const displayPhone = form.phone || form.mobile || 'No mobile';
+  const displayEmail = form.email || 'No email';
   const submit = async () => {
     setSaving(true);
     try {
@@ -2428,6 +2572,41 @@ function MemberDrawer({ profile, onClose, onSave, onStatus, onPhotoAdd, onPhotoU
         </>
       )}
     >
+      <section className="member-360-hero">
+        <div className="member-360-photo">
+          {primaryPhoto ? <img src={primaryPhoto} alt={fullName(form)} /> : <ProfileAvatar profile={form} />}
+          <StatusPill status={form.verification_status}>{form.verification_status || 'pending'}</StatusPill>
+        </div>
+        <div className="member-360-summary">
+          <div>
+            <h3>{fullName(form)}</h3>
+            <p>{memberDisplayId(form)} · {age ? `${age} yrs` : 'Age not set'} · {form.gender || 'Gender not set'}</p>
+          </div>
+          <div className="member-360-chip-row">
+            <span>{form.plan_id || 'free'} plan</span>
+            <span>{form.is_published ? 'Visible' : 'Hidden'}</span>
+            <span>{form.profile_created_by || 'self'} created</span>
+          </div>
+          <div className="member-360-contact-grid">
+            <article>
+              <Icon name="mail" />
+              <span>Email</span>
+              <strong>{displayEmail}</strong>
+            </article>
+            <article>
+              <Icon name="person" />
+              <span>Mobile</span>
+              <strong>{displayPhone}</strong>
+            </article>
+            <article>
+              <Icon name="target" />
+              <span>Location</span>
+              <strong>{profileLocation}</strong>
+            </article>
+          </div>
+        </div>
+      </section>
+
       <div className="drawer-section">
         <h4>Identity & Access</h4>
         <div className="form-grid two">

@@ -3,8 +3,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --audit=false --fund=false
 COPY . .
-ARG REACT_APP_ADMIN_API_URL=http://localhost:3011/api/v1/admin
+ARG REACT_APP_ADMIN_API_URL
 ENV REACT_APP_ADMIN_API_URL=${REACT_APP_ADMIN_API_URL}
+RUN test -n "$REACT_APP_ADMIN_API_URL" && case "$REACT_APP_ADMIN_API_URL" in *localhost*|*127.0.0.1*) exit 1 ;; *) exit 0 ;; esac
 RUN npm run build
 
 FROM nginx:1.27-alpine
