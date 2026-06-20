@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from './AdminPrimitives';
 
-const ROLE_SURFACE_TABS = ['system', 'role-master', 'user-master', 'settings', 'change-password'];
+const ROLE_SURFACE_TABS = [];
 
 export default function AdminShell({
   activeTab,

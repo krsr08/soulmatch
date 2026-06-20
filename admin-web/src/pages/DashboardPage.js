@@ -138,7 +138,8 @@ const MENU_GROUPS = [
       { id: 'user-control', label: 'User Control', icon: 'users' },
       { id: 'agents', label: 'Agent Control', icon: 'agent' },
       { id: 'subscriptions', label: 'Plans & Revenue', icon: 'rupee' },
-      { id: 'growth-reports', label: 'Growth Reports', icon: 'trend' }
+      { id: 'growth-reports', label: 'Growth Reports', icon: 'trend' },
+      { id: 'analytics', label: 'Analytics', icon: 'pulse' }
     ]
   },
   {
@@ -159,7 +160,8 @@ const MENU_GROUPS = [
       { id: 'user-master', label: 'User Master', icon: 'person' },
       { id: 'audit-logs', label: 'Audit Logs', icon: 'log' },
       { id: 'service-health', label: 'Service Health', icon: 'pulse' },
-      { id: 'settings', label: 'Settings', icon: 'gear' }
+      { id: 'settings', label: 'Settings', icon: 'gear' },
+      { id: 'change-password', label: 'Change Password', icon: 'key' }
     ]
   }
 ];
@@ -858,7 +860,37 @@ function DashboardHome({ stats, profiles, advisors, payments, alerts, auditLogs,
   );
 }
 
-function SubscriptionPanel({ config, payments, type, onSave }) {
+const REVENUE_TABS = [
+  { id: 'subscriptions', label: 'Member Plans' },
+  { id: 'member-upgrades', label: 'Member Upgrades' },
+  { id: 'member-payments', label: 'Member Payments' },
+  { id: 'member-invoices', label: 'Member Invoices' },
+  { id: 'agent-plans', label: 'Agent Plans' },
+  { id: 'agent-upgrades', label: 'Agent Upgrades' },
+  { id: 'agent-payments', label: 'Agent Payments' },
+  { id: 'agent-invoices', label: 'Agent Invoices' }
+];
+
+function RevenueTabs({ active, onTab }) {
+  if (!onTab) return null;
+  return (
+    <div className="admin-card revenue-tabs" role="tablist" aria-label="Revenue sections">
+      {REVENUE_TABS.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          role="tab"
+          className={active === tab.id || (active === 'member-plans' && tab.id === 'subscriptions') ? 'active' : ''}
+          onClick={() => onTab(tab.id)}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SubscriptionPanel({ config, payments, type, onSave, activeTab, onTab }) {
   const isAgent = type === 'agent';
   const sectionKey = isAgent ? 'assisted_matchmaking' : 'monetization';
   const plansKey = isAgent ? 'advisorPlans' : 'plans';
@@ -891,6 +923,7 @@ function SubscriptionPanel({ config, payments, type, onSave }) {
         description="Plans, limits, pricing, payment history and upgrade rules are configurable from here."
         actions={<AdminButton variant="primary" onClick={save}>Save Plan Configuration</AdminButton>}
       />
+      <RevenueTabs active={activeTab} onTab={onTab} />
       <div className="subscription-grid">
         <div className="admin-card">
           <h3>{isAgent ? 'Agent Plans JSON' : 'Member Plans JSON'}</h3>
@@ -919,11 +952,12 @@ function SubscriptionPanel({ config, payments, type, onSave }) {
   );
 }
 
-function PendingUpgradesPanel({ payments, type }) {
+function PendingUpgradesPanel({ payments, type, activeTab, onTab }) {
   const rows = (payments.pendingOrders || []).filter((order) => (type === 'agent') === (order.owner_type === 'agent'));
   return (
     <div className="admin-content">
       <SectionHeader title={`${titleFromKey(type)} Pending Upgrades`} description="Members or agents who selected a plan but did not complete payment." />
+      <RevenueTabs active={activeTab} onTab={onTab} />
       <div className="admin-card data-table tall">
         <table>
           <thead><tr><th>Profile ID</th><th>Name</th><th>Email</th><th>Phone Number</th><th>Issue Details</th><th>Issue Timestamp</th><th>Support Contacted</th><th>Support Comments</th></tr></thead>
@@ -948,7 +982,7 @@ function PendingUpgradesPanel({ payments, type }) {
   );
 }
 
-function RevenuePaymentsPanel({ payments, type }) {
+function RevenuePaymentsPanel({ payments, type, activeTab, onTab }) {
   const [planFilter, setPlanFilter] = useState('all');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -965,6 +999,7 @@ function RevenuePaymentsPanel({ payments, type }) {
   return (
     <div className="admin-content">
       <SectionHeader title={`${titleFromKey(type)} Revenue & Payments`} description="Subscription payments with sales team follow-up fields." />
+      <RevenueTabs active={activeTab} onTab={onTab} />
       <div className="admin-card revenue-filter-card">
         <div className="mini-stat-row as-tags">
           <span>Revenue <strong>{money(total)}</strong></span>
@@ -1005,11 +1040,12 @@ function RevenuePaymentsPanel({ payments, type }) {
   );
 }
 
-function InvoicesPanel({ payments, type }) {
+function InvoicesPanel({ payments, type, activeTab, onTab }) {
   const rows = (payments.invoices || []).filter((invoice) => (type === 'agent') === (invoice.owner_type === 'agent'));
   return (
     <div className="admin-content">
       <SectionHeader title={`${titleFromKey(type)} Invoices`} description="Invoices are attached to paid member and agent profiles for each subscription cycle." />
+      <RevenueTabs active={activeTab} onTab={onTab} />
       <div className="invoice-grid">
         {rows.map((invoice) => (
           <article className="invoice-card" key={invoice.invoice_id}>
@@ -1860,6 +1896,74 @@ function RoleMasterView({ roles, users, auditLogs, search, onSearch, session, on
   );
 }
 
+function ChangePasswordPanel({ adminUsers, session, onSaveAdminUser, onTab }) {
+  const currentAdmin = adminUsers.find((user) => String(user.email || '').toLowerCase() === String(session.email || '').toLowerCase());
+  const [form, setForm] = useState({ password: '', confirmPassword: '' });
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!currentAdmin?.admin_user_id) {
+      setError('Create this admin in User Master before changing the database-backed password.');
+      return;
+    }
+    if (form.password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    setSaving(true);
+    try {
+      setError('');
+      await onSaveAdminUser({
+        admin_user_id: currentAdmin.admin_user_id,
+        email: currentAdmin.email,
+        displayName: currentAdmin.display_name,
+        role: currentAdmin.role,
+        status: currentAdmin.status,
+        password: form.password
+      });
+      setForm({ password: '', confirmPassword: '' });
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="admin-content settings-page">
+      <SectionHeader
+        title="Change Administrator Password"
+        description="Update the signed-in admin account password through the secured admin-user endpoint."
+        actions={<AdminButton variant="secondary" onClick={() => onTab('user-master')}><Icon name="person" /> User Master</AdminButton>}
+      />
+      <div className="workspace-columns even">
+        <form className="admin-card admin-user-form" onSubmit={submit}>
+          <h3>Password Reset</h3>
+          <p className="muted">{currentAdmin ? `Changing password for ${currentAdmin.email}.` : 'Current fallback admin is not yet present in User Master.'}</p>
+          <Field label="New password">
+            <Input type="password" value={form.password} onChange={(value) => setForm((current) => ({ ...current, password: value }))} minLength={8} required />
+          </Field>
+          <Field label="Confirm password">
+            <Input type="password" value={form.confirmPassword} onChange={(value) => setForm((current) => ({ ...current, confirmPassword: value }))} minLength={8} required />
+          </Field>
+          {error ? <p className="form-error">{error}</p> : null}
+          <AdminButton variant="primary" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Update Password'}</AdminButton>
+        </form>
+        <div className="admin-card settings-guidance">
+          <h3>Secure Password Rules</h3>
+          <div className="review-list">
+            <article><span><strong>Minimum length</strong><small>Use at least 8 characters for admin-user passwords.</small></span><StatusPill status="active">Required</StatusPill></article>
+            <article><span><strong>Fallback admin</strong><small>If using .env fallback login, rotate ADMIN_PASSWORD_HASH outside the dashboard.</small></span><StatusPill status="warning">Local only</StatusPill></article>
+            <article><span><strong>Audit trail</strong><small>Password changes through User Master are protected by admin auth and role gates.</small></span><StatusPill status="active">Protected</StatusPill></article>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SystemPanel({ roles, users, adminUsers, auditLogs, services, activeTab, search, onSearch, session, onSaveRoles, onTab, systemInventory, onSaveAdminUser, onDeleteAdminUser }) {
   const deploymentLogs = auditLogs
     .filter((log) => /deploy|deployment|version|service health|release/i.test(`${log.action || ''} ${log.entity_type || ''}`))
@@ -1868,8 +1972,11 @@ function SystemPanel({ roles, users, adminUsers, auditLogs, services, activeTab,
   if (activeTab === 'role-master') {
     return <RoleMasterView roles={roles} users={adminUsers?.length ? adminUsers : users} auditLogs={[...(systemInventory?.roleChangeLogs || []), ...auditLogs]} search={search} onSearch={onSearch} session={session} onSaveRoles={onSaveRoles} onTab={onTab} />;
   }
-  if (activeTab === 'user-master' || activeTab === 'change-password') {
+  if (activeTab === 'user-master') {
     return <AdminUsersPanel adminUsers={adminUsers || []} roles={roles} search={search} onSave={onSaveAdminUser} onDelete={onDeleteAdminUser} />;
+  }
+  if (activeTab === 'change-password') {
+    return <ChangePasswordPanel adminUsers={adminUsers || []} session={session} onSaveAdminUser={onSaveAdminUser} onTab={onTab} />;
   }
   if (['system', 'data-export', 'settings'].includes(activeTab)) {
     return <SystemOverviewPanel services={services} inventory={systemInventory} deploymentAudit={deploymentAudit} onTab={onTab} />;
@@ -2086,24 +2193,25 @@ function DynamicConfigPanel({ config, onSave }) {
   const [selected, setSelected] = useState('monetization');
   const [json, setJson] = useState(JSON.stringify(config.monetization || {}, null, 2));
   const [error, setError] = useState('');
-  const keys = [
-    'branding',
-    'theme',
-    'feature_flags',
-    'navigation',
-    'maintenance',
-    'monetization',
-    'legal',
-    'content',
-    'experiments',
-    'assisted_matchmaking',
-    'admin_roles',
-    'notification_templates',
-    'client_integrations',
-    'payment_gateways',
-    'seo_defaults',
-    'analytics'
+  const configSections = [
+    { key: 'monetization', label: 'Pricing Constants', icon: 'rupee', purpose: 'Plans, fixed pricing, premium limits and upgrade packages.' },
+    { key: 'assisted_matchmaking', label: 'Assisted Matchmaking', icon: 'target', purpose: 'Advisor plans, member modes and assisted matching controls.' },
+    { key: 'feature_flags', label: 'Operational Flags', icon: 'sliders', purpose: 'Feature rollout, experiments and app behavior toggles.' },
+    { key: 'theme', label: 'Theme Tokens', icon: 'content', purpose: 'Runtime color, spacing and visual theme values.' },
+    { key: 'branding', label: 'Branding', icon: 'star', purpose: 'Brand name, assets, labels and public identity.' },
+    { key: 'navigation', label: 'Navigation', icon: 'grid', purpose: 'Mobile/web navigation and feature entry points.' },
+    { key: 'maintenance', label: 'Maintenance', icon: 'gear', purpose: 'Maintenance mode, notices and outage controls.' },
+    { key: 'content', label: 'Content', icon: 'cms', purpose: 'CMS-driven home, safety and prompt content.' },
+    { key: 'legal', label: 'Legal', icon: 'lock', purpose: 'Policy links, consent copy and compliance text.' },
+    { key: 'notification_templates', label: 'Notifications', icon: 'bell', purpose: 'Push/SMS/email template configuration.' },
+    { key: 'client_integrations', label: 'Integration Keys', icon: 'key', purpose: 'Client-safe integration flags and endpoint labels.' },
+    { key: 'payment_gateways', label: 'Payment Gateways', icon: 'invoice', purpose: 'Gateway settings and checkout display rules.' },
+    { key: 'experiments', label: 'Experiments', icon: 'trend', purpose: 'A/B tests and growth experiments.' },
+    { key: 'analytics', label: 'Analytics', icon: 'pulse', purpose: 'Tracking and reporting configuration.' },
+    { key: 'seo_defaults', label: 'SEO Defaults', icon: 'search', purpose: 'Public SEO defaults and metadata.' },
+    { key: 'admin_roles', label: 'Admin Roles Config', icon: 'crown', purpose: 'Role configuration mirrored by Role Master.' }
   ];
+  const selectedSection = configSections.find((section) => section.key === selected) || configSections[0];
 
   useEffect(() => {
     setJson(JSON.stringify(config[selected] || {}, null, 2));
@@ -2120,16 +2228,34 @@ function DynamicConfigPanel({ config, onSave }) {
   };
 
   return (
-    <div className="admin-content">
-      <SectionHeader title="Dynamic Configuration" description="Runtime configuration without app redeploys." actions={<AdminButton variant="primary" onClick={save}>Save Section</AdminButton>} />
+    <div className="admin-content configuration-page">
+      <SectionHeader title="System Configuration" description="Control app variables, algorithm-facing weights, pricing constants, operational flags and integration settings without a mobile redeploy." actions={<AdminButton variant="primary" onClick={save}>Save Section</AdminButton>} />
+      <div className="config-summary-grid">
+        {configSections.slice(0, 4).map((section) => (
+          <button type="button" key={section.key} className={`config-summary-card ${selected === section.key ? 'active' : ''}`} onClick={() => setSelected(section.key)}>
+            <Icon name={section.icon} />
+            <span>{section.label}</span>
+            <small>{Object.keys(config[section.key] || {}).length} variables</small>
+          </button>
+        ))}
+      </div>
       <div className="config-layout">
         <div className="admin-card config-nav">
-          {keys.map((key) => (
-            <button key={key} className={selected === key ? 'active' : ''} onClick={() => setSelected(key)}>{key.replaceAll('_', ' ')}</button>
+          {configSections.map((section) => (
+            <button key={section.key} className={selected === section.key ? 'active' : ''} onClick={() => setSelected(section.key)}>
+              <Icon name={section.icon} />
+              <span>{section.label}</span>
+            </button>
           ))}
         </div>
-        <div className="admin-card">
-          <h3>{selected.replaceAll('_', ' ')}</h3>
+        <div className="admin-card config-editor-card">
+          <div className="card-title-row">
+            <div>
+              <h3>{selectedSection.label}</h3>
+              <small>{selectedSection.purpose}</small>
+            </div>
+            <StatusPill status="neutral">{selected}</StatusPill>
+          </div>
           <textarea className="json-editor large" value={json} onChange={(event) => setJson(event.target.value)} />
           {error ? <p className="form-error">{error}</p> : null}
         </div>
@@ -2892,28 +3018,28 @@ export default function DashboardPage() {
       return <VerificationPanel verifications={verifications} profileDocuments={profileDocuments} advisors={advisors} profiles={profiles} onApprove={(id) => withNotice(approveVerification(id, 'Approved from admin console'), 'Verification approved.')} onReject={(id) => withNotice(rejectVerification(id, 'Rejected from admin console'), 'Verification rejected.')} onApproveDocument={(id) => withNotice(approveProfileDocument(id, 'Approved from admin console'), 'Document approved.')} onRejectDocument={(id) => withNotice(rejectProfileDocument(id, 'Please upload a clearer/correct document.'), 'Document re-requested.')} onAgentStatus={handleAdvisorStatus} onProfileStatus={handleProfileStatus} />;
     }
     if (activeTab === 'member-upgrades') {
-      return <PendingUpgradesPanel payments={payments} type="member" />;
+      return <PendingUpgradesPanel payments={payments} type="member" activeTab={activeTab} onTab={navigateTab} />;
     }
     if (activeTab === 'member-payments') {
-      return <RevenuePaymentsPanel payments={payments} type="member" />;
+      return <RevenuePaymentsPanel payments={payments} type="member" activeTab={activeTab} onTab={navigateTab} />;
     }
     if (activeTab === 'member-invoices') {
-      return <InvoicesPanel payments={payments} type="member" />;
+      return <InvoicesPanel payments={payments} type="member" activeTab={activeTab} onTab={navigateTab} />;
     }
     if (['subscriptions', 'member-plans'].includes(activeTab)) {
-      return <SubscriptionPanel config={config} payments={payments} type="member" onSave={handleConfigSave} />;
+      return <SubscriptionPanel config={config} payments={payments} type="member" activeTab={activeTab} onTab={navigateTab} onSave={handleConfigSave} />;
     }
     if (activeTab === 'agent-upgrades') {
-      return <PendingUpgradesPanel payments={payments} type="agent" />;
+      return <PendingUpgradesPanel payments={payments} type="agent" activeTab={activeTab} onTab={navigateTab} />;
     }
     if (activeTab === 'agent-payments') {
-      return <RevenuePaymentsPanel payments={payments} type="agent" />;
+      return <RevenuePaymentsPanel payments={payments} type="agent" activeTab={activeTab} onTab={navigateTab} />;
     }
     if (activeTab === 'agent-invoices') {
-      return <InvoicesPanel payments={payments} type="agent" />;
+      return <InvoicesPanel payments={payments} type="agent" activeTab={activeTab} onTab={navigateTab} />;
     }
     if (activeTab === 'agent-plans') {
-      return <SubscriptionPanel config={config} payments={payments} type="agent" onSave={handleConfigSave} />;
+      return <SubscriptionPanel config={config} payments={payments} type="agent" activeTab={activeTab} onTab={navigateTab} onSave={handleConfigSave} />;
     }
     if (['content', 'photo-moderation', 'chat-moderation', 'flagged-content', 'visitor-enquiry', 'lead-management', 'notifications'].includes(activeTab)) {
       return <ContentPanel inbox={moderationInbox} reports={reports} alerts={alerts} consentEvents={consentEvents} onResolve={(id) => withNotice(resolveReport(id), 'Report resolved.')} onAck={(id) => withNotice(acknowledgeAlert(id), 'Alert acknowledged.')} />;
