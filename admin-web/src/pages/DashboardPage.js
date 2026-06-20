@@ -11,6 +11,7 @@ import {
   createAdminUser,
   createAdvisor,
   createProfile,
+  deleteProfile,
   deleteProfilePhoto,
   deleteAdminUser,
   getAdvisors,
@@ -59,7 +60,9 @@ import {
 } from '../components/AdminPrimitives';
 import AdminShell from '../components/AdminShell';
 import { AgentsPanel } from './admin/AgentsPanels';
+import GrowthReportsPanel from './admin/GrowthReportsPanel';
 import { MembersDirectoryPanel, MembersPanel } from './admin/MembersPanels';
+import UserControlPanel from './admin/UserControlPanel';
 import { VerificationPanel } from './admin/VerificationPanels';
 import AssistPanel from './AssistPanel';
 import './DashboardPage.css';
@@ -129,90 +132,34 @@ const DEFAULT_CONFIG = {
 
 const MENU_GROUPS = [
   {
-    label: 'Control',
+    label: 'Command Center',
     items: [
       { id: 'dashboard', label: 'Overview', icon: 'grid' },
-      { id: 'members', label: 'Members', icon: 'users' },
-      { id: 'agents', label: 'Agents', icon: 'agent' },
-      { id: 'subscriptions', label: 'Subscriptions', icon: 'tag' },
-      { id: 'content', label: 'Content', icon: 'content' },
-      { id: 'analytics', label: 'Analytics', icon: 'trend' },
-      { id: 'assist', label: 'Assist', icon: 'target' },
-      { id: 'system', label: 'System', icon: 'gear' }
+      { id: 'user-control', label: 'User Control', icon: 'users' },
+      { id: 'agents', label: 'Agent Control', icon: 'agent' },
+      { id: 'subscriptions', label: 'Plans & Revenue', icon: 'rupee' },
+      { id: 'growth-reports', label: 'Growth Reports', icon: 'trend' }
     ]
   },
   {
-    label: 'Members Management',
+    label: 'Operations',
     items: [
-      { id: 'members-all', label: 'All Members', icon: 'users' },
-      { id: 'member-signup', label: 'Member Signup', icon: 'plus' },
-      { id: 'member-profile', label: 'Manage Profile', icon: 'edit' },
-      { id: 'member-password', label: 'Password Details', icon: 'lock' },
-      { id: 'member-block', label: 'Block / Unblock', icon: 'ban' },
       { id: 'member-verify', label: 'Verify Member', icon: 'check' },
-      { id: 'member-validity', label: 'Validity Extension', icon: 'clock' }
-    ]
-  },
-  {
-    label: 'Agents Management',
-    items: [
-      { id: 'agents-all', label: 'All Agents', icon: 'agent' },
       { id: 'agent-verification', label: 'Agent Verification', icon: 'check' },
-      { id: 'agent-ratings', label: 'Agent Ratings', icon: 'star' },
-      { id: 'agent-performance', label: 'Agent Performance', icon: 'trend' },
-      { id: 'agent-profiles', label: 'Agent Profiles Visibility', icon: 'eye' }
+      { id: 'content', label: 'Reports & Moderation', icon: 'flag' },
+      { id: 'assist', label: 'Assisted Matchmaking', icon: 'target' },
+      { id: 'cms-management', label: 'CMS & Content', icon: 'cms' }
     ]
   },
   {
-    label: 'Member Subscriptions',
+    label: 'System Control',
     items: [
-      { id: 'member-plans', label: 'Subscription Plans', icon: 'tag' },
-      { id: 'member-upgrades', label: 'Pending Upgrades', icon: 'up' },
-      { id: 'member-payments', label: 'Revenue & Payments', icon: 'rupee' },
-      { id: 'member-invoices', label: 'Invoices', icon: 'invoice' }
-    ]
-  },
-  {
-    label: 'Agent Subscriptions',
-    items: [
-      { id: 'agent-plans', label: 'Subscription Plans', icon: 'tag' },
-      { id: 'agent-upgrades', label: 'Pending Upgrades', icon: 'up' },
-      { id: 'agent-payments', label: 'Revenue & Payments', icon: 'rupee' },
-      { id: 'agent-invoices', label: 'Invoices', icon: 'invoice' }
-    ]
-  },
-  {
-    label: 'Enquiries & Leads',
-    items: [
-      { id: 'visitor-enquiry', label: 'Visitor Enquiry', icon: 'mail' },
-      { id: 'lead-management', label: 'Lead Management', icon: 'target' }
-    ]
-  },
-  {
-    label: 'Content',
-    items: [
-      { id: 'photo-moderation', label: 'Photo Moderation', icon: 'image' },
-      { id: 'chat-moderation', label: 'Chat Moderation', icon: 'chat' },
-      { id: 'flagged-content', label: 'Flagged Content', icon: 'flag' }
-    ]
-  },
-  {
-    label: 'Dynamic Configuration',
-    items: [{ id: 'dynamic-config', label: 'Dynamic Configuration', icon: 'sliders' }]
-  },
-  {
-    label: 'System',
-    items: [
+      { id: 'dynamic-config', label: 'Configuration', icon: 'sliders' },
       { id: 'role-master', label: 'Role Master', icon: 'crown' },
       { id: 'user-master', label: 'User Master', icon: 'person' },
-      { id: 'notifications', label: 'Notifications', icon: 'bell' },
-      { id: 'data-export', label: 'Data Export', icon: 'export' },
       { id: 'audit-logs', label: 'Audit Logs', icon: 'log' },
       { id: 'service-health', label: 'Service Health', icon: 'pulse' },
-      { id: 'cms-management', label: 'CMS Management', icon: 'cms' },
-      { id: 'settings', label: 'Settings', icon: 'gear' },
-      { id: 'change-password', label: 'Change Password', icon: 'key' },
-      { id: 'logout', label: 'Logout', icon: 'exit' }
+      { id: 'settings', label: 'Settings', icon: 'gear' }
     ]
   }
 ];
@@ -220,6 +167,8 @@ const MENU_GROUPS = [
 const ROUTE_TO_TAB = {
   overview: 'dashboard',
   dashboard: 'dashboard',
+  'user-control': 'user-control',
+  users: 'user-control',
   members: 'members',
   agents: 'agents',
   verification: 'member-verify',
@@ -228,6 +177,8 @@ const ROUTE_TO_TAB = {
   moderation: 'content',
   cms: 'cms-management',
   analytics: 'analytics',
+  reports: 'growth-reports',
+  'growth-reports': 'growth-reports',
   system: 'system',
   assist: 'assist'
 };
@@ -235,6 +186,7 @@ const ROUTE_TO_TAB = {
 const TAB_TO_ROUTE = {
   dashboard: 'overview',
   overview: 'overview',
+  'user-control': 'user-control',
   members: 'members',
   'members-all': 'members',
   'member-profile': 'members',
@@ -268,6 +220,7 @@ const TAB_TO_ROUTE = {
   'dynamic-config': 'cms',
   'cms-management': 'cms',
   analytics: 'analytics',
+  'growth-reports': 'reports',
   system: 'system',
   'role-master': 'system',
   'user-master': 'system',
@@ -2823,6 +2776,47 @@ export default function DashboardPage() {
     await withNotice(blocked ? unbanUser(profile.user_id) : banUser(profile.user_id), blocked ? 'Member unblocked.' : 'Member blocked.');
   };
 
+  const handleDeleteProfile = async (profile) => {
+    if (!profile?.profile_id) return;
+    const label = profile.first_name || profile.profile_display_id || profile.profile_id;
+    if (!window.confirm(`Delete ${label}? This removes the member profile from admin records.`)) return;
+    await withNotice(deleteProfile(profile.profile_id), 'Member profile deleted.');
+    setDrawer(null);
+  };
+
+  const handleBulkProfileStatus = async (items, action) => {
+    if (!items.length) return;
+    await withNotice(
+      Promise.all(items.map((profile) => updateProfileStatus(profile.profile_id, action, `Admin bulk ${action} from console`))),
+      `${items.length} member profiles updated.`
+    );
+  };
+
+  const handleBulkProfileUpdate = async (items, field, value) => {
+    if (!items.length) return;
+    const allowedFields = {
+      adminStatus: 'adminStatus',
+      photoPrivacy: 'photoPrivacy',
+      profileVisibility: 'profileVisibility',
+      reviewNotes: 'reviewNotes'
+    };
+    const payloadKey = allowedFields[field];
+    if (!payloadKey) return;
+    await withNotice(
+      Promise.all(items.map((profile) => updateProfile(profile.profile_id, { ...makeProfilePayload(profile), [payloadKey]: value }))),
+      `${items.length} member profiles bulk edited.`
+    );
+  };
+
+  const handleBulkDeleteProfiles = async (items) => {
+    if (!items.length) return;
+    if (!window.confirm(`Delete ${items.length} selected member profiles? This cannot be undone from the dashboard.`)) return;
+    await withNotice(
+      Promise.all(items.map((profile) => deleteProfile(profile.profile_id))),
+      `${items.length} member profiles deleted.`
+    );
+  };
+
   const handleSaveAdvisor = async (form) => {
     const payload = makeAdvisorPayload(form);
     if (form.advisor_id) {
@@ -2869,6 +2863,24 @@ export default function DashboardPage() {
     }
     if (activeTab === 'members') {
       return <MembersDirectoryPanel profiles={profiles} search={search} onOpen={(profile) => setDrawer({ type: 'member', entity: profile })} onCreate={() => setDrawer({ type: 'member', entity: null })} />;
+    }
+    if (activeTab === 'user-control') {
+      return (
+        <UserControlPanel
+          profiles={profiles}
+          users={users}
+          reports={reports}
+          search={search}
+          onOpen={(profile) => setDrawer({ type: 'member', entity: profile })}
+          onCreate={() => setDrawer({ type: 'member', entity: null })}
+          onStatus={handleProfileStatus}
+          onBlock={handleBlockProfile}
+          onDelete={handleDeleteProfile}
+          onBulkStatus={handleBulkProfileStatus}
+          onBulkUpdate={handleBulkProfileUpdate}
+          onBulkDelete={handleBulkDeleteProfiles}
+        />
+      );
     }
     if (['members-all', 'member-profile', 'member-signup', 'member-password', 'member-block', 'member-validity'].includes(activeTab)) {
       return <MembersPanel profiles={profiles} search={search} onOpen={(profile) => setDrawer({ type: 'member', entity: profile })} onCreate={() => setDrawer({ type: 'member', entity: null })} onStatus={handleProfileStatus} onBlock={handleBlockProfile} />;
@@ -2930,6 +2942,9 @@ export default function DashboardPage() {
     }
     if (activeTab === 'analytics') {
       return <AnalyticsPanel stats={stats} funnel={funnel} events={events} payments={payments} />;
+    }
+    if (activeTab === 'growth-reports') {
+      return <GrowthReportsPanel stats={stats} profiles={profiles} advisors={advisors} payments={payments} reports={reports} funnel={funnel} events={events} />;
     }
     if (['system', 'role-master', 'user-master', 'notifications', 'data-export', 'audit-logs', 'service-health', 'settings', 'change-password'].includes(activeTab)) {
       return <SystemPanel roles={roles} users={users} adminUsers={adminUsers} auditLogs={auditLogs} services={services} activeTab={activeTab} search={search} onSearch={setSearch} session={session} onSaveRoles={handleSaveRoles} onTab={navigateTab} funnel={funnel} events={events} systemInventory={systemInventory} onSaveAdminUser={handleSaveAdminUser} onDeleteAdminUser={handleDeleteAdminUser} />;
