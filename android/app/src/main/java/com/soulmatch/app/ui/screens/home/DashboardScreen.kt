@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
@@ -75,6 +76,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -284,6 +286,7 @@ fun DashboardScreen(
                     unreadCount = notificationBadgeCount,
                     onOpenProfile = { scope.launch { drawerState.open() } },
                     onOpenNotifications = onOpenNotifications,
+                    onOpenSearch = onOpenSearch,
                     onOpenPartnerPreferences = onOpenPartnerPreferences
                 )
             },
@@ -403,6 +406,7 @@ private fun HomeTopBar(
     unreadCount: Int,
     onOpenProfile: () -> Unit,
     onOpenNotifications: () -> Unit,
+    onOpenSearch: () -> Unit,
     onOpenPartnerPreferences: () -> Unit
 ) {
     Surface(
@@ -450,7 +454,7 @@ private fun HomeTopBar(
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        profile.fullName().ifBlank { "My matches" },
+                        "My matches",
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontFamily = FontFamily.SansSerif,
                             fontWeight = FontWeight.ExtraBold,
@@ -471,7 +475,7 @@ private fun HomeTopBar(
                             color = Color(0xFF667386)
                         )
                         Text(
-                            "partner preference",
+                            "partner preferences",
                             style = MaterialTheme.typography.labelLarge,
                             color = HomePrimary,
                             fontWeight = FontWeight.ExtraBold,
@@ -513,6 +517,14 @@ private fun HomeTopBar(
                         }
                     }
                 }
+                IconButton(onClick = onOpenSearch) {
+                    Icon(
+                        Icons.Filled.Search,
+                        contentDescription = "Search matches",
+                        tint = Color(0xFF748091),
+                        modifier = Modifier.size(29.dp)
+                    )
+                }
             }
         }
     }
@@ -524,7 +536,6 @@ private fun HomeMatchFilterStrip(
     onOpenAdvancedFilters: () -> Unit,
     onSelected: (HomeMatchFeedFilter) -> Unit
 ) {
-    val visibleFilters = selected?.let(::listOf) ?: HomeMatchFeedFilter.entries
     Surface(
         color = Color(0xFFFFFCFA),
         border = BorderStroke(1.dp, Divider.copy(alpha = 0.55f))
@@ -537,7 +548,7 @@ private fun HomeMatchFilterStrip(
             verticalAlignment = Alignment.CenterVertically
         ) {
             HomeFilterPill(
-                label = "Filter",
+                label = "Filters",
                 selected = false,
                 leadingIcon = { Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(15.dp)) },
                 modifier = Modifier.weight(0.92f),
@@ -549,7 +560,7 @@ private fun HomeMatchFilterStrip(
                     .height(28.dp)
                     .background(Color(0xFFD7DDE5))
             )
-            visibleFilters.forEach { filter ->
+            HomeMatchFeedFilter.entries.forEach { filter ->
                 HomeFilterPill(
                     label = filter.label,
                     selected = selected == filter,
@@ -1171,72 +1182,69 @@ private fun HomeUpgradeBenefitsCard(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Divider.copy(alpha = 0.58f)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1D1430)),
+        border = BorderStroke(1.dp, Color(0xFF332148)),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
-        Box(Modifier.fillMaxSize()) {
-            val label = ad.discountLabel.ifBlank { ad.badge }
-            if (label.isNotBlank()) {
-                Surface(
-                    modifier = Modifier.align(Alignment.TopEnd),
-                    shape = RoundedCornerShape(bottomStart = 10.dp),
-                    color = Color(0xFF3495DD)
-                ) {
-                    Text(
-                        label.uppercase(Locale.getDefault()),
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Color.White,
-                        fontWeight = FontWeight.ExtraBold,
-                        maxLines = 1
-                    )
-                }
-            }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(listOf(Color(0xFF3A233E), Color(0xFF0D0820))))
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(26.dp),
-                verticalArrangement = Arrangement.Center
+                    .padding(horizontal = 28.dp, vertical = 34.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Surface(
-                    modifier = Modifier.size(86.dp),
-                    shape = RoundedCornerShape(999.dp),
-                    color = Color(0xFFFFF2C1)
-                ) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.Star, contentDescription = null, tint = Color(0xFFB8960C), modifier = Modifier.size(42.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                    Text(
+                        ad.discountLabel.ifBlank { "Now 73% OFF on all memberships!" },
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontFamily = FontFamily.SansSerif,
+                            fontWeight = FontWeight.ExtraBold,
+                            lineHeight = 36.sp
+                        ),
+                        color = Color(0xFFFFB5A6),
+                        textAlign = TextAlign.Center
+                    )
+                    val bullets = ad.bullets.ifEmpty {
+                        listOf(
+                            "Get upto 3X more matches daily",
+                            "Get access to contact details",
+                            "Perform unlimited searches",
+                            "Get 3 spotlights for free"
+                        )
                     }
-                }
-                Spacer(Modifier.height(26.dp))
-                Text(
-                    ad.title.ifBlank { "You are missing out on premium benefits" },
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontFamily = FontFamily.SansSerif,
-                        fontWeight = FontWeight.ExtraBold,
-                        lineHeight = 34.sp
-                    ),
-                    color = Color(0xFF304457)
-                )
-                Spacer(Modifier.height(20.dp))
-                val bullets = ad.bullets.ifEmpty {
-                    listOf("Get more matches daily", "View contact details", "Boost profile visibility")
-                }
-                bullets.take(4).forEach { item ->
-                    Row(
-                        modifier = Modifier.padding(vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(modifier = Modifier.size(24.dp), shape = RoundedCornerShape(999.dp), color = Color(0xFFFFC02D)) {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                            }
+                    bullets.take(4).forEachIndexed { index, item ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 18.dp, vertical = 5.dp),
+                            horizontalArrangement = Arrangement.spacedBy(18.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = when (index) {
+                                    1 -> Icons.Outlined.MailOutline
+                                    2 -> Icons.Filled.Search
+                                    3 -> Icons.Filled.Star
+                                    else -> Icons.Outlined.FavoriteBorder
+                                },
+                                contentDescription = null,
+                                tint = Color(0xFFFF73B7),
+                                modifier = Modifier.size(27.dp)
+                            )
+                            Text(
+                                item,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
-                        Text(item, style = MaterialTheme.typography.bodyLarge, color = Color(0xFF42566B))
                     }
                 }
-                Spacer(Modifier.height(24.dp))
                 Button(onClick = onOpen, shape = RoundedCornerShape(14.dp)) {
                     Text(ad.cta.ifBlank { "Upgrade now" }, fontWeight = FontWeight.ExtraBold)
                 }
@@ -2122,17 +2130,24 @@ private fun HomeMatchCard(
     onChat: () -> Unit
 ) {
     val photoIsPrivate = profile.isPhotoPrivate
+    val hasPhoto = !profile.primaryPhoto.isNullOrBlank()
+    val shouldBlurPhoto = photoIsPrivate && hasPhoto
+    val shouldRequestPhoto = photoIsPrivate && !hasPhoto
     val showActivity = !profile.hideLastSeen && profile.lastActiveLabel.isNotBlank()
+    val premiumBorder = profile.trustScore >= 75 || profile.compatibilityScore >= 90
+    val heroBadge = profileHeroBadge(profile)
+    val membershipBadge = profileMembershipBadge(profile)
     Card(
         modifier = modifier
-            .aspectRatio(0.58f)
+            .aspectRatio(0.60f)
             .clickable(onClick = onOpen),
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = if (premiumBorder) BorderStroke(2.5.dp, Color(0xFFE64545)) else null,
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            if (photoIsPrivate) {
+            if (shouldRequestPhoto) {
                 PrivatePhotoPlaceholder(
                     name = profile.name,
                     modifier = Modifier.fillMaxSize()
@@ -2141,8 +2156,10 @@ private fun HomeMatchCard(
                 MemberPhoto(
                     photoUrl = profile.primaryPhoto,
                     contentDescription = "Photo of ${profile.name}",
-                    modifier = Modifier.fillMaxSize(),
-                    shape = RoundedCornerShape(26.dp)
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (shouldBlurPhoto) Modifier.blur(14.dp) else Modifier),
+                    shape = RoundedCornerShape(28.dp)
                 )
             }
             Box(
@@ -2158,7 +2175,7 @@ private fun HomeMatchCard(
                         )
                     )
             )
-            if (photoIsPrivate) {
+            if (shouldRequestPhoto) {
                 Surface(
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -2173,6 +2190,22 @@ private fun HomeMatchCard(
                         style = MaterialTheme.typography.titleSmall,
                         color = Color.White,
                         fontWeight = FontWeight.ExtraBold
+                    )
+                }
+            }
+            if (shouldBlurPhoto) {
+                Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Filled.PhotoLibrary, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
+                    Text(
+                        "Photo visible on acceptance of interest",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -2191,12 +2224,13 @@ private fun HomeMatchCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Filled.PhotoLibrary, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        Text("1", style = MaterialTheme.typography.labelLarge, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                        Text(profilePhotoCount(profile).toString(), style = MaterialTheme.typography.labelLarge, color = Color.White, fontWeight = FontWeight.ExtraBold)
                     }
                 }
             }
-            if (profile.shortlisted) {
-                ShortlistedRibbonBadge(
+            if (heroBadge.isNotBlank()) {
+                MatchHeroBadge(
+                    label = heroBadge,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(16.dp)
@@ -2211,13 +2245,16 @@ private fun HomeMatchCard(
                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     if (showActivity) {
                         Text(
-                            profile.lastActiveLabel,
+                            normalizeActivityLabel(profile.lastActiveLabel),
                             style = MaterialTheme.typography.titleSmall,
                             color = Color.White.copy(alpha = 0.9f),
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                    }
+                    if (membershipBadge.isNotBlank()) {
+                        PremiumProfileBadge(label = membershipBadge)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -2242,7 +2279,7 @@ private fun HomeMatchCard(
                         listOf(profile.heightCm?.let(::formatHeightLabel), profile.location, profile.community)
                             .filterNotNull()
                             .filter { it.isNotBlank() }
-                            .joinToString(" | ")
+                            .joinToString(" · ")
                             .ifBlank { "Height, location, and community in progress" },
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.White.copy(alpha = 0.94f),
@@ -2250,20 +2287,23 @@ private fun HomeMatchCard(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        listOf(profile.occupation, profile.education)
+                        listOf(profile.occupation, profileIncomeLabel(profile.annualIncome))
                             .filter { it.isNotBlank() }
-                            .joinToString(" | ")
-                            .ifBlank { "Education and profession in progress" },
+                            .joinToString(" · ")
+                            .ifBlank { "Profession and income in progress" },
                         style = MaterialTheme.typography.titleSmall,
                         color = Color.White.copy(alpha = 0.92f),
-                        maxLines = 2,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        profile.education.ifBlank { "Education in progress" },
+                        style = MaterialTheme.typography.titleSmall,
+                        color = Color.White.copy(alpha = 0.92f),
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                MatchInfoTags(
-                    matchScore = profile.compatibilityScore.coerceIn(0, 99),
-                    trustScore = profile.trustScore.coerceIn(0, 100)
-                )
                 Text(
                     "Profile managed by ${profileOwnerLabel(profile.profileCreatedBy)}",
                     style = MaterialTheme.typography.titleSmall.copy(fontStyle = FontStyle.Italic),
@@ -2354,6 +2394,59 @@ private fun PrivatePhotoPlaceholder(
 }
 
 @Composable
+private fun MatchHeroBadge(label: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(999.dp),
+        color = Color.White.copy(alpha = 0.94f),
+        shadowElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (label.contains("compatible", ignoreCase = true)) Icons.Filled.Favorite else Icons.Filled.Send,
+                contentDescription = null,
+                tint = Color(0xFF1F2937),
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge.copy(fontStyle = FontStyle.Italic),
+                color = Color(0xFF1F2937),
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun PremiumProfileBadge(label: String) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.24f))
+    ) {
+        Box(
+            modifier = Modifier
+                .background(Brush.horizontalGradient(listOf(Color(0xFFD94352), Color(0xFFB0448E))))
+                .padding(horizontal = 12.dp, vertical = 5.dp)
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
 private fun ShortlistedRibbonBadge(modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
@@ -2371,6 +2464,44 @@ private fun ShortlistedRibbonBadge(modifier: Modifier = Modifier) {
             overflow = TextOverflow.Ellipsis
         )
     }
+}
+
+private fun profileHeroBadge(profile: ProfileSummary): String {
+    return when {
+        profile.compatibilityScore >= 94 -> "Most Compatible"
+        profile.joinedToday() -> "Just joined"
+        else -> ""
+    }
+}
+
+private fun profileMembershipBadge(profile: ProfileSummary): String {
+    return when {
+        profile.trustScore >= 88 -> "Pro Max"
+        profile.trustScore >= 72 || profile.compatibilityScore >= 88 -> "Pro"
+        else -> ""
+    }
+}
+
+private fun profilePhotoCount(profile: ProfileSummary): Int =
+    when {
+        profile.primaryPhoto.isNullOrBlank() -> 0
+        profile.compatibilityScore >= 94 -> 4
+        else -> 1
+    }
+
+private fun normalizeActivityLabel(value: String): String =
+    when {
+        value.contains("yesterday", ignoreCase = true) -> "Active Yesterday"
+        value.contains("today", ignoreCase = true) || value.equals("active", ignoreCase = true) -> "Active Today"
+        value.isBlank() -> ""
+        else -> value.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+    }
+
+private fun profileIncomeLabel(income: String): String {
+    val clean = income.trim()
+    if (clean.isBlank()) return ""
+    if (clean.contains("earn", ignoreCase = true) || clean.contains("income", ignoreCase = true)) return clean
+    return "Earns $clean"
 }
 
 @Composable
@@ -2443,7 +2574,16 @@ private fun MatchCardAction(
 }
 
 private fun profileOwnerLabel(profileCreatedBy: String): String =
-    if (profileCreatedBy.equals("self", ignoreCase = true)) "Self" else "Agent"
+    when (profileCreatedBy.lowercase(Locale.getDefault()).replace("_", " ").trim()) {
+        "", "self" -> "Self"
+        "parent" -> "Parent"
+        "sibling" -> "Sibling"
+        "relative", "relative friend", "relative/friend", "friend" -> "Relative/Friend"
+        "agent", "advisor" -> "Agent"
+        else -> profileCreatedBy.replace("_", " ").replaceFirstChar {
+            if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+        }
+    }
 
 private const val MAX_HOME_MATCHES = 80
 
