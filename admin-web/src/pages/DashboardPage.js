@@ -2485,12 +2485,12 @@ function MemberDrawer({ profile, onClose, onSave, onStatus, onPhotoAdd, onPhotoU
     ...profile,
     dob: profile?.dob ? String(profile.dob).slice(0, 10) : ''
   }));
-  const [newPhotoUrl, setNewPhotoUrl] = useState('');
   const [newPhotoUpload, setNewPhotoUpload] = useState(null);
   const [saving, setSaving] = useState(false);
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }));
   const primaryPhoto = form.primary_photo_url
     || form.profile_photo_url
+    || newPhotoUpload?.dataUrl
     || (Array.isArray(form.photos) ? (form.photos.find((photo) => photo.is_primary) || form.photos[0])?.photo_url : '');
   const profileLocation = [form.working_city || form.family_city, form.working_state || form.family_state].filter(Boolean).join(', ') || 'Location not set';
   const age = form.dob ? Math.max(0, Math.floor((Date.now() - new Date(form.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000))) : null;
@@ -2505,11 +2505,10 @@ function MemberDrawer({ profile, onClose, onSave, onStatus, onPhotoAdd, onPhotoU
     }
   };
   const addPhoto = async () => {
-    if (!form.profile_id || (!newPhotoUrl.trim() && !newPhotoUpload?.dataUrl)) return;
+    if (!form.profile_id || !newPhotoUpload?.dataUrl) return;
     const photo = await onPhotoAdd(form.profile_id, {
-      photoUrl: newPhotoUrl.trim(),
-      photoDataUrl: newPhotoUpload?.dataUrl || undefined,
-      fileName: newPhotoUpload?.fileName || undefined,
+      photoDataUrl: newPhotoUpload.dataUrl,
+      fileName: newPhotoUpload.fileName,
       isPrimary: !Array.isArray(form.photos) || form.photos.length === 0
     });
     if (photo) {
@@ -2518,7 +2517,6 @@ function MemberDrawer({ profile, onClose, onSave, onStatus, onPhotoAdd, onPhotoU
         primary_photo_url: photo.is_primary ? photo.photo_url : current.primary_photo_url,
         photos: [photo, ...(Array.isArray(current.photos) ? current.photos : [])]
       }));
-      setNewPhotoUrl('');
       setNewPhotoUpload(null);
     }
   };
@@ -2529,9 +2527,16 @@ function MemberDrawer({ profile, onClose, onSave, onStatus, onPhotoAdd, onPhotoU
     }
     const reader = new FileReader();
     reader.onload = () => {
-      setNewPhotoUpload({ fileName: file.name, dataUrl: String(reader.result || '') });
+      const upload = { fileName: file.name, dataUrl: String(reader.result || '') };
+      setNewPhotoUpload(upload);
+      if (!form.profile_id) set('_pendingPrimaryPhoto', upload);
     };
     reader.readAsDataURL(file);
+  };
+  const clearPendingPhoto = () => {
+    setNewPhotoUpload(null);
+    set('_pendingPrimaryPhoto', null);
+    if (!form.profile_id) set('primary_photo_url', '');
   };
   const makePrimaryPhoto = async (photo) => {
     if (!form.profile_id || !photo?.photo_id) return;
@@ -2667,23 +2672,45 @@ function MemberDrawer({ profile, onClose, onSave, onStatus, onPhotoAdd, onPhotoU
           <div>
             <strong>Photos</strong>
             {form.profile_id ? (
-              <div className="photo-admin-toolbar">
-                <input
-                  value={newPhotoUrl}
-                  onChange={(event) => setNewPhotoUrl(event.target.value)}
-                  placeholder="Paste HTTPS image URL or /uploads path"
-                />
-                <label className="photo-admin-file">
-                  <Icon name="image" />
-                  <span>{newPhotoUpload?.fileName || 'Choose file'}</span>
-                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handlePhotoFile(event.target.files?.[0])} />
-                </label>
-                <button type="button" onClick={addPhoto} disabled={!newPhotoUrl.trim() && !newPhotoUpload?.dataUrl}>
-                  <Icon name="plus" /> Add / upload
-                </button>
-              </div>
+              <>
+                {newPhotoUpload?.dataUrl ? (
+                  <div className="photo-upload-preview">
+                    <img src={newPhotoUpload.dataUrl} alt="" />
+                    <span><strong>{newPhotoUpload.fileName}</strong><small>Ready to upload</small></span>
+                    <button type="button" onClick={clearPendingPhoto}><Icon name="close" /> Remove</button>
+                  </div>
+                ) : null}
+                <div className="photo-admin-toolbar upload-only">
+                  <label className="photo-admin-file">
+                    <Icon name="image" />
+                    <span>{newPhotoUpload?.fileName || 'Upload photo'}</span>
+                    <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handlePhotoFile(event.target.files?.[0])} />
+                  </label>
+                  <button type="button" onClick={addPhoto} disabled={!newPhotoUpload?.dataUrl}>
+                    <Icon name="plus" /> Add Photo
+                  </button>
+                </div>
+              </>
             ) : (
-              <Field label="Primary photo URL"><Input value={form.primary_photo_url} onChange={(v) => set('primary_photo_url', v)} /></Field>
+              <div className={`create-photo-uploader ${newPhotoUpload?.dataUrl ? 'has-photo' : ''}`}>
+                {newPhotoUpload?.dataUrl ? (
+                  <>
+                    <img src={newPhotoUpload.dataUrl} alt="" />
+                    <div>
+                      <strong>{newPhotoUpload.fileName}</strong>
+                      <small>This photo will be uploaded as the primary profile photo after the member is created.</small>
+                    </div>
+                    <button type="button" onClick={clearPendingPhoto}><Icon name="close" /> Delete photo</button>
+                  </>
+                ) : (
+                  <label>
+                    <Icon name="image" />
+                    <strong>Upload primary photo</strong>
+                    <span>PNG, JPG, or WebP. The image will be saved with the new member profile.</span>
+                    <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handlePhotoFile(event.target.files?.[0])} />
+                  </label>
+                )}
+              </div>
             )}
             <div className="document-list">
               {(Array.isArray(form.photos) ? form.photos : []).map((photo) => (
@@ -3023,7 +3050,22 @@ export default function DashboardPage() {
     if (form.profile_id) {
       await withNotice(updateProfile(form.profile_id, payload), 'Member profile updated.');
     } else {
-      await withNotice(createProfile(payload), 'Member profile created.');
+      try {
+        const response = await createProfile(payload);
+        const createdProfile = response.data?.data;
+        if (createdProfile?.profile_id && form._pendingPrimaryPhoto?.dataUrl) {
+          await addProfilePhoto(createdProfile.profile_id, {
+            photoDataUrl: form._pendingPrimaryPhoto.dataUrl,
+            fileName: form._pendingPrimaryPhoto.fileName,
+            isPrimary: true
+          });
+        }
+        setNotice('Member profile created.');
+        await reload();
+      } catch (err) {
+        setNotice(err.response?.data?.error?.message || err.message);
+        return;
+      }
     }
     setDrawer(null);
   };

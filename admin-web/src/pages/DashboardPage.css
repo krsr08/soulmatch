@@ -146,6 +146,10 @@
   margin: 12px 0;
 }
 
+.photo-admin-toolbar.upload-only {
+  grid-template-columns: minmax(180px, 1fr) auto;
+}
+
 .photo-admin-toolbar input {
   min-width: 0;
   border: 1px solid var(--console-line);
@@ -195,6 +199,111 @@
 .photo-admin-toolbar button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.photo-upload-preview,
+.create-photo-uploader {
+  border: 1px dashed #c9d6e8;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+
+.photo-upload-preview {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  margin: 12px 0;
+}
+
+.photo-upload-preview img {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  object-fit: cover;
+  object-position: center top;
+}
+
+.photo-upload-preview span,
+.create-photo-uploader div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.photo-upload-preview strong,
+.create-photo-uploader strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--console-ink);
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-upload-preview small,
+.create-photo-uploader small,
+.create-photo-uploader span {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.photo-upload-preview button,
+.create-photo-uploader button {
+  min-height: 40px;
+  border: 1px solid var(--console-line);
+  border-radius: 10px;
+  background: #fff;
+  color: #dc2626;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.create-photo-uploader {
+  min-height: 190px;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  margin: 12px 0;
+}
+
+.create-photo-uploader label {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  max-width: 340px;
+  color: var(--console-ink);
+  text-align: center;
+  cursor: pointer;
+}
+
+.create-photo-uploader label .admin-icon {
+  width: 34px;
+  height: 34px;
+  color: var(--console-primary);
+}
+
+.create-photo-uploader input {
+  display: none;
+}
+
+.create-photo-uploader.has-photo {
+  grid-template-columns: 130px minmax(0, 1fr) auto;
+  place-items: center stretch;
+  gap: 14px;
+  min-height: auto;
+  text-align: left;
+}
+
+.create-photo-uploader.has-photo img {
+  width: 130px;
+  height: 160px;
+  border-radius: 14px;
+  object-fit: cover;
+  object-position: center top;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
 }
 
 .photo-admin-row {
@@ -4538,5 +4647,17 @@
   .member-360-contact-grid strong {
     grid-column: 2;
     text-align: left;
+  }
+
+  .photo-admin-toolbar.upload-only,
+  .photo-upload-preview,
+  .create-photo-uploader.has-photo {
+    grid-template-columns: 1fr;
+  }
+
+  .photo-upload-preview img,
+  .create-photo-uploader.has-photo img {
+    width: 100%;
+    height: 240px;
   }
 }

@@ -109,7 +109,6 @@ import com.soulmatch.app.ui.components.premium.MetricPill
 import com.soulmatch.app.ui.components.premium.PremiumCard
 import com.soulmatch.app.ui.components.premium.PremiumHeader
 import com.soulmatch.app.ui.components.premium.PremiumScreen
-import com.soulmatch.app.ui.components.status.ProfileStrengthAdvisor
 import com.soulmatch.app.ui.components.premium.SectionTitle
 import com.soulmatch.app.ui.components.premium.SignalChip
 import com.soulmatch.app.ui.components.premium.SignalChips
@@ -502,7 +501,7 @@ fun TrustDetailsScreen(
             incomeType = incomeType
         )
     }
-    val calculatedScore = remember(trustEntries) { calculateTrustScore(trustEntries) }
+    val trustScore = profile?.trustScore?.coerceIn(0, 100) ?: 0
 
     Scaffold(
         topBar = {
@@ -539,22 +538,14 @@ fun TrustDetailsScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             TrustMetricTile(
                                 label = "Trust Score",
-                                value = "$calculatedScore%",
+                                value = formatTrustScore(trustScore),
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Text(
-                                "Tap any trust item to add details, upload proof, or review the current verification status. The score updates as items are completed.",
+                                "Tap any trust item to add details, upload proof, or review the current verification status. The score stays aligned with your verified profile data.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary
                             )
-                            if ((profile?.trustScore ?: 0) > 0) {
-                                Text(
-                                    "Backend trust engine: ${profile?.trustScore?.coerceIn(0, 100)}%",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = TextSecondary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
                         }
                     }
                 }
@@ -741,7 +732,7 @@ private fun ProfileStrengthOverviewCard(
     checklist: List<ProfileChecklistItem>,
     onComplete: () -> Unit
 ) {
-    val score = ProfileStrengthAdvisor.score(profile)
+    val score = profile.completionScore.coerceIn(0, 100)
     val next = checklist.firstOrNull { !it.isComplete && !it.statusLabel.equals("Optional", ignoreCase = true) }
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -1172,18 +1163,8 @@ private fun latestVerification(verifications: List<VerificationRequestData>, var
         .maxByOrNull { it.createdAt }
 }
 
-private fun calculateTrustScore(entries: List<TrustChecklistEntry>): Int {
-    if (entries.isEmpty()) return 0
-    val score = entries.map { entry ->
-        when (entry.state) {
-            TrustEntryState.Verified -> 100
-            TrustEntryState.Pending -> 70
-            TrustEntryState.Warning -> 35
-            TrustEntryState.Missing -> 0
-        }
-    }.sum() / entries.size
-    return score.coerceIn(0, 100)
-}
+private fun formatTrustScore(score: Int): String =
+    if (score > 0) "${score.coerceIn(0, 100)}%" else "New"
 
 private fun stateForVerification(status: String, hasFallback: Boolean): TrustEntryState {
     val normalized = status.lowercase(Locale.getDefault())
@@ -1817,7 +1798,7 @@ private fun TrustDetailsCard(
                 border = BorderStroke(1.dp, Divider)
             ) {
                 Text(
-                    text = if (profile.trustScore > 0) "${profile.trustScore.coerceIn(0, 100)}%" else "New",
+                    text = formatTrustScore(profile.trustScore),
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary,
