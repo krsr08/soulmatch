@@ -29,6 +29,7 @@ const AGENT_REVIEW_STATUSES = new Set(['draft', 'submitted', 'under_review', 've
 const AGENT_KYC_DOCUMENT_TYPES = new Set(['aadhaar', 'pan', 'voter_id', 'cancelled_cheque']);
 const AGENT_DOCUMENT_SIDES = new Set(['front', 'back', 'single']);
 const AGENT_TERMS_VERSION = 'agent-terms-2026-05-10-v1';
+const MEMBER_DOCUMENT_TYPES = new Set(['aadhaar', 'pan', 'voter_id', 'education_certificate', 'income_payslip']);
 
 function requireAgentAccount(req) {
   if (req.user?.userType !== 'agent') {
@@ -190,6 +191,7 @@ function normalizeStepData(step, data) {
       normalized.dob = dob;
     }
     if (step === 3) {
+      normalized.noEducation = data.noEducation === true || data.no_education === true || String(data.noEducation || data.no_education).toLowerCase() === 'true';
       normalized.isEmployed = data.isEmployed === true || String(data.isEmployed).toLowerCase() === 'true';
       normalized.workingPincode = String(data.workingPincode || '').trim();
     }
@@ -202,6 +204,26 @@ function normalizeStepData(step, data) {
 function normalizeVerificationType(type) {
   const normalized = String(type || 'profile').trim().toLowerCase().replace(/\s+/g, '_');
   return ALLOWED_VERIFICATION_TYPES.has(normalized) ? normalized : null;
+}
+
+function normalizeMemberDocumentType(type, verificationType = '') {
+  const normalized = String(type || '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (MEMBER_DOCUMENT_TYPES.has(normalized)) return normalized;
+  if (verificationType === 'education') return 'education_certificate';
+  if (verificationType === 'income') return 'income_payslip';
+  if (verificationType === 'identity') return 'aadhaar';
+  return null;
+}
+
+function normalizeMemberReferenceNumber(body = {}, documentType = '') {
+  const raw = body.referenceNumber || body.reference_number ||
+    (documentType === 'aadhaar' ? body.aadhaarNumber || body.aadhaar_number : null) ||
+    (documentType === 'pan' ? body.panNumber || body.pan_number : null);
+  const value = String(raw || '').replace(/\s+/g, '').toUpperCase();
+  if (!value) return null;
+  if (documentType === 'aadhaar' && !/^\d{12}$/.test(value)) return false;
+  if (documentType === 'pan' && !/^[A-Z]{5}\d{4}[A-Z]$/.test(value)) return false;
+  return value;
 }
 
 function normalizeDocumentUrl(body) {
@@ -1045,7 +1067,14 @@ exports.submitVerificationUpload = async (req, res, next) => {
     const profile = await requireOwnedProfile(req.params.profileId, req.user.userId);
     const type = normalizeVerificationType(req.body?.type);
     if (!type) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Verification type must be profile, identity, photo, education, income, or family.'));
-    const uploadedUrl = resolveUploadUrls(req.file ? [req.file] : [])[0] || null;
+    const documentType = normalizeMemberDocumentType(req.body?.documentType || req.body?.document_type, type);
+    const referenceNumber = normalizeMemberReferenceNumber(req.body || {}, documentType || '');
+    if (referenceNumber === false) {
+      return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, documentType === 'pan' ? 'PAN number is not valid.' : 'Aadhaar number must be 12 digits.'));
+    }
+    const encryptedFiles = await secureDocuments.encryptUploadedFiles(req.file ? [req.file] : []);
+    const uploadedFile = encryptedFiles[0] || null;
+    const uploadedUrl = resolveUploadUrls(uploadedFile ? [uploadedFile] : [])[0] || null;
     const documentUrl = uploadedUrl || normalizeDocumentUrl(req.body);
     if (documentUrl === false) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Document URL must be an HTTPS URL or a SoulMatch upload path.'));
     if (!documentUrl) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Upload a verification document before submitting.'));
@@ -1056,7 +1085,25 @@ exports.submitVerificationUpload = async (req, res, next) => {
       if (completionScore < 60) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Complete your profile to at least 60% before requesting verification.'));
     }
 
-    const result = await repo.createVerificationRequest(profile, { type, documentUrl, audit: auditMeta(req) });
+    const referenceMeta = referenceNumber ? secureDocuments.encryptText(referenceNumber) : null;
+    const result = await repo.createVerificationRequest(profile, {
+      type,
+      documentUrl,
+      documentType,
+      documentSide: req.body?.documentSide || req.body?.document_side || 'single',
+      referenceMeta,
+      referenceHash: referenceNumber ? secureDocuments.referenceHash(referenceNumber) : null,
+      fileMeta: uploadedFile ? {
+        encryptionAlgorithm: uploadedFile.encryptionAlgorithm,
+        encryptionKeyRef: uploadedFile.encryptionKeyRef,
+        encryptionIv: uploadedFile.encryptionIv,
+        contentSha256: uploadedFile.contentSha256,
+        originalFileName: uploadedFile.originalFileName,
+        mimeType: uploadedFile.mimeType,
+        fileSizeBytes: uploadedFile.fileSizeBytes
+      } : null,
+      audit: auditMeta(req)
+    });
     if (result.status === 'already_verified') {
       return res.json({ success: true, data: null, message: 'Your profile is already verified.' });
     }

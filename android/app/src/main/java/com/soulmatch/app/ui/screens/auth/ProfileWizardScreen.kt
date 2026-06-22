@@ -326,7 +326,7 @@ private fun isProfileSectionComplete(profile: ProfileData?, section: Int): Boole
             resolved.complexion.isNotBlank() &&
             resolved.bodyType.isNotBlank() &&
             resolved.bloodGroup.isNotBlank()
-        3 -> resolved.educationLevel.isNotBlank() &&
+        3 -> (resolved.noEducation || resolved.educationLevel.isNotBlank()) &&
             (!resolved.isEmployed || (
                 resolved.occupation.isNotBlank() &&
                     resolved.annualIncome.isNotBlank() &&
@@ -528,6 +528,7 @@ private fun Step2Physical(existing: ProfileData?, vm: ProfileViewModel, onValidi
 @Composable
 private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
     var educationLevel by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.educationLevel.orEmpty()) }
+    var noEducation by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.noEducation ?: false) }
     var isEmployed by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.isEmployed ?: false) }
     var occupation by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.occupation.orEmpty()) }
     var annualIncome by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.annualIncome.orEmpty()) }
@@ -536,7 +537,7 @@ private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValid
     var workingPincode by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.workingPincode.orEmpty()) }
 
     val workingPincodeError = workingPincode.isNotBlank() && workingPincode.length != 6
-    val isValid = educationLevel.isNotBlank() &&
+    val isValid = (noEducation || educationLevel.isNotBlank()) &&
         (
             !isEmployed ||
                 (
@@ -548,10 +549,11 @@ private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValid
                     )
             )
     
-    LaunchedEffect(educationLevel, isEmployed, occupation, annualIncome, workingCity, workingState, workingPincode) {
+    LaunchedEffect(noEducation, educationLevel, isEmployed, occupation, annualIncome, workingCity, workingState, workingPincode) {
         vm.updateStep3Data(
             mapOf(
-                "educationLevel" to educationLevel,
+                "educationLevel" to if (noEducation) "" else educationLevel,
+                "noEducation" to noEducation,
                 "isEmployed" to isEmployed,
                 "occupation" to (if (isEmployed) occupation else ""),
                 "annualIncome" to (if (isEmployed) annualIncome else ""),
@@ -566,7 +568,10 @@ private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValid
     PremiumCard {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionLead("Professional snapshot", "These are among the highest-intent search filters in a matrimony app.")
-            ChipRow("Education level", listOf("Graduate", "Post Graduate", "Doctorate", "MBA", "Professional"), educationLevel) { educationLevel = it }
+            ChipRow("Education level", listOf("No Education", "Graduate", "Post Graduate", "Doctorate", "MBA", "Professional"), if (noEducation) "No Education" else educationLevel) { selected ->
+                noEducation = selected == "No Education"
+                educationLevel = if (noEducation) "" else selected
+            }
             Surface(
                 shape = RoundedCornerShape(18.dp),
                 color = SurfaceSoft,

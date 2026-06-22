@@ -49,8 +49,8 @@ class UpgradePackageRepository @Inject constructor(
             }
 
         return CANONICAL_PLAN_ORDER.mapNotNull { planId ->
-            val packageInfo = packagesByPlan[planId] ?: return@mapNotNull null
-            val canonical = canonicalPackage(planId, packageInfo)
+            if (!packagesByPlan.containsKey(planId)) return@mapNotNull null
+            val canonical = canonicalPackage(planId)
             UpgradePackageGroup(
                 tabKey = planId,
                 tabTitle = canonical.pkgName,
@@ -76,54 +76,54 @@ class UpgradePackageRepository @Inject constructor(
         }
     }
 
-    private fun canonicalPackage(planId: String, source: UpgradePackage? = null): UpgradePackage {
+    private fun canonicalPackage(planId: String): UpgradePackage {
         return when (planId.lowercase()) {
             "gold" -> UpgradePackage(
                 pkgId = 201,
                 remotePlanId = "gold",
-                pkgName = "Gold",
-                pkgActualRate = source?.pkgActualRate?.takeIf { it > 0 } ?: 599,
-                pkgDiscountedRate = source?.pkgDiscountedRate?.takeIf { it > 0 } ?: 599,
-                pkgRate = source?.payableAmount?.takeIf { it > 0 } ?: 599,
+                pkgName = "Pro Max",
+                pkgActualRate = 399,
+                pkgDiscountedRate = 399,
+                pkgRate = 399,
                 pkgDuration = "Monthly",
                 pkgDurationDays = 30,
-                pkgPhoneCount = 30,
-                pkgBenefit = "For families who want Match Assistance, stronger limits, and 2 spotlight boosts each month.",
+                pkgPhoneCount = 50,
+                pkgBenefit = "For families who want stronger limits, 50 Super Interests, one spotlight, and a gold badge.",
                 buyerChoice = true,
                 badge = "Recommended",
-                features = listOf("80 visible matches", "50 profile views", "30 contact unlocks", "Match Assistance", "2 spotlight boosts"),
-                assistiveContent = "Best for serious matching with guided help and better reach."
+                features = listOf("Contact sharing", "Engage+", "50 contact details", "50 Super Interests", "1 spotlight", "Gold badge"),
+                assistiveContent = "Best for serious matching with stronger monthly reach."
             )
             "platinum" -> UpgradePackage(
                 pkgId = 301,
                 remotePlanId = "platinum",
-                pkgName = "Platinum",
-                pkgActualRate = source?.pkgActualRate?.takeIf { it > 0 } ?: 999,
-                pkgDiscountedRate = source?.pkgDiscountedRate?.takeIf { it > 0 } ?: 999,
-                pkgRate = source?.payableAmount?.takeIf { it > 0 } ?: 999,
+                pkgName = "Pro Supreme",
+                pkgActualRate = 599,
+                pkgDiscountedRate = 599,
+                pkgRate = 599,
                 pkgDuration = "Monthly",
                 pkgDurationDays = 30,
                 pkgPhoneCount = 80,
-                pkgBenefit = "For members who need the highest monthly access, Match Assistance, and 4 spotlight boosts.",
+                pkgBenefit = "For members who need the highest monthly access, 80 Super Interests, and three spotlights.",
                 buyerChoice = false,
-                badge = "Full access",
-                features = listOf("80 visible matches", "80 profile views", "80 contact unlocks", "Match Assistance", "4 spotlight boosts"),
+                badge = "Top Seller",
+                features = listOf("Contact sharing", "Engage+", "80 contact details", "80 Super Interests", "3 spotlights", "Gold badge"),
                 assistiveContent = "Best when the family wants maximum access and visibility."
             )
             else -> UpgradePackage(
                 pkgId = 101,
                 remotePlanId = "silver",
-                pkgName = "Silver",
-                pkgActualRate = source?.pkgActualRate?.takeIf { it > 0 } ?: 299,
-                pkgDiscountedRate = source?.pkgDiscountedRate?.takeIf { it > 0 } ?: 299,
-                pkgRate = source?.payableAmount?.takeIf { it > 0 } ?: 299,
+                pkgName = "Pro",
+                pkgActualRate = 199,
+                pkgDiscountedRate = 199,
+                pkgRate = 199,
                 pkgDuration = "Monthly",
                 pkgDurationDays = 30,
-                pkgPhoneCount = 15,
-                pkgBenefit = "For members who want chat, Engage+, more shortlists, and 15 contact unlocks each month.",
+                pkgPhoneCount = 25,
+                pkgBenefit = "For members who want contact sharing, Engage+, 25 contact details, and a gold badge.",
                 buyerChoice = true,
                 badge = "Starter",
-                features = listOf("80 visible matches", "30 profile views", "15 contact unlocks", "Chat enabled"),
+                features = listOf("Contact sharing", "Engage+", "25 contact details", "Gold badge"),
                 assistiveContent = "Best first upgrade from Bronze when you are ready to connect."
             )
         }

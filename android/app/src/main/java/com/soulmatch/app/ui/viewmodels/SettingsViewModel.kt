@@ -232,8 +232,14 @@ class SettingsViewModel @Inject constructor(
     fun exportMyData() {
         viewModelScope.launch {
             val response = runCatching { profileApi.exportMyData() }.getOrNull()
+            val data = response?.body()?.data
             _status.value = if (response?.isSuccessful == true && response.body()?.success == true) {
-                "Your data export is ready. Contact support if you need it as a downloadable file."
+                val sections = (data as? Map<*, *>)?.keys?.size
+                if (sections != null && sections > 0) {
+                    "Your data export is ready with $sections data sections."
+                } else {
+                    "Your data export is ready."
+                }
             } else {
                 response?.body()?.error?.message ?: "Could not prepare your data export."
             }

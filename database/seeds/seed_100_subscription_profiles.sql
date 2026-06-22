@@ -406,9 +406,9 @@ updated_subscriptions AS (
     is_active = TRUE,
     amount_paid = CASE
       WHEN pr.subscription_level = 'bronze' THEN 0
-      WHEN pr.subscription_level = 'silver' THEN 299
-      WHEN pr.subscription_level = 'gold' THEN 599
-      ELSE 999
+      WHEN pr.subscription_level = 'silver' THEN 199
+      WHEN pr.subscription_level = 'gold' THEN 399
+      ELSE 599
     END
   FROM profile_rows pr
   WHERE s.user_id = pr.persisted_user_id
@@ -426,9 +426,9 @@ inserted_subscriptions AS (
     TRUE,
     CASE
       WHEN subscription_level = 'bronze' THEN 0
-      WHEN subscription_level = 'silver' THEN 299
-      WHEN subscription_level = 'gold' THEN 599
-      ELSE 999
+      WHEN subscription_level = 'silver' THEN 199
+      WHEN subscription_level = 'gold' THEN 399
+      ELSE 599
     END,
     NOW()
   FROM profile_rows pr
@@ -457,8 +457,8 @@ SELECT
   END,
   CASE
     WHEN subscription_level = 'bronze' THEN 0
-    WHEN subscription_level = 'silver' THEN i % 16
-    WHEN subscription_level = 'gold' THEN i % 31
+    WHEN subscription_level = 'silver' THEN i % 26
+    WHEN subscription_level = 'gold' THEN i % 51
     ELSE i % 81
   END,
   CASE
@@ -469,13 +469,13 @@ SELECT
   END,
   CASE
     WHEN subscription_level = 'bronze' THEN i % 6
-    WHEN subscription_level = 'silver' THEN i % 21
-    WHEN subscription_level = 'gold' THEN i % 41
+    WHEN subscription_level = 'silver' THEN 0
+    WHEN subscription_level = 'gold' THEN i % 51
     ELSE i % 81
   END,
   CASE
-    WHEN subscription_level = 'gold' THEN i % 3
-    WHEN subscription_level = 'platinum' THEN i % 5
+    WHEN subscription_level = 'gold' THEN i % 2
+    WHEN subscription_level = 'platinum' THEN i % 4
     ELSE 0
   END,
   NOW()

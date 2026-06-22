@@ -64,7 +64,7 @@ interface ProfileApiService {
     @POST("profile/{profileId}/verifications/upload")
     suspend fun submitVerificationUpload(
         @Path("profileId") id: String,
-        @Part("type") type: RequestBody,
+        @PartMap fields: Map<String, @JvmSuppressWildcards RequestBody>,
         @Part document: MultipartBody.Part
     ): Response<GenericResponse<VerificationRequestData>>
     @POST("profile/{profileId}/verifications") suspend fun submitVerification(@Path("profileId") id: String, @Body req: VerificationSubmitRequest): Response<GenericResponse<VerificationRequestData>>

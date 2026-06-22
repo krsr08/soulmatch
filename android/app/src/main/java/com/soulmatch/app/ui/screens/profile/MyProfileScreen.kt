@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.AlertDialog
@@ -227,15 +228,29 @@ fun MyProfileScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("My profile", fontWeight = FontWeight.Bold) },
+                title = {
+                    Text(
+                        profile?.profileId?.takeIf { it.isNotBlank() }?.take(10) ?: "My profile",
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    IconButton(onClick = openSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                    IconButton(onClick = { photoPicker.launch("image/*") }) {
+                        Icon(Icons.Filled.PhotoCamera, contentDescription = "Add photos")
+                    }
+                    IconButton(
+                        onClick = {
+                            profile?.profileId?.takeIf { it.isNotBlank() }?.let(viewProfile)
+                        }
+                    ) {
+                        Icon(Icons.Filled.Visibility, contentDescription = "Preview profile")
                     }
                 }
             )
@@ -261,17 +276,15 @@ fun MyProfileScreen(
                 profile?.let { data ->
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 24.dp)
+                        contentPadding = PaddingValues(bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         item {
-                            ProfileOwnerHeader(
+                            ProfileReferenceHeader(
                                 profile = data,
-                                subscription = subscription,
                                 photos = photos,
                                 localPhotoUris = localPhotoUris,
-                                checklist = checklist,
-                                onSubscribe = openSubscription,
-                                onSettings = openSettings,
+                                uploadingPhotos = uploadingPhotos,
                                 onUploadPhoto = { photoPicker.launch("image/*") }
                             )
                         }
@@ -281,86 +294,121 @@ fun MyProfileScreen(
                             }
                         }
                         item {
-                            ProfileStrengthOverviewCard(
+                            GoldBadgePromoCard(
+                                verified = data.verificationStatus.equals("verified", ignoreCase = true),
+                                onClick = openTrustDetails
+                            )
+                        }
+                        item {
+                            ProfileCompletionPromptCard(
                                 profile = data,
                                 checklist = checklist,
                                 onComplete = { editSection(checklist.firstOrNull { !it.isComplete }?.editStep ?: 1) }
                             )
                         }
                         item {
-                            ProfileQuickStatsRow(
-                                checklist = checklist,
-                                photos = photos,
-                                subscription = subscription
+                            ProfilePromptsCard(
+                                onAdd = { editSection(5) }
                             )
                         }
                         item {
-                            SectionTitle(
-                                title = "Profile Details",
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                            )
-                        }
-                        items(checklist, key = { it.title }) { item ->
-                            ChecklistRow(item = item, onEdit = { editSection(item.editStep) })
-                        }
-                        item {
-                            TrustDetailsCard(
-                                profile = data,
-                                onOpenTrustDetails = openTrustDetails
+                            ReferenceInfoSection(
+                                title = data.fullName().ifBlank { "Basic details" },
+                                icon = Icons.Filled.Person,
+                                editStep = 1,
+                                onEdit = editSection,
+                                items = basicProfileItems(data)
                             )
                         }
                         item {
-                            PartnerPreferencesSummaryCard(
-                                preferences = preferences,
-                                onEdit = openPartnerPreferences
+                            ReferenceInfoSection(
+                                title = "About Me",
+                                icon = Icons.Filled.Person,
+                                editStep = 5,
+                                onEdit = editSection,
+                                items = aboutProfileItems(data),
+                                singleColumn = true
                             )
                         }
                         item {
-                            SoulMatchAssistProfileCard(
-                                assistStatus = assistStatus,
-                                isSaving = savingAssist,
-                                onToggleAssist = toggleAssist,
-                                onOpenAssist = openAssist
-                            )
-                        }
-                        if (!data.verificationStatus.equals("verified", ignoreCase = true)) {
-                            item {
-                                VerificationStatusCard(
-                                    profile = data,
-                                    photos = photos,
-                                    verifications = verifications,
-                                    isSubmitting = submittingVerification,
-                                    onSubmit = vm::submitProfileVerification,
-                                    onCompleteProfile = { editSection(checklist.firstOrNull { !it.isComplete }?.editStep ?: 1) },
-                                    onAddPhoto = { photoPicker.launch("image/*") }
-                                )
-                            }
-                        }
-                        item {
-                            PhotoGalleryCard(
-                                photos = photos,
-                                localPhotoUris = localPhotoUris,
-                                uploadingPhotos = uploadingPhotos,
-                                onUpload = { photoPicker.launch("image/*") },
-                                onDeleteLocal = { uri ->
-                                    localPhotoUris = localPhotoUris.filterNot { it == uri }
-                                },
-                                onDelete = vm::deletePhoto,
-                                onSetPrimary = vm::setPrimaryPhoto
+                            ReferenceInfoSection(
+                                title = "Education",
+                                icon = Icons.Filled.School,
+                                editStep = 3,
+                                onEdit = editSection,
+                                items = educationProfileItems(data),
+                                singleColumn = true
                             )
                         }
                         item {
-                            PhotoAccessRequestsCard(
-                                requests = photoAccessRequests,
-                                onApprove = { requestId -> vm.respondPhotoAccessRequest(requestId, approved = true) },
-                                onDecline = { requestId -> vm.respondPhotoAccessRequest(requestId, approved = false) }
+                            ReferenceInfoSection(
+                                title = "Career",
+                                icon = Icons.Filled.Work,
+                                editStep = 3,
+                                onEdit = editSection,
+                                items = careerProfileItems(data),
+                                singleColumn = true
                             )
                         }
                         item {
-                            RecentViewersToggleCard(
-                                count = viewers.size,
-                                enabled = showRecentViewers,
-                                onToggle = { showRecentViewers = it }
+                            ReferenceInfoSection(
+                                title = "Family",
+                                icon = Icons.Filled.FamilyRestroom,
+                                editStep = 4,
+                                onEdit = editSection,
+                                items = familyProfileItems(data),
+                                singleColumn = true
+                            )
+                        }
+                        item {
+                            ReferenceInfoSection(
+                                title = "Contact Details",
+                                icon = Icons.Filled.Call,
+                                editStep = 1,
+                                onEdit = editSection,
+                                items = contactProfileItems(data),
+                                singleColumn = true
+                            )
+                        }
+                        item {
+                            ReferenceInfoSection(
+                                title = "Horoscope",
+                                icon = Icons.Filled.AutoAwesome,
+                                editStep = 6,
+                                onEdit = editSection,
+                                items = horoscopeProfileItems(data),
+                                singleColumn = true,
+                                footer = {
+                                    JanampatriPromptCard(onClick = { editSection(6) })
+                                }
+                            )
+                        }
+                        item {
+                            InterestPromptCard(onClick = openPartnerPreferences)
+                        }
+                        item {
+                            ReferenceInfoSection(
+                                title = "Lifestyle",
+                                icon = Icons.Filled.Favorite,
+                                editStep = 5,
+                                onEdit = editSection,
+                                items = lifestyleProfileItems(data),
+                                singleColumn = true
+                            )
+                        }
+                        item {
+                            MoreProfileActionsCard(
+                                viewerCount = viewers.size,
+                                showViewers = showRecentViewers,
+                                verificationVisible = !data.verificationStatus.equals("verified", ignoreCase = true),
+                                assistEnabled = assistStatus.isOptedIn,
+                                isSavingAssist = savingAssist,
+                                onToggleViewers = { showRecentViewers = !showRecentViewers },
+                                onOpenTrust = openTrustDetails,
+                                onOpenAssist = openAssist,
+                                onToggleAssist = { toggleAssist(!assistStatus.isOptedIn) },
+                                onSubscribe = openSubscription,
+                                onSettings = openSettings
                             )
                         }
                         if (showRecentViewers) {
@@ -374,12 +422,6 @@ fun MyProfileScreen(
                             items(viewers.take(5), key = { "${it.profileId}-${it.viewedAt}" }) { viewer ->
                                 ViewerRow(viewer = viewer, onOpen = { viewProfile(viewer.profileId) })
                             }
-                        }
-                        item {
-                            PrivacySettingsCard(
-                                profile = data,
-                                onUpdatePhotoPrivacy = vm::updatePrivacySettings
-                            )
                         }
                     }
                 }
@@ -465,23 +507,29 @@ fun TrustDetailsScreen(
     val status by vm.status.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var selectedEntry by remember { mutableStateOf<TrustActionType?>(null) }
-    var pendingVerificationType by remember { mutableStateOf<String?>(null) }
+    var pendingUpload by remember { mutableStateOf<PendingTrustUpload?>(null) }
     var contactDraft by remember(profile?.profileId, profile?.phone, profile?.email) {
         mutableStateOf(TrustContactDraft(phone = profile?.phone.orEmpty(), email = profile?.email.orEmpty()))
     }
-    var familyDraft by remember(profile?.profileId) { mutableStateOf(TrustFamilyDraft()) }
     var isEducated by remember(profile?.profileId, profile?.educationLevel) {
         mutableStateOf(profile?.educationLevel.orEmpty().isNotBlank())
     }
     var incomeType by remember(profile?.profileId, profile?.isEmployed) {
         mutableStateOf(if (profile?.isEmployed == true) "Private" else "Not employed")
     }
+    var aadhaarNumber by remember(profile?.profileId) { mutableStateOf("") }
+    var panNumber by remember(profile?.profileId) { mutableStateOf("") }
     val documentPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        val type = pendingVerificationType
-        pendingVerificationType = null
-        if (uri != null && type != null) {
+        val upload = pendingUpload
+        pendingUpload = null
+        if (uri != null && upload != null) {
             context.toVerificationDocumentPart(uri)?.let { part ->
-                vm.submitTrustVerification(type, part)
+                vm.submitTrustVerification(
+                    upload.verificationType,
+                    part,
+                    documentType = upload.documentType,
+                    referenceNumber = upload.referenceNumber
+                )
             }
         }
     }
@@ -490,13 +538,12 @@ fun TrustDetailsScreen(
             context.toPhotoPart(uri, 0)?.let { part -> vm.uploadPhotos(listOf(part)) }
         }
     }
-    val trustEntries = remember(profile, photos, verifications, contactDraft, familyDraft, isEducated, incomeType) {
+    val trustEntries = remember(profile, photos, verifications, contactDraft, isEducated, incomeType) {
         buildTrustChecklist(
             profile = profile,
             photos = photos,
             verifications = verifications,
             contactDraft = contactDraft,
-            familyDraft = familyDraft,
             isEducated = isEducated,
             incomeType = incomeType
         )
@@ -566,18 +613,20 @@ fun TrustDetailsScreen(
                 profile = profile,
                 contactDraft = contactDraft,
                 onContactDraftChange = { contactDraft = it },
-                familyDraft = familyDraft,
-                onFamilyDraftChange = { familyDraft = it },
                 isEducated = isEducated,
                 onEducatedChange = { isEducated = it },
                 incomeType = incomeType,
                 onIncomeTypeChange = { incomeType = it },
+                aadhaarNumber = aadhaarNumber,
+                onAadhaarNumberChange = { aadhaarNumber = it.filter { char -> char.isDigit() }.take(12) },
+                panNumber = panNumber,
+                onPanNumberChange = { panNumber = it.uppercase(Locale.getDefault()).filter { char -> char.isLetterOrDigit() }.take(10) },
                 isSubmitting = isSubmitting,
                 uploadingPhotos = uploadingPhotos,
                 onDismiss = { selectedEntry = null },
                 onEditStep = onEditProfileStep,
-                onUploadDocument = { verificationType ->
-                    pendingVerificationType = verificationType
+                onUploadDocument = { upload ->
+                    pendingUpload = upload
                     documentPicker.launch("*/*")
                 },
                 onUploadPhoto = { photoPicker.launch("image/*") },
@@ -937,7 +986,6 @@ private enum class TrustActionType {
     DocumentVerification,
     EducationVerification,
     IncomeVerification,
-    FamilyVerification,
     PhotoUploaded,
     ProfileActive,
     SafetyReports
@@ -955,12 +1003,10 @@ private data class TrustContactDraft(
     val email: String = ""
 )
 
-private data class TrustFamilyDraft(
-    val fatherName: String = "",
-    val motherName: String = "",
-    val hasSiblings: Boolean = false,
-    val siblingCount: String = "",
-    val alternatePhone: String = ""
+private data class PendingTrustUpload(
+    val verificationType: String,
+    val documentType: String,
+    val referenceNumber: String? = null
 )
 
 private data class TrustChecklistEntry(
@@ -977,7 +1023,6 @@ private fun buildTrustChecklist(
     photos: List<ProfilePhoto>,
     verifications: List<VerificationRequestData>,
     contactDraft: TrustContactDraft,
-    familyDraft: TrustFamilyDraft,
     isEducated: Boolean,
     incomeType: String
 ): List<TrustChecklistEntry> {
@@ -988,19 +1033,10 @@ private fun buildTrustChecklist(
     val identity = latestVerification(verifications, "identity", "document", "aadhaar", "pan")
     val education = latestVerification(verifications, "education")
     val income = latestVerification(verifications, "income")
-    val family = latestVerification(verifications, "family")
     val profileVerification = latestVerification(verifications, "profile", "identity")
     val adminStatus = profileVerification?.status ?: profile?.verificationStatus.orEmpty()
     val isEmployed = incomeType != "Not employed" || profile?.isEmployed == true
     val hasIncomeDetail = !profile?.occupation.orEmpty().isBlank() || !profile?.annualIncome.orEmpty().isBlank() || incomeType != "Not employed"
-    val hasFamilyDetail = familyDraft.fatherName.isNotBlank() ||
-        familyDraft.motherName.isNotBlank() ||
-        familyDraft.alternatePhone.isNotBlank() ||
-        profile?.fatherOccupation.orEmpty().isNotBlank() ||
-        profile?.motherOccupation.orEmpty().isNotBlank() ||
-        profile?.familyCity.orEmpty().isNotBlank() ||
-        profile?.numBrothers != null ||
-        profile?.numSisters != null
 
     return listOf(
         TrustChecklistEntry(
@@ -1100,26 +1136,6 @@ private fun buildTrustChecklist(
                 else -> TrustEntryState.Missing
             },
             icon = Icons.Filled.Work
-        ),
-        TrustChecklistEntry(
-            type = TrustActionType.FamilyVerification,
-            title = "Family Verification",
-            detail = when {
-                family != null -> verificationDetail(family, "Family details submitted.")
-                hasFamilyDetail -> "Family details are available for trust review."
-                else -> "Add parent, sibling, and alternate family contact details."
-            },
-            statusLabel = when {
-                family != null -> statusLabelForVerification(family.status)
-                hasFamilyDetail -> "Details added"
-                else -> "Missing"
-            },
-            state = when {
-                family != null -> stateForVerification(family.status, hasFallback = false)
-                hasFamilyDetail -> TrustEntryState.Pending
-                else -> TrustEntryState.Missing
-            },
-            icon = Icons.Filled.FamilyRestroom
         ),
         TrustChecklistEntry(
             type = TrustActionType.PhotoUploaded,
@@ -1252,17 +1268,19 @@ private fun TrustActionDialog(
     profile: ProfileData?,
     contactDraft: TrustContactDraft,
     onContactDraftChange: (TrustContactDraft) -> Unit,
-    familyDraft: TrustFamilyDraft,
-    onFamilyDraftChange: (TrustFamilyDraft) -> Unit,
     isEducated: Boolean,
     onEducatedChange: (Boolean) -> Unit,
     incomeType: String,
     onIncomeTypeChange: (String) -> Unit,
+    aadhaarNumber: String,
+    onAadhaarNumberChange: (String) -> Unit,
+    panNumber: String,
+    onPanNumberChange: (String) -> Unit,
     isSubmitting: Boolean,
     uploadingPhotos: Boolean,
     onDismiss: () -> Unit,
     onEditStep: (Int) -> Unit,
-    onUploadDocument: (String) -> Unit,
+    onUploadDocument: (PendingTrustUpload) -> Unit,
     onUploadPhoto: () -> Unit,
     onSubmitVerification: (String) -> Unit
 ) {
@@ -1333,14 +1351,37 @@ private fun TrustActionDialog(
                         }
                     }
                     TrustActionType.DocumentVerification -> {
-                        Text("Upload Aadhaar or PAN. The document is sent to admin review and is not shown publicly.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Text("Add Aadhaar or PAN and upload the matching document. Numbers are encrypted before storage and only last digits are used for admin review context.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        OutlinedTextField(
+                            value = aadhaarNumber,
+                            onValueChange = onAadhaarNumberChange,
+                            label = { Text("Aadhaar number") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        Button(
+                            onClick = { onUploadDocument(PendingTrustUpload("identity", "aadhaar", aadhaarNumber)) },
+                            enabled = aadhaarNumber.length == 12,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Upload Aadhaar document")
+                        }
+                        OutlinedTextField(
+                            value = panNumber,
+                            onValueChange = onPanNumberChange,
+                            label = { Text("PAN number") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        OutlinedButton(
+                            onClick = { onUploadDocument(PendingTrustUpload("identity", "pan", panNumber)) },
+                            enabled = panNumber.length == 10,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Upload PAN document")
+                        }
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            OutlinedButton(onClick = { onUploadDocument("identity") }, modifier = Modifier.weight(1f)) {
-                                Text("Aadhaar")
-                            }
-                            Button(onClick = { onUploadDocument("identity") }, modifier = Modifier.weight(1f)) {
-                                Text("PAN")
-                            }
+                            Text("Use one or both documents. Admin approval updates the trust score.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         }
                     }
                     TrustActionType.EducationVerification -> {
@@ -1349,7 +1390,7 @@ private fun TrustActionDialog(
                             FilterChoiceChip("Not educated", !isEducated, onClick = { onEducatedChange(false) })
                         }
                         if (isEducated) {
-                            Button(onClick = { onUploadDocument("education") }, modifier = Modifier.fillMaxWidth()) {
+                            Button(onClick = { onUploadDocument(PendingTrustUpload("education", "education_certificate")) }, modifier = Modifier.fillMaxWidth()) {
                                 Text("Upload education proof")
                             }
                         }
@@ -1370,7 +1411,7 @@ private fun TrustActionDialog(
                             }
                         }
                         if (incomeType != "Not employed") {
-                            Button(onClick = { onUploadDocument("income") }, modifier = Modifier.fillMaxWidth()) {
+                            Button(onClick = { onUploadDocument(PendingTrustUpload("income", "income_payslip")) }, modifier = Modifier.fillMaxWidth()) {
                                 Text("Upload income proof")
                             }
                         }
@@ -1382,56 +1423,6 @@ private fun TrustActionDialog(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Update career details")
-                        }
-                    }
-                    TrustActionType.FamilyVerification -> {
-                        OutlinedTextField(
-                            value = familyDraft.fatherName,
-                            onValueChange = { onFamilyDraftChange(familyDraft.copy(fatherName = it.take(80))) },
-                            label = { Text("Father name") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = familyDraft.motherName,
-                            onValueChange = { onFamilyDraftChange(familyDraft.copy(motherName = it.take(80))) },
-                            label = { Text("Mother name") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            FilterChoiceChip("Siblings: Yes", familyDraft.hasSiblings, onClick = { onFamilyDraftChange(familyDraft.copy(hasSiblings = true)) })
-                            FilterChoiceChip("No", !familyDraft.hasSiblings, onClick = { onFamilyDraftChange(familyDraft.copy(hasSiblings = false, siblingCount = "")) })
-                        }
-                        if (familyDraft.hasSiblings) {
-                            OutlinedTextField(
-                                value = familyDraft.siblingCount,
-                                onValueChange = { onFamilyDraftChange(familyDraft.copy(siblingCount = it.filter { char -> char.isDigit() }.take(2))) },
-                                label = { Text("Sibling count") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true
-                            )
-                        }
-                        OutlinedTextField(
-                            value = familyDraft.alternatePhone,
-                            onValueChange = { onFamilyDraftChange(familyDraft.copy(alternatePhone = it.filter { char -> char.isDigit() }.take(10))) },
-                            label = { Text("Alternate family contact") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            OutlinedButton(
-                                onClick = {
-                                    onDismiss()
-                                    onEditStep(4)
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Edit family")
-                            }
-                            Button(onClick = { onSubmitVerification("family") }, enabled = !isSubmitting, modifier = Modifier.weight(1f)) {
-                                Text("Submit")
-                            }
                         }
                     }
                     TrustActionType.PhotoUploaded -> {

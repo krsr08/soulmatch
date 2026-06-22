@@ -26,6 +26,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import okhttp3.MultipartBody
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -99,8 +101,9 @@ class MyProfileViewModel @Inject constructor(
                     if (canUseFallback) {
                         applyMockProfileFallback(profileBody?.error?.message ?: "Showing demo profile data because your saved profile could not be loaded.")
                     } else {
-                        _profile.value = null
-                        _checklist.value = buildChecklist(null)
+                        if (_profile.value == null) {
+                            _checklist.value = buildChecklist(null)
+                        }
                         _loadMessage.value = profileBody?.error?.message ?: "Your saved profile could not be loaded."
                     }
                     return@launch
@@ -109,6 +112,9 @@ class MyProfileViewModel @Inject constructor(
                 val resolvedProfile = profileBody.data?.safeProfileData()
                 _profile.value = resolvedProfile
                 _checklist.value = buildChecklist(resolvedProfile)
+                if (!resolvedProfile?.profileId.isNullOrBlank()) {
+                    prefs.saveProfileId(resolvedProfile?.profileId.orEmpty())
+                }
 
                 if (resolvedProfile == null || resolvedProfile.profileId.isBlank()) {
                     _subscription.value = SubscriptionData(planId = "free", isActive = false)
@@ -123,75 +129,58 @@ class MyProfileViewModel @Inject constructor(
                     return@launch
                 }
 
-                _subscription.value = runCatching { paymentApi.getSubscription() }
-                    .getOrNull()
-                    ?.body()
-                    ?.takeIf { it.success }
-                    ?.data
-                    ?: if (canUseFallback) MarketFixtures.currentSubscription else SubscriptionData(planId = "free", isActive = false)
-                _preferences.value = (runCatching { profileApi.getPreferences(resolvedProfile.profileId) }
-                    .getOrNull()
-                    ?.body()
-                    ?.takeIf { it.success }
-                    ?.data
-                    ?: PartnerPreferencesData(
-                        religion = resolvedProfile.religion,
-                        manglikPref = "any",
-                        educationLevels = listOf(resolvedProfile.educationLevel).filter { it.isNotBlank() },
-                        occupations = listOf(resolvedProfile.occupation).filter { it.isNotBlank() },
-                        heightMinCm = resolvedProfile.heightCm?.minus(10),
-                        heightMaxCm = resolvedProfile.heightCm?.plus(10),
-                        locations = listOf(resolvedProfile.workingCity, resolvedProfile.familyCity).filter { it.isNotBlank() }.distinct(),
-                        dietPrefs = listOf(resolvedProfile.diet).filter { it.isNotBlank() },
-                        maritalStatuses = listOf(resolvedProfile.maritalStatus).filter { it.isNotBlank() },
-                        familyTypes = listOf(resolvedProfile.familyType).filter { it.isNotBlank() }
-                    )).safePreferences()
-                _assistStatus.value = runCatching { profileApi.getAssistStatus() }
-                    .getOrNull()
-                    ?.body()
-                    ?.takeIf { it.success }
-                    ?.data
-                    ?: AssistStatusData(
-                        profileId = resolvedProfile.profileId,
-                        location = com.soulmatch.app.data.models.AssistLocationData(
-                            city = resolvedProfile.familyCity,
-                            state = resolvedProfile.familyState,
-                            locality = resolvedProfile.familyLocality,
-                            pincode = resolvedProfile.familyPincode
+                coroutineScope {
+                    val subscriptionCall = async { runCatching { paymentApi.getSubscription() }.getOrNull() }
+                    val preferencesCall = async { runCatching { profileApi.getPreferences(resolvedProfile.profileId) }.getOrNull() }
+                    val assistCall = async { runCatching { profileApi.getAssistStatus() }.getOrNull() }
+                    val viewersCall = async { runCatching { profileApi.getViewers(resolvedProfile.profileId) }.getOrNull() }
+                    val photosCall = async { runCatching { profileApi.getPhotos(resolvedProfile.profileId) }.getOrNull() }
+                    val verificationsCall = async { runCatching { profileApi.getVerifications(resolvedProfile.profileId) }.getOrNull() }
+                    val photoAccessCall = async { runCatching { profileApi.getPhotoAccessRequests() }.getOrNull() }
+                    val familyDecisionsCall = async { runCatching { profileApi.getFamilyDecisions() }.getOrNull() }
+
+                    _subscription.value = subscriptionCall.await()
+                        ?.body()
+                        ?.takeIf { it.success }
+                        ?.data
+                        ?: if (canUseFallback) MarketFixtures.currentSubscription else SubscriptionData(planId = "free", isActive = false)
+                    _preferences.value = (preferencesCall.await()
+                        ?.body()
+                        ?.takeIf { it.success }
+                        ?.data
+                        ?: PartnerPreferencesData(
+                            religion = resolvedProfile.religion,
+                            manglikPref = "any",
+                            educationLevels = listOf(resolvedProfile.educationLevel).filter { it.isNotBlank() },
+                            occupations = listOf(resolvedProfile.occupation).filter { it.isNotBlank() },
+                            heightMinCm = resolvedProfile.heightCm?.minus(10),
+                            heightMaxCm = resolvedProfile.heightCm?.plus(10),
+                            locations = listOf(resolvedProfile.workingCity, resolvedProfile.familyCity).filter { it.isNotBlank() }.distinct(),
+                            dietPrefs = listOf(resolvedProfile.diet).filter { it.isNotBlank() },
+                            maritalStatuses = listOf(resolvedProfile.maritalStatus).filter { it.isNotBlank() },
+                            familyTypes = listOf(resolvedProfile.familyType).filter { it.isNotBlank() }
+                        )).safePreferences()
+                    _assistStatus.value = assistCall.await()
+                        ?.body()
+                        ?.takeIf { it.success }
+                        ?.data
+                        ?: AssistStatusData(
+                            profileId = resolvedProfile.profileId,
+                            location = com.soulmatch.app.data.models.AssistLocationData(
+                                city = resolvedProfile.familyCity,
+                                state = resolvedProfile.familyState,
+                                locality = resolvedProfile.familyLocality,
+                                pincode = resolvedProfile.familyPincode
+                            )
                         )
-                    )
-                _viewers.value = runCatching { profileApi.getViewers(resolvedProfile.profileId) }
-                    .getOrNull()
-                    ?.body()
-                    ?.takeIf { it.success }
-                    ?.data
-                    .orEmpty()
-                    .ifEmpty { if (canUseFallback) MarketFixtures.recentViewers else emptyList() }
-                _photos.value = runCatching { profileApi.getPhotos(resolvedProfile.profileId) }
-                    .getOrNull()
-                    ?.body()
-                    ?.takeIf { it.success }
-                    ?.data
-                    .orEmpty()
-                    .ifEmpty { if (canUseFallback) MarketFixtures.profilePhotos else emptyList() }
-                _verifications.value = runCatching { profileApi.getVerifications(resolvedProfile.profileId) }
-                    .getOrNull()
-                    ?.body()
-                    ?.takeIf { it.success }
-                    ?.data
-                    .orEmpty()
-                _photoAccessRequests.value = runCatching { profileApi.getPhotoAccessRequests() }
-                    .getOrNull()
-                    ?.body()
-                    ?.takeIf { it.success }
-                    ?.data
-                    .orEmpty()
-                _familyDecisions.value = runCatching { profileApi.getFamilyDecisions() }
-                    .getOrNull()
-                    ?.body()
-                    ?.takeIf { it.success }
-                    ?.data
-                    .orEmpty()
+                    _viewers.value = viewersCall.await()?.body()?.takeIf { it.success }?.data.orEmpty()
+                        .ifEmpty { if (canUseFallback) MarketFixtures.recentViewers else emptyList() }
+                    _photos.value = photosCall.await()?.body()?.takeIf { it.success }?.data.orEmpty()
+                        .ifEmpty { if (canUseFallback) MarketFixtures.profilePhotos else emptyList() }
+                    _verifications.value = verificationsCall.await()?.body()?.takeIf { it.success }?.data.orEmpty()
+                    _photoAccessRequests.value = photoAccessCall.await()?.body()?.takeIf { it.success }?.data.orEmpty()
+                    _familyDecisions.value = familyDecisionsCall.await()?.body()?.takeIf { it.success }?.data.orEmpty()
+                }
             } catch (error: Exception) {
                 if (canUseFallback) {
                     applyMockProfileFallback(
@@ -201,12 +190,13 @@ class MyProfileViewModel @Inject constructor(
                         }
                     )
                 } else {
-                    _profile.value = null
-                    _checklist.value = buildChecklist(null)
-                    _verifications.value = emptyList()
+                    if (_profile.value == null) {
+                        _checklist.value = buildChecklist(null)
+                        _verifications.value = emptyList()
+                    }
                     _loadMessage.value = when (error) {
-                        is IOException -> "Couldn't reach the server to load your profile."
-                        else -> "Couldn't load your saved profile right now."
+                        is IOException -> "Couldn't reach the server to refresh your profile. Showing the last saved details on this device."
+                        else -> "Couldn't refresh your saved profile right now. Showing the last saved details on this device."
                     }
                 }
             } finally {
@@ -454,7 +444,12 @@ class MyProfileViewModel @Inject constructor(
         submitTrustVerification("profile")
     }
 
-    fun submitTrustVerification(type: String, document: MultipartBody.Part? = null) {
+    fun submitTrustVerification(
+        type: String,
+        document: MultipartBody.Part? = null,
+        documentType: String? = null,
+        referenceNumber: String? = null
+    ) {
         val profileId = _profile.value?.profileId ?: return
         viewModelScope.launch {
             _isSubmittingVerification.value = true
@@ -463,7 +458,15 @@ class MyProfileViewModel @Inject constructor(
                 val response = if (document != null) {
                     profileApi.submitVerificationUpload(
                         profileId,
-                        type.toRequestBody("text/plain".toMediaTypeOrNull()),
+                        buildMap {
+                            put("type", type.toRequestBody("text/plain".toMediaTypeOrNull()))
+                            documentType?.takeIf { it.isNotBlank() }?.let {
+                                put("documentType", it.toRequestBody("text/plain".toMediaTypeOrNull()))
+                            }
+                            referenceNumber?.takeIf { it.isNotBlank() }?.let {
+                                put("referenceNumber", it.toRequestBody("text/plain".toMediaTypeOrNull()))
+                            }
+                        },
                         document
                     )
                 } else {
@@ -551,7 +554,7 @@ class MyProfileViewModel @Inject constructor(
             ProfileChecklistItem(
                 title = "Work and education",
                 description = "Education level, occupation, annual income, and working city",
-                isComplete = safeText(resolved.educationLevel).isNotBlank() &&
+                isComplete = (resolved.noEducation || safeText(resolved.educationLevel).isNotBlank()) &&
                     (!resolved.isEmployed || (
                         safeText(resolved.occupation).isNotBlank() &&
                             safeText(resolved.annualIncome).isNotBlank() &&

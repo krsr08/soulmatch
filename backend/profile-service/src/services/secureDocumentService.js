@@ -28,6 +28,35 @@ function encryptionKeyRef(key) {
   return `sha256:${crypto.createHash('sha256').update(key).digest('hex').slice(0, 16)}`;
 }
 
+function normalizeReferenceValue(value) {
+  return String(value || '').replace(/\s+/g, '').toUpperCase();
+}
+
+function encryptText(value) {
+  const normalized = normalizeReferenceValue(value);
+  if (!normalized) return null;
+  const key = resolveEncryptionKey();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(normalized, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return {
+    encryptedValue: Buffer.concat([Buffer.from(ENCRYPTION_VERSION), iv, tag, encrypted]).toString('base64'),
+    encryptionAlgorithm: ALGORITHM,
+    encryptionKeyRef: encryptionKeyRef(key),
+    encryptionIv: iv.toString('base64'),
+    contentSha256: crypto.createHash('sha256').update(normalized).digest('hex'),
+    last4: normalized.replace(/\D/g, '').slice(-4) || normalized.slice(-4)
+  };
+}
+
+function referenceHash(value) {
+  const normalized = normalizeReferenceValue(value);
+  if (!normalized) return null;
+  const key = resolveEncryptionKey();
+  return crypto.createHmac('sha256', key).update(normalized).digest('hex');
+}
+
 async function encryptUploadedFiles(files = []) {
   const key = resolveEncryptionKey();
   const keyRef = encryptionKeyRef(key);
@@ -66,5 +95,7 @@ async function encryptUploadedFiles(files = []) {
 
 module.exports = {
   ALGORITHM,
+  encryptText,
+  referenceHash,
   encryptUploadedFiles
 };

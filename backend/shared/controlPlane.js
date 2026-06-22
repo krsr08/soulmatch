@@ -5,73 +5,73 @@ const { DEFAULT_MEMBER_PLAN_ENTITLEMENTS } = require('./memberEntitlements');
 const DEFAULT_UPGRADE_PACKAGE_GROUPS = [
   {
     tabKey: 'silver',
-    tabTitle: 'Silver',
-    bannerTitle: 'Start with verified discovery',
-    bannerText: 'A focused one-month Silver plan for members who want contact access and chat.',
+    tabTitle: 'Pro',
+    bannerTitle: 'Start with Pro discovery',
+    bannerText: 'A focused one-month Pro plan for members who want contact sharing and safer introductions.',
     assistiveContent: 'Useful when you already have a shortlist and want faster introductions.',
     packages: [
       {
         pkgId: 101,
         planId: 'silver',
-        pkgName: 'Silver 1 Month',
-        pkgActualRate: 299,
-        pkgDiscountedRate: 299,
-        pkgRate: 299,
+        pkgName: 'Pro 1 Month',
+        pkgActualRate: 199,
+        pkgDiscountedRate: 199,
+        pkgRate: 199,
         pkgDuration: '30 days',
         pkgDurationDays: 30,
-        pkgPhoneCount: 15,
-        pkgBenefit: 'Unlock 30 profile views, 15 contact unlocks, shortlist capacity, interests, and chat.',
+        pkgPhoneCount: 25,
+        pkgBenefit: 'Unlock contact sharing, Engage+, 25 contact details, and a gold badge.',
         buyerChoice: true,
-        badge: 'Silver',
-        features: ['30 profile views', '15 contact unlocks', 'Chat enabled']
+        badge: 'Pro',
+        features: ['Contact sharing', 'Engage+', '25 contact details', 'Gold badge']
       }
     ]
   },
   {
     tabKey: 'gold',
-    tabTitle: 'Gold',
+    tabTitle: 'Pro Max',
     bannerTitle: 'Most families start here',
-    bannerText: 'Gold adds Match Assistance, stronger limits, and monthly spotlight boosts.',
+    bannerText: 'Pro Max adds stronger contact limits, Super Interests, and one monthly spotlight.',
     assistiveContent: 'Best for families comparing matches seriously with guided support.',
     packages: [
       {
         pkgId: 201,
         planId: 'gold',
-        pkgName: 'Gold 1 Month',
-        pkgActualRate: 599,
-        pkgDiscountedRate: 599,
-        pkgRate: 599,
+        pkgName: 'Pro Max 1 Month',
+        pkgActualRate: 399,
+        pkgDiscountedRate: 399,
+        pkgRate: 399,
         pkgDuration: '30 days',
         pkgDurationDays: 30,
-        pkgPhoneCount: 30,
-        pkgBenefit: 'Adds 50 profile views, 30 contact unlocks, Match Assistance, and 2 spotlight boosts.',
+        pkgPhoneCount: 50,
+        pkgBenefit: 'Adds 50 contact details, 50 Super Interests, one spotlight, and a gold badge.',
         buyerChoice: true,
         badge: 'Recommended',
-        features: ['Match Assistance', '30 contact unlocks', '2 spotlight boosts']
+        features: ['Contact sharing', 'Engage+', '50 contact details', '50 Super Interests', '1 spotlight', 'Gold badge']
       }
     ]
   },
   {
     tabKey: 'platinum',
-    tabTitle: 'Platinum',
+    tabTitle: 'Pro Supreme',
     bannerTitle: 'High-touch assisted matching',
-    bannerText: 'Platinum gives the highest monthly limits and stronger discovery reach.',
+    bannerText: 'Pro Supreme gives the highest monthly limits and strongest discovery reach.',
     assistiveContent: 'Best when the family wants guided support and maximum access.',
     packages: [
       {
         pkgId: 301,
         planId: 'platinum',
-        pkgName: 'Platinum 1 Month',
-        pkgActualRate: 999,
-        pkgDiscountedRate: 999,
-        pkgRate: 999,
+        pkgName: 'Pro Supreme 1 Month',
+        pkgActualRate: 599,
+        pkgDiscountedRate: 599,
+        pkgRate: 599,
         pkgDuration: '30 days',
         pkgDurationDays: 30,
         pkgPhoneCount: 80,
-        pkgBenefit: 'Includes 80 profile views, 80 contact unlocks, Match Assistance, and 4 spotlight boosts.',
+        pkgBenefit: 'Includes 80 contact details, 80 Super Interests, three spotlights, and a gold badge.',
         buyerChoice: false,
-        badge: 'Platinum',
-        features: ['80 contact unlocks', 'Match Assistance', '4 spotlight boosts']
+        badge: 'Top Seller',
+        features: ['Contact sharing', 'Engage+', '80 contact details', '80 Super Interests', '3 spotlights', 'Gold badge']
       }
     ]
   }
@@ -87,11 +87,11 @@ const DEFAULT_BEST_MATCH_AD_CARDS = [
     maxPlan: 'free',
     theme: 'rose',
     badge: 'Starter upgrade',
-    title: 'Move from Bronze to Silver',
-    body: 'Unlock more daily interests, better visibility, and contact access for serious conversations.',
-    bullets: ['20 contact views', 'More visible matches', 'Profile visitor insights', 'Priority support'],
-    cta: 'Upgrade to Silver',
-    discountLabel: 'SILVER BENEFITS',
+    title: 'Move from Bronze to Pro',
+    body: 'Unlock contact sharing, Engage+, and contact details for serious conversations.',
+    bullets: ['25 contact details', 'Engage+ insights', 'Gold badge', 'Safer introductions'],
+    cta: 'Upgrade to Pro',
+    discountLabel: 'PRO BENEFITS',
     destination: 'membership'
   },
   {
@@ -103,10 +103,10 @@ const DEFAULT_BEST_MATCH_AD_CARDS = [
     maxPlan: 'silver',
     theme: 'gold',
     badge: 'Recommended',
-    title: 'The Gold Tier Experience',
-    body: 'Get stronger reach, unlimited discovery, and richer match actions for your family shortlist.',
-    bullets: ['Priority reach', 'More contact views', 'Profile boost tools', 'Advanced filters'],
-    cta: 'Explore Gold',
+    title: 'The Pro Max experience',
+    body: 'Get stronger contact limits, Super Interests, and monthly spotlight visibility.',
+    bullets: ['50 contact details', '50 Super Interests', '1 spotlight', 'Priority reach'],
+    cta: 'Explore Pro Max',
     discountLabel: 'MOST CHOSEN',
     destination: 'membership'
   },
@@ -119,11 +119,11 @@ const DEFAULT_BEST_MATCH_AD_CARDS = [
     maxPlan: 'gold',
     theme: 'dark',
     badge: 'Elite access',
-    title: 'Platinum for families who want full access',
-    body: 'Unlock unlimited contact discovery, premium visibility, and high-touch assisted benefits.',
-    bullets: ['Unlimited contacts', 'Featured placement', 'Concierge support', 'Deep match insights'],
-    cta: 'Go Platinum',
-    discountLabel: 'PLATINUM',
+    title: 'Pro Supreme for families who want full access',
+    body: 'Unlock the highest contact limit, more Super Interests, and stronger spotlight reach.',
+    bullets: ['80 contact details', '80 Super Interests', '3 spotlights', 'Top seller access'],
+    cta: 'Go Pro Supreme',
+    discountLabel: 'PRO SUPREME',
     destination: 'membership'
   },
   {
@@ -422,15 +422,17 @@ const DEFAULT_SAFETY_CENTER_CONTENT = {
 };
 
 const DEFAULT_MEMBERSHIP_FEATURE_MATRIX = [
+  { featureKey: 'contact_sharing', label: 'Contact Sharing', description: 'Share contact after trust and privacy checks.', bronze: false, silver: true, gold: true, platinum: true },
+  { featureKey: 'engage_plus', label: 'Engage+', description: 'Engagement and intent insights.', bronze: false, silver: true, gold: true, platinum: true },
+  { featureKey: 'contact_details', label: 'Contact Details', description: 'Eligible verified contact unlocks per 30-day cycle.', bronze: 'Not available', silver: '25', gold: '50', platinum: '80' },
+  { featureKey: 'super_interest', label: 'Super Interest', description: 'High-intent interest requests available each month.', bronze: '0', silver: '0', gold: '50', platinum: '80' },
+  { featureKey: 'spotlight', label: 'Spotlights', description: 'Profile appears higher in compatible recommendations.', bronze: '0', silver: '0', gold: '1', platinum: '3' },
+  { featureKey: 'gold_badge', label: 'Gold Badge', description: 'Premium badge displayed on the member profile.', bronze: false, silver: true, gold: true, platinum: true },
   { featureKey: 'visible_matches', label: 'Visible Matches', description: 'Number of recommended profiles visible in discovery.', bronze: 'Access up to 80', silver: 'Access up to 80', gold: 'Access up to 80', platinum: 'Access up to 80' },
   { featureKey: 'profile_views', label: 'Profile Views', description: 'Detailed profile views per 30-day cycle.', bronze: '10', silver: '30', gold: '50', platinum: '80' },
-  { featureKey: 'contact_details', label: 'Contact Details', description: 'Eligible verified contact unlocks per 30-day cycle.', bronze: 'Not available', silver: '15', gold: '30', platinum: '80' },
-  { featureKey: 'engage_plus', label: 'Engage+', description: 'Engagement and intent insights.', bronze: false, silver: true, gold: true, platinum: true },
-  { featureKey: 'daily_interests', label: 'Interests', description: 'Interest requests a member can send every 30-day cycle.', bronze: '5', silver: '20', gold: '40', platinum: '80' },
   { featureKey: 'advanced_filters', label: 'Advanced Filters', description: 'Filter by work, family, activity, horoscope, trust and privacy attributes.', bronze: false, silver: true, gold: true, platinum: true },
   { featureKey: 'chat_after_match', label: 'Chat After Match', description: 'Message after mutual interest acceptance.', bronze: false, silver: true, gold: true, platinum: true },
   { featureKey: 'photo_request', label: 'Private Photo Requests', description: 'Request access to private photos.', bronze: true, silver: true, gold: true, platinum: true },
-  { featureKey: 'spotlight', label: 'Spotlight Boosts', description: 'Profile appears higher in compatible recommendations.', bronze: false, silver: false, gold: '2 / month', platinum: '4 / month' },
   { featureKey: 'anonymous_browsing', label: 'Anonymous Browsing', description: 'Browse profiles without showing visitor identity.', bronze: false, silver: false, gold: true, platinum: true },
   { featureKey: 'soulmatch_assist', label: 'SoulMatch Assist', description: 'Share profile with selected registered agents for offline support.', bronze: false, silver: false, gold: true, platinum: true },
   { featureKey: 'priority_listing', label: 'Priority Listing', description: 'Higher visibility in best-match and recently active feeds.', bronze: false, silver: false, gold: true, platinum: true },
@@ -440,9 +442,9 @@ const DEFAULT_MEMBERSHIP_FEATURE_MATRIX = [
 
 const DEFAULT_MEMBER_PLANS = [
   { planId: 'free', name: 'Bronze', displayName: 'Bronze (Free)', price: 0, duration: 'lifetime', durationDays: 0, tierRank: 0, features: ['Access up to 80 matches', '10 profile views', '5 shortlists', '5 interests'] },
-  { planId: 'silver', name: 'Silver', displayName: 'Silver', price: 299, duration: 'monthly', durationDays: 30, tierRank: 1, features: ['Access up to 80 matches', '30 profile views', '15 contact unlocks', 'Chat enabled'] },
-  { planId: 'gold', name: 'Gold', displayName: 'Gold', price: 599, duration: 'monthly', durationDays: 30, tierRank: 2, features: ['Access up to 80 matches', '50 profile views', '30 contact unlocks', 'Match assistance', '2 spotlight boosts'] },
-  { planId: 'platinum', name: 'Platinum', displayName: 'Platinum', price: 999, duration: 'monthly', durationDays: 30, tierRank: 3, features: ['Access up to 80 matches', '80 profile views', '80 contact unlocks', 'Match assistance', '4 spotlight boosts'] }
+  { planId: 'silver', name: 'Pro', displayName: 'Pro', price: 199, duration: 'monthly', durationDays: 30, tierRank: 1, features: ['Contact sharing', 'Engage+', '25 contact details', 'Gold badge'] },
+  { planId: 'gold', name: 'Pro Max', displayName: 'Pro Max', price: 399, duration: 'monthly', durationDays: 30, tierRank: 2, features: ['Contact sharing', 'Engage+', '50 contact details', '50 Super Interests', '1 spotlight', 'Gold badge'] },
+  { planId: 'platinum', name: 'Pro Supreme', displayName: 'Pro Supreme', price: 599, duration: 'monthly', durationDays: 30, tierRank: 3, features: ['Contact sharing', 'Engage+', '80 contact details', '80 Super Interests', '3 spotlights', 'Gold badge'] }
 ];
 
 const DEFAULT_CONFIG = {
@@ -632,7 +634,7 @@ const DEFAULT_CONFIG = {
     refundGuaranteeSubtitle: '*Conditions apply',
     premiumLimits: {
       dailySwipes: { free: 25, silver: 80, gold: 200, platinum: 500 },
-      dailyInterests: { free: 5, silver: 20, gold: 999, platinum: 999 },
+      dailyInterests: { free: 5, silver: 0, gold: 50, platinum: 80 },
       videoCallsPerMonth: { free: 0, silver: 1, gold: 8, platinum: 30 }
     },
     plans: DEFAULT_MEMBER_PLANS,

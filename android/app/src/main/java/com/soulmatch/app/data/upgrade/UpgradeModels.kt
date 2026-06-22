@@ -3,9 +3,9 @@ package com.soulmatch.app.data.upgrade
 import com.google.gson.annotations.SerializedName
 
 enum class UpgradeTabKey(val wireValue: String, val displayTitle: String) {
-    SILVER("silver", "Silver"),
-    GOLD("gold", "Gold"),
-    PLATINUM("platinum", "Platinum"),
+    SILVER("silver", "Pro"),
+    GOLD("gold", "Pro Max"),
+    PLATINUM("platinum", "Pro Supreme"),
     ONE_MONTH("one_month", "1 Month"),
     THREE_MONTHS("three_months", "3 Months"),
     SIX_MONTHS("six_months", "6 Months"),
@@ -93,9 +93,9 @@ data class UpgradePackage(
             }
             val canonicalPlan = remotePlanId?.lowercase().orEmpty()
             return when {
-                canonicalPlan == "silver" -> "Silver"
-                canonicalPlan == "gold" -> "Gold"
-                canonicalPlan == "platinum" -> "Platinum"
+                canonicalPlan == "silver" -> "Pro"
+                canonicalPlan == "gold" -> "Pro Max"
+                canonicalPlan == "platinum" -> "Pro Supreme"
                 pkgId == 241 -> "SoulMatch Elite"
                 pkgId in setOf(266, 267, 288) -> "SoulMatch Twin Pack $durationLabel"
                 pkgId in setOf(48, 80, 306) -> "SoulMatch Personalized $durationLabel"

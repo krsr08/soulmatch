@@ -18,7 +18,7 @@ test('canonical entitlements keep Bronze blocked from premium APIs', () => {
   const gold = getEntitlements({}, 'gold');
   assert.equal(gold.chat, true);
   assert.equal(gold.matchAssistance, true);
-  assert.equal(gold.spotlightBoosts, 2);
+  assert.equal(gold.spotlightBoosts, 1);
 });
 
 test('entitlement config string false values stay disabled', () => {

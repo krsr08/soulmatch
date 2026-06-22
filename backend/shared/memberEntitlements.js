@@ -15,13 +15,13 @@ const DEFAULT_MEMBER_PLAN_ENTITLEMENTS = {
   },
   silver: {
     planId: 'silver',
-    label: 'Silver',
+    label: 'Pro',
     visibleMatches: 80,
     profileViews: 30,
-    contactDetails: 15,
+    contactDetails: 25,
     engagePlus: true,
     shortlist: 20,
-    interests: 20,
+    interests: 0,
     matchAssistance: false,
     chat: true,
     spotlightBoosts: 0,
@@ -29,21 +29,21 @@ const DEFAULT_MEMBER_PLAN_ENTITLEMENTS = {
   },
   gold: {
     planId: 'gold',
-    label: 'Gold',
+    label: 'Pro Max',
     visibleMatches: 80,
     profileViews: 50,
-    contactDetails: 30,
+    contactDetails: 50,
     engagePlus: true,
     shortlist: 40,
-    interests: 40,
+    interests: 50,
     matchAssistance: true,
     chat: true,
-    spotlightBoosts: 2,
+    spotlightBoosts: 1,
     verifiedOnly: true
   },
   platinum: {
     planId: 'platinum',
-    label: 'Platinum',
+    label: 'Pro Supreme',
     visibleMatches: 80,
     profileViews: 80,
     contactDetails: 80,
@@ -52,7 +52,7 @@ const DEFAULT_MEMBER_PLAN_ENTITLEMENTS = {
     interests: 80,
     matchAssistance: true,
     chat: true,
-    spotlightBoosts: 4,
+    spotlightBoosts: 3,
     verifiedOnly: true
   }
 };

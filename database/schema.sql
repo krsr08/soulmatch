@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS education_career (
     ec_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     profile_id UUID REFERENCES profiles(profile_id) ON DELETE CASCADE UNIQUE,
     education_level VARCHAR(50),
+    no_education BOOLEAN DEFAULT FALSE,
     occupation VARCHAR(100),
     annual_income VARCHAR(50),
     working_city VARCHAR(100),
@@ -468,6 +469,17 @@ CREATE TABLE IF NOT EXISTS advisor_kyc_documents (
     file_url TEXT NOT NULL,
     status VARCHAR(24) NOT NULL DEFAULT 'uploaded',
     review_comment TEXT,
+    encrypted_reference_value TEXT,
+    reference_value_hash TEXT,
+    reference_value_last4 VARCHAR(8),
+    encryption_algorithm VARCHAR(64),
+    encryption_key_ref VARCHAR(128),
+    encryption_iv TEXT,
+    content_sha256 TEXT,
+    original_file_name VARCHAR(255),
+    mime_type VARCHAR(120),
+    file_size_bytes BIGINT,
+    verification_id UUID REFERENCES verifications(verification_id) ON DELETE SET NULL,
     uploaded_at TIMESTAMP DEFAULT NOW(),
     reviewed_at TIMESTAMP,
     reviewed_by VARCHAR(255),
@@ -492,9 +504,24 @@ CREATE TABLE IF NOT EXISTS profile_documents (
     reviewed_by VARCHAR(255),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
-    CONSTRAINT profile_document_type_check CHECK (document_type IN ('aadhaar', 'pan', 'voter_id', 'education_certificate', 'horoscope_pdf', 'divorce_decree')),
+    CONSTRAINT profile_document_type_check CHECK (document_type IN ('aadhaar', 'pan', 'voter_id', 'education_certificate', 'income_payslip', 'horoscope_pdf', 'divorce_decree')),
     CONSTRAINT profile_document_side_check CHECK (document_side IN ('front', 'back', 'single')),
     CONSTRAINT profile_document_status_check CHECK (status IN ('not_uploaded', 'uploaded', 'under_review', 'verified', 'rejected'))
+);
+
+CREATE TABLE IF NOT EXISTS deleted_account_history (
+    deleted_account_history_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    profile_ids UUID[] DEFAULT ARRAY[]::UUID[],
+    user_type VARCHAR(20),
+    contact_phone VARCHAR(20),
+    contact_email VARCHAR(255),
+    display_name VARCHAR(255),
+    reason TEXT,
+    deleted_at TIMESTAMP DEFAULT NOW(),
+    source VARCHAR(80),
+    ip_address INET,
+    user_agent TEXT
 );
 
 CREATE TABLE IF NOT EXISTS assisted_match_profiles (
@@ -917,9 +944,9 @@ VALUES
             },
             "dailyInterests": {
               "free": 5,
-              "silver": 20,
-              "gold": 999,
-              "platinum": 999
+              "silver": 0,
+              "gold": 50,
+              "platinum": 80
             },
             "videoCallsPerMonth": {
               "free": 0,
@@ -939,27 +966,30 @@ VALUES
             },
             {
               "planId": "silver",
-              "name": "Silver",
-              "price": 499,
+              "name": "Pro",
+              "displayName": "Pro",
+              "price": 199,
               "duration": "monthly",
               "durationDays": 30,
-              "features": ["20 interests/day", "Advanced search", "See viewers"]
+              "features": ["Contact sharing", "Engage+", "25 contact details", "Gold badge"]
             },
             {
               "planId": "gold",
-              "name": "Gold",
-              "price": 999,
-              "duration": "quarterly",
-              "durationDays": 90,
-              "features": ["Unlimited interests", "Video calling", "Priority search"]
+              "name": "Pro Max",
+              "displayName": "Pro Max",
+              "price": 399,
+              "duration": "monthly",
+              "durationDays": 30,
+              "features": ["Contact sharing", "Engage+", "50 contact details", "50 Super Interests", "1 spotlight", "Gold badge"]
             },
             {
               "planId": "platinum",
-              "name": "Platinum",
-              "price": 1499,
-              "duration": "yearly",
-              "durationDays": 365,
-              "features": ["All Gold features", "Anonymous browsing", "Unlimited boosts"]
+              "name": "Pro Supreme",
+              "displayName": "Pro Supreme",
+              "price": 599,
+              "duration": "monthly",
+              "durationDays": 30,
+              "features": ["Contact sharing", "Engage+", "80 contact details", "80 Super Interests", "3 spotlights", "Gold badge"]
             }
           ]
         }'::JSONB,

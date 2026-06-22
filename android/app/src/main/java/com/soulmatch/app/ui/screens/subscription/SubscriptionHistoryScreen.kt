@@ -283,9 +283,9 @@ private fun paymentStatusTone(invoice: InvoiceItem): ChipTone {
 
 private fun canonicalHistoryPlanName(planId: String): String {
     return when (planId.lowercase(Locale.getDefault())) {
-        "silver" -> "SoulMatch Verified Plus"
-        "gold" -> "SoulMatch Family Assist"
-        "platinum" -> "SoulMatch Platinum"
+        "silver" -> "Pro"
+        "gold" -> "Pro Max"
+        "platinum" -> "Pro Supreme"
         "free", "" -> "Free"
         else -> titleCase(planId.replace('_', ' '))
     }

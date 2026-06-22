@@ -269,9 +269,9 @@ const TAB_TO_ROUTE = {
 
 const MEMBER_PLAN_FALLBACK = [
   { planId: 'bronze', id: 'bronze', name: 'Bronze', displayName: 'Bronze (Free)', price: 0, durationDays: 30, contactViews: 5, visibleMatches: 80, profileViews: 10, shortlistLimit: 5, interestLimit: 5, chat: false, engagePlus: false, matchAssistance: false, spotlightBoosts: 0, profileBoost: false },
-  { planId: 'silver', id: 'silver', name: 'Silver', displayName: 'Silver', price: 299, durationDays: 30, contactViews: 15, visibleMatches: 80, profileViews: 30, shortlistLimit: 20, interestLimit: 20, chat: true, engagePlus: true, matchAssistance: false, spotlightBoosts: 0, profileBoost: true },
-  { planId: 'gold', id: 'gold', name: 'Gold', displayName: 'Gold', price: 599, durationDays: 30, contactViews: 30, visibleMatches: 80, profileViews: 50, shortlistLimit: 40, interestLimit: 40, chat: true, engagePlus: true, matchAssistance: true, spotlightBoosts: 2, profileBoost: true },
-  { planId: 'platinum', id: 'platinum', name: 'Platinum', displayName: 'Platinum', price: 999, durationDays: 30, contactViews: 80, visibleMatches: 80, profileViews: 80, shortlistLimit: 80, interestLimit: 80, chat: true, engagePlus: true, matchAssistance: true, spotlightBoosts: 4, profileBoost: true }
+  { planId: 'silver', id: 'silver', name: 'Pro', displayName: 'Pro', price: 199, durationDays: 30, contactViews: 25, visibleMatches: 80, profileViews: 30, shortlistLimit: 20, interestLimit: 0, chat: true, engagePlus: true, matchAssistance: false, spotlightBoosts: 0, profileBoost: true },
+  { planId: 'gold', id: 'gold', name: 'Pro Max', displayName: 'Pro Max', price: 399, durationDays: 30, contactViews: 50, visibleMatches: 80, profileViews: 50, shortlistLimit: 40, interestLimit: 50, chat: true, engagePlus: true, matchAssistance: true, spotlightBoosts: 1, profileBoost: true },
+  { planId: 'platinum', id: 'platinum', name: 'Pro Supreme', displayName: 'Pro Supreme', price: 599, durationDays: 30, contactViews: 80, visibleMatches: 80, profileViews: 80, shortlistLimit: 80, interestLimit: 80, chat: true, engagePlus: true, matchAssistance: true, spotlightBoosts: 3, profileBoost: true }
 ];
 
 const AGENT_PLAN_FALLBACK = [
@@ -1449,7 +1449,7 @@ function CmsManagementPanel({ config, onSave }) {
       <div className="enterprise-page-head compact-subhead">
         <div>
           <h2>Feature Access Matrix</h2>
-          <p>Every current or future paid capability should be registered here so Bronze, Silver, Gold and Platinum access stays auditable.</p>
+          <p>Every current or future paid capability should be registered here so Bronze, Pro, Pro Max and Pro Supreme access stays auditable.</p>
         </div>
         <div className="enterprise-actions">
           <AdminButton variant="primary" onClick={saveFeatureMatrix}><Icon name="check" /> Save Feature Matrix</AdminButton>

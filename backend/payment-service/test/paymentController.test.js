@@ -77,9 +77,9 @@ test('buildPlanChangeContext blocks downgrade and same-plan early renewal', () =
   const monetization = {
     plans: [
       { planId: 'free', name: 'Free', price: 0 },
-      { planId: 'silver', name: 'Silver', price: 499 },
-      { planId: 'gold', name: 'Gold', price: 999 },
-      { planId: 'platinum', name: 'Platinum', price: 1499 }
+      { planId: 'silver', name: 'Pro', price: 199 },
+      { planId: 'gold', name: 'Pro Max', price: 399 },
+      { planId: 'platinum', name: 'Pro Supreme', price: 599 }
     ]
   };
   const activeGold = {
@@ -101,9 +101,9 @@ test('buildPlanChangeContext allows upgrade and last-week renewal', () => {
   const monetization = {
     plans: [
       { planId: 'free', name: 'Free', price: 0 },
-      { planId: 'silver', name: 'Silver', price: 499 },
-      { planId: 'gold', name: 'Gold', price: 999 },
-      { planId: 'platinum', name: 'Platinum', price: 1499 }
+      { planId: 'silver', name: 'Pro', price: 199 },
+      { planId: 'gold', name: 'Pro Max', price: 399 },
+      { planId: 'platinum', name: 'Pro Supreme', price: 599 }
     ]
   };
   const activeSilver = {
@@ -131,7 +131,7 @@ test('buildPlanChangeContext still ranks canonical plans without runtime config'
     end_date: new Date(Date.now() + 30 * 86400000).toISOString()
   };
   assert.equal(
-    _test.buildPlanChangeContext(activeSilver, { planId: 'gold', name: 'Gold', price: 999 }, null).action,
+    _test.buildPlanChangeContext(activeSilver, { planId: 'gold', name: 'Pro Max', price: 399 }, null).action,
     'upgrade'
   );
 });

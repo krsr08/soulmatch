@@ -266,8 +266,8 @@ fun SubscriptionScreen(
                 }
                 item {
                     SectionHeading(
-                        title = "SoulMatch subscription packs",
-                        subtitle = "Only Bronze, Silver, Gold, and Platinum are available in the app. Choose a monthly pack based on the access your family needs."
+                        title = "Upgrade Membership",
+                        subtitle = "Choose Pro, Pro Max, or Pro Supreme based on the access your family needs."
                     )
                 }
                 item {
@@ -854,21 +854,18 @@ private fun String.normalizedMemberPlanId(): String {
 
 private fun fallbackMemberPlans(): List<PlanData> = listOf(
     PlanData("free", "Bronze", "Bronze", 0, "lifetime", 0, 0, listOf("80 visible matches", "10 profile views", "5 interests")),
-    PlanData("silver", "Silver", "Silver", 299, "monthly", 30, 1, listOf("30 profile views", "15 contact unlocks", "Chat enabled")),
-    PlanData("gold", "Gold", "Gold", 599, "monthly", 30, 2, listOf("50 profile views", "30 contact unlocks", "2 spotlight boosts")),
-    PlanData("platinum", "Platinum", "Platinum", 999, "monthly", 30, 3, listOf("80 profile views", "80 contact unlocks", "4 spotlight boosts"))
+    PlanData("silver", "Pro", "Pro", 199, "monthly", 30, 1, listOf("Contact sharing", "Engage+", "25 contact details", "Gold badge")),
+    PlanData("gold", "Pro Max", "Pro Max", 399, "monthly", 30, 2, listOf("50 contact details", "50 Super Interests", "1 spotlight", "Gold badge")),
+    PlanData("platinum", "Pro Supreme", "Pro Supreme", 599, "monthly", 30, 3, listOf("80 contact details", "80 Super Interests", "3 spotlights", "Gold badge"))
 )
 
 private fun fallbackFeatureMatrix(): List<Map<String, Any>> = listOf(
-    mapOf("label" to "Visible matches", "free" to "80", "bronze" to "80", "silver" to "80", "gold" to "80", "platinum" to "80"),
-    mapOf("label" to "Profile views", "free" to "10", "bronze" to "10", "silver" to "30", "gold" to "50", "platinum" to "80"),
-    mapOf("label" to "Contact details", "free" to "0", "bronze" to "0", "silver" to "15", "gold" to "30", "platinum" to "80"),
+    mapOf("label" to "Contact Sharing", "free" to false, "bronze" to false, "silver" to true, "gold" to true, "platinum" to true),
     mapOf("label" to "Engage+", "free" to false, "bronze" to false, "silver" to true, "gold" to true, "platinum" to true),
-    mapOf("label" to "Shortlist", "free" to "5", "bronze" to "5", "silver" to "20", "gold" to "40", "platinum" to "80"),
-    mapOf("label" to "Interests", "free" to "5", "bronze" to "5", "silver" to "20", "gold" to "40", "platinum" to "80"),
-    mapOf("label" to "Match assistance", "free" to false, "bronze" to false, "silver" to false, "gold" to true, "platinum" to true),
-    mapOf("label" to "Chat", "free" to false, "bronze" to false, "silver" to true, "gold" to true, "platinum" to true),
-    mapOf("label" to "Spotlight boost", "free" to "No", "bronze" to "No", "silver" to "No", "gold" to "2 / month", "platinum" to "4 / month")
+    mapOf("label" to "Contact Details", "free" to "0", "bronze" to "0", "silver" to "25", "gold" to "50", "platinum" to "80"),
+    mapOf("label" to "Super Interest", "free" to "0", "bronze" to "0", "silver" to "0", "gold" to "50", "platinum" to "80"),
+    mapOf("label" to "Spotlights", "free" to "0", "bronze" to "0", "silver" to "0", "gold" to "1", "platinum" to "3"),
+    mapOf("label" to "Gold Badge", "free" to false, "bronze" to false, "silver" to true, "gold" to true, "platinum" to true)
 )
 
 private fun Map<String, Any>.tierValue(planId: String): Any? {
@@ -903,9 +900,9 @@ private fun planRank(planId: String, amount: Int?): Int {
 
 private fun canonicalPlanName(planId: String): String {
     return when (planId.lowercase(Locale.getDefault())) {
-        "silver" -> "Silver"
-        "gold" -> "Gold"
-        "platinum" -> "Platinum"
+        "silver" -> "Pro"
+        "gold" -> "Pro Max"
+        "platinum" -> "Pro Supreme"
         "free", "bronze", "" -> "Bronze"
         else -> titleCase(planId.replace('_', ' '))
     }

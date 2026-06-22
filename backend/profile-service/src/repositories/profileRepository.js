@@ -182,17 +182,20 @@ function buildTrustSummary(signals = {}) {
   const isPhoneVerified = toBoolean(signals.is_verified) || toBoolean(signals.isPhoneVerified);
   const hasEmail = Boolean(String(signals.email || '').trim());
   const isFirebaseVerified = toBoolean(signals.firebase_verified) || toBoolean(signals.firebaseVerified) || Boolean(signals.google_id || signals.googleId);
-  const hasFamilyLocation = Boolean(signals.family_city || signals.familyCity || signals.family_pincode || signals.familyPincode);
   const profileStatus = String(signals.profile_status || signals.profileStatus || 'active').toLowerCase();
   const lastLogin = signals.last_login || signals.lastLogin;
   const recentlyActive = lastLogin ? Date.now() - new Date(lastLogin).getTime() <= 1000 * 60 * 60 * 24 * 30 : false;
-  const approvedTypes = parseVerificationTypes(signals.approved_verification_types || signals.approvedVerificationTypes);
+  const approvedTypes = [
+    ...parseVerificationTypes(signals.approved_verification_types || signals.approvedVerificationTypes),
+    ...parseVerificationTypes(signals.approved_document_types || signals.approvedDocumentTypes)
+  ].filter((value, index, list) => value && list.indexOf(value) === index);
+  const isEmployed = toBoolean(signals.is_employed) || toBoolean(signals.isEmployed);
+  const noEducation = toBoolean(signals.no_education) || toBoolean(signals.noEducation);
   if (approvedVerifications > 0 && verificationStatus === 'verified' && !approvedTypes.includes('profile')) approvedTypes.push('profile');
   const hasAdminVerification = verificationStatus === 'verified' || hasAnyVerification(approvedTypes, ['profile', 'identity']);
-  const hasDocumentVerification = hasAnyVerification(approvedTypes, ['document', 'identity']);
-  const hasEducationVerification = hasAnyVerification(approvedTypes, ['education']);
-  const hasIncomeVerification = hasAnyVerification(approvedTypes, ['income']);
-  const hasFamilyVerification = hasAnyVerification(approvedTypes, ['family']);
+  const hasDocumentVerification = hasAnyVerification(approvedTypes, ['document', 'identity', 'aadhaar', 'pan', 'voter_id']);
+  const hasEducationVerification = noEducation || hasAnyVerification(approvedTypes, ['education', 'education_certificate']);
+  const hasIncomeVerification = !isEmployed || hasAnyVerification(approvedTypes, ['income', 'income_payslip']);
   const trustSignals = [];
   const warnings = [];
   const factors = [];
@@ -266,27 +269,18 @@ function buildTrustSummary(signals = {}) {
     'Education verification',
     hasEducationVerification ? 8 : 0,
     hasEducationVerification ? 'positive' : 'missing',
-    hasEducationVerification ? 'Education evidence was approved.' : 'No approved education verification yet.'
+    noEducation ? 'Education verification is not required.' : hasEducationVerification ? 'Education evidence was approved.' : 'No approved education verification yet.'
   );
-  if (hasEducationVerification) trustSignals.push('Education verified');
+  if (hasEducationVerification) trustSignals.push(noEducation ? 'Education not applicable' : 'Education verified');
 
   addFactor(
     'income_verification',
     'Income verification',
     hasIncomeVerification ? 8 : 0,
     hasIncomeVerification ? 'positive' : 'missing',
-    hasIncomeVerification ? 'Income evidence was approved.' : 'No approved income verification yet.'
+    !isEmployed ? 'Income verification is not required.' : hasIncomeVerification ? 'Income evidence was approved.' : 'No approved income verification yet.'
   );
-  if (hasIncomeVerification) trustSignals.push('Income verified');
-
-  addFactor(
-    'family_verification',
-    'Family verification',
-    hasFamilyVerification ? 8 : hasFamilyLocation ? 4 : 0,
-    hasFamilyVerification ? 'positive' : hasFamilyLocation ? 'partial' : 'missing',
-    hasFamilyVerification ? 'Family details were approved.' : hasFamilyLocation ? 'Family location is available but not verified.' : 'Family details are not verified.'
-  );
-  if (hasFamilyVerification) trustSignals.push('Family verified');
+  if (hasIncomeVerification) trustSignals.push(!isEmployed ? 'Income not applicable' : 'Income verified');
 
   if (photoCount >= 3) {
     addFactor('photos_added', 'Photo count', 10, 'positive', `${photoCount} profile photos added.`);
@@ -512,11 +506,12 @@ exports.getTrustSummary = async (profileId) => {
        u.google_id,
        (u.google_id IS NOT NULL) AS firebase_verified,
        u.last_login,
-       fd.family_city,
-       fd.family_pincode,
+       COALESCE(ec.is_employed, FALSE) AS is_employed,
+       COALESCE(ec.no_education, FALSE) AS no_education,
        COALESCE((SELECT COUNT(*)::int FROM profile_photos pp WHERE pp.profile_id=p.profile_id), 0) AS photo_count,
        COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')), 0) AS approved_verifications,
        COALESCE((SELECT array_agg(DISTINCT v.type) FROM verifications v WHERE v.user_id=p.user_id AND v.status IN ('approved','verified')), ARRAY[]::text[]) AS approved_verification_types,
+       COALESCE((SELECT array_agg(DISTINCT pd.document_type) FROM profile_documents pd WHERE pd.profile_id=p.profile_id AND pd.status='verified'), ARRAY[]::text[]) AS approved_document_types,
        COALESCE((SELECT COUNT(*)::int FROM verifications v WHERE v.user_id=p.user_id AND v.status='pending'), 0) AS pending_verifications,
        COALESCE((SELECT COUNT(*)::int FROM interests i WHERE i.receiver_id=p.profile_id), 0) AS received_interests,
        COALESCE((SELECT COUNT(*)::int FROM interests i WHERE i.receiver_id=p.profile_id AND i.status IN ('accepted','declined')), 0) AS responded_interests,
@@ -527,7 +522,7 @@ exports.getTrustSummary = async (profileId) => {
        COALESCE((SELECT COUNT(*)::int FROM reports rp WHERE rp.reported_id=p.user_id AND rp.status IN ('pending','open','reviewing')), 0) AS report_count
      FROM profiles p
      JOIN users u ON u.user_id=p.user_id
-     LEFT JOIN family_details fd ON fd.profile_id=p.profile_id
+     LEFT JOIN education_career ec ON ec.profile_id=p.profile_id
      WHERE p.profile_id=$1
      LIMIT 1`,
     [profileId]
@@ -575,7 +570,7 @@ exports.createVerificationRequest = async (profile, data) => {
       await client.query('ROLLBACK');
       return { status: 'not_found' };
     }
-    if (current.verification_status === 'verified') {
+    if ((data.type || 'profile') === 'profile' && current.verification_status === 'verified') {
       await client.query('COMMIT');
       return { status: 'already_verified' };
     }
@@ -591,10 +586,10 @@ exports.createVerificationRequest = async (profile, data) => {
          reviewed_at,
          created_at
        FROM verifications
-       WHERE user_id=$1 AND status='pending'
+       WHERE user_id=$1 AND type=$2 AND status='pending'
        ORDER BY created_at DESC
        LIMIT 1`,
-      [profile.user_id]
+      [profile.user_id, data.type || 'profile']
     );
     if (pending.rows[0]) {
       await client.query('COMMIT');
@@ -620,15 +615,68 @@ exports.createVerificationRequest = async (profile, data) => {
        RETURNING verification_id,user_id,type,status,document_url,reviewer_email,review_note,reviewed_at,created_at`,
       [verificationId, profile.user_id, data.type, documentUrl]
     );
-    await client.query(
-      "UPDATE profiles SET verification_status='pending', updated_at=NOW() WHERE profile_id=$1",
-      [profile.profile_id]
-    );
+    if ((data.type || 'profile') === 'profile') {
+      await client.query(
+        "UPDATE profiles SET verification_status='pending', updated_at=NOW() WHERE profile_id=$1",
+        [profile.profile_id]
+      );
+    }
+    if (data.documentType && documentUrl) {
+      await client.query(
+        `INSERT INTO profile_documents (
+           profile_document_id, profile_id, advisor_id, document_type, document_side, file_url, status, review_comment,
+           encrypted_reference_value, reference_value_hash, reference_value_last4, encryption_algorithm, encryption_key_ref,
+           encryption_iv, content_sha256, original_file_name, mime_type, file_size_bytes, verification_id,
+           consent_event_id, uploaded_at, created_at, updated_at
+         )
+         VALUES ($1,$2,NULL,$3,$4,$5,'under_review',NULL,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW(),NOW(),NOW())
+         ON CONFLICT (profile_id, document_type, document_side) DO UPDATE SET
+           file_url = EXCLUDED.file_url,
+           status = 'under_review',
+           review_comment = NULL,
+           encrypted_reference_value = EXCLUDED.encrypted_reference_value,
+           reference_value_hash = EXCLUDED.reference_value_hash,
+           reference_value_last4 = EXCLUDED.reference_value_last4,
+           encryption_algorithm = EXCLUDED.encryption_algorithm,
+           encryption_key_ref = EXCLUDED.encryption_key_ref,
+           encryption_iv = EXCLUDED.encryption_iv,
+           content_sha256 = EXCLUDED.content_sha256,
+           original_file_name = EXCLUDED.original_file_name,
+           mime_type = EXCLUDED.mime_type,
+           file_size_bytes = EXCLUDED.file_size_bytes,
+           verification_id = EXCLUDED.verification_id,
+           consent_event_id = EXCLUDED.consent_event_id,
+           uploaded_at = NOW(),
+           reviewed_at = NULL,
+           reviewed_by = NULL,
+           updated_at = NOW()`,
+        [
+          randomUUID(),
+          profile.profile_id,
+          data.documentType,
+          data.documentSide || 'single',
+          documentUrl,
+          data.referenceMeta?.encryptedValue || null,
+          data.referenceHash || null,
+          data.referenceMeta?.last4 || null,
+          data.fileMeta?.encryptionAlgorithm || data.referenceMeta?.encryptionAlgorithm || null,
+          data.fileMeta?.encryptionKeyRef || data.referenceMeta?.encryptionKeyRef || null,
+          data.fileMeta?.encryptionIv || data.referenceMeta?.encryptionIv || null,
+          data.fileMeta?.contentSha256 || data.referenceMeta?.contentSha256 || null,
+          data.fileMeta?.originalFileName || null,
+          data.fileMeta?.mimeType || null,
+          data.fileMeta?.fileSizeBytes || null,
+          verificationId,
+          consentEventId
+        ]
+      );
+    }
     await client.query(
       `INSERT INTO admin_alerts (alert_id,severity,title,body,source,metadata,created_at)
-       VALUES ($1,'medium','Profile verification requested',$2,'profile-service',$3::jsonb,NOW())`,
+       VALUES ($1,'medium',$2,$3,'profile-service',$4::jsonb,NOW())`,
       [
         randomUUID(),
+        data.documentType ? `${data.documentType.replace(/_/g, ' ')} verification requested` : 'Profile verification requested',
         `${profile.first_name || 'A member'} ${profile.last_name || ''}`.trim() + ' submitted a profile verification request.',
         JSON.stringify({
           type: 'profile_verification',
@@ -636,6 +684,7 @@ exports.createVerificationRequest = async (profile, data) => {
           profileId: profile.profile_id,
           userId: profile.user_id,
           verificationType: data.type,
+          documentType: data.documentType || null,
           consentEventId
         })
       ]
@@ -928,10 +977,12 @@ exports.upsertEducation = async (userId, data) => {
   const db = await getDB();
   const p = await exports.findByUserId(userId);
   const isEmployed = data.isEmployed === true || String(data.isEmployed).toLowerCase() === 'true';
+  const noEducation = data.noEducation === true || data.no_education === true || String(data.noEducation || data.no_education).toLowerCase() === 'true';
   await db.query(
     `INSERT INTO education_career (
        profile_id,
        education_level,
+       no_education,
        is_employed,
        occupation,
        annual_income,
@@ -939,18 +990,20 @@ exports.upsertEducation = async (userId, data) => {
        working_state,
        working_pincode
      )
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
      ON CONFLICT (profile_id) DO UPDATE SET
        education_level=$2,
-       is_employed=$3,
-       occupation=$4,
-       annual_income=$5,
-       working_city=$6,
-       working_state=$7,
-       working_pincode=$8`,
+       no_education=$3,
+       is_employed=$4,
+       occupation=$5,
+       annual_income=$6,
+       working_city=$7,
+       working_state=$8,
+       working_pincode=$9`,
     [
       p.profile_id,
-      data.educationLevel,
+      noEducation ? null : data.educationLevel,
+      noEducation,
       isEmployed,
       isEmployed ? data.occupation : null,
       isEmployed ? data.annualIncome : null,
@@ -1759,6 +1812,7 @@ exports.findFullByUserId = async (userId) => {
        pd.body_type,
        pd.blood_group,
         ec.education_level,
+        COALESCE(ec.no_education, FALSE) AS no_education,
         ec.is_employed,
         ec.occupation,
         ec.annual_income,
@@ -1812,6 +1866,7 @@ exports.findFullById = async (profileId) => {
        pd.body_type,
        pd.blood_group,
         ec.education_level,
+        COALESCE(ec.no_education, FALSE) AS no_education,
         ec.is_employed,
         ec.occupation,
         ec.annual_income,
@@ -2250,9 +2305,12 @@ exports.deleteAccount = async (userId, { reason = 'user_requested', audit = {} }
       await client.query('ROLLBACK');
       return null;
     }
-    const profileResult = await client.query('SELECT profile_id FROM profiles WHERE user_id=$1', [userId]);
+    const profileResult = await client.query('SELECT profile_id, first_name, last_name FROM profiles WHERE user_id=$1', [userId]);
     const profileIds = profileResult.rows.map((row) => row.profile_id);
     const profileIdArray = profileIds.length ? profileIds : [randomUUID()];
+    const displayName = profileResult.rows
+      .map((row) => `${row.first_name || ''} ${row.last_name || ''}`.trim())
+      .find(Boolean) || null;
 
     await insertConsentEvent(client, {
       userId,
@@ -2262,6 +2320,27 @@ exports.deleteAccount = async (userId, { reason = 'user_requested', audit = {} }
       metadata: { reason, profileIds },
       audit
     });
+
+    await client.query(
+      `INSERT INTO deleted_account_history (
+         deleted_account_history_id, user_id, profile_ids, user_type, contact_phone, contact_email,
+         display_name, reason, deleted_at, source, ip_address, user_agent
+       )
+       VALUES ($1,$2,$3::uuid[],$4,$5,$6,$7,$8,NOW(),$9,$10,$11)`,
+      [
+        randomUUID(),
+        userId,
+        profileIds,
+        user.user_type || null,
+        user.phone || null,
+        user.email || null,
+        displayName,
+        reason,
+        audit.source || null,
+        audit.ipAddress || null,
+        audit.userAgent || null
+      ]
+    );
 
     await client.query(
       `UPDATE profile_documents
@@ -2522,7 +2601,10 @@ exports.calcCompletion = async (profileId) => {
           SELECT 1
           FROM education_career
           WHERE profile_id = $1
-            AND NULLIF(BTRIM(education_level), '') IS NOT NULL
+            AND (
+              COALESCE(no_education, FALSE) = TRUE
+              OR NULLIF(BTRIM(education_level), '') IS NOT NULL
+            )
             AND (
               COALESCE(is_employed, FALSE) = FALSE
               OR (
@@ -2567,15 +2649,13 @@ exports.calcCompletion = async (profileId) => {
             )
         ) THEN 1 ELSE 0
       END AS horoscope,
-      (SELECT COUNT(*) FROM profile_photos WHERE profile_id = $1) AS photos,
-      (SELECT video_url FROM profiles WHERE profile_id = $1) AS video
+      0 AS photos,
+      NULL AS video
   `, [profileId]);
-  const w = { basic:20, physical:10, education:15, family:10, lifestyle:10, horoscope:10, photos:15, video:10 };
-  const v = c.rows[0]; let score = 0;
-  if (parseInt(v.basic)) score+=w.basic; if (parseInt(v.physical)) score+=w.physical;
-  if (parseInt(v.education)) score+=w.education; if (parseInt(v.family)) score+=w.family;
-  if (parseInt(v.lifestyle)) score+=w.lifestyle; if (parseInt(v.horoscope)) score+=w.horoscope;
-  if (parseInt(v.photos)) score+=w.photos; if (v.video) score+=w.video;
+  const v = c.rows[0];
+  const completedSections = ['basic', 'physical', 'education', 'family', 'lifestyle', 'horoscope']
+    .reduce((total, key) => total + (parseInt(v[key], 10) ? 1 : 0), 0);
+  const score = Math.round((completedSections / 6) * 100);
   await db.query('UPDATE profiles SET completion_score=$1 WHERE profile_id=$2', [score,profileId]);
   return score;
 };
@@ -2604,7 +2684,7 @@ function normalizeProfileDocumentStatus(value) {
 
 function normalizeProfileDocumentType(value) {
   const normalized = String(value || '').trim().toLowerCase();
-  return ['aadhaar', 'pan', 'voter_id', 'education_certificate', 'horoscope_pdf', 'divorce_decree'].includes(normalized) ? normalized : null;
+  return ['aadhaar', 'pan', 'voter_id', 'education_certificate', 'income_payslip', 'horoscope_pdf', 'divorce_decree'].includes(normalized) ? normalized : null;
 }
 
 function normalizeDocumentSide(value) {
