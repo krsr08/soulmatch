@@ -55,7 +55,7 @@ fun LaunchBrandScreen() {
         contentAlignment = Alignment.Center
     ) {
         Image(
-            painter = painterResource(id = R.drawable.ic_soulmatch_splash),
+            painter = painterResource(id = R.drawable.app_icon_splash),
             contentDescription = "SoulMatch",
             modifier = Modifier
                 .size(180.dp)

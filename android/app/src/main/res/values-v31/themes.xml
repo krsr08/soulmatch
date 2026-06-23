@@ -8,7 +8,7 @@
         <item name="android:statusBarColor">#D4285A</item>
         <item name="android:navigationBarColor">#FFF8F4</item>
         <item name="android:windowSplashScreenBackground">@color/splash_background</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/animated_soulmatch_splash</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/app_icon_splash</item>
         <item name="android:windowSplashScreenIconBackgroundColor">@color/splash_background</item>
     </style>
 </resources>
