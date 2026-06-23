@@ -74,18 +74,18 @@ internal fun ProfileReferenceHeader(
 ) {
     val primaryPhoto = photos.firstOrNull { it.isPrimary }?.photoUrl ?: profile.primaryPhotoUrl
     PremiumCard(
-        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
         containerColor = Color.White,
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 20.dp)
+        contentPadding = PaddingValues(16.dp)
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Box(contentAlignment = Alignment.BottomCenter) {
                 if (localPhotoUris.isNotEmpty()) {
                     AsyncImage(
                         model = localPhotoUris.first(),
                         contentDescription = "Selected profile photo",
                         modifier = Modifier
-                            .size(112.dp)
+                            .size(92.dp)
                             .clip(RoundedCornerShape(999.dp)),
                         contentScale = ContentScale.Crop
                     )
@@ -93,52 +93,30 @@ internal fun ProfileReferenceHeader(
                     MemberPhoto(
                         photoUrl = primaryPhoto,
                         contentDescription = "Profile photo",
-                        modifier = Modifier.size(112.dp),
+                        modifier = Modifier.size(92.dp),
                         shape = RoundedCornerShape(999.dp)
                     )
                 }
-                Surface(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .clickable(onClick = onUploadPhoto),
-                    shape = RoundedCornerShape(999.dp),
-                    color = MaterialTheme.colorScheme.primary
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(Icons.Filled.PhotoCamera, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Text(
-                            if (uploadingPhotos) "Uploading..." else if (primaryPhoto.isNullOrBlank()) "Add photos" else "Manage photos",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = Color.White,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                    }
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    profile.fullName().ifBlank { "Complete your name" },
+                    style = MaterialTheme.typography.titleLarge,
+                    color = PrimaryDark,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Text(
+                    listOfNotBlank(profile.religion, formatHeight(profile.heightCm), profile.familyCity).joinToString(" • ")
+                        .ifBlank { "Add basic profile details" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+                OutlinedButton(onClick = onUploadPhoto, shape = RoundedCornerShape(999.dp)) {
+                    Icon(Icons.Filled.PhotoCamera, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Text(if (uploadingPhotos) "Uploading..." else if (primaryPhoto.isNullOrBlank()) "Add photo" else "Manage photos")
                 }
             }
-            Text(
-                profile.fullName().ifBlank { "Complete your name" },
-                style = MaterialTheme.typography.titleLarge,
-                color = PrimaryDark,
-                fontWeight = FontWeight.ExtraBold,
-                textAlign = TextAlign.Center
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                BulletLine("Profile with photo gives better response")
-                BulletLine("Add quality photos, your photos are safe with us")
-            }
         }
-    }
-}
-
-@Composable
-private fun BulletLine(text: String) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
-        Text("-", color = Divider, style = MaterialTheme.typography.bodyMedium)
-        Text(text, color = PrimaryDark, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -149,17 +127,27 @@ internal fun GoldBadgePromoCard(verified: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 14.dp)
             .clickable(onClick = onClick),
         containerColor = Color.White,
-        contentPadding = PaddingValues(18.dp)
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Surface(shape = RoundedCornerShape(999.dp), color = Color(0xFFFFF7DA)) {
+                Icon(
+                    Icons.Filled.WorkspacePremium,
+                    contentDescription = null,
+                    tint = Color(0xFFD6A319),
+                    modifier = Modifier
+                        .padding(10.dp)
+                        .size(22.dp)
+                )
+            }
             Text(
-                if (verified) "Your profile has a verified Gold Badge." else "Get a verified Gold Badge, stand out, and connect with more genuine profiles.",
+                if (verified) "Verified Gold Badge active" else "Verify your profile to unlock the Gold Badge",
                 modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 color = PrimaryDark,
                 fontWeight = FontWeight.SemiBold
             )
-            Icon(Icons.Filled.WorkspacePremium, contentDescription = null, tint = Color(0xFFD6A319), modifier = Modifier.size(42.dp))
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSecondary)
         }
     }
 }
@@ -176,23 +164,33 @@ internal fun ProfileCompletionPromptCard(
             .padding(horizontal = 14.dp)
             .clickable(onClick = onComplete),
         containerColor = Color.White,
-        contentPadding = PaddingValues(18.dp)
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(64.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(52.dp)) {
                 CircularProgressIndicator(
                     progress = score / 100f,
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = SurfaceSoft,
-                    strokeWidth = 7.dp
+                    strokeWidth = 5.dp
                 )
-                Text("$score%", style = MaterialTheme.typography.labelLarge, color = PrimaryDark, fontWeight = FontWeight.ExtraBold)
+                Text("$score%", style = MaterialTheme.typography.labelSmall, color = PrimaryDark, fontWeight = FontWeight.ExtraBold)
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("Add a few more details to make your profile rich!", style = MaterialTheme.typography.titleMedium, color = PrimaryDark, fontWeight = FontWeight.ExtraBold)
+                Text(
+                    if (score >= 100) "Profile complete" else "Complete your profile",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = PrimaryDark,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Text(
+                    if (score >= 100) "All required sections are filled." else "Fill the missing sections to improve match quality.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Complete your profile", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+                    Text(if (score >= 100) "View details" else "Continue", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
                     Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 }
             }
@@ -204,20 +202,22 @@ internal fun ProfileCompletionPromptCard(
 internal fun ProfilePromptsCard(onAdd: () -> Unit) {
     PremiumCard(
         modifier = Modifier.padding(horizontal = 14.dp),
-        containerColor = Color.White,
-        contentPadding = PaddingValues(18.dp)
+        containerColor = SurfaceWarm,
+        contentPadding = PaddingValues(16.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SignalChip("New", tone = ChipTone.Warm)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Prompts!", style = MaterialTheme.typography.titleLarge, color = PrimaryDark, fontWeight = FontWeight.ExtraBold)
-                    Text("Share fun facts, opinions, and more.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                }
-                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(42.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Surface(shape = RoundedCornerShape(14.dp), color = Color.White) {
+                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(12.dp).size(24.dp))
             }
-            Button(onClick = onAdd, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)) {
-                Text("Add now", fontWeight = FontWeight.ExtraBold)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Prompts", style = MaterialTheme.typography.titleMedium, color = PrimaryDark, fontWeight = FontWeight.ExtraBold)
+                    SignalChip("New", tone = ChipTone.Warm)
+                }
+                Text("Add a short answer to make conversations easier.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            }
+            TextButton(onClick = onAdd) {
+                Text("Add", fontWeight = FontWeight.ExtraBold)
                 Icon(Icons.Filled.ChevronRight, contentDescription = null)
             }
         }
