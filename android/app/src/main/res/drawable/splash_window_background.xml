@@ -5,5 +5,5 @@
         android:width="160dp"
         android:height="160dp"
         android:gravity="center"
-        android:drawable="@drawable/app_icon_splash" />
+        android:drawable="@drawable/ic_soulmatch_splash" />
 </layer-list>
