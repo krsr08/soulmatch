@@ -53,6 +53,13 @@ import com.soulmatch.app.ui.theme.PrimaryDark
 import com.soulmatch.app.ui.theme.SurfaceSoft
 import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
+import com.soulmatch.app.ui.titleCase
+import com.soulmatch.app.ui.viewmodels.ProfileChecklistItem
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+import java.util.Locale
 import kotlin.math.roundToInt
 
 internal data class ReferenceField(val label: String, val value: String, val actionLabel: String? = null)
@@ -174,7 +181,7 @@ internal fun ProfileCompletionPromptCard(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(64.dp)) {
                 CircularProgressIndicator(
-                    progress = { score / 100f },
+                    progress = score / 100f,
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = SurfaceSoft,
@@ -477,4 +484,19 @@ private fun siblingSummary(profile: ProfileData): String {
     val brothers = profile.numBrothers?.let { "$it brother${if (it == 1) "" else "s"}" }
     val sisters = profile.numSisters?.let { "$it sister${if (it == 1) "" else "s"}" }
     return listOfNotBlank(brothers, sisters).joinToString("\n")
+}
+
+private fun formatDate(value: String?): String {
+    val raw = value?.trim().orEmpty()
+    if (raw.isBlank()) return ""
+    val outputFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.getDefault())
+    return try {
+        OffsetDateTime.parse(raw).toLocalDate().format(outputFormatter)
+    } catch (_: DateTimeParseException) {
+        try {
+            LocalDate.parse(raw).format(outputFormatter)
+        } catch (_: DateTimeParseException) {
+            raw
+        }
+    }
 }
