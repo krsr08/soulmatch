@@ -124,9 +124,9 @@ import com.soulmatch.app.ui.viewmodels.SubscriptionViewModel
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-private val HomeBackground = Color(0xFFFFF9F2)
-private val HomePrimary = Color(0xFFD12E5E)
-private val SoftBorder = Color(0xFFE1BEC2)
+private val HomeBackground = Color(0xFFFFFFFF)
+private val HomePrimary = Color(0xFFFF5C00)
+private val SoftBorder = Color(0xFFF3F4F6)
 private const val CANONICAL_PLATINUM_RANK = 3_000
 
 private data class BestMatchCarouselSlot(
@@ -410,9 +410,9 @@ private fun HomeTopBar(
     onOpenPartnerPreferences: () -> Unit
 ) {
     Surface(
-        color = Color(0xFFFFFCFA),
-        shadowElevation = 2.dp,
-        border = BorderStroke(1.dp, SoftBorder.copy(alpha = 0.28f))
+        color = Color.White,
+        shadowElevation = 0.dp,
+        border = BorderStroke(1.dp, SoftBorder)
     ) {
         Row(
             modifier = Modifier
@@ -443,7 +443,7 @@ private fun HomeTopBar(
                             .align(Alignment.BottomEnd)
                             .size(21.dp),
                         shape = RoundedCornerShape(999.dp),
-                        color = Color(0xFFFFFCFA),
+                        color = Color.White,
                         shadowElevation = 1.dp,
                         border = BorderStroke(1.dp, Divider.copy(alpha = 0.65f))
                     ) {
@@ -460,7 +460,7 @@ private fun HomeTopBar(
                             fontWeight = FontWeight.ExtraBold,
                             lineHeight = 29.sp
                         ),
-                        color = Color(0xFF243244),
+                        color = Color(0xFF1A1A1A),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -472,7 +472,7 @@ private fun HomeTopBar(
                         Text(
                             "as per ",
                             style = MaterialTheme.typography.labelLarge,
-                            color = Color(0xFF667386)
+                            color = Color(0xFF888888)
                         )
                         Text(
                             "partner preferences",
@@ -492,7 +492,7 @@ private fun HomeTopBar(
                         modifier = Modifier.size(32.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Filled.Notifications, contentDescription = "Notifications", tint = Color(0xFF748091))
+                        Icon(Icons.Filled.Notifications, contentDescription = "Notifications", tint = HomePrimary)
                         if (unreadCount > 0) {
                             val badgeText = if (unreadCount > 99) "99+" else unreadCount.toString()
                             Surface(
@@ -501,7 +501,7 @@ private fun HomeTopBar(
                                     .defaultMinSize(minWidth = 14.dp)
                                     .height(14.dp),
                                 shape = RoundedCornerShape(999.dp),
-                                color = Color(0xFF9B0044),
+                                color = HomePrimary,
                                 border = BorderStroke(1.dp, HomeBackground)
                             ) {
                                 Text(
@@ -521,7 +521,7 @@ private fun HomeTopBar(
                     Icon(
                         Icons.Filled.Search,
                         contentDescription = "Search matches",
-                        tint = Color(0xFF748091),
+                        tint = HomePrimary,
                         modifier = Modifier.size(29.dp)
                     )
                 }
@@ -537,8 +537,8 @@ private fun HomeMatchFilterStrip(
     onSelected: (HomeMatchFeedFilter) -> Unit
 ) {
     Surface(
-        color = Color(0xFFFFFCFA),
-        border = BorderStroke(1.dp, Divider.copy(alpha = 0.55f))
+        color = Color.White,
+        border = BorderStroke(1.dp, Divider)
     ) {
         Row(
             modifier = Modifier
@@ -581,13 +581,13 @@ private fun HomeFilterPill(
     onClick: () -> Unit
 ) {
     val borderColor = if (selected) HomePrimary else Color(0xFFA9B0BA)
-    val contentColor = if (selected) HomePrimary else Color(0xFF303947)
+    val contentColor = if (selected) HomePrimary else Color(0xFF1A1A1A)
     Surface(
         modifier = modifier
             .height(38.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(999.dp),
-        color = if (selected) Color(0xFFFFEDF1) else Color.White,
+        color = if (selected) Color(0xFFFFF1E8) else Color.White,
         border = BorderStroke(1.4.dp, borderColor.copy(alpha = if (selected) 0.88f else 0.72f))
     ) {
         Row(
@@ -677,7 +677,7 @@ private fun HomeAdvancedFilterDialog(
                             },
                             shape = RoundedCornerShape(999.dp),
                             border = BorderStroke(1.dp, Color(0xFFD0D6DE)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF8A001F)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = HomePrimary),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                             modifier = Modifier.height(38.dp)
                         ) {
@@ -724,7 +724,7 @@ private fun HomeAdvancedFilterDialog(
                                     section.title,
                                     modifier = Modifier.padding(start = 28.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
                                     style = MaterialTheme.typography.titleMedium.copy(lineHeight = 22.sp),
-                                    color = if (selected) Color(0xFF8A001F) else Color(0xFF3B4655),
+                                    color = if (selected) HomePrimary else Color(0xFF3B4655),
                                     fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
@@ -797,7 +797,7 @@ private fun HomeAdvancedFilterDialog(
                         shape = RoundedCornerShape(999.dp),
                         border = BorderStroke(1.2.dp, Color(0xFFD0D6DE)),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color(0xFF8A001F),
+                            contentColor = HomePrimary,
                             containerColor = Color.White
                         )
                     ) {
@@ -810,7 +810,7 @@ private fun HomeAdvancedFilterDialog(
                             .height(56.dp),
                         shape = RoundedCornerShape(999.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF99002B),
+                            containerColor = HomePrimary,
                             contentColor = Color.White
                         ),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 5.dp)
@@ -964,7 +964,7 @@ private fun FilterChoiceSection(
                 fontWeight = FontWeight.ExtraBold,
                 lineHeight = 30.sp
             ),
-            color = Color(0xFF8A001F),
+            color = HomePrimary,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
@@ -995,7 +995,7 @@ private fun RefineFilterOptionButton(
         color = Color.White,
         border = BorderStroke(
             width = if (selected) 1.6.dp else 1.dp,
-            color = if (selected) Color(0xFF8A001F) else Color(0xFFD0D6DE)
+            color = if (selected) HomePrimary else Color(0xFFD0D6DE)
         )
     ) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1003,7 +1003,7 @@ private fun RefineFilterOptionButton(
                 label,
                 modifier = Modifier.padding(horizontal = 14.dp),
                 style = MaterialTheme.typography.titleMedium,
-                color = if (selected) Color(0xFF8A001F) else Color(0xFF202A36),
+                color = if (selected) HomePrimary else Color(0xFF202A36),
                 fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
@@ -1053,10 +1053,10 @@ private fun ProfileStrengthCard(score: Int, detail: String, onClick: () -> Unit)
                 Text(
                     "$score% PROFILE STRENGTH",
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color(0xFF9B0044),
+                    color = HomePrimary,
                     fontWeight = FontWeight.ExtraBold
                 )
-                Icon(Icons.Filled.Verified, contentDescription = null, tint = Color(0xFF9B0044), modifier = Modifier.size(21.dp))
+                Icon(Icons.Filled.Verified, contentDescription = null, tint = HomePrimary, modifier = Modifier.size(21.dp))
             }
             LinearProgressIndicator(
                 progress = score.coerceIn(0, 100) / 100f,
@@ -1064,7 +1064,7 @@ private fun ProfileStrengthCard(score: Int, detail: String, onClick: () -> Unit)
                     .fillMaxWidth()
                     .height(6.dp)
                     .clip(RoundedCornerShape(999.dp)),
-                color = Color(0xFFB0004B),
+                color = PrimaryDark,
                 trackColor = Color(0xFFE6E2DC)
             )
             Text(
@@ -1589,7 +1589,7 @@ private fun HomeUpgradeInsertCard(
 ) {
     PremiumCard(
         modifier = modifier,
-        containerColor = Color(0xFFFFF0F4),
+        containerColor = Color(0xFFFFF1E8),
         contentPadding = PaddingValues(16.dp)
     ) {
         Row(
@@ -2002,7 +2002,7 @@ private fun HomeSectionHeader(
                     actionText,
                     modifier = Modifier.clickable(onClick = onAction),
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF9B0044),
+                    color = HomePrimary,
                     fontWeight = FontWeight.ExtraBold
                 )
             }
@@ -2952,7 +2952,7 @@ private fun PendingInvitationCard(
                         invitationAgeLabel(invitation.sentAt).uppercase(Locale.getDefault()),
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF9B0044),
+                        color = HomePrimary,
                         fontWeight = FontWeight.ExtraBold,
                         maxLines = 1
                     )
@@ -3044,7 +3044,7 @@ private fun NoPendingInvitationsCard(onBrowse: () -> Unit) {
                 textAlign = TextAlign.Center
             )
             OutlinedButton(onClick = onBrowse, shape = RoundedCornerShape(999.dp)) {
-                Text("Browse matches", color = Color(0xFF9B0044), fontWeight = FontWeight.ExtraBold)
+                Text("Browse matches", color = HomePrimary, fontWeight = FontWeight.ExtraBold)
             }
         }
     }

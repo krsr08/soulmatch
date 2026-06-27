@@ -38,14 +38,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.soulmatch.app.ui.theme.Divider
+import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.theme.Info
 import com.soulmatch.app.ui.theme.InfoSoft
-import com.soulmatch.app.ui.theme.PrimaryDark
 import com.soulmatch.app.ui.theme.Success
 import com.soulmatch.app.ui.theme.SuccessSoft
-import com.soulmatch.app.ui.theme.SurfaceSoft
-import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.theme.Warning
 import com.soulmatch.app.ui.theme.WarningSoft
@@ -57,7 +54,7 @@ fun PremiumScreen(
 ) {
     Column(
         modifier = modifier
-            .background(MaterialTheme.colorScheme.background)
+            .background(SoulMatchTokens.Bg)
     ) {
         content()
     }
@@ -74,18 +71,18 @@ fun PremiumHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 18.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 eyebrow.uppercase(),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.ExtraBold
+                color = SoulMatchTokens.Tangerine,
+                fontWeight = FontWeight.Bold
             )
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
         }
         trailing?.invoke()
@@ -102,10 +99,10 @@ fun PremiumCard(
 ) {
     Card(
         modifier = if (fillWidth) modifier.fillMaxWidth() else modifier,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = BorderStroke(1.dp, Divider.copy(alpha = 0.72f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        border = BorderStroke(1.dp, SoulMatchTokens.Border),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(Modifier.padding(contentPadding)) {
             content()
@@ -118,21 +115,21 @@ fun MetricPill(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
-    accent: Color = MaterialTheme.colorScheme.primary,
-    background: Color = SurfaceSoft
+    accent: Color = SoulMatchTokens.Tangerine,
+    background: Color = SoulMatchTokens.Ivory
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
         color = background,
-        border = BorderStroke(1.dp, Divider.copy(alpha = 0.7f))
+        border = BorderStroke(1.dp, SoulMatchTokens.Border)
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = accent)
+            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = accent)
             Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
         }
     }
@@ -163,16 +160,16 @@ fun SignalChip(
     tone: ChipTone = ChipTone.Warm
 ) {
     val colors = when (tone) {
-        ChipTone.Warm -> SurfaceWarm to PrimaryDark
+        ChipTone.Warm -> SoulMatchTokens.TangerineSoft to SoulMatchTokens.Tangerine
         ChipTone.Success -> SuccessSoft to Success
         ChipTone.Info -> InfoSoft to Info
         ChipTone.Gold -> WarningSoft to Warning
-        ChipTone.Neutral -> MaterialTheme.colorScheme.surface to TextSecondary
+        ChipTone.Neutral -> MaterialTheme.colorScheme.surface to SoulMatchTokens.Muted
     }
     AssistChip(
         onClick = {},
         label = { Text(label, maxLines = 1) },
-        modifier = modifier.height(30.dp),
+        modifier = modifier.height(32.dp),
         colors = AssistChipDefaults.assistChipColors(
             containerColor = colors.first,
             labelColor = colors.second
@@ -193,10 +190,10 @@ fun FilterChoiceChip(
         onClick = onClick,
         label = { Text(label, maxLines = 1) },
         modifier = modifier.height(36.dp),
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
         colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = SurfaceWarm,
-            selectedLabelColor = PrimaryDark,
+            selectedContainerColor = SoulMatchTokens.TangerineSoft,
+            selectedLabelColor = SoulMatchTokens.Tangerine,
             containerColor = MaterialTheme.colorScheme.surface,
             labelColor = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -240,7 +237,7 @@ fun LabeledProgress(
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            Text("$value%", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+            Text("$value%", style = MaterialTheme.typography.titleSmall, color = SoulMatchTokens.Tangerine, fontWeight = FontWeight.Bold)
         }
         LinearProgressIndicator(
             progress = value.coerceIn(0, 100) / 100f,
@@ -248,8 +245,8 @@ fun LabeledProgress(
                 .fillMaxWidth()
                 .height(9.dp)
                 .clip(RoundedCornerShape(99.dp)),
-            color = MaterialTheme.colorScheme.primary,
-            trackColor = SurfaceSoft
+            color = SoulMatchTokens.Tangerine,
+            trackColor = SoulMatchTokens.Ivory
         )
         if (!detail.isNullOrBlank()) {
             Text(detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
@@ -284,11 +281,11 @@ fun DetailGrid(
 fun AvatarInitial(
     label: String,
     modifier: Modifier = Modifier,
-    background: Color = MaterialTheme.colorScheme.primary
+    background: Color = SoulMatchTokens.Tangerine
 ) {
     Surface(
         modifier = modifier.size(44.dp),
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
         color = background
     ) {
         Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
@@ -296,7 +293,7 @@ fun AvatarInitial(
                 text = label.take(1).uppercase().ifBlank { "S" },
                 color = Color.White,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold
+                fontWeight = FontWeight.Bold
             )
         }
     }
@@ -313,9 +310,9 @@ fun UpgradePlanGate(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        color = SurfaceWarm,
-        border = BorderStroke(1.dp, Divider)
+        shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
+        color = SoulMatchTokens.TangerineSoft,
+        border = BorderStroke(1.dp, SoulMatchTokens.Border)
     ) {
         if (compact) {
             Row(
@@ -324,14 +321,14 @@ fun UpgradePlanGate(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold, color = PrimaryDark)
+                    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = SoulMatchTokens.Tangerine)
                     Text(detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary, maxLines = 2)
                 }
                 Button(
                     onClick = { onUpgrade?.invoke() },
                     enabled = onUpgrade != null,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    colors = ButtonDefaults.buttonColors(containerColor = SoulMatchTokens.Tangerine)
                 ) {
                     Text(actionLabel, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                 }
@@ -342,13 +339,13 @@ fun UpgradePlanGate(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = PrimaryDark, textAlign = TextAlign.Center)
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = SoulMatchTokens.Tangerine, textAlign = TextAlign.Center)
                 Text(detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary, textAlign = TextAlign.Center)
                 Button(
                     onClick = { onUpgrade?.invoke() },
                     enabled = onUpgrade != null,
                     modifier = Modifier.fillMaxWidth().height(42.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    colors = ButtonDefaults.buttonColors(containerColor = SoulMatchTokens.Tangerine)
                 ) {
                     Text(actionLabel, fontWeight = FontWeight.Bold)
                 }

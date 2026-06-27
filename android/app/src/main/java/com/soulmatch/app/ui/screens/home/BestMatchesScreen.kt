@@ -48,10 +48,7 @@ import com.soulmatch.app.ui.components.premium.PremiumCard
 import com.soulmatch.app.ui.components.premium.PremiumScreen
 import com.soulmatch.app.ui.components.cards.ProfileCard
 import com.soulmatch.app.ui.components.premium.UpgradePlanGate
-import com.soulmatch.app.ui.theme.Divider
-import com.soulmatch.app.ui.theme.SurfaceSoft
-import com.soulmatch.app.ui.theme.SurfaceWarm
-import com.soulmatch.app.ui.theme.TextSecondary
+import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.viewmodels.DashboardViewModel
 import com.soulmatch.app.ui.viewmodels.SubscriptionViewModel
 
@@ -108,11 +105,11 @@ fun BestMatchesScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Best Matches", fontWeight = FontWeight.ExtraBold)
+                        Text("Best Matches", fontWeight = FontWeight.ExtraBold, color = SoulMatchTokens.Text)
                         Text(
                             "${rankedMatches.size} profiles sorted by match %",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
+                            color = SoulMatchTokens.Muted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -125,7 +122,7 @@ fun BestMatchesScreen(
                 }
             )
         },
-        containerColor = Color(0xFFFFF9F2)
+        containerColor = Color.White
     ) { padding ->
         PremiumScreen(
             modifier = Modifier
@@ -154,7 +151,7 @@ fun BestMatchesScreen(
                     }
                     if (rankedMatches.isEmpty()) {
                         item {
-                            PremiumCard(modifier = Modifier.padding(16.dp), containerColor = SurfaceWarm) {
+                            PremiumCard(modifier = Modifier.padding(16.dp), containerColor = SoulMatchTokens.TangerineSoft) {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("No profiles in this filter", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                     Text(
@@ -164,7 +161,7 @@ fun BestMatchesScreen(
                                             "Try All, Verified, or 90%+ to continue browsing ranked matches."
                                         },
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = TextSecondary
+                                        color = SoulMatchTokens.Muted
                                     )
                                 }
                             }
@@ -208,27 +205,27 @@ private fun BestMatchesControlPanel(
 ) {
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = SoulMatchTokens.Card,
         contentPadding = PaddingValues(12.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("$visibleCount profiles", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
-                    Text("From $totalCount recommended matches", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    Text("$visibleCount profiles", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = SoulMatchTokens.Text)
+                    Text("From $totalCount recommended matches", style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
                 }
                 Surface(
                     shape = RoundedCornerShape(999.dp),
-                    color = SurfaceSoft,
-                    border = BorderStroke(1.dp, Divider)
+                    color = SoulMatchTokens.Ivory,
+                    border = BorderStroke(1.dp, SoulMatchTokens.Border)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Filled.Sort, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                        Text("Match %", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+                        Icon(Icons.Filled.Sort, contentDescription = null, modifier = Modifier.size(16.dp), tint = SoulMatchTokens.Tangerine)
+                        Text("Match %", style = MaterialTheme.typography.labelSmall, color = SoulMatchTokens.Tangerine, fontWeight = FontWeight.ExtraBold)
                     }
                 }
             }
@@ -247,13 +244,13 @@ private fun BestMatchesControlPanel(
 
 @Composable
 private fun MatchFilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
-    val background = if (selected) Color(0xFFFFD9DE) else MaterialTheme.colorScheme.surface
-    val content = if (selected) MaterialTheme.colorScheme.primary else TextSecondary
+    val background = if (selected) SoulMatchTokens.TangerineSoft else MaterialTheme.colorScheme.surface
+    val content = if (selected) SoulMatchTokens.Tangerine else SoulMatchTokens.Muted
     Surface(
         modifier = Modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(999.dp),
         color = background,
-        border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Divider)
+        border = BorderStroke(1.dp, if (selected) SoulMatchTokens.Tangerine.copy(alpha = 0.25f) else SoulMatchTokens.Border)
     ) {
         Text(
             text = label,

@@ -47,8 +47,7 @@ import com.soulmatch.app.data.models.fullName
 import com.soulmatch.app.ui.components.premium.PremiumCard
 import com.soulmatch.app.ui.components.premium.PremiumScreen
 import com.soulmatch.app.ui.components.status.ProfileStrengthAdvisor
-import com.soulmatch.app.ui.theme.Divider
-import com.soulmatch.app.ui.theme.TextSecondary
+import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.viewmodels.DashboardViewModel
 import com.soulmatch.app.ui.viewmodels.NotificationsViewModel
 import java.time.Instant
@@ -56,15 +55,15 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
 
-private val NotificationsBackground = Color(0xFFFFF7F2)
-private val NotificationsSurface = Color(0xFFFFFFFF)
-private val NotificationsUnread = Color(0xFFFFF3F7)
-private val NotificationsPrimary = Color(0xFFC2185B)
-private val NotificationsText = Color(0xFF1E1B18)
-private val NotificationsMuted = Color(0xFF746B67)
-private val NotificationsBorder = Color(0xFFFFCDD7)
-private val NotificationsGreyIcon = Color(0xFF7E7772)
-private val NotificationsSoftIcon = Color(0xFFFFF0EB)
+private val NotificationsBackground = SoulMatchTokens.Bg
+private val NotificationsSurface = SoulMatchTokens.Card
+private val NotificationsUnread = SoulMatchTokens.TangerineSoft
+private val NotificationsPrimary = SoulMatchTokens.Tangerine
+private val NotificationsText = SoulMatchTokens.Text
+private val NotificationsMuted = SoulMatchTokens.Muted
+private val NotificationsBorder = SoulMatchTokens.GoldSoft
+private val NotificationsGreyIcon = SoulMatchTokens.Muted
+private val NotificationsSoftIcon = SoulMatchTokens.Ivory
 
 private enum class NotificationSection(val title: String) {
     Today("TODAY"),
@@ -235,7 +234,7 @@ fun NotificationsScreen(
                     item {
                         PremiumCard(containerColor = NotificationsUnread) {
                             Text("Notification sync issue", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                            Text(notificationError.orEmpty(), style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            Text(notificationError.orEmpty(), style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
                         }
                     }
                 }
@@ -243,7 +242,7 @@ fun NotificationsScreen(
                     item {
                         PremiumCard(containerColor = NotificationsSurface) {
                             Text("No updates yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("Profile alerts, invitations, and best-match updates will appear here.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                            Text("Profile alerts, invitations, and best-match updates will appear here.", style = MaterialTheme.typography.bodyMedium, color = SoulMatchTokens.Muted)
                         }
                     }
                 }
@@ -260,7 +259,7 @@ private fun NotificationsTopBar(
 ) {
     Surface(
         color = NotificationsBackground,
-        border = BorderStroke(1.dp, Divider.copy(alpha = 0.55f))
+        border = BorderStroke(1.dp, SoulMatchTokens.Border.copy(alpha = 0.55f))
     ) {
         Row(
             modifier = Modifier
@@ -270,7 +269,7 @@ private fun NotificationsTopBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color(0xFF3C3835), modifier = Modifier.size(31.dp))
+                Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = SoulMatchTokens.Tangerine, modifier = Modifier.size(31.dp))
             }
             Text(
                 "Notifications",
@@ -310,7 +309,7 @@ private fun SectionHeader(title: String) {
             fontWeight = FontWeight.ExtraBold,
             letterSpacing = 0.8.sp
         ),
-        color = Color(0xFF7D736E)
+        color = SoulMatchTokens.Muted
     )
 }
 
@@ -322,7 +321,7 @@ private fun NotificationCard(item: NotificationUiItem) {
             .clickable(onClick = item.onClick),
         shape = RoundedCornerShape(10.dp),
         color = if (item.isUnread) NotificationsUnread else NotificationsSurface,
-        border = BorderStroke(1.dp, if (item.isUnread) NotificationsBorder else Divider.copy(alpha = 0.62f)),
+        border = BorderStroke(1.dp, if (item.isUnread) NotificationsBorder else SoulMatchTokens.Border.copy(alpha = 0.62f)),
         shadowElevation = if (item.isUnread) 2.dp else 0.dp
     ) {
         Row(

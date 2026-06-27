@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -41,6 +42,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,12 +65,8 @@ import com.soulmatch.app.ui.components.premium.PremiumCard
 import com.soulmatch.app.ui.components.premium.PremiumScreen
 import com.soulmatch.app.ui.components.premium.SignalChip
 import com.soulmatch.app.ui.components.premium.SignalChips
-import com.soulmatch.app.ui.theme.Divider
-import com.soulmatch.app.ui.theme.PrimaryDark
+import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.theme.Success
-import com.soulmatch.app.ui.theme.SurfaceSoft
-import com.soulmatch.app.ui.theme.SurfaceWarm
-import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.titleCase
 import com.soulmatch.app.ui.viewmodels.ProfileViewModel
 import java.time.LocalDate
@@ -154,10 +152,15 @@ fun ProfileWizardScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(copy.title, fontWeight = FontWeight.Bold)
-                        Text(copy.eyebrow, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Text(copy.title, fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
+                        Text(copy.eyebrow, style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = SoulMatchTokens.Bg,
+                    navigationIconContentColor = SoulMatchTokens.Tangerine,
+                    titleContentColor = SoulMatchTokens.Text
+                ),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
@@ -178,7 +181,7 @@ fun ProfileWizardScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp), containerColor = SurfaceWarm) {
+                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp), containerColor = SoulMatchTokens.TangerineSoft) {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             LabeledProgress(
                                 label = if (isSectionEdit) "Section edit" else "Profile readiness",
@@ -190,8 +193,8 @@ fun ProfileWizardScreen(
                                 }
                             )
                             StepRail(currentStep = currentStep, profile = profile)
-                            Text(copy.subtitle, style = MaterialTheme.typography.bodyMedium, color = PrimaryDark)
-                            Text(copy.helper, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            Text(copy.subtitle, style = MaterialTheme.typography.bodyMedium, color = SoulMatchTokens.Tangerine)
+                            Text(copy.helper, style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
                         }
                     }
                     if (!loadMessage.isNullOrBlank()) {
@@ -226,7 +229,13 @@ fun ProfileWizardScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     if (currentStep > 1) {
-                        OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f).height(54.dp)) {
+                        OutlinedButton(
+                            onClick = onBack,
+                            modifier = Modifier.weight(1f).height(54.dp),
+                            shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                            border = BorderStroke(1.dp, SoulMatchTokens.Border),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = SoulMatchTokens.Text)
+                        ) {
                             Text("Back")
                         }
                     }
@@ -236,7 +245,14 @@ fun ProfileWizardScreen(
                             vm.saveStep(currentStep) { onNextStep(currentStep + 1) }
                         },
                         modifier = Modifier.weight(1f).height(54.dp),
-                        enabled = isCurrentStepValid && !isSaving
+                        enabled = isCurrentStepValid && !isSaving,
+                        shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SoulMatchTokens.Tangerine,
+                            contentColor = androidx.compose.ui.graphics.Color.White,
+                            disabledContainerColor = SoulMatchTokens.GoldSoft,
+                            disabledContentColor = androidx.compose.ui.graphics.Color.White
+                        )
                     ) {
                         if (isSaving) {
                             CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
@@ -266,17 +282,17 @@ private fun StepRail(currentStep: Int, profile: ProfileData?) {
                 modifier = Modifier.weight(1f).height(38.dp),
                 shape = RoundedCornerShape(16.dp),
                 color = when {
-                    active && complete -> Success.copy(alpha = 0.16f)
-                    active -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                    complete -> SurfaceSoft
-                    else -> MaterialTheme.colorScheme.surface
+                    active && complete -> SoulMatchTokens.TangerineSoft
+                    active -> SoulMatchTokens.TangerineSoft
+                    complete -> SoulMatchTokens.Ivory
+                    else -> SoulMatchTokens.Card
                 },
                 border = BorderStroke(
                     1.dp,
                     when {
-                        active && complete -> Success
-                        active -> MaterialTheme.colorScheme.primary
-                        else -> Divider
+                        active && complete -> SoulMatchTokens.Tangerine
+                        active -> SoulMatchTokens.Tangerine
+                        else -> SoulMatchTokens.Border
                     }
                 )
             ) {
@@ -286,13 +302,13 @@ private fun StepRail(currentStep: Int, profile: ProfileData?) {
                             Icons.Filled.CheckCircle,
                             contentDescription = null,
                             modifier = Modifier.size(15.dp),
-                            tint = if (active) Success else Success
+                            tint = if (active) SoulMatchTokens.Tangerine else Success
                         )
                     } else {
                         Text(
                             index.toString(),
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (active) MaterialTheme.colorScheme.primary else TextSecondary,
+                            color = if (active) SoulMatchTokens.Tangerine else SoulMatchTokens.Muted,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -574,8 +590,8 @@ private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValid
             }
             Surface(
                 shape = RoundedCornerShape(18.dp),
-                color = SurfaceSoft,
-                border = BorderStroke(1.dp, Divider)
+                color = SoulMatchTokens.Ivory,
+                border = BorderStroke(1.dp, SoulMatchTokens.Border)
             ) {
                 Column(
                     modifier = Modifier
@@ -592,7 +608,7 @@ private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValid
                         Text(
                             "Turn this on to capture work details for search and shortlist quality.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary,
+                            color = SoulMatchTokens.Muted,
                             modifier = Modifier.weight(1f)
                         )
                         Spacer(Modifier.width(12.dp))
@@ -604,7 +620,7 @@ private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValid
                 Surface(
                     shape = RoundedCornerShape(18.dp),
                     color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, Divider)
+                    border = BorderStroke(1.dp, SoulMatchTokens.Border)
                 ) {
                     Column(
                         modifier = Modifier
@@ -633,19 +649,19 @@ private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValid
             } else {
                 Surface(
                     shape = RoundedCornerShape(18.dp),
-                    color = SurfaceSoft,
-                    border = BorderStroke(1.dp, Divider)
+                    color = SoulMatchTokens.Ivory,
+                    border = BorderStroke(1.dp, SoulMatchTokens.Border)
                 ) {
                     Text(
                         "Work details stay hidden until you switch on employment. Education alone is enough to complete this section for non-working members.",
                         modifier = Modifier.padding(14.dp),
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
+                        color = SoulMatchTokens.Muted
                     )
                 }
             }
-            PremiumCard(containerColor = SurfaceWarm, contentPadding = PaddingValues(14.dp)) {
-                Text("This section syncs with Discover and ranking, so it should be specific instead of generic.", style = MaterialTheme.typography.bodySmall, color = PrimaryDark)
+            PremiumCard(containerColor = SoulMatchTokens.TangerineSoft, contentPadding = PaddingValues(14.dp)) {
+                Text("This section syncs with Discover and ranking, so it should be specific instead of generic.", style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Tangerine)
             }
         }
     }
@@ -774,19 +790,19 @@ private fun Step5Lifestyle(existing: ProfileData?, vm: ProfileViewModel, onValid
                             vm.clearBioSuggestions()
                         },
                     shape = RoundedCornerShape(16.dp),
-                    color = SurfaceSoft,
-                    border = BorderStroke(1.dp, Divider)
+                    color = SoulMatchTokens.Ivory,
+                    border = BorderStroke(1.dp, SoulMatchTokens.Border)
                 ) {
                     Text(
                         suggestion,
                         modifier = Modifier.padding(14.dp),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = PrimaryDark
+                        color = SoulMatchTokens.Tangerine
                     )
                 }
             }
-            PremiumCard(containerColor = SurfaceWarm, contentPadding = PaddingValues(14.dp)) {
-                Text("Prompt idea: mention your family rhythm, future city flexibility, hobbies, and what kind of partnership you want.", style = MaterialTheme.typography.bodySmall, color = PrimaryDark)
+            PremiumCard(containerColor = SoulMatchTokens.TangerineSoft, contentPadding = PaddingValues(14.dp)) {
+                Text("Prompt idea: mention your family rhythm, future city flexibility, hobbies, and what kind of partnership you want.", style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Tangerine)
             }
         }
     }
@@ -833,8 +849,8 @@ private fun Step6Horoscope(existing: ProfileData?, vm: ProfileViewModel, onValid
 @Composable
 private fun SectionLead(title: String, description: String) {
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Text(description, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
+        Text(description, style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
     }
 }
 
@@ -842,7 +858,7 @@ private fun SectionLead(title: String, description: String) {
 @Composable
 private fun ChipRow(title: String, options: List<String>, selected: String, onSelect: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("$title *", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text("$title *", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = SoulMatchTokens.Text)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             options.forEach { option ->
                 FilterChoiceChip(
@@ -873,6 +889,7 @@ private fun RequiredTextField(
         supportingText = supportingText?.let { message -> { Text(message) } },
         modifier = modifier.fillMaxWidth(),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
         singleLine = true
     )
 }
@@ -899,6 +916,7 @@ private fun NumberField(
         supportingText = supportingText?.let { message -> { Text(message) } },
         modifier = modifier.fillMaxWidth(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
         singleLine = true
     )
 }
@@ -927,6 +945,7 @@ private fun SelectionField(
                 .menuAnchor(),
             readOnly = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
             singleLine = true
         )
         ExposedDropdownMenu(
@@ -987,3 +1006,4 @@ private fun formatDateInput(value: String): String {
         }
     }
 }
+

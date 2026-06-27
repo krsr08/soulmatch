@@ -64,6 +64,7 @@ import com.soulmatch.app.BuildConfig
 import com.soulmatch.app.R
 import com.soulmatch.app.data.models.AuthContentData
 import com.soulmatch.app.data.models.BrandingConfig
+import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.viewmodels.AuthUiState
 import com.soulmatch.app.ui.viewmodels.AuthViewModel
 
@@ -123,31 +124,32 @@ fun WelcomeScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFFFFBF8))
+            .background(SoulMatchTokens.Bg)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 28.dp),
+                .padding(horizontal = 18.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = Color.White,
-                shape = RoundedCornerShape(28.dp),
-                shadowElevation = 16.dp
+                shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
+                shadowElevation = 0.dp,
+                border = BorderStroke(1.dp, SoulMatchTokens.Border)
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 28.dp),
+                        .padding(horizontal = 20.dp, vertical = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
                     Text(
                         text = branding.appTitle.ifBlank { "SoulMatch" },
-                        color = Color(0xFF6B001C),
+                        color = SoulMatchTokens.Tangerine,
                         fontSize = 46.sp,
                         fontFamily = FontFamily.Serif,
                         fontWeight = FontWeight.Bold,
@@ -155,9 +157,9 @@ fun WelcomeScreen(
                     )
                     Text(
                         text = "Trusted Matchmaking for Families and Agents",
-                        color = Color(0xFF9B7A7A),
-                        fontSize = 18.sp,
-                        lineHeight = 26.sp,
+                        color = SoulMatchTokens.Muted,
+                        fontSize = 15.sp,
+                        lineHeight = 22.sp,
                         textAlign = TextAlign.Center
                     )
                     AccentDivider()
@@ -167,7 +169,7 @@ fun WelcomeScreen(
                     ) {
                         Text(
                             text = "Mobile Number",
-                            color = Color(0xFF4B2D36),
+                            color = SoulMatchTokens.Text,
                             fontWeight = FontWeight.Medium,
                             fontSize = 16.sp
                         )
@@ -193,9 +195,9 @@ fun WelcomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF7B001C),
+                            containerColor = SoulMatchTokens.Tangerine,
                             contentColor = Color.White
                         )
                     ) {
@@ -217,8 +219,8 @@ fun WelcomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, Color(0xFFE8D3D7)),
+                        shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                        border = BorderStroke(1.dp, SoulMatchTokens.Border),
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = Color.White,
                             contentColor = Color(0xFF2D2D2D)
@@ -235,12 +237,12 @@ fun WelcomeScreen(
                     when (state) {
                         is AuthUiState.Loading -> CircularProgressIndicator(
                             modifier = Modifier.size(22.dp),
-                            color = Color(0xFFD72964),
+                            color = SoulMatchTokens.Tangerine,
                             strokeWidth = 2.dp
                         )
                         is AuthUiState.Error -> Text(
                             text = (state as AuthUiState.Error).message,
-                            color = Color(0xFFD72964),
+                            color = SoulMatchTokens.Error,
                             style = MaterialTheme.typography.bodyMedium,
                             textAlign = TextAlign.Center
                         )
@@ -266,14 +268,14 @@ private fun AccentDivider() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Divider(modifier = Modifier.weight(1f), color = Color(0xFFE0B94A), thickness = 1.dp)
+        Divider(modifier = Modifier.weight(1f), color = SoulMatchTokens.GoldSoft, thickness = 1.dp)
         Icon(
             imageVector = Icons.Filled.FavoriteBorder,
             contentDescription = null,
-            tint = Color(0xFF8A6F00),
+            tint = SoulMatchTokens.Gold,
             modifier = Modifier.size(24.dp)
         )
-        Divider(modifier = Modifier.weight(1f), color = Color(0xFFE0B94A), thickness = 1.dp)
+        Divider(modifier = Modifier.weight(1f), color = SoulMatchTokens.GoldSoft, thickness = 1.dp)
     }
 }
 
@@ -284,9 +286,9 @@ private fun MobileNumberField(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, Color(0xFFE6BEC5)),
-        color = Color(0xFFFFFBFA)
+        shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
+        border = BorderStroke(1.dp, SoulMatchTokens.Border),
+        color = SoulMatchTokens.Ivory
     ) {
         BasicTextField(
             value = value,
@@ -296,14 +298,14 @@ private fun MobileNumberField(
                 .padding(horizontal = 18.dp, vertical = 18.dp),
             singleLine = true,
             textStyle = TextStyle(
-                color = Color(0xFF4B2D36),
+                color = SoulMatchTokens.Text,
                 fontSize = 18.sp
             ),
             decorationBox = { inner ->
                 if (value.isBlank()) {
                     Text(
                         text = "Enter your mobile number",
-                        color = Color(0xFFDABFC5),
+                        color = SoulMatchTokens.Muted,
                         fontSize = 18.sp
                     )
                 }
@@ -320,13 +322,13 @@ private fun ContinueWithDivider() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Divider(modifier = Modifier.weight(1f), color = Color(0xFFEDDDE0))
+        Divider(modifier = Modifier.weight(1f), color = SoulMatchTokens.Border)
         Text(
             text = "Or continue with",
-            color = Color(0xFF90777C),
+            color = SoulMatchTokens.Muted,
             fontSize = 14.sp
         )
-        Divider(modifier = Modifier.weight(1f), color = Color(0xFFEDDDE0))
+        Divider(modifier = Modifier.weight(1f), color = SoulMatchTokens.Border)
     }
 }
 
@@ -355,17 +357,17 @@ private fun SafetyItem(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Surface(
-            color = Color(0xFFFFEEF3),
+            color = SoulMatchTokens.TangerineSoft,
             shape = RoundedCornerShape(999.dp),
             modifier = Modifier.size(40.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = Color(0xFFD72964), modifier = Modifier.size(18.dp))
+                Icon(icon, contentDescription = null, tint = SoulMatchTokens.Tangerine, modifier = Modifier.size(18.dp))
             }
         }
         Text(
             text = label,
-            color = Color(0xFF5C444B),
+            color = SoulMatchTokens.Text,
             fontSize = 12.sp,
             lineHeight = 16.sp,
             textAlign = TextAlign.Center,
@@ -381,20 +383,20 @@ private fun LegalLinks(
     onOpenPrivacy: () -> Unit
 ) {
     val text = buildAnnotatedString {
-        withStyle(SpanStyle(color = Color(0xFF8A7075))) {
+        withStyle(SpanStyle(color = SoulMatchTokens.Muted)) {
             append(prefix)
             append(" ")
         }
         pushStringAnnotation(tag = "legal", annotation = "terms")
-        withStyle(SpanStyle(color = Color(0xFF5E2432), textDecoration = TextDecoration.Underline)) {
+        withStyle(SpanStyle(color = SoulMatchTokens.Tangerine, textDecoration = TextDecoration.Underline)) {
             append("Terms of Service")
         }
         pop()
-        withStyle(SpanStyle(color = Color(0xFF8A7075))) {
+        withStyle(SpanStyle(color = SoulMatchTokens.Muted)) {
             append(" and ")
         }
         pushStringAnnotation(tag = "legal", annotation = "privacy")
-        withStyle(SpanStyle(color = Color(0xFF5E2432), textDecoration = TextDecoration.Underline)) {
+        withStyle(SpanStyle(color = SoulMatchTokens.Tangerine, textDecoration = TextDecoration.Underline)) {
             append("Privacy Policy")
         }
         pop()

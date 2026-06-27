@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.PhoneEntryContentData
 import com.soulmatch.app.ui.components.premium.PremiumCard
 import com.soulmatch.app.ui.components.premium.PremiumScreen
+import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.Error
 import com.soulmatch.app.ui.theme.PrimaryDark
@@ -99,7 +100,7 @@ fun PhoneEntryScreen(
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                PremiumCard(containerColor = SurfaceWarm) {
+                PremiumCard(containerColor = SoulMatchTokens.TangerineSoft) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
                             when {
@@ -108,7 +109,8 @@ fun PhoneEntryScreen(
                                 else -> content.title.ifBlank { "Enter your mobile number" }
                             },
                             style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.ExtraBold
+                            fontWeight = FontWeight.Bold,
+                            color = SoulMatchTokens.Text
                         )
                         Text(
                             when {
@@ -117,7 +119,7 @@ fun PhoneEntryScreen(
                                 else -> content.subtitle.ifBlank { "We use this number for OTP login, account recovery, and important match alerts." }
                             },
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
+                            color = SoulMatchTokens.Muted
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             val trustLines = content.trustLines.filter { it.isNotBlank() }.ifEmpty {
@@ -166,7 +168,7 @@ fun PhoneEntryScreen(
                             color = when {
                                 state is AuthUiState.Error || localError -> Error
                                 phone.length == 10 -> Success
-                                else -> TextSecondary
+                                else -> SoulMatchTokens.Muted
                             }
                         )
 
@@ -191,18 +193,18 @@ fun PhoneEntryScreen(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.medium,
-                    color = SurfaceSoft,
-                    border = BorderStroke(1.dp, Divider)
+                    color = SoulMatchTokens.Ivory,
+                    border = BorderStroke(1.dp, SoulMatchTokens.Border)
                 ) {
                     Row(
                         modifier = Modifier.padding(14.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.Top
                     ) {
-                        Icon(Icons.Filled.Lock, contentDescription = null, tint = PrimaryDark, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Filled.Lock, contentDescription = null, tint = SoulMatchTokens.Tangerine, modifier = Modifier.size(20.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                             Text(content.privacyTitle.ifBlank { "Your number stays protected" }, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                            Text(content.privacyBody.ifBlank { "Members see contact details only when your privacy and plan rules allow it." }, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            Text(content.privacyBody.ifBlank { "Members see contact details only when your privacy and plan rules allow it." }, style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
                         }
                     }
                 }
@@ -215,16 +217,16 @@ fun PhoneEntryScreen(
 private fun TrustLine(label: String) {
     Surface(
         shape = MaterialTheme.shapes.small,
-        color = SuccessSoft,
-        border = BorderStroke(1.dp, Divider)
+        color = SoulMatchTokens.TangerineSoft,
+        border = BorderStroke(1.dp, SoulMatchTokens.Border)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Success, modifier = Modifier.size(16.dp))
-            Text(label, style = MaterialTheme.typography.labelMedium, color = PrimaryDark, fontWeight = FontWeight.Bold)
+            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = SoulMatchTokens.Tangerine, modifier = Modifier.size(16.dp))
+            Text(label, style = MaterialTheme.typography.labelMedium, color = SoulMatchTokens.Tangerine, fontWeight = FontWeight.Bold)
         }
     }
 }

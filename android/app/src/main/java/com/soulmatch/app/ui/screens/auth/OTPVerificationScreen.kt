@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.theme.Primary
 import com.soulmatch.app.ui.viewmodels.AuthViewModel
 import com.soulmatch.app.ui.viewmodels.AuthUiState
@@ -46,25 +47,25 @@ fun OTPVerificationScreen(phone: String, userType: String? = null, onVerified: (
     LaunchedEffect(Unit) { delay(200); focusers[0].requestFocus() }
     Scaffold(topBar = { TopAppBar(title = {}, navigationIcon = { IconButton(onClick=onBack) { Icon(Icons.Filled.ArrowBack,"Back") } }) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal=24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Verify Your Number", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)
+            Text("Verify Your Number", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
             Spacer(Modifier.height(8.dp))
-            Text("Code sent to $phone", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.6f))
+            Text("Code sent to $phone", style = MaterialTheme.typography.bodyMedium, color = SoulMatchTokens.Muted)
             Spacer(Modifier.height(40.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 boxes.forEachIndexed { i, v ->
-                    val borderColor = when { state is AuthUiState.Error -> MaterialTheme.colorScheme.error; v.isNotEmpty() -> Primary; else -> MaterialTheme.colorScheme.outline }
-                    BasicTextField(value = v, onValueChange = { nv -> if (nv.length <= 1 && nv.all(Char::isDigit)) { boxes[i] = nv; if (nv.isNotEmpty() && i < 5) focusers[i+1].requestFocus(); if (boxes.joinToString("").length == 6) vm.verifyOTP(phone, boxes.joinToString(""), userType) } }, modifier = Modifier.size(48.dp).border(2.dp, borderColor, RoundedCornerShape(8.dp)).focusRequester(focusers[i]), textStyle = TextStyle(fontSize=20.sp, fontWeight=FontWeight.Bold, textAlign=TextAlign.Center, color=MaterialTheme.colorScheme.onSurface), keyboardOptions = KeyboardOptions(keyboardType=KeyboardType.NumberPassword), singleLine = true, decorationBox = { inner -> Box(Modifier.fillMaxSize(), contentAlignment=Alignment.Center) { inner() } })
+                    val borderColor = when { state is AuthUiState.Error -> SoulMatchTokens.Error; v.isNotEmpty() -> SoulMatchTokens.Tangerine; else -> SoulMatchTokens.Border }
+                    BasicTextField(value = v, onValueChange = { nv -> if (nv.length <= 1 && nv.all(Char::isDigit)) { boxes[i] = nv; if (nv.isNotEmpty() && i < 5) focusers[i+1].requestFocus(); if (boxes.joinToString("").length == 6) vm.verifyOTP(phone, boxes.joinToString(""), userType) } }, modifier = Modifier.size(48.dp).border(2.dp, borderColor, RoundedCornerShape(SoulMatchTokens.CardRadius)).focusRequester(focusers[i]), textStyle = TextStyle(fontSize=20.sp, fontWeight=FontWeight.Bold, textAlign=TextAlign.Center, color=SoulMatchTokens.Text), keyboardOptions = KeyboardOptions(keyboardType=KeyboardType.NumberPassword), singleLine = true, decorationBox = { inner -> Box(Modifier.fillMaxSize(), contentAlignment=Alignment.Center) { inner() } })
                 }
             }
-            if (state is AuthUiState.Error) Text((state as AuthUiState.Error).message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top=8.dp))
+            if (state is AuthUiState.Error) Text((state as AuthUiState.Error).message, color = SoulMatchTokens.Error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top=8.dp))
             Spacer(Modifier.height(32.dp))
             if (canResend) TextButton(onClick = {
                 vm.sendOTP(phone, userType)
                 resendCycle++
-            }) { Text("Resend OTP", color = Primary) }
-            else Text("Resend in 00:${countdown.toString().padStart(2,'0')}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha=0.5f))
+            }) { Text("Resend OTP", color = SoulMatchTokens.Tangerine) }
+            else Text("Resend in 00:${countdown.toString().padStart(2,'0')}", style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
             Spacer(Modifier.height(16.dp))
-            if (state is AuthUiState.Loading) CircularProgressIndicator(color = Primary)
+            if (state is AuthUiState.Loading) CircularProgressIndicator(color = SoulMatchTokens.Tangerine)
         }
     }
 }

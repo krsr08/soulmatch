@@ -58,15 +58,7 @@ import com.soulmatch.app.ui.components.premium.SectionTitle
 import com.soulmatch.app.ui.components.premium.SignalChip
 import com.soulmatch.app.ui.components.premium.SignalChips
 import com.soulmatch.app.ui.components.premium.UpgradePlanGate
-import com.soulmatch.app.ui.theme.Divider
-import com.soulmatch.app.ui.theme.Info
-import com.soulmatch.app.ui.theme.InfoSoft
-import com.soulmatch.app.ui.theme.PrimaryDark
-import com.soulmatch.app.ui.theme.Success
-import com.soulmatch.app.ui.theme.SuccessSoft
-import com.soulmatch.app.ui.theme.SurfaceSoft
-import com.soulmatch.app.ui.theme.SurfaceWarm
-import com.soulmatch.app.ui.theme.TextSecondary
+import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.titleCase
 import com.soulmatch.app.ui.viewmodels.DiscoveryFilters
 import com.soulmatch.app.ui.viewmodels.SearchViewModel
@@ -109,7 +101,7 @@ fun SearchScreen(
                 title = {
                     Column {
                         Text("Discover", fontWeight = FontWeight.Bold)
-                        Text("Filter by family, lifestyle, activity, and compatibility", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Text("Filter by family, lifestyle, activity, and compatibility", style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
                     }
                 },
                 navigationIcon = {
@@ -190,7 +182,7 @@ fun SearchScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         SectionTitle(title = "Results", subtitle = "Sorted by compatibility and activity", modifier = Modifier.weight(1f))
-                        MetricPill(label = "Profiles", value = results.size.toString(), background = SurfaceSoft)
+                        MetricPill(label = "Profiles", value = results.size.toString(), background = SoulMatchTokens.Ivory)
                     }
                 }
                 if (loading && results.isEmpty()) {
@@ -225,10 +217,10 @@ fun SearchScreen(
                 }
                 if (!loading && results.isEmpty()) {
                     item {
-                        PremiumCard(modifier = Modifier.padding(16.dp), containerColor = SurfaceWarm) {
+                        PremiumCard(modifier = Modifier.padding(16.dp), containerColor = SoulMatchTokens.TangerineSoft) {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("No profiles matched this exact filter", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                Text("Widen age, city, religion, or diet preferences to bring in more active members.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                                Text("Widen age, city, religion, or diet preferences to bring in more active members.", style = MaterialTheme.typography.bodyMedium, color = SoulMatchTokens.Muted)
                                 Button(onClick = { vm.clearFilters() }, modifier = Modifier.fillMaxWidth()) {
                                     Text("Reset filters")
                                 }
@@ -258,7 +250,7 @@ private fun SearchSummaryPanel(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.weight(1f)) {
                     Text("Filters", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("$resultCount profiles match your current choices", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    Text("$resultCount profiles match your current choices", style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
                 }
                 Button(onClick = onToggle, modifier = Modifier.height(40.dp)) {
                     Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
@@ -313,20 +305,20 @@ private fun SearchFilterPanel(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
-                color = SurfaceSoft,
-                border = BorderStroke(1.dp, Divider)
+                color = SoulMatchTokens.Ivory,
+                border = BorderStroke(1.dp, SoulMatchTokens.Border)
             ) {
                 Row(
                     modifier = Modifier.padding(14.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Filled.Search, contentDescription = null, tint = SoulMatchTokens.Tangerine)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Location, profession, community", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                        Text("Use filters below to preview matching profiles", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Text("Use filters below to preview matching profiles", style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
                     }
-                    Icon(Icons.Filled.Tune, contentDescription = null, tint = TextSecondary)
+                    Icon(Icons.Filled.Tune, contentDescription = null, tint = SoulMatchTokens.Muted)
                 }
             }
 
@@ -357,7 +349,7 @@ private fun SearchFilterPanel(
                     Text(
                         if (filters.ageMin == null && filters.ageMax == null) "Any age" else "${minAge.toInt()} to ${maxAge.toInt()} yrs",
                         style = MaterialTheme.typography.titleSmall,
-                        color = PrimaryDark,
+                        color = SoulMatchTokens.Tangerine,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -474,14 +466,14 @@ private fun SearchFilterPanel(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                color = SurfaceWarm,
-                border = BorderStroke(1.dp, Divider)
+                color = SoulMatchTokens.TangerineSoft,
+                border = BorderStroke(1.dp, SoulMatchTokens.Border)
             ) {
                 Text(
                     "Previewing $resultCount profiles with the current filters",
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
                     style = MaterialTheme.typography.titleSmall,
-                    color = PrimaryDark,
+                    color = SoulMatchTokens.Tangerine,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -490,14 +482,14 @@ private fun SearchFilterPanel(
                 Button(
                     onClick = onApply,
                     modifier = Modifier.weight(1f).height(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    colors = ButtonDefaults.buttonColors(containerColor = SoulMatchTokens.Tangerine)
                 ) {
                     Text("Apply filters")
                 }
                 Button(
                     onClick = onClear,
                     modifier = Modifier.weight(1f).height(52.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = InfoSoft, contentColor = Info)
+                    colors = ButtonDefaults.buttonColors(containerColor = SoulMatchTokens.Ivory, contentColor = SoulMatchTokens.Tangerine)
                 ) {
                     Text("Reset filters")
                 }
@@ -542,13 +534,13 @@ private fun ToggleCard(
     Surface(
         modifier = modifier.height(104.dp),
         shape = RoundedCornerShape(18.dp),
-        color = if (selected) SuccessSoft else MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, if (selected) Success else Divider),
+        color = if (selected) SoulMatchTokens.TangerineSoft else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, if (selected) SoulMatchTokens.Tangerine else SoulMatchTokens.Border),
         onClick = onClick
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = if (selected) Success else MaterialTheme.colorScheme.onSurface)
-            Text(detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = if (selected) SoulMatchTokens.Tangerine else SoulMatchTokens.Text)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
         }
     }
 }

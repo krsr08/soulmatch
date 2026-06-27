@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.viewmodels.AuthUiState
 import com.soulmatch.app.ui.viewmodels.AuthViewModel
 
@@ -58,7 +59,7 @@ fun RoleSelectionScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFFFF7F8))
+            .background(SoulMatchTokens.Bg)
             .statusBarsPadding()
             .padding(horizontal = 20.dp, vertical = 24.dp),
         contentAlignment = Alignment.Center
@@ -66,9 +67,10 @@ fun RoleSelectionScreen(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = Color.White,
-            shape = RoundedCornerShape(28.dp),
-            tonalElevation = 6.dp,
-            shadowElevation = 12.dp
+            shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
+            border = androidx.compose.foundation.BorderStroke(1.dp, SoulMatchTokens.Border)
         ) {
             Column(
                 modifier = Modifier
@@ -80,11 +82,11 @@ fun RoleSelectionScreen(
                 Box(
                     modifier = Modifier
                         .size(width = 56.dp, height = 6.dp)
-                        .background(Color(0xFFE5DEDF), RoundedCornerShape(999.dp))
+                        .background(SoulMatchTokens.Border, RoundedCornerShape(999.dp))
                 )
                 Text(
                     text = "Choose How You Want To Use SoulMatch",
-                    color = Color(0xFF23181B),
+                    color = SoulMatchTokens.Text,
                     fontFamily = FontFamily.Serif,
                     fontWeight = FontWeight.Bold,
                     fontSize = 22.sp,
@@ -93,7 +95,7 @@ fun RoleSelectionScreen(
                 )
                 Text(
                     text = "Select a path to continue. You can look for a partner yourself or manage profiles for others.",
-                    color = Color(0xFF73535A),
+                    color = SoulMatchTokens.Muted,
                     style = MaterialTheme.typography.bodyMedium,
                     lineHeight = 24.sp,
                     textAlign = TextAlign.Center,
@@ -117,7 +119,7 @@ fun RoleSelectionScreen(
                 )
                 if (state is AuthUiState.Loading) {
                     CircularProgressIndicator(
-                        color = Color(0xFF8E1235),
+                        color = SoulMatchTokens.Tangerine,
                         strokeWidth = 2.dp,
                         modifier = Modifier.size(22.dp)
                     )
@@ -125,7 +127,7 @@ fun RoleSelectionScreen(
                 if (state is AuthUiState.Error) {
                     Text(
                         text = (state as AuthUiState.Error).message,
-                        color = Color(0xFFD72964),
+                        color = SoulMatchTokens.Error,
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center
                     )
@@ -148,10 +150,10 @@ private fun RoleCard(
         modifier = Modifier
             .fillMaxWidth()
             .height(146.dp)
-            .border(1.dp, Color(0xFFE8D7DB), RoundedCornerShape(22.dp))
+            .border(1.dp, SoulMatchTokens.Border, RoundedCornerShape(SoulMatchTokens.CardRadius))
             .clickable(enabled = enabled, onClick = onClick),
-        color = Color(0xFFFFFBFC),
-        shape = RoundedCornerShape(22.dp)
+        color = SoulMatchTokens.Card,
+        shape = RoundedCornerShape(SoulMatchTokens.CardRadius)
     ) {
         Row(
             modifier = Modifier
@@ -163,13 +165,13 @@ private fun RoleCard(
             Box(
                 modifier = Modifier
                     .size(64.dp)
-                    .background(Color(0xFFFCEDEF), CircleShape),
+                    .background(SoulMatchTokens.TangerineSoft, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = Color(0xFF8A2442),
+                    tint = SoulMatchTokens.Tangerine,
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -182,16 +184,16 @@ private fun RoleCard(
                     fontFamily = FontFamily.Serif,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF23181B)
+                    color = SoulMatchTokens.Text
                 )
                 Text(
                     text = subtitle,
-                    color = Color(0xFF6E5960),
+                    color = SoulMatchTokens.Muted,
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
                     text = cta,
-                    color = Color(0xFF8E1235),
+                    color = SoulMatchTokens.Tangerine,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -199,7 +201,7 @@ private fun RoleCard(
             Box(
                 modifier = Modifier
                     .size(38.dp)
-                    .background(Color(0xFF8E1235), CircleShape),
+                    .background(SoulMatchTokens.Tangerine, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(

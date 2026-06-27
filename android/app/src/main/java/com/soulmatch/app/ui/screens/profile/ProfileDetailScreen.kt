@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -76,15 +77,8 @@ import com.soulmatch.app.ui.components.dialogs.ReportConcernDialog
 import com.soulmatch.app.ui.components.premium.SectionTitle
 import com.soulmatch.app.ui.components.premium.SignalChip
 import com.soulmatch.app.ui.components.premium.UpgradePlanGate
-import com.soulmatch.app.ui.theme.Divider
-import com.soulmatch.app.ui.theme.Info
-import com.soulmatch.app.ui.theme.InfoSoft
-import com.soulmatch.app.ui.theme.PrimaryDark
 import com.soulmatch.app.ui.theme.Success
-import com.soulmatch.app.ui.theme.SuccessSoft
-import com.soulmatch.app.ui.theme.SurfaceSoft
-import com.soulmatch.app.ui.theme.SurfaceWarm
-import com.soulmatch.app.ui.theme.TextSecondary
+import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.titleCase
 import com.soulmatch.app.ui.viewmodels.ProfileDetailViewModel
 import com.soulmatch.app.ui.viewmodels.SubscriptionViewModel
@@ -235,8 +229,8 @@ fun ProfileDetailScreen(
                         }
                         if (!actionNotice.isNullOrBlank()) {
                             item {
-                                PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
-                                    Text(actionNotice ?: "", style = MaterialTheme.typography.bodyMedium, color = PrimaryDark, fontWeight = FontWeight.SemiBold)
+                                PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.TangerineSoft) {
+                                    Text(actionNotice ?: "", style = MaterialTheme.typography.bodyMedium, color = SoulMatchTokens.Tangerine, fontWeight = FontWeight.SemiBold)
                                 }
                             }
                         }
@@ -252,10 +246,10 @@ fun ProfileDetailScreen(
                             }
                         } else if (!canChat) {
                             item {
-                                PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceSoft) {
+                                PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Ivory) {
                                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Text("Chat opens after mutual acceptance", style = MaterialTheme.typography.titleSmall, color = PrimaryDark, fontWeight = FontWeight.Bold)
-                                        Text("Your membership is active. Send interest first; chat becomes available when both sides accept.", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                        Text("Chat opens after mutual acceptance", style = MaterialTheme.typography.titleSmall, color = SoulMatchTokens.Tangerine, fontWeight = FontWeight.Bold)
+                                        Text("Your membership is active. Send interest first; chat becomes available when both sides accept.", style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
                                     }
                                 }
                             }
@@ -390,17 +384,22 @@ private fun ProfileHero(profile: ProfileData, compatibilityScore: Int, onRequest
                     Surface(
                         shape = RoundedCornerShape(999.dp),
                         color = Color.White.copy(alpha = 0.92f),
-                        border = BorderStroke(1.dp, Divider.copy(alpha = 0.8f))
+                        border = BorderStroke(1.dp, SoulMatchTokens.Border.copy(alpha = 0.8f))
                     ) {
                         Text(
                             "Photo is private",
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                             style = MaterialTheme.typography.labelMedium,
-                            color = PrimaryDark,
+                            color = SoulMatchTokens.Tangerine,
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Button(onClick = onRequestPhoto, enabled = !requestPending) {
+                    Button(
+                        onClick = onRequestPhoto,
+                        enabled = !requestPending,
+                        shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                        colors = ButtonDefaults.buttonColors(containerColor = SoulMatchTokens.Tangerine)
+                    ) {
                         Icon(Icons.Filled.VisibilityOff, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(6.dp))
                         Text(if (requestPending) "Request sent" else "Request photo")
@@ -469,13 +468,15 @@ private fun PrimaryActionPanel(
     onAddFamilyReview: () -> Unit,
     onShare: () -> Unit
 ) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp), containerColor = MaterialTheme.colorScheme.surface) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp), containerColor = SoulMatchTokens.Card) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = onSendInterest,
                     enabled = !interestSent,
-                    modifier = Modifier.weight(1f).height(52.dp)
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                    colors = ButtonDefaults.buttonColors(containerColor = SoulMatchTokens.Tangerine)
                 ) {
                     Icon(Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.size(6.dp))
@@ -483,7 +484,10 @@ private fun PrimaryActionPanel(
                 }
                 OutlinedButton(
                     onClick = onOpenChat,
-                    modifier = Modifier.weight(1f).height(52.dp)
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                    border = BorderStroke(1.dp, SoulMatchTokens.Border),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SoulMatchTokens.Tangerine)
                 ) {
                     Icon(Icons.Filled.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.size(6.dp))
@@ -491,18 +495,36 @@ private fun PrimaryActionPanel(
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = onSave, modifier = Modifier.weight(1f)) {
+                OutlinedButton(
+                    onClick = onSave,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                    border = BorderStroke(1.dp, SoulMatchTokens.Border),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SoulMatchTokens.Tangerine)
+                ) {
                     Icon(if (shortlisted) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.size(6.dp))
                     Text(if (shortlisted) "Shortlisted" else "Save")
                 }
-                OutlinedButton(onClick = onShare, modifier = Modifier.weight(1f)) {
+                OutlinedButton(
+                    onClick = onShare,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                    border = BorderStroke(1.dp, SoulMatchTokens.Border),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SoulMatchTokens.Tangerine)
+                ) {
                     Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.size(6.dp))
                     Text("Share family")
                 }
             }
-            OutlinedButton(onClick = onAddFamilyReview, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+            OutlinedButton(
+                onClick = onAddFamilyReview,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                border = BorderStroke(1.dp, SoulMatchTokens.Border),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = SoulMatchTokens.Tangerine)
+            ) {
                 Icon(Icons.Filled.Bookmark, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.size(6.dp))
                 Text("Add to family board")
@@ -551,7 +573,7 @@ private fun ContactDetailsSection(
         profile.contactAccessStatus.equals("owner", ignoreCase = true)
     val ownerMasked = profile.contactAccessStatus.equals("owner_masked", ignoreCase = true) ||
         profile.contactPrivacy.equals("masked", ignoreCase = true)
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surface) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitle("Contact details", "Phone and email stay masked until access is allowed")
             DetailGrid(
@@ -562,17 +584,17 @@ private fun ContactDetailsSection(
             )
             when {
                 ownerMasked -> {
-                    Surface(shape = RoundedCornerShape(14.dp), color = InfoSoft, border = BorderStroke(1.dp, Divider)) {
+                    Surface(shape = RoundedCornerShape(SoulMatchTokens.CardRadius), color = SoulMatchTokens.Ivory, border = BorderStroke(1.dp, SoulMatchTokens.Border)) {
                         Row(
                             modifier = Modifier.padding(12.dp),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Filled.Chat, contentDescription = null, tint = Info, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Filled.Chat, contentDescription = null, tint = SoulMatchTokens.Tangerine, modifier = Modifier.size(18.dp))
                             Text(
                                 profile.contactAccessMessage.ifBlank { "This member has chosen to keep contact details private. You can connect through chat." },
                                 style = MaterialTheme.typography.bodySmall,
-                                color = PrimaryDark,
+                                color = SoulMatchTokens.Tangerine,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -593,7 +615,12 @@ private fun ContactDetailsSection(
                     )
                 }
                 else -> {
-                    Button(onClick = onUnmask, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                    Button(
+                        onClick = onUnmask,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                        colors = ButtonDefaults.buttonColors(containerColor = SoulMatchTokens.Tangerine)
+                    ) {
                         Icon(Icons.Filled.LockOpen, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))
                         Text("Unlock contact details")
@@ -602,7 +629,7 @@ private fun ContactDetailsSection(
                         profile.contactUnlocksRemaining?.let { "$it contact unlocks remaining this month." }
                             ?: "This uses one contact unlock if the member allows contact visibility.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
+                        color = SoulMatchTokens.Muted
                     )
                 }
             }
@@ -623,7 +650,7 @@ private fun formatHeightLabel(heightCm: Int): String {
 
 @Composable
 private fun ProfileOverview(profile: ProfileData, compatibility: CompatibilityData) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.TangerineSoft) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitle("Overview", "Why this profile is worth a closer look")
             CompatibilityBar(score = compatibility.overallScore)
@@ -680,7 +707,7 @@ private fun preferenceIncomeRange(preferences: PartnerPreferencesData): String {
 
 @Composable
 private fun TrustProfileSection(profile: ProfileData) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.TangerineSoft) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionTitle("Trust profile", "A concise view of trust, seriousness, and profile privacy")
             CompatibilityBar(score = profile.trustScore.coerceIn(0, 100))

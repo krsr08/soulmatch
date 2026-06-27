@@ -15,12 +15,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.soulmatch.app.R
+import com.soulmatch.app.ui.design.SoulMatchTokens
 
 @Composable
 fun LaunchBrandScreen() {
@@ -47,11 +46,7 @@ fun LaunchBrandScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.radialGradient(
-                    colors = listOf(Color(0xFFFFFFFF), Color(0xFFFFF8EF), Color(0xFFFFF3E3))
-                )
-            ),
+            .background(SoulMatchTokens.Bg),
         contentAlignment = Alignment.Center
     ) {
         Image(
