@@ -46,6 +46,10 @@ import com.soulmatch.app.ui.screens.auth.PhoneEntryScreen
 import com.soulmatch.app.ui.screens.auth.ProfileWizardScreen
 import com.soulmatch.app.ui.screens.auth.RoleSelectionScreen
 import com.soulmatch.app.ui.screens.auth.WelcomeScreen
+import com.soulmatch.app.ui.screens.auth.LanguageSelectionScreen
+import com.soulmatch.app.ui.screens.auth.OnboardingBenefitScreen
+import com.soulmatch.app.ui.screens.auth.ForgotPasswordScreen
+import com.soulmatch.app.ui.screens.auth.ResetPasswordScreen
 import com.soulmatch.app.ui.screens.agent.AgentAccountScreen
 import com.soulmatch.app.ui.screens.agent.AgentClientProfileScreen
 import com.soulmatch.app.ui.screens.agent.AgentDashboardScreen
@@ -142,17 +146,56 @@ fun AppNavigation(
             startDestination = startDestination,
             modifier = Modifier.padding(appPadding)
         ) {
+        composable("language_selection") {
+            LanguageSelectionScreen(
+                onContinue = {
+                    nav.navigate("onboarding_benefit") {
+                        popUpTo("language_selection") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+        composable("onboarding_benefit") {
+            OnboardingBenefitScreen(
+                onContinue = {
+                    nav.navigate("welcome") {
+                        popUpTo("onboarding_benefit") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
         composable("welcome") {
             WelcomeScreen(
                 branding = branding,
                 content = content.auth,
                 googleWebClientId = clientIntegrations.googleWebClientId,
                 onOtpSent = { phone -> nav.navigate(buildOtpRoute(phone, "member")) },
+                onBackToLanguage = { nav.navigate("language_selection") },
+                onForgotPassword = { nav.navigate("forgot_password") },
                 onOpenTerms = { nav.navigate("legal/terms") },
                 onOpenPrivacy = { nav.navigate("legal/privacy") },
                 onAuthenticated = { route ->
                     nav.navigate(route) {
                         popUpTo("welcome") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+        composable("forgot_password") {
+            ForgotPasswordScreen(
+                onBack = { nav.popBackStack() },
+                onOpenReset = { nav.navigate("reset_password") }
+            )
+        }
+        composable("reset_password") {
+            ResetPasswordScreen(
+                onBack = { nav.popBackStack() },
+                onDone = {
+                    nav.navigate("welcome") {
+                        popUpTo("welcome") { inclusive = false }
                         launchSingleTop = true
                     }
                 }
@@ -696,6 +739,10 @@ private fun MonetizationRuntimeData.isFixedPriceMode(): Boolean {
 private fun String.shouldShowBottomNavigation(): Boolean {
     if (isBlank()) return false
     return !startsWith("welcome") &&
+        !startsWith("language_selection") &&
+        !startsWith("onboarding_benefit") &&
+        !startsWith("forgot_password") &&
+        !startsWith("reset_password") &&
         !startsWith("phone_entry") &&
         !startsWith("otp/") &&
         !startsWith("auth_role_selection") &&

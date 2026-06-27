@@ -53,6 +53,8 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
         val PROFILE_VISIBILITY = stringPreferencesKey("profile_visibility")
         val PENDING_OTP_PHONE = stringPreferencesKey("pending_otp_phone")
         val PENDING_OTP_VERIFICATION_ID = stringPreferencesKey("pending_otp_verification_id")
+        val APP_LANGUAGE = stringPreferencesKey("app_language")
+        val MEMBER_ONBOARDING_SEEN = booleanPreferencesKey("member_onboarding_seen")
     }
     val authToken: Flow<String?> = authTokenState
     val refreshToken: Flow<String?> = refreshTokenState
@@ -71,6 +73,8 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
     val profileVisibility: Flow<String> = store.data.map { it[PROFILE_VISIBILITY] ?: "all" }
     val pendingOtpPhone: Flow<String?> = store.data.map { it[PENDING_OTP_PHONE] }
     val pendingOtpVerificationId: Flow<String?> = store.data.map { it[PENDING_OTP_VERIFICATION_ID] }
+    val appLanguage: Flow<String?> = store.data.map { it[APP_LANGUAGE] }
+    val memberOnboardingSeen: Flow<Boolean> = store.data.map { it[MEMBER_ONBOARDING_SEEN] ?: false }
     fun currentAuthToken(): String? = authTokenState.value
     fun currentRefreshToken(): String? = refreshTokenState.value
     fun installationId(): String {
@@ -113,6 +117,8 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
             it[PENDING_OTP_VERIFICATION_ID] = verificationId
         }
     }
+    suspend fun saveAppLanguage(language: String) { store.edit { it[APP_LANGUAGE] = language } }
+    suspend fun saveMemberOnboardingSeen(seen: Boolean) { store.edit { it[MEMBER_ONBOARDING_SEEN] = seen } }
     suspend fun clearPendingOtpSession() {
         store.edit {
             it.remove(PENDING_OTP_PHONE)

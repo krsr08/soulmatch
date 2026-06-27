@@ -111,8 +111,10 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
             val token by userPreferences.authToken.collectAsState(initial = null)
             val pushEnabled by userPreferences.pushNotifications.collectAsState(initial = true)
             val notificationPromptDismissed by userPreferences.notificationPromptDismissed.collectAsState(initial = false)
+            val appLanguage by userPreferences.appLanguage.collectAsState(initial = null)
+            val memberOnboardingSeen by userPreferences.memberOnboardingSeen.collectAsState(initial = false)
             val runtimeConfig by runtimeConfigRepository.config.collectAsState(initial = RuntimeConfigData())
-            var startDestination by remember(token) { mutableStateOf<String?>(null) }
+            var startDestination by remember(token, appLanguage, memberOnboardingSeen) { mutableStateOf<String?>(null) }
 
             LaunchedEffect(Unit) {
                 while (true) {
@@ -121,12 +123,16 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                 }
             }
 
-            LaunchedEffect(token) {
+            LaunchedEffect(token, appLanguage, memberOnboardingSeen) {
                 startDestination = null
                 if (token.isNullOrEmpty()) {
                     CrashReporter.clearUser()
                     userPreferences.clearPendingAuthRoute()
-                    startDestination = "welcome"
+                    startDestination = when {
+                        appLanguage.isNullOrBlank() -> "language_selection"
+                        !memberOnboardingSeen -> "onboarding_benefit"
+                        else -> "welcome"
+                    }
                     return@LaunchedEffect
                 }
                 CrashReporter.identify(

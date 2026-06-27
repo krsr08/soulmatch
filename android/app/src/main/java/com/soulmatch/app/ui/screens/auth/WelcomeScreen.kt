@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -74,6 +76,8 @@ fun WelcomeScreen(
     content: AuthContentData = AuthContentData(),
     googleWebClientId: String = "",
     onOtpSent: (String) -> Unit,
+    onBackToLanguage: () -> Unit = {},
+    onForgotPassword: () -> Unit = {},
     onOpenTerms: () -> Unit,
     onOpenPrivacy: () -> Unit,
     onAuthenticated: (String) -> Unit = {},
@@ -129,129 +133,151 @@ fun WelcomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 18.dp, vertical = 28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .statusBarsPadding()
+                .padding(horizontal = 22.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Surface(
+            Text(
+                text = "< Language",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onBackToLanguage),
+                color = SoulMatchTokens.Tangerine,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(30.dp))
+            Text(
+                text = "Login or register",
                 modifier = Modifier.fillMaxWidth(),
-                color = Color.White,
+                color = SoulMatchTokens.Text,
+                fontSize = 38.sp,
+                lineHeight = 44.sp,
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "Enter your mobile number or continue with Google. We'll verify your number with OTP and then take you to the right screen.",
+                modifier = Modifier.padding(top = 18.dp),
+                color = SoulMatchTokens.Muted,
+                style = MaterialTheme.typography.bodyLarge,
+                lineHeight = 28.sp
+            )
+            Spacer(Modifier.height(28.dp))
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("Mobile number", color = SoulMatchTokens.Muted, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                MobileNumberField(
+                    value = phone,
+                    onValueChange = {
+                        phone = it.filter(Char::isDigit).take(10)
+                        vm.clearError()
+                    }
+                )
+            }
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 28.dp),
+                color = SoulMatchTokens.Ivory,
                 shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
-                shadowElevation = 0.dp,
                 border = BorderStroke(1.dp, SoulMatchTokens.Border)
             ) {
-                Column(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                        .padding(horizontal = 18.dp, vertical = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    Icon(Icons.Filled.Security, contentDescription = null, tint = SoulMatchTokens.Tangerine, modifier = Modifier.size(28.dp))
                     Text(
-                        text = branding.appTitle.ifBlank { "SoulMatch" },
-                        color = SoulMatchTokens.Tangerine,
-                        fontSize = 46.sp,
-                        fontFamily = FontFamily.Serif,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = "Trusted Matchmaking for Families and Agents",
+                        text = "After OTP, existing users continue to their app and new users start profile setup.",
                         color = SoulMatchTokens.Muted,
-                        fontSize = 15.sp,
-                        lineHeight = 22.sp,
-                        textAlign = TextAlign.Center
+                        style = MaterialTheme.typography.bodyMedium,
+                        lineHeight = 22.sp
                     )
-                    AccentDivider()
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "Mobile Number",
-                            color = SoulMatchTokens.Text,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 16.sp
-                        )
-                        MobileNumberField(
-                            value = phone,
-                            onValueChange = {
-                                phone = it.filter(Char::isDigit).take(10)
-                                vm.clearError()
-                            }
-                        )
-                    }
-                    Button(
-                        onClick = {
-                            val normalized = normalizeIndianPhone(phone)
-                            if (normalized == null) {
-                                vm.reportError("Enter a valid 10 digit mobile number.")
-                            } else {
-                                vm.clearError()
-                                vm.sendOTP(normalized, "member")
-                            }
-                        },
-                        enabled = state !is AuthUiState.Loading,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SoulMatchTokens.Tangerine,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text("Register / Login", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    }
-                    ContinueWithDivider()
-                    OutlinedButton(
-                        onClick = {
-                            vm.clearError()
-                            if (webClientId.isBlank()) {
-                                vm.reportError("Google sign-in is not configured yet. Add a valid Google web client ID in public config or local app config.")
-                            } else {
-                                googleClient.signOut().addOnCompleteListener {
-                                    googleLauncher.launch(googleClient.signInIntent)
-                                }
-                            }
-                        },
-                        enabled = state !is AuthUiState.Loading,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
-                        border = BorderStroke(1.dp, SoulMatchTokens.Border),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color.White,
-                            contentColor = Color(0xFF2D2D2D)
-                        )
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_google_g),
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Text(content.googleCta.ifBlank { "Continue with Google" }, fontWeight = FontWeight.Medium)
-                    }
-                    when (state) {
-                        is AuthUiState.Loading -> CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            color = SoulMatchTokens.Tangerine,
-                            strokeWidth = 2.dp
-                        )
-                        is AuthUiState.Error -> Text(
-                            text = (state as AuthUiState.Error).message,
-                            color = SoulMatchTokens.Error,
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center
-                        )
-                        else -> Unit
-                    }
-                    SafetyHighlights()
                 }
             }
-            Spacer(Modifier.height(18.dp))
+            when (state) {
+                is AuthUiState.Loading -> CircularProgressIndicator(
+                    modifier = Modifier.padding(top = 18.dp).size(22.dp),
+                    color = SoulMatchTokens.Tangerine,
+                    strokeWidth = 2.dp
+                )
+                is AuthUiState.Error -> Text(
+                    text = (state as AuthUiState.Error).message,
+                    modifier = Modifier.padding(top = 18.dp),
+                    color = SoulMatchTokens.Error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center
+                )
+                else -> Unit
+            }
+            Text(
+                text = "Forgot password?",
+                modifier = Modifier
+                    .padding(top = 16.dp)
+                    .clickable(onClick = onForgotPassword),
+                color = SoulMatchTokens.Tangerine,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.weight(1f))
+            Button(
+                onClick = {
+                    val normalized = normalizeIndianPhone(phone)
+                    if (normalized == null) {
+                        vm.reportError("Enter a valid 10 digit mobile number.")
+                    } else {
+                        vm.clearError()
+                        vm.sendOTP(normalized, "member")
+                    }
+                },
+                enabled = state !is AuthUiState.Loading,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp),
+                shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SoulMatchTokens.Tangerine,
+                    contentColor = Color.White
+                )
+            ) {
+                Text("Register / Login", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            }
+            ContinueWithDivider(modifier = Modifier.padding(vertical = 18.dp))
+            OutlinedButton(
+                onClick = {
+                    vm.clearError()
+                    if (webClientId.isBlank()) {
+                        vm.reportError("Google sign-in is not configured yet. Add a valid Google web client ID in public config or local app config.")
+                    } else {
+                        googleClient.signOut().addOnCompleteListener {
+                            googleLauncher.launch(googleClient.signInIntent)
+                        }
+                    }
+                },
+                enabled = state !is AuthUiState.Loading,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp),
+                shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                border = BorderStroke(1.dp, SoulMatchTokens.Border),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color.White,
+                    contentColor = Color(0xFF2D2D2D)
+                )
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_google_g),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(content.googleCta.ifBlank { "Continue with Google" }, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            }
             LegalLinks(
                 prefix = content.termsPrefix.ifBlank { "By continuing, you agree to our" },
                 onOpenTerms = onOpenTerms,
@@ -316,9 +342,9 @@ private fun MobileNumberField(
 }
 
 @Composable
-private fun ContinueWithDivider() {
+private fun ContinueWithDivider(modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
