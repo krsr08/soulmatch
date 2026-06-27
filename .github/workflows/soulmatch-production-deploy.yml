@@ -232,7 +232,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y openssh-client rsync
 
+      - name: Check Azure deployment secrets
+        id: azure_preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${AZURE_VM_HOST:-}" ] || [ -z "${AZURE_VM_USER:-}" ] || [ -z "${AZURE_VM_SSH_KEY:-}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping Azure VM deployment because AZURE_VM_HOST, AZURE_VM_USER, or AZURE_VM_SSH_KEY is not configured."
+            exit 0
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
       - name: Configure SSH
+        if: steps.azure_preflight.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -245,6 +258,7 @@ jobs:
           ssh-keyscan -p "$AZURE_VM_PORT" "$AZURE_VM_HOST" >> ~/.ssh/known_hosts
 
       - name: Verify VM production env exists
+        if: steps.azure_preflight.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -252,6 +266,7 @@ jobs:
             "mkdir -p '$AZURE_DEPLOY_PATH' && test -f '$AZURE_DEPLOY_PATH/docker/production.env'"
 
       - name: Sync source to Azure VM
+        if: steps.azure_preflight.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -280,6 +295,7 @@ jobs:
             ./ "$AZURE_VM_USER@$AZURE_VM_HOST:$AZURE_DEPLOY_PATH/"
 
       - name: Run production deploy
+        if: steps.azure_preflight.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail

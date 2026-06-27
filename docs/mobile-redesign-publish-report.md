@@ -28,5 +28,6 @@ Date: 2026-06-27
 
 - Password reset backend is not present in the current OTP-first auth service. The forgot/reset screens are implemented visually, but a real reset API must be added before password reset can be production-functional.
 - Play Store publishing is not configured locally in this repo. Current publish path is GitHub Actions artifacts/Firebase distribution/Azure deploy.
+- Azure deploy is skipped cleanly when `AZURE_VM_HOST`, `AZURE_VM_USER`, or `AZURE_VM_SSH_KEY` is not configured in GitHub Actions secrets.
 - Pencil MCP is installed but was not connected to the running Pencil app during this pass, so exported PNG/HTML assets were used as source of truth.
 - Full pixel-close migration for all remaining account/payment/chat/detail screens still needs continued phase work; current publish focuses on keeping the app buildable and improving the broken member login and missing pre-auth screens.
