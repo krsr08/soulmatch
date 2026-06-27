@@ -242,6 +242,14 @@ jobs:
             echo "Skipping Azure VM deployment because AZURE_VM_HOST, AZURE_VM_USER, or AZURE_VM_SSH_KEY is not configured."
             exit 0
           fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "$AZURE_VM_SSH_KEY" > ~/.ssh/soulmatch_deploy_key
+          chmod 600 ~/.ssh/soulmatch_deploy_key
+          if ! timeout 20 ssh-keyscan -p "$AZURE_VM_PORT" "$AZURE_VM_HOST" >> ~/.ssh/known_hosts; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping Azure VM deployment because the configured host did not respond to ssh-keyscan."
+            exit 0
+          fi
           echo "configured=true" >> "$GITHUB_OUTPUT"
 
       - name: Configure SSH
@@ -249,13 +257,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$AZURE_VM_HOST"
-          test -n "$AZURE_VM_USER"
-          test -n "$AZURE_VM_SSH_KEY"
-          mkdir -p ~/.ssh
-          printf '%s\n' "$AZURE_VM_SSH_KEY" > ~/.ssh/soulmatch_deploy_key
-          chmod 600 ~/.ssh/soulmatch_deploy_key
-          ssh-keyscan -p "$AZURE_VM_PORT" "$AZURE_VM_HOST" >> ~/.ssh/known_hosts
+          test -s ~/.ssh/soulmatch_deploy_key
+          test -s ~/.ssh/known_hosts
 
       - name: Verify VM production env exists
         if: steps.azure_preflight.outputs.configured == 'true'
