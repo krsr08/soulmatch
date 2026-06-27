@@ -9,11 +9,14 @@ let twilioClient = undefined;
 let twilioConfigWarningShown = false;
 
 function hasUsableTwilioConfig() {
+  const fromNumber = String(process.env.TWILIO_PHONE_NUMBER || '').trim();
   return Boolean(
     process.env.TWILIO_ACCOUNT_SID &&
     process.env.TWILIO_ACCOUNT_SID.startsWith('AC') &&
     process.env.TWILIO_AUTH_TOKEN &&
-    process.env.TWILIO_PHONE_NUMBER
+    fromNumber &&
+    fromNumber !== '+1000000000' &&
+    fromNumber !== '+1234567890'
   );
 }
 
@@ -82,6 +85,11 @@ exports.sendSMS = async (phone, message) => {
     logger.warn('OTP delivery unavailable for ' + phone + '. Twilio is not configured.');
     return { delivered: false, mode: 'unavailable' };
   }
-  await client.messages.create({ body: message, from: process.env.TWILIO_PHONE_NUMBER, to: phone });
-  return { delivered: true, mode: 'twilio' };
+  try {
+    await client.messages.create({ body: message, from: process.env.TWILIO_PHONE_NUMBER, to: phone });
+    return { delivered: true, mode: 'twilio' };
+  } catch (error) {
+    logger.error('OTP delivery failed through Twilio: ' + error.message);
+    return { delivered: false, mode: 'twilio_error' };
+  }
 };

@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.SoulMatch" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">#D4285A</item>
+        <item name="colorPrimary">#FF5C00</item>
         <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorSecondary">#F5A623</item>
+        <item name="colorSecondary">#FF8533</item>
         <item name="colorOnSecondary">#FFFFFF</item>
-        <item name="android:statusBarColor">#D4285A</item>
-        <item name="android:navigationBarColor">#FFF8F4</item>
+        <item name="android:statusBarColor">#FFFFFF</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowBackground">@drawable/splash_window_background</item>
     </style>
 </resources>

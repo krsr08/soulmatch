@@ -457,10 +457,10 @@ const DEFAULT_CONFIG = {
     shareBaseUrl: 'https://app.soulmatch.app'
   },
   theme: {
-    primary: '#D4285A',
-    secondary: '#F5A623',
+    primary: '#FF5C00',
+    secondary: '#FF8533',
     accent: '#16324F',
-    background: '#FFF8F4',
+    background: '#FFFFFF',
     surface: '#FFFFFF'
   },
   feature_flags: {

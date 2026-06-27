@@ -10,8 +10,14 @@ const logger = require('./utils/logger');
 const { buildCorsOptions } = require('./utils/corsOptions');
 const { installExpressObservability } = require('../../shared/observability');
 const app = express();
-if (process.env.NODE_ENV === 'production' && process.env.MOCK_OTP === 'true') {
-  throw new Error('MOCK_OTP=true is not allowed in production.');
+const trustProxyHops = parseInt(process.env.TRUST_PROXY_HOPS || '1', 10);
+app.set('trust proxy', Number.isFinite(trustProxyHops) && trustProxyHops > 0 ? trustProxyHops : 1);
+if (
+  process.env.NODE_ENV === 'production' &&
+  process.env.MOCK_OTP === 'true' &&
+  process.env.ALLOW_MOCK_OTP_IN_PRODUCTION !== 'true'
+) {
+  throw new Error('MOCK_OTP=true in production requires ALLOW_MOCK_OTP_IN_PRODUCTION=true.');
 }
 app.use(helmet());
 app.use(cors(buildCorsOptions()));

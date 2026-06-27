@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 object SoulMatchTokens {
     val Bg = Color(0xFFFFFFFF)
@@ -53,7 +54,10 @@ object SoulMatchTokens {
     val ScreenPadding = 18.dp
     val CardRadius = 12.dp
     val PillRadius = 999.dp
-    val ControlHeight = 48.dp
+    val ControlHeight = 60.dp
+    val CompactControlHeight = 48.dp
+    val IconButtonSize = 44.dp
+    val IconSize = 22.dp
 }
 
 @Composable
@@ -161,7 +165,7 @@ fun SoulMatchPrimaryButton(
             disabledContentColor = Color.White
         )
     ) {
-        Text(text, fontWeight = FontWeight.Bold)
+        Text(text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
     }
 }
 
@@ -186,7 +190,7 @@ fun SoulMatchSecondaryButton(
             disabledContentColor = SoulMatchTokens.Muted
         )
     ) {
-        Text(text, fontWeight = FontWeight.Bold)
+        Text(text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
     }
 }
 
@@ -251,7 +255,7 @@ fun SoulMatchIconButton(
 ) {
     IconButton(
         onClick = onClick,
-        modifier = modifier.size(38.dp)
+        modifier = modifier.size(SoulMatchTokens.IconButtonSize)
     ) {
         Surface(
             modifier = Modifier.fillMaxSize(),
@@ -260,7 +264,7 @@ fun SoulMatchIconButton(
             border = BorderStroke(1.dp, SoulMatchTokens.Border)
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(20.dp))
+                Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(SoulMatchTokens.IconSize))
             }
         }
     }

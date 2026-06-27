@@ -423,7 +423,7 @@ exports.renderProfileSharePage = async (req, res) => {
     res.status(500).send(
       renderShareErrorPage({
         appTitle: 'SoulMatch',
-        accentColor: '#D4285A',
+        accentColor: '#FF5C00',
         title: 'Share unavailable',
         message: 'We could not load this shared page right now. Please try again shortly.',
         linkUrl: 'https://app.soulmatch.app'
@@ -480,7 +480,7 @@ exports.renderLandingSharePage = async (req, res) => {
     res.status(500).send(
       renderShareErrorPage({
         appTitle: 'SoulMatch',
-        accentColor: '#D4285A',
+        accentColor: '#FF5C00',
         title: 'Share unavailable',
         message: 'We could not load this shared page right now. Please try again shortly.',
         linkUrl: 'https://app.soulmatch.app'

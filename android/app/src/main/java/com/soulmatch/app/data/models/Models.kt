@@ -875,10 +875,10 @@ data class BrandingConfig(
 )
 
 data class ThemeConfig(
-    val primary: String = "#D4285A",
-    val secondary: String = "#F5A623",
+    val primary: String = "#FF5C00",
+    val secondary: String = "#FF8533",
     val accent: String = "#16324F",
-    val background: String = "#FFF8F4",
+    val background: String = "#FFFFFF",
     val surface: String = "#FFFFFF"
 )
 

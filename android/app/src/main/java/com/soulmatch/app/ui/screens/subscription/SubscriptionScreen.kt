@@ -630,7 +630,7 @@ private fun checkoutOptions(pending: PendingCheckout, razorpayKeyId: String): JS
     return JSONObject().apply {
         put("name", "SoulMatch")
         put("description", "${pending.planName} membership")
-        put("theme.color", "#D4285A")
+        put("theme.color", "#FF5C00")
         put("currency", pending.order.currency)
         put("amount", pending.order.amount)
         put("order_id", pending.order.orderId)
