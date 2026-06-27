@@ -104,7 +104,7 @@ fun WelcomeScreen(
             if (token.isNullOrBlank()) {
                 vm.reportError("Google sign-in did not return a valid ID token. Please check the app's Google OAuth setup.")
             } else {
-                vm.googleLogin(token, null)
+                vm.googleLogin(token, "member")
             }
         } catch (error: ApiException) {
             val statusName = GoogleSignInStatusCodes.getStatusCodeString(error.statusCode)
@@ -188,7 +188,7 @@ fun WelcomeScreen(
                                 vm.reportError("Enter a valid 10 digit mobile number.")
                             } else {
                                 vm.clearError()
-                                vm.sendOTP(normalized, null)
+                                vm.sendOTP(normalized, "member")
                             }
                         },
                         enabled = state !is AuthUiState.Loading,

@@ -187,7 +187,8 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                         val profile = body.data
                         if (profile?.profileId.isNullOrBlank()) {
                             userPreferences.clearProfileProgress()
-                            startDestination = "auth_role_selection"
+                            userPreferences.saveWizardStep(1)
+                            startDestination = "profile_wizard/1"
                             return@LaunchedEffect
                         } else {
                             userPreferences.saveProfileId(profile?.profileId.orEmpty())

@@ -147,7 +147,7 @@ fun AppNavigation(
                 branding = branding,
                 content = content.auth,
                 googleWebClientId = clientIntegrations.googleWebClientId,
-                onOtpSent = { phone -> nav.navigate(buildOtpRoute(phone)) },
+                onOtpSent = { phone -> nav.navigate(buildOtpRoute(phone, "member")) },
                 onOpenTerms = { nav.navigate("legal/terms") },
                 onOpenPrivacy = { nav.navigate("legal/privacy") },
                 onAuthenticated = { route ->
