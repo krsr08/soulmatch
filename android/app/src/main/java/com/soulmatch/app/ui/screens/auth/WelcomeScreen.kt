@@ -15,17 +15,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -52,6 +54,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -77,7 +80,6 @@ fun WelcomeScreen(
     googleWebClientId: String = "",
     onOtpSent: (String) -> Unit,
     onBackToLanguage: () -> Unit = {},
-    onForgotPassword: () -> Unit = {},
     onOpenTerms: () -> Unit,
     onOpenPrivacy: () -> Unit,
     onAuthenticated: (String) -> Unit = {},
@@ -134,11 +136,14 @@ fun WelcomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
+                .imePadding()
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "< Language",
+                text = "<",
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onBackToLanguage),
@@ -211,27 +216,20 @@ fun WelcomeScreen(
                 )
                 is AuthUiState.Error -> Text(
                     text = (state as AuthUiState.Error).message,
-                    modifier = Modifier.padding(top = 18.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 14.dp),
                     color = SoulMatchTokens.Error,
                     style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Start
                 )
                 else -> Unit
             }
-            Text(
-                text = "Forgot password?",
-                modifier = Modifier
-                    .padding(top = 16.dp)
-                    .clickable(onClick = onForgotPassword),
-                color = SoulMatchTokens.Tangerine,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.weight(1f))
             Button(
                 onClick = {
-                    val normalized = normalizeIndianPhone(phone)
+                    val normalized = normalizeIndianPhone(phone.trim())
                     if (normalized == null) {
-                        vm.reportError("Enter a valid 10 digit mobile number.")
+                        vm.reportError("Enter a valid 10 digit Indian mobile number starting with 6, 7, 8, or 9.")
                     } else {
                         vm.clearError()
                         vm.sendOTP(normalized, "member")
@@ -249,7 +247,7 @@ fun WelcomeScreen(
             ) {
                 Text("Register / Login", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             }
-            ContinueWithDivider(modifier = Modifier.padding(vertical = 18.dp))
+            ContinueWithDivider(modifier = Modifier.padding(vertical = 16.dp))
             OutlinedButton(
                 onClick = {
                     vm.clearError()
@@ -307,6 +305,7 @@ private fun MobileNumberField(
                 .fillMaxWidth()
                 .padding(horizontal = 18.dp, vertical = 18.dp),
             singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
             textStyle = TextStyle(
                 color = SoulMatchTokens.Text,
                 fontSize = 18.sp
@@ -334,7 +333,7 @@ private fun ContinueWithDivider(modifier: Modifier = Modifier) {
     ) {
         Divider(modifier = Modifier.weight(1f), color = SoulMatchTokens.Border)
         Text(
-            text = "Or continue with",
+            text = "Or",
             color = SoulMatchTokens.Muted,
             fontSize = 14.sp
         )
@@ -386,7 +385,9 @@ private fun LegalLinks(
 
 private fun normalizeIndianPhone(raw: String): String? {
     val digits = raw.filter(Char::isDigit)
-    return if (digits.length == 10) "+91$digits" else null
+    val startsValid = digits.firstOrNull() in listOf('6', '7', '8', '9')
+    val notRepeated = digits.toSet().size > 1
+    return if (digits.length == 10 && startsValid && notRepeated) "+91$digits" else null
 }
 
 private fun googleSignInErrorMessage(statusCode: Int, statusName: String): String {

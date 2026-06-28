@@ -16,12 +16,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material.icons.outlined.Shield
@@ -38,8 +40,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -49,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.soulmatch.app.R
 import com.soulmatch.app.ui.design.SoulMatchPrimaryButton
 import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.viewmodels.IntroViewModel
@@ -82,7 +87,13 @@ fun LanguageSelectionScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.height(86.dp))
-        SoftIcon { Text("A", color = SoulMatchTokens.Tangerine, fontSize = 34.sp, fontWeight = FontWeight.Bold) }
+        SoftIcon {
+            androidx.compose.foundation.Image(
+                painter = painterResource(id = R.drawable.language_icon),
+                contentDescription = null,
+                modifier = Modifier.size(52.dp)
+            )
+        }
         Spacer(Modifier.height(28.dp))
         Text(
             text = "Choose your language",
@@ -132,6 +143,26 @@ fun OnboardingBenefitScreen(
     onContinue: () -> Unit,
     vm: IntroViewModel = hiltViewModel()
 ) {
+    var page by remember { mutableStateOf(0) }
+    val slides = listOf(
+        BenefitSlide(
+            icon = Icons.Filled.VerifiedUser,
+            title = "A safer way to meet",
+            body = "Profile verification helps families trust each introduction before serious conversations begin."
+        ),
+        BenefitSlide(
+            icon = Icons.Outlined.Shield,
+            title = "Privacy in your control",
+            body = "Choose who can see photos, contact details, family information, and other personal sections."
+        ),
+        BenefitSlide(
+            icon = Icons.Outlined.AutoAwesome,
+            title = "Meaningful recommendations",
+            body = "SoulMatch guides you into profile creation so better matches can begin right away."
+        )
+    )
+    val slide = slides[page]
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -141,10 +172,10 @@ fun OnboardingBenefitScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.height(70.dp))
-        SoftIcon { Icon(Icons.Filled.VerifiedUser, contentDescription = null, tint = SoulMatchTokens.Tangerine, modifier = Modifier.size(34.dp)) }
+        SoftIcon { Icon(slide.icon, contentDescription = null, tint = SoulMatchTokens.Tangerine, modifier = Modifier.size(34.dp)) }
         Spacer(Modifier.height(28.dp))
         Text(
-            text = "A safer way to meet",
+            text = slide.title,
             color = SoulMatchTokens.Text,
             fontFamily = FontFamily.Serif,
             fontSize = 34.sp,
@@ -153,26 +184,24 @@ fun OnboardingBenefitScreen(
             textAlign = TextAlign.Center
         )
         Text(
-            text = "SoulMatch helps you move from account setup to profile creation with confidence.",
+            text = slide.body,
             modifier = Modifier.padding(top = 16.dp, bottom = 28.dp),
             color = SoulMatchTokens.Muted,
             style = MaterialTheme.typography.bodyLarge,
             lineHeight = 26.sp,
             textAlign = TextAlign.Center
         )
-        BenefitCard(Icons.Filled.VerifiedUser, "Profile verification", "ID and contact checks help families trust every introduction.")
-        BenefitCard(Icons.Outlined.Shield, "Privacy controls", "Choose who can view photos, horoscope, contact details, and family information.")
-        BenefitCard(Icons.Outlined.AutoAwesome, "Match recommendations", "Get meaningful suggestions based on community, lifestyle, preferences, and intent.")
+        BenefitCard(slide.icon, slide.title, slide.body)
         Row(
-            modifier = Modifier.padding(top = 20.dp),
+            modifier = Modifier.padding(top = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            repeat(4) { index ->
+            repeat(slides.size) { index ->
                 Box(
                     modifier = Modifier
-                        .size(width = if (index == 3) 48.dp else 16.dp, height = 14.dp)
+                        .size(width = if (index == page) 30.dp else 10.dp, height = 10.dp)
                         .background(
-                            if (index == 3) SoulMatchTokens.Tangerine else SoulMatchTokens.Border,
+                            if (index == page) SoulMatchTokens.Tangerine else SoulMatchTokens.Border,
                             RoundedCornerShape(999.dp)
                         )
                 )
@@ -180,8 +209,14 @@ fun OnboardingBenefitScreen(
         }
         Spacer(Modifier.weight(1f))
         SoulMatchPrimaryButton(
-            text = "Continue to profile creation",
-            onClick = { vm.completeOnboarding(onContinue) },
+            text = if (page == slides.lastIndex) "Continue to profile creation" else "Next",
+            onClick = {
+                if (page == slides.lastIndex) {
+                    vm.completeOnboarding(onContinue)
+                } else {
+                    page += 1
+                }
+            },
             modifier = Modifier.height(64.dp)
         )
     }
@@ -312,11 +347,17 @@ fun ResetPasswordScreen(
 
 @Composable
 private fun LanguagePill(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(999.dp)
     Surface(
         modifier = modifier
             .height(58.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(999.dp),
+            .clip(shape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        shape = shape,
         color = if (selected) SoulMatchTokens.Tangerine else Color.White,
         border = BorderStroke(1.dp, if (selected) SoulMatchTokens.Tangerine else SoulMatchTokens.Border)
     ) {
@@ -379,6 +420,12 @@ private fun BackText(label: String, onClick: () -> Unit) {
         fontWeight = FontWeight.Bold
     )
 }
+
+private data class BenefitSlide(
+    val icon: ImageVector,
+    val title: String,
+    val body: String
+)
 
 @Composable
 private fun AuthTitle(text: String) {

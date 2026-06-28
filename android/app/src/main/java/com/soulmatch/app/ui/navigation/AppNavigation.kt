@@ -154,7 +154,7 @@ fun AppNavigation(
         composable("language_selection") {
             LanguageSelectionScreen(
                 onContinue = {
-                    nav.navigate("onboarding_benefit") {
+                    nav.navigate("welcome") {
                         popUpTo("language_selection") { inclusive = true }
                         launchSingleTop = true
                     }
@@ -164,7 +164,7 @@ fun AppNavigation(
         composable("onboarding_benefit") {
             OnboardingBenefitScreen(
                 onContinue = {
-                    nav.navigate("welcome") {
+                    nav.navigate("profile_wizard/1") {
                         popUpTo("onboarding_benefit") { inclusive = true }
                         launchSingleTop = true
                     }
@@ -178,7 +178,6 @@ fun AppNavigation(
                 googleWebClientId = clientIntegrations.googleWebClientId,
                 onOtpSent = { phone -> nav.navigate(buildOtpRoute(phone, "member")) },
                 onBackToLanguage = { nav.navigate("language_selection") },
-                onForgotPassword = { nav.navigate("forgot_password") },
                 onOpenTerms = { nav.navigate("legal/terms") },
                 onOpenPrivacy = { nav.navigate("legal/privacy") },
                 onAuthenticated = { route ->

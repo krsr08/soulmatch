@@ -165,7 +165,7 @@ fun SoulMatchPrimaryButton(
             disabledContentColor = Color.White
         )
     ) {
-        Text(text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text(text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
     }
 }
 
@@ -190,7 +190,7 @@ fun SoulMatchSecondaryButton(
             disabledContentColor = SoulMatchTokens.Muted
         )
     ) {
-        Text(text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text(text, fontWeight = FontWeight.Bold, fontSize = 18.sp)
     }
 }
 

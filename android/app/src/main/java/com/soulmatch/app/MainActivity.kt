@@ -121,7 +121,13 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
             val appLanguage by userPreferences.appLanguage.collectAsState(initial = null)
             val memberOnboardingSeen by userPreferences.memberOnboardingSeen.collectAsState(initial = false)
             val runtimeConfig by runtimeConfigRepository.config.collectAsState(initial = RuntimeConfigData())
+            var splashReady by remember { mutableStateOf(false) }
             var startDestination by remember(token, appLanguage, memberOnboardingSeen) { mutableStateOf<String?>(null) }
+
+            LaunchedEffect(Unit) {
+                delay(1200)
+                splashReady = true
+            }
 
             LaunchedEffect(Unit) {
                 while (true) {
@@ -137,7 +143,6 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                     userPreferences.clearPendingAuthRoute()
                     startDestination = when {
                         appLanguage.isNullOrBlank() -> "language_selection"
-                        !memberOnboardingSeen -> "onboarding_benefit"
                         else -> "welcome"
                     }
                     return@LaunchedEffect
@@ -201,7 +206,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                         if (profile?.profileId.isNullOrBlank()) {
                             userPreferences.clearProfileProgress()
                             userPreferences.saveWizardStep(1)
-                            startDestination = "profile_wizard/1"
+                            startDestination = if (memberOnboardingSeen) "profile_wizard/1" else "onboarding_benefit"
                             return@LaunchedEffect
                         } else {
                             userPreferences.saveProfileId(profile?.profileId.orEmpty())
@@ -229,7 +234,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                     MaintenanceScreen(config = runtimeConfig)
                 } else {
                     val route = startDestination
-                    if (route == null) {
+                    if (!splashReady || route == null) {
                         LaunchBrandScreen()
                     } else {
                         AppNavigation(

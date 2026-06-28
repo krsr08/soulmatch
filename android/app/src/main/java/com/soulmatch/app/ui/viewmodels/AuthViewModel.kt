@@ -256,6 +256,7 @@ class AuthViewModel @Inject constructor(
                 profileApi.getMyProfile().body()?.takeIf { it.success }?.data
             }.getOrNull()
             val resolvedStep = resolveWizardStep(profile)
+            val onboardingSeen = prefs.memberOnboardingSeen.first()
             if (profile?.profileId.isNullOrBlank()) {
                 prefs.clearProfileProgress()
             } else {
@@ -263,7 +264,7 @@ class AuthViewModel @Inject constructor(
             }
             prefs.saveWizardStep(resolvedStep ?: 7)
             if (requestedUserType == "member" && data.isNewUser && profile?.profileId.isNullOrBlank()) {
-                "profile_wizard/1"
+                if (onboardingSeen) "profile_wizard/1" else "onboarding_benefit"
             } else {
                 resolvePostLoginRoute(profile)
             }
