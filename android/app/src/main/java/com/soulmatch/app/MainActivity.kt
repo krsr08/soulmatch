@@ -41,6 +41,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -122,10 +123,11 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
             val memberOnboardingSeen by userPreferences.memberOnboardingSeen.collectAsState(initial = false)
             val runtimeConfig by runtimeConfigRepository.config.collectAsState(initial = RuntimeConfigData())
             var splashReady by remember { mutableStateOf(false) }
-            var startDestination by remember(token, appLanguage, memberOnboardingSeen) { mutableStateOf<String?>(null) }
+            var hasShownLaunchSplash by rememberSaveable { mutableStateOf(false) }
+            var startDestination by remember { mutableStateOf<String?>(null) }
 
             LaunchedEffect(Unit) {
-                delay(1200)
+                delay(3000)
                 splashReady = true
             }
 
@@ -206,7 +208,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                         if (profile?.profileId.isNullOrBlank()) {
                             userPreferences.clearProfileProgress()
                             userPreferences.saveWizardStep(1)
-                            startDestination = if (memberOnboardingSeen) "profile_wizard/1" else "onboarding_benefit"
+                            startDestination = if (memberOnboardingSeen) "profile_intro" else "onboarding_benefit"
                             return@LaunchedEffect
                         } else {
                             userPreferences.saveProfileId(profile?.profileId.orEmpty())
@@ -234,9 +236,14 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                     MaintenanceScreen(config = runtimeConfig)
                 } else {
                     val route = startDestination
-                    if (!splashReady || route == null) {
+                    LaunchedEffect(splashReady, route) {
+                        if (!hasShownLaunchSplash && splashReady && route != null) {
+                            hasShownLaunchSplash = true
+                        }
+                    }
+                    if (!hasShownLaunchSplash && (!splashReady || route == null)) {
                         LaunchBrandScreen()
-                    } else {
+                    } else if (route != null) {
                         AppNavigation(
                             startDestination = route,
                             isAuthenticated = !token.isNullOrEmpty(),

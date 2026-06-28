@@ -7,6 +7,7 @@ import com.soulmatch.app.data.config.AppEnvironment
 import com.soulmatch.app.data.local.UserPreferences
 import com.soulmatch.app.data.mock.MarketFixtures
 import com.soulmatch.app.data.models.AiBioSuggestionRequest
+import com.soulmatch.app.data.models.PartnerPreferencesData
 import com.soulmatch.app.data.models.ProfileData
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -27,6 +28,7 @@ class ProfileViewModel @Inject constructor(
     private val _isSaving = MutableStateFlow(false)
     private val _isGeneratingBioSuggestions = MutableStateFlow(false)
     private val _bioSuggestions = MutableStateFlow<List<String>>(emptyList())
+    private val _partnerPreferences = MutableStateFlow(PartnerPreferencesData())
     private val _errorMessage = MutableStateFlow<String?>(null)
     private val _loadMessage = MutableStateFlow<String?>(null)
     private var usingMockProfile = false
@@ -35,6 +37,7 @@ class ProfileViewModel @Inject constructor(
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
     val isGeneratingBioSuggestions: StateFlow<Boolean> = _isGeneratingBioSuggestions.asStateFlow()
     val bioSuggestions: StateFlow<List<String>> = _bioSuggestions.asStateFlow()
+    val partnerPreferences: StateFlow<PartnerPreferencesData> = _partnerPreferences.asStateFlow()
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
     val loadMessage: StateFlow<String?> = _loadMessage.asStateFlow()
 
@@ -54,6 +57,20 @@ class ProfileViewModel @Inject constructor(
                 val body = response.body()
                 if (response.isSuccessful && body?.success == true) {
                     _profile.value = body.data
+                    val profileId = body.data?.profileId.orEmpty()
+                    if (profileId.isNotBlank()) {
+                        val prefResponse = runCatching { profileApi.getPreferences(profileId) }.getOrNull()
+                        _partnerPreferences.value = prefResponse?.body()?.takeIf { it.success }?.data
+                            ?: PartnerPreferencesData(
+                                religion = body.data?.religion,
+                                educationLevels = listOf(body.data?.educationLevel.orEmpty()).filter { it.isNotBlank() },
+                                occupations = listOf(body.data?.occupation.orEmpty()).filter { it.isNotBlank() },
+                                locations = listOf(body.data?.workingCity.orEmpty(), body.data?.familyCity.orEmpty()).filter { it.isNotBlank() }.distinct(),
+                                dietPrefs = listOf(body.data?.diet.orEmpty()).filter { it.isNotBlank() }
+                            )
+                    } else {
+                        _partnerPreferences.value = PartnerPreferencesData()
+                    }
                     usingMockProfile = false
                 } else {
                     if (canUseFallback) {
@@ -97,6 +114,10 @@ class ProfileViewModel @Inject constructor(
     fun updateStep5Data(d: Map<String, Any>) { stepData[5] = d }
     fun updateStep6Data(d: Map<String, Any>) { stepData[6] = d }
 
+    fun updatePartnerPreferences(preferences: PartnerPreferencesData) {
+        _partnerPreferences.value = preferences.safePreferences()
+    }
+
     fun requestBioSuggestions(currentBio: String) {
         val profileId = _profile.value?.profileId.orEmpty()
         if (profileId.isBlank()) {
@@ -128,6 +149,10 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun saveStep(step: Int, onSuccess: () -> Unit) {
+        if (step == 6) {
+            savePartnerPreferences(onSuccess)
+            return
+        }
         viewModelScope.launch {
             val payload = stepData[step]
             if (payload.isNullOrEmpty()) {
@@ -186,6 +211,34 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    private fun savePartnerPreferences(onSuccess: () -> Unit) {
+        val profileId = _profile.value?.profileId.orEmpty()
+        if (profileId.isBlank()) {
+            _errorMessage.value = "Complete the earlier steps first."
+            return
+        }
+        viewModelScope.launch {
+            _isSaving.value = true
+            _errorMessage.value = null
+            val request = _partnerPreferences.value.safePreferences()
+            try {
+                val response = profileApi.updatePreferences(profileId, request)
+                if (response.isSuccessful && response.body()?.success == true) {
+                    _profile.value = _profile.value?.copy(isPartnerPrefSet = true)
+                    prefs.saveWizardStep(7)
+                    loadProfile()
+                    onSuccess()
+                } else {
+                    _errorMessage.value = response.body()?.error?.message ?: "Could not save partner preferences."
+                }
+            } catch (error: Exception) {
+                _errorMessage.value = profileSaveErrorMessage(error)
+            } finally {
+                _isSaving.value = false
+            }
+        }
+    }
+
     private fun localBioSuggestions(currentBio: String): List<String> {
         val profile = _profile.value
         val name = listOfNotNull(profile?.firstName, profile?.lastName)
@@ -201,4 +254,18 @@ class ProfileViewModel @Inject constructor(
             "I am serious about finding a compatible life partner and hope to build a home shaped by trust, stability, and thoughtful family bonds."
         )
     }
+
+    private fun PartnerPreferencesData.safePreferences(): PartnerPreferencesData = copy(
+        religion = religion?.trim()?.ifBlank { null },
+        manglikPref = manglikPref.trim().ifBlank { "any" },
+        educationLevels = educationLevels.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+        occupations = occupations.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+        locations = locations.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+        dietPrefs = dietPrefs.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+        maritalStatuses = maritalStatuses.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+        familyTypes = familyTypes.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+        timeline = timeline?.trim()?.ifBlank { null },
+        dealBreakers = dealBreakers.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+        goodToHave = goodToHave.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+    )
 }

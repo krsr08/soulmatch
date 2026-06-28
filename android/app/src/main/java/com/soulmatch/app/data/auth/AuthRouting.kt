@@ -12,17 +12,12 @@ fun resolveWizardStep(profile: ProfileData?): Int? {
         safeText(data.firstName).isBlank() ||
             safeText(data.lastName).isBlank() ||
             data.dob.isNullOrBlank() ||
-            safeText(data.gender).isBlank() ||
-            safeText(data.religion).isBlank() ||
+            safeText(data.gender).isBlank() -> 1
+
+        safeText(data.religion).isBlank() ||
             safeText(data.caste).isBlank() ||
             safeText(data.motherTongue).isBlank() ||
-            safeText(data.maritalStatus).isBlank() -> 1
-
-        (data.heightCm ?: 0) <= 0 ||
-            (data.weightKg ?: 0) <= 0 ||
-            safeText(data.complexion).isBlank() ||
-            safeText(data.bodyType).isBlank() ||
-            safeText(data.bloodGroup).isBlank() -> 2
+            safeText(data.maritalStatus).isBlank() -> 2
 
         safeText(data.educationLevel).isBlank() ||
             (data.isEmployed && (
@@ -41,6 +36,7 @@ fun resolveWizardStep(profile: ProfileData?): Int? {
             safeText(data.familyCity).isBlank() -> 4
 
         safeText(data.diet).isBlank() || safeText(data.aboutMe).trim().length < 30 -> 5
+        !data.isPartnerPrefSet -> 6
         else -> null
     }
 }

@@ -88,6 +88,7 @@ fun WelcomeScreen(
     val state by vm.uiState.collectAsStateWithLifecycle()
     val webClientId = rememberGoogleWebClientId(googleWebClientId)
     var phone by remember { mutableStateOf("") }
+    var localPhoneError by remember { mutableStateOf<String?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
     val googleClient = remember(webClientId, context) {
@@ -142,28 +143,14 @@ fun WelcomeScreen(
                 .padding(horizontal = 22.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "<",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onBackToLanguage),
-                color = SoulMatchTokens.Tangerine,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+            AuthPageHeader(
+                title = "Login or register",
+                onBack = onBackToLanguage
             )
-            Spacer(Modifier.height(30.dp))
-            Text(
-                text = "Login or register",
-                modifier = Modifier.fillMaxWidth(),
-                color = SoulMatchTokens.Text,
-                fontSize = 38.sp,
-                lineHeight = 44.sp,
-                fontFamily = FontFamily.Serif,
-                fontWeight = FontWeight.Bold
-            )
+            Spacer(Modifier.height(22.dp))
             Text(
                 text = "Enter your mobile number or continue with Google. We'll verify your number with OTP and then take you to the right screen.",
-                modifier = Modifier.padding(top = 18.dp),
+                modifier = Modifier.fillMaxWidth(),
                 color = SoulMatchTokens.Muted,
                 style = MaterialTheme.typography.bodyLarge,
                 lineHeight = 28.sp
@@ -178,9 +165,18 @@ fun WelcomeScreen(
                     value = phone,
                     onValueChange = {
                         phone = it.filter(Char::isDigit).take(10)
+                        localPhoneError = null
                         vm.clearError()
                     }
                 )
+                if (localPhoneError != null) {
+                    Text(
+                        text = localPhoneError.orEmpty(),
+                        color = SoulMatchTokens.Error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
             }
             Surface(
                 modifier = Modifier
@@ -206,31 +202,14 @@ fun WelcomeScreen(
                     )
                 }
             }
-            when (state) {
-                is AuthUiState.Loading -> CircularProgressIndicator(
-                    modifier = Modifier
-                        .padding(top = 18.dp)
-                        .size(22.dp),
-                    color = SoulMatchTokens.Tangerine,
-                    strokeWidth = 2.dp
-                )
-                is AuthUiState.Error -> Text(
-                    text = (state as AuthUiState.Error).message,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 14.dp),
-                    color = SoulMatchTokens.Error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Start
-                )
-                else -> Unit
-            }
+            Spacer(Modifier.height(28.dp))
             Button(
                 onClick = {
                     val normalized = normalizeIndianPhone(phone.trim())
                     if (normalized == null) {
-                        vm.reportError("Enter a valid 10 digit Indian mobile number starting with 6, 7, 8, or 9.")
+                        localPhoneError = "Please enter a valid mobile number"
                     } else {
+                        localPhoneError = null
                         vm.clearError()
                         vm.sendOTP(normalized, "member")
                     }
@@ -246,6 +225,25 @@ fun WelcomeScreen(
                 )
             ) {
                 Text("Register / Login", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            }
+            when (state) {
+                is AuthUiState.Loading -> CircularProgressIndicator(
+                    modifier = Modifier
+                        .padding(top = 16.dp)
+                        .size(22.dp),
+                    color = SoulMatchTokens.Tangerine,
+                    strokeWidth = 2.dp
+                )
+                is AuthUiState.Error -> Text(
+                    text = (state as AuthUiState.Error).message,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 14.dp),
+                    color = SoulMatchTokens.Error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Start
+                )
+                else -> Unit
             }
             ContinueWithDivider(modifier = Modifier.padding(vertical = 16.dp))
             OutlinedButton(
@@ -396,7 +394,7 @@ private fun googleSignInErrorMessage(statusCode: Int, statusName: String): Strin
         GoogleSignInStatusCodes.SIGN_IN_CURRENTLY_IN_PROGRESS -> "Google sign-in is already in progress. Please wait."
         GoogleSignInStatusCodes.SIGN_IN_FAILED,
         CommonStatusCodes.DEVELOPER_ERROR -> "Google sign-in setup needs attention. Please verify the app SHA fingerprints and web client ID. Code: $statusCode"
-        else -> "Google sign-in failed. Code: $statusCode $statusName"
+        else -> "Google sign-in failed. Please try again."
     }
 }
 

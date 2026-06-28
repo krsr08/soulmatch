@@ -87,17 +87,12 @@ function validateStepData(step, data) {
       if (isBlank(data.lastName)) return 'Last name is required.';
       if (isBlank(data.dob)) return 'Date of birth is required in DD-MM-YYYY format.';
       if (isBlank(data.gender)) return 'Gender is required.';
+      return null;
+    case 2:
       if (isBlank(data.religion)) return 'Religion is required.';
       if (isBlank(data.caste)) return 'Community / caste is required.';
       if (isBlank(data.motherTongue)) return 'Mother tongue is required.';
       if (isBlank(data.maritalStatus)) return 'Marital status is required.';
-      return null;
-    case 2:
-      if (!hasPositiveNumber(data.heightCm)) return 'Height must be a valid number.';
-      if (!hasPositiveNumber(data.weightKg)) return 'Weight must be a valid number.';
-      if (isBlank(data.complexion)) return 'Complexion is required.';
-      if (isBlank(data.bodyType)) return 'Body type is required.';
-      if (isBlank(data.bloodGroup)) return 'Blood group is required.';
       return null;
     case 3: {
       const isEmployed = data.isEmployed === true || String(data.isEmployed).toLowerCase() === 'true';
@@ -390,7 +385,7 @@ exports.createOrUpdateStep = async (req, res, next) => {
     let result;
     switch (normalizedStep) {
       case 1: result = await repo.upsertBasicInfo(userId, dataForSave); break;
-      case 2: result = await repo.upsertPhysical(userId, dataForSave); break;
+      case 2: result = await repo.upsertReligiousCommunity(userId, dataForSave); break;
       case 3: result = await repo.upsertEducation(userId, dataForSave); break;
       case 4: result = await repo.upsertFamily(userId, dataForSave); break;
       case 5: result = await repo.upsertLifestyle(userId, dataForSave); break;

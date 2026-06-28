@@ -542,13 +542,12 @@ class MyProfileViewModel @Inject constructor(
                 editStep = 1
             ),
             ProfileChecklistItem(
-                title = "Physical details",
-                description = "Height, weight, complexion, body type, and blood group",
-                isComplete = (resolved.heightCm ?: 0) > 0 &&
-                    (resolved.weightKg ?: 0) > 0 &&
-                    safeText(resolved.complexion).isNotBlank() &&
-                    safeText(resolved.bodyType).isNotBlank() &&
-                    safeText(resolved.bloodGroup).isNotBlank(),
+                title = "Religious and community",
+                description = "Religion, community, language, and marital status",
+                isComplete = safeText(resolved.religion).isNotBlank() &&
+                    safeText(resolved.caste).isNotBlank() &&
+                    safeText(resolved.motherTongue).isNotBlank() &&
+                    safeText(resolved.maritalStatus).isNotBlank(),
                 editStep = 2
             ),
             ProfileChecklistItem(
@@ -585,11 +584,11 @@ class MyProfileViewModel @Inject constructor(
                 editStep = 5
             ),
             ProfileChecklistItem(
-                title = "Horoscope",
-                description = "Optional: add rashi, nakshatra, birth city, or gotra if relevant",
-                isComplete = hasHoroscopeDetails,
+                title = "Partner preferences",
+                description = "Match filters and recommendation inputs",
+                isComplete = resolved.isPartnerPrefSet,
                 editStep = 6,
-                statusLabel = if (hasHoroscopeDetails) "Complete" else "Optional"
+                statusLabel = if (resolved.isPartnerPrefSet) "Complete" else "Pending"
             )
         )
     }

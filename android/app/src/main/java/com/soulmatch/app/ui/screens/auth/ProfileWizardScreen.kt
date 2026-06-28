@@ -57,6 +57,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.soulmatch.app.data.models.PartnerPreferencesData
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.ui.components.premium.ChipTone
 import com.soulmatch.app.ui.components.premium.FilterChoiceChip
@@ -113,10 +114,10 @@ private val wizardCopy = mapOf(
         helper = "Diet, habits, and a thoughtful about section help serious members decide with confidence."
     ),
     6 to WizardStepCopy(
-        title = "Horoscope and traditions",
+        title = "Partner preferences",
         eyebrow = "Step 6 of 6",
-        subtitle = "Optional for some users, essential for others.",
-        helper = "Horoscope fields stay optional, but completing them improves compatibility context."
+        subtitle = "Set the match basics you care about most before profile review.",
+        helper = "These values go to the backend and power recommendations, filters, and shortlist quality."
     )
 )
 
@@ -260,7 +261,7 @@ fun ProfileWizardScreen(
                             Text(
                                 when {
                                     isSectionEdit -> "Save section"
-                                    currentStep == 6 -> "Publish profile"
+                                    currentStep == 6 -> "Continue"
                                     else -> "Continue"
                                 }
                             )
@@ -360,11 +361,7 @@ private fun isProfileSectionComplete(profile: ProfileData?, section: Int): Boole
             resolved.smoking.isNotBlank() &&
             resolved.drinking.isNotBlank() &&
             resolved.aboutMe.trim().length >= 30
-        6 -> resolved.rashi.isNotBlank() ||
-            resolved.nakshatra.isNotBlank() ||
-            resolved.birthCity.isNotBlank() ||
-            resolved.gotra.isNotBlank() ||
-            resolved.isManglik
+        6 -> resolved.isPartnerPrefSet
         else -> false
     }
 }
@@ -810,38 +807,53 @@ private fun Step5Lifestyle(existing: ProfileData?, vm: ProfileViewModel, onValid
 
 @Composable
 private fun Step6Horoscope(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
-    var rashi by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.rashi.orEmpty()) }
-    var nakshatra by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.nakshatra.orEmpty()) }
-    var isManglik by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.isManglik ?: false) }
-    var birthCity by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.birthCity.orEmpty()) }
-    var gotra by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.gotra.orEmpty()) }
+    val existingPreferences by vm.partnerPreferences.collectAsStateWithLifecycle()
+    var ageMin by rememberSaveable(existing?.profileId) { mutableStateOf(existingPreferences.ageMin.toString()) }
+    var ageMax by rememberSaveable(existing?.profileId) { mutableStateOf(existingPreferences.ageMax.toString()) }
+    var religion by rememberSaveable(existing?.profileId) { mutableStateOf(existingPreferences.religion.orEmpty()) }
+    var education by rememberSaveable(existing?.profileId) { mutableStateOf(existingPreferences.educationLevels.joinToString(", ")) }
+    var occupations by rememberSaveable(existing?.profileId) { mutableStateOf(existingPreferences.occupations.joinToString(", ")) }
+    var locations by rememberSaveable(existing?.profileId) { mutableStateOf(existingPreferences.locations.joinToString(", ")) }
+    var diet by rememberSaveable(existing?.profileId) { mutableStateOf(existingPreferences.dietPrefs.joinToString(", ")) }
+    var timeline by rememberSaveable(existing?.profileId) { mutableStateOf(existingPreferences.timeline.orEmpty()) }
 
-    LaunchedEffect(rashi, nakshatra, isManglik, birthCity, gotra) {
-        vm.updateStep6Data(
-            mapOf(
-                "rashi" to rashi,
-                "nakshatra" to nakshatra,
-                "isManglik" to isManglik,
-                "birthCity" to birthCity,
-                "gotra" to gotra
+    val isValid = ageMin.toIntOrNull() != null &&
+        ageMax.toIntOrNull() != null &&
+        ageMin.toInt() < ageMax.toInt() &&
+        locations.trim().isNotBlank()
+
+    LaunchedEffect(ageMin, ageMax, religion, education, occupations, locations, diet, timeline) {
+        vm.updatePartnerPreferences(
+            PartnerPreferencesData(
+                ageMin = ageMin.toIntOrNull() ?: 24,
+                ageMax = ageMax.toIntOrNull() ?: 32,
+                religion = religion.trim().ifBlank { null },
+                educationLevels = education.split(",").map { it.trim() }.filter { it.isNotBlank() },
+                occupations = occupations.split(",").map { it.trim() }.filter { it.isNotBlank() },
+                locations = locations.split(",").map { it.trim() }.filter { it.isNotBlank() },
+                dietPrefs = diet.split(",").map { it.trim() }.filter { it.isNotBlank() },
+                timeline = timeline.trim().ifBlank { null },
+                maritalStatuses = listOfNotNull(existing?.maritalStatus?.takeIf { it.isNotBlank() }),
+                familyTypes = listOfNotNull(existing?.familyType?.takeIf { it.isNotBlank() })
             )
         )
-        onValidityChange(true)
+        onValidityChange(isValid)
     }
 
     PremiumCard {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionLead("Horoscope and traditions", "Optional details stay respectful but visible for families who care about them.")
+            SectionLead("Partner preferences", "Match recommendations use these values first.")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(rashi, { rashi = it }, label = { Text("Rashi") }, modifier = Modifier.weight(1f))
-                OutlinedTextField(nakshatra, { nakshatra = it }, label = { Text("Nakshatra") }, modifier = Modifier.weight(1f))
+                NumberField(ageMin, { ageMin = it.filter(Char::isDigit).take(2) }, "Age min", Modifier.weight(1f))
+                NumberField(ageMax, { ageMax = it.filter(Char::isDigit).take(2) }, "Age max", Modifier.weight(1f))
             }
-            ChipRow("Manglik", listOf("yes", "no"), if (isManglik) "yes" else "no") { isManglik = it == "yes" }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(birthCity, { birthCity = it }, label = { Text("Birth city") }, modifier = Modifier.weight(1f))
-                OutlinedTextField(gotra, { gotra = it }, label = { Text("Gotra") }, modifier = Modifier.weight(1f))
-            }
-            SignalChips(listOf("Optional section", "Adds tradition context", "Improves compatibility notes"), tone = ChipTone.Info)
+            RequiredTextField(religion, { religion = it }, "Religion", supportingText = "Leave blank if open to all")
+            RequiredTextField(education, { education = it }, "Education", supportingText = "Comma separated")
+            RequiredTextField(occupations, { occupations = it }, "Occupation", supportingText = "Comma separated")
+            RequiredTextField(locations, { locations = it }, "Preferred locations", supportingText = "City names separated by comma")
+            RequiredTextField(diet, { diet = it }, "Diet preference", supportingText = "Example: vegetarian, eggetarian")
+            RequiredTextField(timeline, { timeline = it }, "Marriage timeline", supportingText = "Example: within 1 year")
+            SignalChips(listOf("Backend linked", "Drives recommendations", "Used in shortlist filtering"), tone = ChipTone.Info)
         }
     }
 }

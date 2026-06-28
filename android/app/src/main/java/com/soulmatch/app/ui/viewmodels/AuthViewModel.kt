@@ -264,7 +264,7 @@ class AuthViewModel @Inject constructor(
             }
             prefs.saveWizardStep(resolvedStep ?: 7)
             if (requestedUserType == "member" && data.isNewUser && profile?.profileId.isNullOrBlank()) {
-                if (onboardingSeen) "profile_wizard/1" else "onboarding_benefit"
+                if (onboardingSeen) "profile_intro" else "onboarding_benefit"
             } else {
                 resolvePostLoginRoute(profile)
             }
@@ -274,7 +274,7 @@ class AuthViewModel @Inject constructor(
         } else {
             prefs.savePendingAuthRoute(route)
         }
-        if (route == "profile_wizard/1") {
+        if (route == "profile_intro") {
             prefs.clearProfileProgress()
             prefs.saveWizardStep(1)
         }

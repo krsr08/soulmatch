@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,21 +20,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.VerifiedUser
-import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,63 +81,78 @@ fun LanguageSelectionScreen(
         "Marati"
     )
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(SoulMatchTokens.Bg)
             .statusBarsPadding()
-            .padding(horizontal = 22.dp, vertical = 22.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(Modifier.height(86.dp))
-        SoftIcon {
-            androidx.compose.foundation.Image(
-                painter = painterResource(id = R.drawable.language_icon),
-                contentDescription = null,
-                modifier = Modifier.size(52.dp)
+        SparkleCluster(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 28.dp, end = 28.dp)
+        )
+        SparkleCluster(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 24.dp, bottom = 126.dp)
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 22.dp, vertical = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(Modifier.height(34.dp))
+            SoftIcon {
+                androidx.compose.foundation.Image(
+                    painter = painterResource(id = R.drawable.language_icon),
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp)
+                )
+            }
+            Spacer(Modifier.height(20.dp))
+            Text(
+                text = "Choose your language",
+                color = SoulMatchTokens.Text,
+                fontFamily = FontFamily.Serif,
+                fontSize = 32.sp,
+                lineHeight = 38.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "Select the language you prefer for SoulMatch. You can change this later in settings.",
+                modifier = Modifier.padding(top = 14.dp, bottom = 22.dp),
+                color = SoulMatchTokens.Muted,
+                style = MaterialTheme.typography.bodyLarge,
+                lineHeight = 26.sp,
+                textAlign = TextAlign.Center
+            )
+            languages.chunked(2).forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    row.forEach { language ->
+                        LanguagePill(
+                            label = language,
+                            selected = selected == language,
+                            modifier = Modifier.weight(1f),
+                            onClick = { selected = language }
+                        )
+                    }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+            Spacer(Modifier.weight(1f))
+            SoulMatchPrimaryButton(
+                text = "Continue",
+                onClick = { vm.saveLanguage(selected, onContinue) },
+                modifier = Modifier.height(SoulMatchTokens.ControlHeight)
             )
         }
-        Spacer(Modifier.height(28.dp))
-        Text(
-            text = "Choose your language",
-            color = SoulMatchTokens.Text,
-            fontFamily = FontFamily.Serif,
-            fontSize = 34.sp,
-            lineHeight = 40.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
-        Text(
-            text = "Select the language you prefer for SoulMatch. You can change this later in settings.",
-            modifier = Modifier.padding(top = 16.dp, bottom = 24.dp),
-            color = SoulMatchTokens.Muted,
-            style = MaterialTheme.typography.bodyLarge,
-            lineHeight = 26.sp,
-            textAlign = TextAlign.Center
-        )
-        languages.chunked(2).forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                row.forEach { language ->
-                    LanguagePill(
-                        label = language,
-                        selected = selected == language,
-                        modifier = Modifier.weight(1f),
-                        onClick = { selected = language }
-                    )
-                }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(8.dp))
-        }
-        Spacer(Modifier.weight(1f))
-        SoulMatchPrimaryButton(
-            text = "Continue",
-            onClick = { vm.saveLanguage(selected, onContinue) },
-            modifier = Modifier.height(64.dp)
-        )
     }
 }
 
@@ -162,6 +180,13 @@ fun OnboardingBenefitScreen(
         )
     )
     val slide = slides[page]
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(2200)
+            page = (page + 1) % slides.size
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -209,13 +234,9 @@ fun OnboardingBenefitScreen(
         }
         Spacer(Modifier.weight(1f))
         SoulMatchPrimaryButton(
-            text = if (page == slides.lastIndex) "Continue to profile creation" else "Next",
+            text = "Continue to profile creation",
             onClick = {
-                if (page == slides.lastIndex) {
-                    vm.completeOnboarding(onContinue)
-                } else {
-                    page += 1
-                }
+                vm.completeOnboarding(onContinue)
             },
             modifier = Modifier.height(64.dp)
         )
@@ -266,6 +287,36 @@ fun ForgotPasswordScreen(
         TextButton(onClick = onBack, modifier = Modifier.padding(top = 12.dp)) {
             Text("Back to login", color = SoulMatchTokens.Tangerine, fontWeight = FontWeight.Bold)
         }
+    }
+}
+
+@Composable
+fun AuthPageHeader(
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = Icons.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = SoulMatchTokens.Tangerine,
+                modifier = Modifier.size(30.dp)
+            )
+        }
+        Text(
+            text = title,
+            color = SoulMatchTokens.Text,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -350,7 +401,7 @@ private fun LanguagePill(label: String, selected: Boolean, modifier: Modifier, o
     val shape = RoundedCornerShape(999.dp)
     Surface(
         modifier = modifier
-            .height(58.dp)
+            .height(52.dp)
             .clip(shape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -366,7 +417,7 @@ private fun LanguagePill(label: String, selected: Boolean, modifier: Modifier, o
                 label,
                 color = if (selected) Color.White else SoulMatchTokens.Text,
                 fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
+                fontSize = 14.sp
             )
         }
     }
@@ -426,6 +477,38 @@ private data class BenefitSlide(
     val title: String,
     val body: String
 )
+
+@Composable
+private fun SparkleCluster(modifier: Modifier = Modifier) {
+    Box(modifier = modifier.size(56.dp)) {
+        Icon(
+            imageVector = Icons.Outlined.AutoAwesome,
+            contentDescription = null,
+            tint = SoulMatchTokens.Gold,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .size(16.dp)
+        )
+        Icon(
+            imageVector = Icons.Outlined.AutoAwesome,
+            contentDescription = null,
+            tint = SoulMatchTokens.Tangerine,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .offset(x = 4.dp, y = 6.dp)
+                .size(12.dp)
+        )
+        Icon(
+            imageVector = Icons.Outlined.AutoAwesome,
+            contentDescription = null,
+            tint = SoulMatchTokens.Gold,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .offset(x = (-4).dp)
+                .size(10.dp)
+        )
+    }
+}
 
 @Composable
 private fun AuthTitle(text: String) {
@@ -508,3 +591,4 @@ private fun StrengthBars(password: String) {
         textAlign = TextAlign.Center
     )
 }
+

@@ -1,6 +1,7 @@
 package com.soulmatch.app.ui.screens.auth
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,17 +13,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,7 +43,6 @@ import com.soulmatch.app.ui.viewmodels.AuthUiState
 import com.soulmatch.app.ui.viewmodels.AuthViewModel
 import kotlinx.coroutines.delay
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OTPVerificationScreen(
     phone: String,
@@ -79,7 +73,8 @@ fun OTPVerificationScreen(
             is AuthUiState.Verified -> onVerified((state as AuthUiState.Verified).route)
             is AuthUiState.Error -> {
                 boxes.forEachIndexed { index, _ -> boxes[index] = "" }
-                focusers[0].requestFocus()
+                delay(80)
+                runCatching { focusers[0].requestFocus() }
             }
             else -> Unit
         }
@@ -92,13 +87,10 @@ fun OTPVerificationScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {},
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
+            AuthPageHeader(
+                title = "OTP Verification",
+                onBack = onBack,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
             )
         }
     ) { padding ->
@@ -110,10 +102,8 @@ fun OTPVerificationScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Verify Your Number", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
-            Spacer(Modifier.size(8.dp))
             Text("Code sent to $phone", style = MaterialTheme.typography.bodyMedium, color = SoulMatchTokens.Muted)
-            Spacer(Modifier.size(40.dp))
+            Spacer(Modifier.size(34.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 boxes.forEachIndexed { index, value ->
                     val borderColor = when {
@@ -154,7 +144,7 @@ fun OTPVerificationScreen(
             }
             if (state is AuthUiState.Error) {
                 Text(
-                    (state as AuthUiState.Error).message,
+                    "Invalid OTP. Please enter a valid OTP",
                     color = SoulMatchTokens.Error,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 8.dp)

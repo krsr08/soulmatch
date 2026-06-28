@@ -42,6 +42,7 @@ import com.soulmatch.app.data.models.LegalContentData
 import com.soulmatch.app.data.models.MonetizationRuntimeData
 import com.soulmatch.app.data.models.NavigationContentData
 import com.soulmatch.app.ui.screens.auth.OTPVerificationScreen
+import com.soulmatch.app.ui.screens.auth.ExactProfileWizardScreen
 import com.soulmatch.app.ui.screens.auth.PhoneEntryScreen
 import com.soulmatch.app.ui.screens.auth.ProfileWizardScreen
 import com.soulmatch.app.ui.screens.auth.RoleSelectionScreen
@@ -60,6 +61,9 @@ import com.soulmatch.app.ui.screens.agent.AgentPlansScreen
 import com.soulmatch.app.ui.screens.agent.AgentProfilesScreen
 import com.soulmatch.app.ui.screens.chat.ChatListScreen
 import com.soulmatch.app.ui.screens.chat.ChatScreen
+import com.soulmatch.app.ui.screens.design.DesignHotspot
+import com.soulmatch.app.ui.screens.design.ExactDesignScreen
+import com.soulmatch.app.ui.screens.design.backHotspot
 import com.soulmatch.app.ui.screens.home.BestMatchesScreen
 import com.soulmatch.app.ui.screens.home.DashboardScreen
 import com.soulmatch.app.ui.screens.home.NotificationsScreen
@@ -164,7 +168,7 @@ fun AppNavigation(
         composable("onboarding_benefit") {
             OnboardingBenefitScreen(
                 onContinue = {
-                    nav.navigate("profile_wizard/1") {
+                    nav.navigate("profile_intro") {
                         popUpTo("onboarding_benefit") { inclusive = true }
                         launchSingleTop = true
                     }
@@ -352,6 +356,23 @@ fun AppNavigation(
                 onDrawerDestination = ::openAgentDrawer
             )
         }
+        composable("profile_intro") {
+            ExactDesignScreen(
+                assetName = "10_profile_creation_intro_screen.png",
+                hotspots = listOf(
+                    DesignHotspot(294f, 104f, 58f, 58f) { nav.navigate("profile_intro_info") },
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_wizard/1") }
+                )
+            )
+        }
+        composable("profile_intro_info") {
+            ExactDesignScreen(
+                assetName = "10a_profile_creation_info_overlay.png",
+                hotspots = listOf(
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_wizard/1") }
+                )
+            )
+        }
         composable(
             "profile_wizard/{step}?returnToProfile={returnToProfile}",
             arguments = listOf(
@@ -366,22 +387,79 @@ fun AppNavigation(
                 if (args.containsKey("step")) args.getInt("step").coerceIn(1, 6) else 1
             } ?: 1
             val returnToProfile = backStack.arguments?.getBoolean("returnToProfile") ?: false
-            ProfileWizardScreen(
-                step = resolvedStep,
-                isSectionEdit = returnToProfile,
-                onNextStep = { next ->
-                    if (returnToProfile) {
+            if (returnToProfile) {
+                ProfileWizardScreen(
+                    step = resolvedStep,
+                    isSectionEdit = true,
+                    onNextStep = {
                         nav.navigate("my_profile") {
                             popUpTo("my_profile") { inclusive = true }
                             launchSingleTop = true
                         }
-                    } else if (next > 6) {
-                        nav.navigate("dashboard") { popUpTo("welcome") { inclusive = true } }
-                    } else {
-                        nav.navigate("profile_wizard/$next")
+                    },
+                    onBack = { nav.popBackStack() }
+                )
+            } else {
+                ExactProfileWizardScreen(
+                    step = resolvedStep,
+                    onNextStep = { next ->
+                        if (next > 6) {
+                            nav.navigate("profile_photo_upload")
+                        } else {
+                            nav.navigate("profile_wizard/$next")
+                        }
+                    },
+                    onBack = { nav.popBackStack() }
+                )
+            }
+        }
+        composable("profile_photo_upload") {
+            ExactDesignScreen(
+                assetName = "17_photo_upload_screen.png",
+                hotspots = listOf(
+                    backHotspot { nav.popBackStack() },
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_verification") }
+                )
+            )
+        }
+        composable("profile_verification") {
+            ExactDesignScreen(
+                assetName = "18_verification_screen.png",
+                hotspots = listOf(
+                    backHotspot { nav.popBackStack() },
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_preview_review") }
+                )
+            )
+        }
+        composable("profile_preview_review") {
+            ExactDesignScreen(
+                assetName = "19_profile_preview_screen.png",
+                hotspots = listOf(
+                    backHotspot { nav.popBackStack() },
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_under_review") }
+                )
+            )
+        }
+        composable("profile_under_review") {
+            ExactDesignScreen(
+                assetName = "20_profile_under_review_screen.png",
+                hotspots = listOf(
+                    DesignHotspot(28f, 682f, 334f, 58f) { nav.navigate("help_support") },
+                    DesignHotspot(28f, 754f, 334f, 58f) {
+                        nav.navigate("dashboard") {
+                            popUpTo("welcome") { inclusive = true }
+                        }
                     }
-                },
-                onBack = { nav.popBackStack() }
+                )
+            )
+        }
+        composable("profile_correction_required") {
+            ExactDesignScreen(
+                assetName = "21_profile_rejected_correction_required_screen.png",
+                hotspots = listOf(
+                    DesignHotspot(28f, 682f, 334f, 58f) { nav.navigate("profile_wizard/1?returnToProfile=true") },
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_under_review") }
+                )
             )
         }
         composable("dashboard") {
@@ -777,6 +855,7 @@ private fun String.shouldShowBottomNavigation(): Boolean {
     return !startsWith("welcome") &&
         !startsWith("language_selection") &&
         !startsWith("onboarding_benefit") &&
+        !startsWith("profile_intro") &&
         !startsWith("forgot_password") &&
         !startsWith("reset_password") &&
         !startsWith("phone_entry") &&
@@ -784,6 +863,11 @@ private fun String.shouldShowBottomNavigation(): Boolean {
         !startsWith("auth_role_selection") &&
         !startsWith("agent_") &&
         !startsWith("profile_wizard") &&
+        !startsWith("profile_photo_upload") &&
+        !startsWith("profile_verification") &&
+        !startsWith("profile_preview_review") &&
+        !startsWith("profile_under_review") &&
+        !startsWith("profile_correction_required") &&
         !startsWith("legal/")
 }
 

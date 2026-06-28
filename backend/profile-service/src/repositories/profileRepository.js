@@ -972,6 +972,15 @@ exports.upsertBasicInfo = async (userId, data) => {
   const r = await db.query('INSERT INTO profiles (profile_id,user_id,first_name,last_name,dob,gender,religion,caste,mother_tongue,marital_status,profile_created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *', [randomUUID(),userId,data.firstName,data.lastName,data.dob,data.gender,data.religion,data.caste,data.motherTongue,data.maritalStatus||'never_married',profileCreatedBy]);
   return r.rows[0];
 };
+exports.upsertReligiousCommunity = async (userId, data) => {
+  const db = await getDB();
+  const p = await exports.findByUserId(userId);
+  await db.query(
+    'UPDATE profiles SET religion=$1,caste=$2,mother_tongue=$3,marital_status=$4,updated_at=NOW() WHERE user_id=$5',
+    [data.religion, data.caste, data.motherTongue, data.maritalStatus || 'never_married', userId]
+  );
+  return p;
+};
 exports.upsertPhysical = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO physical_details (profile_id,height_cm,weight_kg,complexion,body_type,blood_group) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (profile_id) DO UPDATE SET height_cm=$2,weight_kg=$3,complexion=$4,body_type=$5,blood_group=$6', [p.profile_id,data.heightCm,data.weightKg,data.complexion,data.bodyType,data.bloodGroup]); return p; };
 exports.upsertEducation = async (userId, data) => {
   const db = await getDB();
@@ -2582,20 +2591,20 @@ exports.calcCompletion = async (profileId) => {
             AND NULLIF(BTRIM(first_name), '') IS NOT NULL
             AND NULLIF(BTRIM(last_name), '') IS NOT NULL
             AND dob IS NOT NULL
-            AND NULLIF(BTRIM(religion), '') IS NOT NULL
-            AND NULLIF(BTRIM(mother_tongue), '') IS NOT NULL
+            AND NULLIF(BTRIM(gender), '') IS NOT NULL
         ) THEN 1 ELSE 0
       END AS basic,
       CASE
         WHEN EXISTS (
           SELECT 1
-          FROM physical_details
+          FROM profiles
           WHERE profile_id = $1
-            AND height_cm IS NOT NULL
-            AND height_cm > 0
-            AND NULLIF(BTRIM(complexion), '') IS NOT NULL
+            AND NULLIF(BTRIM(religion), '') IS NOT NULL
+            AND NULLIF(BTRIM(caste), '') IS NOT NULL
+            AND NULLIF(BTRIM(mother_tongue), '') IS NOT NULL
+            AND NULLIF(BTRIM(marital_status), '') IS NOT NULL
         ) THEN 1 ELSE 0
-      END AS physical,
+      END AS religious,
       CASE
         WHEN EXISTS (
           SELECT 1
@@ -2638,22 +2647,15 @@ exports.calcCompletion = async (profileId) => {
       CASE
         WHEN EXISTS (
           SELECT 1
-          FROM horoscope_details
+          FROM partner_preferences
           WHERE profile_id = $1
-            AND (
-              NULLIF(BTRIM(COALESCE(rashi, '')), '') IS NOT NULL
-              OR NULLIF(BTRIM(COALESCE(nakshatra, '')), '') IS NOT NULL
-              OR NULLIF(BTRIM(COALESCE(birth_city, '')), '') IS NOT NULL
-              OR NULLIF(BTRIM(COALESCE(gotra, '')), '') IS NOT NULL
-              OR is_manglik IS TRUE
-            )
         ) THEN 1 ELSE 0
-      END AS horoscope,
+      END AS preferences,
       0 AS photos,
       NULL AS video
   `, [profileId]);
   const v = c.rows[0];
-  const completedSections = ['basic', 'physical', 'education', 'family', 'lifestyle', 'horoscope']
+  const completedSections = ['basic', 'religious', 'education', 'family', 'lifestyle', 'preferences']
     .reduce((total, key) => total + (parseInt(v[key], 10) ? 1 : 0), 0);
   const score = Math.round((completedSections / 6) * 100);
   await db.query('UPDATE profiles SET completion_score=$1 WHERE profile_id=$2', [score,profileId]);
