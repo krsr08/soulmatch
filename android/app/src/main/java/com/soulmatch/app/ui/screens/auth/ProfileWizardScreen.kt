@@ -448,7 +448,7 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
                 isError = dobHasError,
                 supportingText = if (dobHasError) "Use DD-MM-YYYY. Age must be between 18 and 80 years." else "Format: DD-MM-YYYY. Age must be 18 or above."
             )
-            SelectionField(label = "Gender", value = gender.titleCase(), options = listOf("Male", "Female"), onSelect = { gender = it.lowercase() })
+            SelectionField(label = "Gender", value = titleCase(gender), options = listOf("Male", "Female"), onSelect = { gender = it.lowercase() })
         }
     }
 }
@@ -497,7 +497,7 @@ private fun Step2ReligiousCommunity(existing: ProfileData?, vm: ProfileViewModel
             SelectionField(label = "Religion", value = religion, options = listOf("Hindu", "Muslim", "Christian", "Sikh", "Jain", "Buddhist"), onSelect = { religion = it })
             RequiredTextField(caste, { caste = it }, "Community / caste")
             SelectionField(label = "Mother tongue", value = motherTongue, options = listOf("Hindi", "English", "Telugu", "Tamil", "Malayalam", "Kannada", "Gujarati", "Bengali", "Marathi"), onSelect = { motherTongue = it })
-            SelectionField(label = "Marital status", value = maritalStatus.replace('_', ' ').titleCase(), options = listOf("Never married", "Divorced", "Widowed"), onSelect = {
+            SelectionField(label = "Marital status", value = titleCase(maritalStatus.replace('_', ' ')), options = listOf("Never married", "Divorced", "Widowed"), onSelect = {
                 maritalStatus = it.lowercase().replace(' ', '_')
             })
             SignalChips(listOf("Used in family search", "Used in partner preference matching"), tone = ChipTone.Info)
@@ -833,7 +833,7 @@ private fun SectionLead(title: String, description: String) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun ChipRow(title: String, options: List<String>, selected: String, onSelect: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
@@ -845,7 +845,7 @@ private fun ChipRow(title: String, options: List<String>, selected: String, onSe
             modifier = Modifier.fillMaxWidth()
         ) {
             OutlinedTextField(
-                value = selected.replace('_', ' ').titleCase(),
+                value = titleCase(selected.replace('_', ' ')),
                 onValueChange = {},
                 readOnly = true,
                 modifier = Modifier
@@ -861,7 +861,7 @@ private fun ChipRow(title: String, options: List<String>, selected: String, onSe
             ) {
                 options.forEach { option ->
                     DropdownMenuItem(
-                        text = { Text(option.replace('_', ' ').titleCase()) },
+                        text = { Text(titleCase(option.replace('_', ' '))) },
                         onClick = {
                             onSelect(option)
                             expanded = false
