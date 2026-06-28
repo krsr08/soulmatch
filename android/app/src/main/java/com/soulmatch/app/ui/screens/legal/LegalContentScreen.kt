@@ -24,6 +24,25 @@ fun LegalContentScreen(
     document: LegalDocumentData,
     onBack: () -> Unit
 ) {
+    val plainBody = buildString {
+        if (document.subtitle.isNotBlank()) {
+            append(document.subtitle.trim())
+            append("\n\n")
+        }
+        document.sections.forEachIndexed { index, section ->
+            if (section.heading.isNotBlank()) {
+                append(section.heading.trim())
+                append("\n")
+            }
+            if (section.body.isNotBlank()) {
+                append(section.body.trim())
+            }
+            if (index != document.sections.lastIndex) {
+                append("\n\n")
+            }
+        }
+    }.trim()
+
     Scaffold(
         topBar = {
             AuthPageHeader(
@@ -50,29 +69,11 @@ fun LegalContentScreen(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    if (document.subtitle.isNotBlank()) {
-                        Text(
-                            text = document.subtitle,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
-                        )
-                    }
-                    document.sections.forEach { section ->
-                        if (section.heading.isNotBlank()) {
-                            Text(
-                                text = section.heading,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = SoulMatchTokens.Text,
-                                modifier = Modifier.padding(top = 10.dp)
-                            )
-                        }
-                        Text(
-                            text = section.body,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
-                        )
-                    }
+                    Text(
+                        text = plainBody,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
                 }
             }
         }
