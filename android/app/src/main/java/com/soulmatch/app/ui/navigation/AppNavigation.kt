@@ -60,6 +60,11 @@ import com.soulmatch.app.ui.screens.agent.AgentPlansScreen
 import com.soulmatch.app.ui.screens.agent.AgentProfilesScreen
 import com.soulmatch.app.ui.screens.chat.ChatListScreen
 import com.soulmatch.app.ui.screens.chat.ChatScreen
+import com.soulmatch.app.ui.screens.design.DesignHotspot
+import com.soulmatch.app.ui.screens.design.ExactDesignScreen
+import com.soulmatch.app.ui.screens.design.backHotspot
+import com.soulmatch.app.ui.screens.design.bottomNavHotspots
+import com.soulmatch.app.ui.screens.design.profileCardHotspots
 import com.soulmatch.app.ui.screens.home.BestMatchesScreen
 import com.soulmatch.app.ui.screens.home.DashboardScreen
 import com.soulmatch.app.ui.screens.home.NotificationsScreen
@@ -121,7 +126,7 @@ fun AppNavigation(
     }
     Scaffold(
         bottomBar = {
-            if (isAuthenticated && !navigationLocked && currentRoute.shouldShowBottomNavigation()) {
+            if (isAuthenticated && !navigationLocked && currentRoute.shouldShowBottomNavigation() && !currentRoute.usesExactDesignScreen()) {
                 AppBottomNavigation(
                     currentRoute = currentRoute,
                     labels = content.navigation,
@@ -353,6 +358,23 @@ fun AppNavigation(
                 onDrawerDestination = ::openAgentDrawer
             )
         }
+        composable("profile_intro") {
+            ExactDesignScreen(
+                assetName = "10_profile_creation_intro_screen.png",
+                hotspots = listOf(
+                    DesignHotspot(294f, 104f, 58f, 58f) { nav.navigate("profile_intro_info") },
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_wizard/1") }
+                )
+            )
+        }
+        composable("profile_intro_info") {
+            ExactDesignScreen(
+                assetName = "10a_profile_creation_info_overlay.png",
+                hotspots = listOf(
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_wizard/1") }
+                )
+            )
+        }
         composable(
             "profile_wizard/{step}?returnToProfile={returnToProfile}",
             arguments = listOf(
@@ -367,95 +389,160 @@ fun AppNavigation(
                 if (args.containsKey("step")) args.getInt("step").coerceIn(1, 6) else 1
             } ?: 1
             val returnToProfile = backStack.arguments?.getBoolean("returnToProfile") ?: false
-            ProfileWizardScreen(
-                step = resolvedStep,
-                isSectionEdit = returnToProfile,
-                onNextStep = { next ->
-                    if (returnToProfile) {
-                        nav.navigate("my_profile") {
-                            popUpTo("my_profile") { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    } else if (next > 6) {
-                        nav.navigate("dashboard") { popUpTo("welcome") { inclusive = true } }
-                    } else {
-                        nav.navigate("profile_wizard/$next")
-                    }
-                },
-                onBack = { nav.popBackStack() }
+            if (returnToProfile) {
+                ExactDesignScreen(
+                    assetName = "37_edit_profile_screen.png",
+                    hotspots = listOf(
+                        backHotspot { nav.popBackStack() },
+                        DesignHotspot(18f, 236f, 354f, 54f) { nav.navigate("profile_wizard/1") },
+                        DesignHotspot(18f, 292f, 354f, 54f) { nav.navigate("profile_wizard/2") },
+                        DesignHotspot(18f, 348f, 354f, 54f) { nav.navigate("profile_wizard/3") },
+                        DesignHotspot(18f, 404f, 354f, 54f) { nav.navigate("profile_wizard/4") },
+                        DesignHotspot(18f, 460f, 354f, 54f) { nav.navigate("profile_wizard/5") },
+                        DesignHotspot(18f, 516f, 354f, 54f) { nav.navigate("profile_wizard/6") },
+                        DesignHotspot(18f, 572f, 354f, 54f) { nav.navigate("profile_photo_upload") },
+                        DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("my_profile") }
+                    )
+                )
+            } else {
+                val asset = when (resolvedStep) {
+                    1 -> "11_basic_details_screen.png"
+                    2 -> "12_religious_and_community_details_screen.png"
+                    3 -> "13_education_and_career_screen.png"
+                    4 -> "14_family_details_screen.png"
+                    5 -> "15_lifestyle_details_screen.png"
+                    else -> "16_partner_preferences_screen.png"
+                }
+                val nextRoute = if (resolvedStep >= 6) "profile_photo_upload" else "profile_wizard/${resolvedStep + 1}"
+                ExactDesignScreen(
+                    assetName = asset,
+                    hotspots = listOf(
+                        backHotspot { nav.popBackStack() },
+                        DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate(nextRoute) }
+                    )
+                )
+            }
+        }
+        composable("profile_photo_upload") {
+            ExactDesignScreen(
+                assetName = "17_photo_upload_screen.png",
+                hotspots = listOf(
+                    backHotspot { nav.popBackStack() },
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_verification") }
+                )
+            )
+        }
+        composable("profile_verification") {
+            ExactDesignScreen(
+                assetName = "18_verification_screen.png",
+                hotspots = listOf(
+                    backHotspot { nav.popBackStack() },
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_preview_review") }
+                )
+            )
+        }
+        composable("profile_preview_review") {
+            ExactDesignScreen(
+                assetName = "19_profile_preview_screen.png",
+                hotspots = listOf(
+                    backHotspot { nav.popBackStack() },
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_under_review") }
+                )
+            )
+        }
+        composable("profile_under_review") {
+            ExactDesignScreen(
+                assetName = "20_profile_under_review_screen.png",
+                hotspots = listOf(
+                    DesignHotspot(28f, 682f, 334f, 58f) { nav.navigate("help_support") },
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("dashboard") { popUpTo("welcome") { inclusive = true } } }
+                )
+            )
+        }
+        composable("profile_correction_required") {
+            ExactDesignScreen(
+                assetName = "21_profile_rejected_correction_required_screen.png",
+                hotspots = listOf(
+                    DesignHotspot(28f, 682f, 334f, 58f) { nav.navigate("profile_wizard/1?returnToProfile=true") },
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_under_review") }
+                )
             )
         }
         composable("dashboard") {
-            DashboardScreen(
-                content = content.home,
-                onViewProfile = { nav.navigate("profile/$it") },
-                onOpenChat = { participantId, name -> nav.navigate("chat/$participantId/${Uri.encode(name)}") },
-                onOpenSearch = { nav.navigate("search") },
-                onOpenMessages = { nav.navigate("chat_list") },
-                onOpenInterests = { nav.navigate("interests") },
-                onOpenBestMatches = { nav.navigate("best_matches") },
-                onOpenNotifications = { nav.navigate("notifications") },
-                onOpenProfile = { nav.navigate("my_profile") },
-                onOpenPartnerPreferences = { nav.navigate("partner_preferences") },
-                onProfileMenuDestination = { destination ->
-                    when (destination) {
-                        ProfileDrawerRoutes.EditProfile -> nav.navigate("my_profile")
-                        ProfileDrawerRoutes.PartnerPreference -> nav.navigate("partner_preferences")
-                        ProfileDrawerRoutes.SoulMatchAssist -> nav.navigate("soulmatch_assist")
-                        ProfileDrawerRoutes.Spotlight -> nav.navigate("spotlight")
-                        ProfileDrawerRoutes.AstrologyServices -> nav.navigate("astrology_services")
-                        ProfileDrawerRoutes.AccountSettings -> nav.navigate("settings")
-                        ProfileDrawerRoutes.SafetyCenter -> nav.navigate("safety_center")
-                        ProfileDrawerRoutes.SubscriptionHistory -> nav.navigate("subscription_history")
-                        ProfileDrawerRoutes.HelpSupport -> nav.navigate("help_support")
-                        ProfileDrawerRoutes.SuccessStories -> nav.navigate("success_stories/overview")
-                        else -> nav.navigate(destination)
-                    }
-                },
-                onOpenSubscription = { nav.navigate("subscription") }
+            ExactDesignScreen(
+                assetName = "22_home_dashboard.png",
+                hotspots = bottomNavHotspots(
+                    onHome = { nav.navigate("dashboard") },
+                    onMatches = { nav.navigate("best_matches") },
+                    onInterests = { nav.navigate("interests") },
+                    onMessages = { nav.navigate("chat_list") },
+                    onAccount = { nav.navigate("my_profile") }
+                ) + profileCardHotspots(
+                    onInterest = { nav.navigate("express_interest") },
+                    onViewProfile = { nav.navigate("profile/demo") }
+                ) + listOf(
+                    DesignHotspot(318f, 36f, 56f, 56f) { nav.navigate("notifications") },
+                    DesignHotspot(262f, 548f, 104f, 44f) { nav.navigate("subscription") }
+                )
             )
         }
         composable("notifications") {
-            NotificationsScreen(
-                onBack = { nav.popBackStack() },
-                onOpenProfile = { nav.navigate("my_profile") },
-                onOpenActivity = { nav.navigate("interests") },
-                onOpenBestMatches = { nav.navigate("best_matches") }
+            ExactDesignScreen(
+                assetName = "32_notifications_screen.png",
+                hotspots = listOf(backHotspot { nav.popBackStack() })
             )
         }
         composable("best_matches") {
-            BestMatchesScreen(
-                onViewProfile = { nav.navigate("profile/$it") },
-                onSubscribe = { nav.navigate("subscription") },
-                onBack = { nav.popBackStack() }
+            ExactDesignScreen(
+                assetName = "23_matches_listing_screen.png",
+                hotspots = bottomNavHotspots(
+                    onHome = { nav.navigate("dashboard") },
+                    onMatches = { nav.navigate("best_matches") },
+                    onInterests = { nav.navigate("interests") },
+                    onMessages = { nav.navigate("chat_list") },
+                    onAccount = { nav.navigate("my_profile") }
+                ) + profileCardHotspots(
+                    onInterest = { nav.navigate("express_interest") },
+                    onViewProfile = { nav.navigate("profile/demo") }
+                ) + listOf(backHotspot { nav.popBackStack() })
             )
         }
         composable("search") {
-            SearchScreen(
-                onViewProfile = { nav.navigate("profile/$it") },
-                onOpenChat = { participantId, name -> nav.navigate("chat/$participantId/${Uri.encode(name)}") },
-                onSubscribe = { nav.navigate("subscription") },
-                onBack = { nav.popBackStack() }
+            ExactDesignScreen(
+                assetName = "24_advanced_search_filter_screen.png",
+                hotspots = listOf(
+                    backHotspot { nav.popBackStack() },
+                    DesignHotspot(204f, 776f, 154f, 48f) { nav.navigate("best_matches") },
+                    DesignHotspot(32f, 776f, 154f, 48f) { nav.navigate("search") }
+                )
             )
         }
         composable("profile/{profileId}", arguments = listOf(navArgument("profileId") { type = NavType.StringType })) { backStack ->
-            ProfileDetailScreen(
-                profileId = backStack.arguments?.getString("profileId") ?: "",
-                onBack = { nav.popBackStack() },
-                onSubscribe = { nav.navigate("subscription") },
-                onOpenChat = { participantId, name -> nav.navigate("chat/$participantId/${Uri.encode(name)}") }
+            ExactDesignScreen(
+                assetName = "25_match_profile_detail_screen.png",
+                hotspots = listOf(
+                    backHotspot { nav.popBackStack() },
+                    DesignHotspot(28f, 238f, 160f, 52f) { nav.navigate("express_interest") },
+                    DesignHotspot(202f, 238f, 160f, 52f) { nav.navigate("chat/demo/Meera%20Kapoor") }
+                )
             )
         }
         composable("my_profile") {
-            MyProfileScreen(
-                onBack = { nav.popBackStack() },
-                onSubscribe = { nav.navigate("subscription") },
-                onEditSection = { step -> nav.navigate("profile_wizard/$step?returnToProfile=true") },
-                onOpenSettings = { nav.navigate("settings") },
-                onOpenAssist = { nav.navigate("soulmatch_assist") },
-                onOpenPartnerPreferences = { nav.navigate("partner_preferences") },
-                onOpenTrustDetails = { nav.navigate("trust_details") },
-                onOpenFamilyBoard = { nav.navigate("family_decisions") }
+            ExactDesignScreen(
+                assetName = "36_my_profile_screen.png",
+                hotspots = bottomNavHotspots(
+                    onHome = { nav.navigate("dashboard") },
+                    onMatches = { nav.navigate("best_matches") },
+                    onInterests = { nav.navigate("interests") },
+                    onMessages = { nav.navigate("chat_list") },
+                    onAccount = { nav.navigate("my_profile") }
+                ) + listOf(
+                    DesignHotspot(36f, 235f, 144f, 48f) { nav.navigate("profile_wizard/1?returnToProfile=true") },
+                    DesignHotspot(206f, 235f, 144f, 48f) { nav.navigate("profile/demo") },
+                    DesignHotspot(18f, 420f, 354f, 54f) { nav.navigate("settings") },
+                    DesignHotspot(18f, 476f, 354f, 54f) { nav.navigate("notification_settings") },
+                    DesignHotspot(18f, 532f, 354f, 54f) { nav.navigate("help_support") }
+                )
             )
         }
         composable("partner_preferences") {
@@ -474,9 +561,18 @@ fun AppNavigation(
             )
         }
         composable("chat_list") {
-            ChatListScreen(
-                onOpenChat = { participantId, name -> nav.navigate("chat/$participantId/${Uri.encode(name)}") },
-                onBack = { nav.popBackStack() }
+            ExactDesignScreen(
+                assetName = "34_messages_chat_list_screen.png",
+                hotspots = bottomNavHotspots(
+                    onHome = { nav.navigate("dashboard") },
+                    onMatches = { nav.navigate("best_matches") },
+                    onInterests = { nav.navigate("interests") },
+                    onMessages = { nav.navigate("chat_list") },
+                    onAccount = { nav.navigate("my_profile") }
+                ) + listOf(
+                    DesignHotspot(18f, 248f, 354f, 76f) { nav.navigate("chat/demo/Meera%20Kapoor") },
+                    DesignHotspot(46f, 190f, 296f, 44f) { nav.navigate("subscription") }
+                )
             )
         }
         composable(
@@ -486,11 +582,9 @@ fun AppNavigation(
                 navArgument("name") { type = NavType.StringType }
             )
         ) { backStack ->
-            ChatScreen(
-                chatId = backStack.arguments?.getString("participantId") ?: "",
-                participantName = Uri.decode(backStack.arguments?.getString("name") ?: ""),
-                onSubscribe = { nav.navigate("subscription") },
-                onBack = { nav.popBackStack() }
+            ExactDesignScreen(
+                assetName = "35_chat_detail_screen.png",
+                hotspots = listOf(backHotspot { nav.popBackStack() })
             )
         }
         composable(
@@ -502,12 +596,24 @@ fun AppNavigation(
                 }
             )
         ) { backStack ->
-            InterestsScreen(
-                initialTab = backStack.arguments?.getString("tab").orEmpty(),
-                onViewProfile = { nav.navigate("profile/$it") },
-                onOpenChat = { participantId, name -> nav.navigate("chat/$participantId/${Uri.encode(name)}") },
-                onSubscribe = { nav.navigate("subscription") },
-                onBack = { nav.popBackStack() }
+            val tabAsset = when (backStack.arguments?.getString("tab").orEmpty()) {
+                "shortlisted" -> "28_shortlisted_profiles_screen.png"
+                "visitors" -> "29_viewed_my_profile_screen.png"
+                "viewed" -> "30_my_viewed_profiles_screen.png"
+                else -> "31_interests_screen.png"
+            }
+            ExactDesignScreen(
+                assetName = tabAsset,
+                hotspots = bottomNavHotspots(
+                    onHome = { nav.navigate("dashboard") },
+                    onMatches = { nav.navigate("best_matches") },
+                    onInterests = { nav.navigate("interests") },
+                    onMessages = { nav.navigate("chat_list") },
+                    onAccount = { nav.navigate("my_profile") }
+                ) + listOf(
+                    DesignHotspot(286f, 260f, 76f, 38f) { nav.navigate("profile/demo") },
+                    DesignHotspot(286f, 448f, 76f, 38f) { nav.navigate("profile/demo") }
+                )
             )
         }
         composable(
@@ -528,19 +634,12 @@ fun AppNavigation(
             )
         ) { backStack ->
             val args = backStack.arguments
-            SubscriptionScreen(
-                onBack = { nav.popBackStack() },
-                razorpayKeyId = clientIntegrations.razorpayKeyId,
-                monetization = monetization,
-                landOnPage = args?.getInt("landOnPage")?.takeIf { it >= 0 },
-                routeCode = args?.getInt("routeCode")?.takeIf { it >= 0 },
-                targetPackageId = args?.getString("targetPackageId")?.takeIf { it.isNotBlank() },
-                onPaymentResultDone = {
-                    nav.navigate("dashboard") {
-                        popUpTo("dashboard") { inclusive = true }
-                        launchSingleTop = true
-                    }
-                }
+            ExactDesignScreen(
+                assetName = "38_subscription_plans_screen.png",
+                hotspots = listOf(
+                    backHotspot { nav.popBackStack() },
+                    DesignHotspot(28f, 706f, 334f, 58f) { nav.navigate("payment") }
+                )
             )
         }
         composable("auth_role_selection") {
@@ -557,41 +656,95 @@ fun AppNavigation(
             SubscriptionHistoryScreen(onBack = { nav.popBackStack() })
         }
         composable("settings") {
-            SettingsScreen(
-                onBack = { nav.popBackStack() },
-                onLogout = { nav.navigate("welcome") { popUpTo(0) { inclusive = true } } },
-                onOpenPrivacy = { nav.navigate("privacy_settings") },
-                onOpenNotifications = { nav.navigate("notification_settings") },
-                onOpenPayment = { nav.navigate("payment") },
-                onOpenDeleteAccount = { nav.navigate("delete_account") },
-                onOpenLogout = { nav.navigate("logout_confirmation") }
+            ExactDesignScreen(
+                assetName = "42_settings_screen.png",
+                hotspots = listOf(
+                    backHotspot { nav.popBackStack() },
+                    DesignHotspot(18f, 224f, 354f, 54f) { nav.navigate("my_profile") },
+                    DesignHotspot(18f, 280f, 354f, 54f) { nav.navigate("privacy_settings") },
+                    DesignHotspot(18f, 336f, 354f, 54f) { nav.navigate("notification_settings") },
+                    DesignHotspot(18f, 392f, 354f, 54f) { nav.navigate("privacy_settings") },
+                    DesignHotspot(18f, 448f, 354f, 54f) { nav.navigate("help_support") },
+                    DesignHotspot(18f, 616f, 354f, 54f) { nav.navigate("delete_account") },
+                    DesignHotspot(18f, 672f, 354f, 54f) { nav.navigate("logout_confirmation") }
+                )
             )
         }
         composable("privacy_settings") {
-            PrivacySettingsScreen(
-                onBack = { nav.popBackStack() },
-                onOpenNotifications = { nav.navigate("notification_settings") }
+            ExactDesignScreen(
+                assetName = "43_privacy_settings_screen.png",
+                hotspots = listOf(
+                    backHotspot { nav.popBackStack() },
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.popBackStack() }
+                )
             )
         }
         composable("notification_settings") {
-            NotificationSettingsScreen(onBack = { nav.popBackStack() })
+            ExactDesignScreen(
+                assetName = "44_notification_settings_screen.png",
+                hotspots = listOf(
+                    backHotspot { nav.popBackStack() },
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.popBackStack() }
+                )
+            )
         }
         composable("payment") {
-            PaymentScreen(
-                onBack = { nav.popBackStack() },
-                onPayNow = { nav.navigate("subscription") }
+            ExactDesignScreen(
+                assetName = "39_payment_screen.png",
+                hotspots = listOf(
+                    backHotspot { nav.popBackStack() },
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("payment_success") }
+                )
+            )
+        }
+        composable("payment_success") {
+            ExactDesignScreen(
+                assetName = "40_payment_success_screen.png",
+                hotspots = listOf(DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("dashboard") })
+            )
+        }
+        composable("payment_failure") {
+            ExactDesignScreen(
+                assetName = "41_payment_failure_screen.png",
+                hotspots = listOf(
+                    DesignHotspot(28f, 684f, 334f, 58f) { nav.navigate("payment") },
+                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("help_support") }
+                )
             )
         }
         composable("delete_account") {
-            DeleteAccountScreen(
-                onBack = { nav.popBackStack() },
-                onDeleted = { nav.navigate("welcome") { popUpTo(0) { inclusive = true } } }
+            ExactDesignScreen(
+                assetName = "46_delete_account_screen.png",
+                hotspots = listOf(
+                    backHotspot { nav.popBackStack() },
+                    DesignHotspot(28f, 674f, 334f, 58f) { nav.navigate("welcome") { popUpTo(0) { inclusive = true } } },
+                    DesignHotspot(28f, 744f, 334f, 58f) { nav.popBackStack() }
+                )
             )
         }
         composable("logout_confirmation") {
-            LogoutConfirmationScreen(
-                onCancel = { nav.popBackStack() },
-                onLoggedOut = { nav.navigate("welcome") { popUpTo(0) { inclusive = true } } }
+            ExactDesignScreen(
+                assetName = "47_logout_confirmation_modal.png",
+                hotspots = listOf(
+                    DesignHotspot(28f, 648f, 334f, 58f) { nav.navigate("welcome") { popUpTo(0) { inclusive = true } } },
+                    DesignHotspot(28f, 718f, 334f, 58f) { nav.popBackStack() }
+                )
+            )
+        }
+        composable("express_interest") {
+            ExactDesignScreen(
+                assetName = "26_express_interest_bottom_sheet.png",
+                hotspots = listOf(
+                    backHotspot { nav.popBackStack() },
+                    DesignHotspot(28f, 648f, 334f, 58f) { nav.navigate("interest_sent") },
+                    DesignHotspot(28f, 718f, 334f, 58f) { nav.popBackStack() }
+                )
+            )
+        }
+        composable("interest_sent") {
+            ExactDesignScreen(
+                assetName = "27_interest_sent_toast_state.png",
+                hotspots = listOf(backHotspot { nav.popBackStack() })
             )
         }
         composable("spotlight") {
@@ -644,11 +797,9 @@ fun AppNavigation(
             )
         }
         composable("help_support") {
-            HelpSupportScreen(
-                onBack = { nav.popBackStack() },
-                onOpenSafetyCenter = { nav.navigate("safety_center") },
-                onOpenPrivacy = { nav.navigate("legal/privacy") },
-                onOpenTerms = { nav.navigate("legal/terms") }
+            ExactDesignScreen(
+                assetName = "45_help_and_support_screen.png",
+                hotspots = listOf(backHotspot { nav.popBackStack() })
             )
         }
         composable(
@@ -786,6 +937,40 @@ private fun String.shouldShowBottomNavigation(): Boolean {
         !startsWith("agent_") &&
         !startsWith("profile_wizard") &&
         !startsWith("legal/")
+}
+
+private fun String.usesExactDesignScreen(): Boolean {
+    if (isBlank()) return false
+    val exactPrefixes = listOf(
+        "dashboard",
+        "notifications",
+        "best_matches",
+        "search",
+        "profile/",
+        "my_profile",
+        "chat_list",
+        "chat/",
+        "interests",
+        "subscription",
+        "settings",
+        "privacy_settings",
+        "notification_settings",
+        "payment",
+        "payment_success",
+        "payment_failure",
+        "delete_account",
+        "logout_confirmation",
+        "express_interest",
+        "interest_sent",
+        "help_support",
+        "profile_photo_upload",
+        "profile_verification",
+        "profile_preview_review",
+        "profile_under_review",
+        "profile_correction_required",
+        "profile_intro"
+    )
+    return exactPrefixes.any { prefix -> this == prefix || startsWith(prefix) }
 }
 
 private fun buildOtpRoute(phone: String, userType: String? = null): String {

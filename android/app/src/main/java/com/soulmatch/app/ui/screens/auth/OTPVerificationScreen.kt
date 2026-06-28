@@ -1,17 +1,19 @@
 package com.soulmatch.app.ui.screens.auth
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.BoxWithConstraintsScope
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -21,51 +23,76 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.ui.design.SoulMatchTokens
-import com.soulmatch.app.ui.theme.Primary
-import com.soulmatch.app.ui.viewmodels.AuthViewModel
+import com.soulmatch.app.ui.screens.design.DesignHotspot
+import com.soulmatch.app.ui.screens.design.ExactDesignScreen
+import com.soulmatch.app.ui.screens.design.backHotspot
 import com.soulmatch.app.ui.viewmodels.AuthUiState
-import kotlinx.coroutines.delay
-@OptIn(ExperimentalMaterial3Api::class)
+import com.soulmatch.app.ui.viewmodels.AuthViewModel
+
 @Composable
-fun OTPVerificationScreen(phone: String, userType: String? = null, onVerified: (String) -> Unit, onBack: () -> Unit, vm: AuthViewModel = hiltViewModel()) {
-    val boxes = remember { mutableStateListOf("","","","","","") }
-    val focusers = remember { List(6) { FocusRequester() } }
+fun OTPVerificationScreen(
+    phone: String,
+    userType: String? = null,
+    onVerified: (String) -> Unit,
+    onBack: () -> Unit,
+    vm: AuthViewModel = hiltViewModel()
+) {
     val state by vm.uiState.collectAsStateWithLifecycle()
-    var countdown by remember { mutableIntStateOf(30) }
-    var canResend by remember { mutableStateOf(false) }
-    var resendCycle by remember { mutableIntStateOf(0) }
-    LaunchedEffect(phone, resendCycle) {
-        countdown = 30
-        canResend = false
-        while (countdown > 0) {
-            delay(1000)
-            countdown--
+    var otp by remember { mutableStateOf("") }
+
+    LaunchedEffect(state) {
+        when (state) {
+            is AuthUiState.Verified -> onVerified((state as AuthUiState.Verified).route)
+            is AuthUiState.Error -> otp = ""
+            else -> Unit
         }
-        canResend = true
     }
-    LaunchedEffect(state) { when (state) { is AuthUiState.Verified -> onVerified((state as AuthUiState.Verified).route); is AuthUiState.Error -> { boxes.forEachIndexed { i, _ -> boxes[i] = "" }; focusers[0].requestFocus() }; else -> {} } }
-    LaunchedEffect(Unit) { delay(200); focusers[0].requestFocus() }
-    Scaffold(topBar = { TopAppBar(title = {}, navigationIcon = { IconButton(onClick=onBack) { Icon(Icons.Filled.ArrowBack,"Back") } }) }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal=24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Verify Your Number", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
-            Spacer(Modifier.height(8.dp))
-            Text("Code sent to $phone", style = MaterialTheme.typography.bodyMedium, color = SoulMatchTokens.Muted)
-            Spacer(Modifier.height(40.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                boxes.forEachIndexed { i, v ->
-                    val borderColor = when { state is AuthUiState.Error -> SoulMatchTokens.Error; v.isNotEmpty() -> SoulMatchTokens.Tangerine; else -> SoulMatchTokens.Border }
-                    BasicTextField(value = v, onValueChange = { nv -> if (nv.length <= 1 && nv.all(Char::isDigit)) { boxes[i] = nv; if (nv.isNotEmpty() && i < 5) focusers[i+1].requestFocus(); if (boxes.joinToString("").length == 6) vm.verifyOTP(phone, boxes.joinToString(""), userType) } }, modifier = Modifier.size(48.dp).border(2.dp, borderColor, RoundedCornerShape(SoulMatchTokens.CardRadius)).focusRequester(focusers[i]), textStyle = TextStyle(fontSize=20.sp, fontWeight=FontWeight.Bold, textAlign=TextAlign.Center, color=SoulMatchTokens.Text), keyboardOptions = KeyboardOptions(keyboardType=KeyboardType.NumberPassword), singleLine = true, decorationBox = { inner -> Box(Modifier.fillMaxSize(), contentAlignment=Alignment.Center) { inner() } })
+
+    ExactDesignScreen(
+        assetName = "05_otp_verification_screen.png",
+        hotspots = listOf(
+            backHotspot(onBack),
+            DesignHotspot(28f, 754f, 334f, 58f) {
+                if (otp.length == 6) {
+                    vm.verifyOTP(phone, otp, userType)
+                } else {
+                    vm.reportError("Enter the 6 digit OTP.")
                 }
-            }
-            if (state is AuthUiState.Error) Text((state as AuthUiState.Error).message, color = SoulMatchTokens.Error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top=8.dp))
-            Spacer(Modifier.height(32.dp))
-            if (canResend) TextButton(onClick = {
-                vm.sendOTP(phone, userType)
-                resendCycle++
-            }) { Text("Resend OTP", color = SoulMatchTokens.Tangerine) }
-            else Text("Resend in 00:${countdown.toString().padStart(2,'0')}", style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
-            Spacer(Modifier.height(16.dp))
-            if (state is AuthUiState.Loading) CircularProgressIndicator(color = SoulMatchTokens.Tangerine)
+            },
+            DesignHotspot(118f, 420f, 154f, 42f) { vm.sendOTP(phone, userType) }
+        ),
+        overlay = {
+            OtpInputOverlay(
+                otp = otp,
+                onOtpChange = {
+                    otp = it.filter(Char::isDigit).take(6)
+                    if (state is AuthUiState.Error) vm.clearError()
+                }
+            )
         }
-    }
+    )
+}
+
+@Composable
+private fun BoxWithConstraintsScope.OtpInputOverlay(
+    otp: String,
+    onOtpChange: (String) -> Unit
+) {
+    BasicTextField(
+        value = otp,
+        onValueChange = onOtpChange,
+        modifier = Modifier
+            .offset(x = (maxWidth.value * 30f / 390f).dp, y = (maxHeight.value * 314f / 844f).dp)
+            .size(width = (maxWidth.value * 330f / 390f).dp, height = (maxHeight.value * 66f / 844f).dp)
+            .background(Color.White.copy(alpha = 0.02f)),
+        textStyle = TextStyle(
+            color = SoulMatchTokens.Text,
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            letterSpacing = 28.sp
+        ),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+        singleLine = true
+    )
 }

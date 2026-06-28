@@ -1,19 +1,21 @@
 # Future Enhancements
 
-- Agent app: onboarding, dashboard, profiles, activities, plans, account, client profile.
-- SoulMatch Assist service flow.
-- Spotlight boost flow.
-- Astrology and kundli services.
-- Family decision board.
-- Success stories.
-- Subscription history and invoices.
-- Safety center article details.
-- Help/support ticket details.
-- Notifications center.
-- Chat list and chat detail expansion.
-- Interests activity tabs.
-- Trust details and verification detail.
-- Partner preferences editor.
+Old app functionality not present as first-class screens in the supplied member redesign:
+
+- Agent app: onboarding, dashboard, pending profiles, managed profiles, activities, plans, account, client profile creation.
+- SoulMatch Assist service workflow.
+- Spotlight boost purchase and visibility workflow.
+- Astrology/Kundli service workflow.
+- Family decision board and family collaboration workflow.
+- Success stories archive.
+- Subscription history, invoices, and past payment list.
+- Safety center article detail hierarchy.
+- Trust details and deep verification history.
+- Partner preference full editor outside profile creation.
 - Runtime admin/control-plane mobile UI.
-- Data export history.
-- Hidden/blocked/reported member management detail screens.
+- Data export request/history.
+- Hidden members management detail.
+- Blocked members management detail.
+- Reported concern edit/delete detail.
+- Rich chat actions: voice call, video call, contact unlock prompt detail.
+- Advanced profile service pages not shown in new designs.

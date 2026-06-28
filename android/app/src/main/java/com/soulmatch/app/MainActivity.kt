@@ -107,8 +107,9 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = android.graphics.Color.WHITE
-        window.navigationBarColor = android.graphics.Color.WHITE
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = true
             isAppearanceLightNavigationBars = true
@@ -201,7 +202,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                         if (profile?.profileId.isNullOrBlank()) {
                             userPreferences.clearProfileProgress()
                             userPreferences.saveWizardStep(1)
-                            startDestination = "profile_wizard/1"
+                            startDestination = "profile_intro"
                             return@LaunchedEffect
                         } else {
                             userPreferences.saveProfileId(profile?.profileId.orEmpty())
