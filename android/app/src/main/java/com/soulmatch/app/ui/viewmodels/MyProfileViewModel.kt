@@ -254,7 +254,7 @@ class MyProfileViewModel @Inject constructor(
                 }
             } catch (error: Exception) {
                 _status.value = when (error) {
-                    is IOException -> "Couldn't reach the server. Check your connection and try again."
+                    is IOException -> "Service is temporarily not available. Please try again."
                     else -> "Couldn't upload photos right now. Please try again."
                 }
             } finally {
@@ -276,7 +276,7 @@ class MyProfileViewModel @Inject constructor(
                 }
             } catch (error: Exception) {
                 _status.value = when (error) {
-                    is IOException -> "Couldn't reach the server. Check your connection and try again."
+                    is IOException -> "Service is temporarily not available. Please try again."
                     else -> "Couldn't update the primary photo right now."
                 }
             }
@@ -296,7 +296,7 @@ class MyProfileViewModel @Inject constructor(
                 }
             } catch (error: Exception) {
                 _status.value = when (error) {
-                    is IOException -> "Couldn't reach the server. Check your connection and try again."
+                    is IOException -> "Service is temporarily not available. Please try again."
                     else -> "Couldn't remove this photo right now."
                 }
             }
@@ -321,7 +321,7 @@ class MyProfileViewModel @Inject constructor(
                 }
             } catch (error: Exception) {
                 _status.value = when (error) {
-                    is IOException -> "Couldn't reach the server. Check your connection and try again."
+                    is IOException -> "Service is temporarily not available. Please try again."
                     else -> "Couldn't update partner preferences right now. Please try again."
                 }
             } finally {
@@ -484,7 +484,7 @@ class MyProfileViewModel @Inject constructor(
                 }
             } catch (error: Exception) {
                 _status.value = when (error) {
-                    is IOException -> "Couldn't reach the server. Check your connection and try again."
+                    is IOException -> "Service is temporarily not available. Please try again."
                     else -> "Couldn't submit verification right now. Please try again."
                 }
             } finally {

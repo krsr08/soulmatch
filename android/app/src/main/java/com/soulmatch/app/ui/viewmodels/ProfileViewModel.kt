@@ -88,14 +88,14 @@ class ProfileViewModel @Inject constructor(
                     _profile.value = MarketFixtures.myProfile
                     usingMockProfile = true
                     _loadMessage.value = when (error) {
-                        is IOException -> "Couldn't reach the server. Showing demo profile details for UI testing."
+                        is IOException -> "Service is temporarily not available. Showing demo profile details for UI testing."
                         else -> "Couldn't load your saved profile details. Showing demo profile details for UI testing."
                     }
                 } else {
                     _profile.value = null
                     usingMockProfile = false
                     _loadMessage.value = when (error) {
-                        is IOException -> "Couldn't reach the server. Check your connection and try again."
+                        is IOException -> "Service is temporarily not available. Please try again."
                         else -> "Couldn't load your saved profile details."
                     }
                 }
@@ -203,7 +203,7 @@ class ProfileViewModel @Inject constructor(
             raw.contains("type variable or wildcard", ignoreCase = true) ->
                 "This build hit a profile form bug while saving. Please try again after updating the app."
             error is IOException ->
-                "Couldn't reach the server. Check your connection and try again."
+                "Service is temporarily not available. Please try again."
             raw.isNotBlank() ->
                 "Couldn't save your profile right now. Please try again."
             else ->

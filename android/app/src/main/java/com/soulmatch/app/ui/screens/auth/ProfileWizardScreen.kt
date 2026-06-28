@@ -1,5 +1,6 @@
 package com.soulmatch.app.ui.screens.auth
 
+import android.app.DatePickerDialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -35,6 +37,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -70,7 +73,9 @@ import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.theme.Success
 import com.soulmatch.app.ui.titleCase
 import com.soulmatch.app.ui.viewmodels.ProfileViewModel
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import kotlin.math.roundToInt
@@ -79,45 +84,52 @@ private data class WizardStepCopy(
     val title: String,
     val eyebrow: String,
     val subtitle: String,
-    val helper: String
+    val helper: String,
+    val info: String
 )
 
 private val wizardCopy = mapOf(
     1 to WizardStepCopy(
-        title = "Basic identity",
+        title = "Basic details",
         eyebrow = "Step 1 of 6",
-        subtitle = "Start with details families and search filters expect to see first.",
-        helper = "Name, date of birth, religion, community, language, gender, and marital status are required."
+        subtitle = "Start with identity basics first.",
+        helper = "Name, date of birth, and gender are required.",
+        info = "Basic details help SoulMatch create your member identity and decide what screen comes next."
     ),
     2 to WizardStepCopy(
-        title = "Physical profile",
+        title = "Religious and community",
         eyebrow = "Step 2 of 6",
-        subtitle = "These details make shortlisting and preference checks easier.",
-        helper = "Height, weight, complexion, body type, and blood group are treated as important profile signals."
+        subtitle = "Keep this respectful and accurate for family-led matching.",
+        helper = "Religion, community, mother tongue, and marital status are required.",
+        info = "These details help family filtering, search relevance, and partner preference matching."
     ),
     3 to WizardStepCopy(
         title = "Education and career",
         eyebrow = "Step 3 of 6",
-        subtitle = "Make profession, education, income, and work city easy to scan.",
-        helper = "Career details power search, ranking, and partner preference matching."
+        subtitle = "Add professional context that supports serious introductions.",
+        helper = "Career details power search, ranking, and partner preference matching.",
+        info = "Education and work details directly affect search, ranking, and shortlist quality."
     ),
     4 to WizardStepCopy(
-        title = "Family background",
+        title = "Family details",
         eyebrow = "Step 4 of 6",
-        subtitle = "A matrimony profile should make family context feel clear and respectful.",
-        helper = "Parent occupations, siblings, family type, and family city are required. Add locality and pincode to unlock stronger SoulMatch Assist routing."
+        subtitle = "Share the family context most parents look for first.",
+        helper = "Parent occupations, siblings, family type, and family city are required.",
+        info = "Family details help parents review profile fit faster and with more trust."
     ),
     5 to WizardStepCopy(
-        title = "Lifestyle and about me",
+        title = "Lifestyle details",
         eyebrow = "Step 5 of 6",
-        subtitle = "Turn the profile from a checklist into a real introduction.",
-        helper = "Diet, habits, and a thoughtful about section help serious members decide with confidence."
+        subtitle = "Help matches understand daily habits and communication style.",
+        helper = "Diet, habits, and a thoughtful about section help serious members decide with confidence.",
+        info = "Lifestyle details give families and matches a clearer idea of daily compatibility."
     ),
     6 to WizardStepCopy(
         title = "Partner preferences",
         eyebrow = "Step 6 of 6",
         subtitle = "Set the match basics you care about most before profile review.",
-        helper = "These values go to the backend and power recommendations, filters, and shortlist quality."
+        helper = "These values go to the backend and power recommendations, filters, and shortlist quality.",
+        info = "Partner preferences directly drive recommendation quality and shortlist relevance."
     )
 )
 
@@ -146,7 +158,22 @@ fun ProfileWizardScreen(
     val errorMessage by vm.errorMessage.collectAsStateWithLifecycle()
     val loadMessage by vm.loadMessage.collectAsStateWithLifecycle()
     var isCurrentStepValid by remember(currentStep) { mutableStateOf(false) }
+    var showInfo by remember(currentStep) { mutableStateOf(false) }
     val copy = wizardCopy.getValue(currentStep)
+
+    if (showInfo) {
+        ModalBottomSheet(onDismissRequest = { showInfo = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(copy.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
+                Text(copy.info, style = MaterialTheme.typography.bodyMedium, color = SoulMatchTokens.Muted)
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -165,6 +192,11 @@ fun ProfileWizardScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showInfo = true }) {
+                        Icon(Icons.Filled.Info, contentDescription = "Info")
                     }
                 }
             )
@@ -209,11 +241,11 @@ fun ProfileWizardScreen(
                     ) {
                         when (currentStep) {
                             1 -> Step1BasicInfo(profile, vm) { isCurrentStepValid = it }
-                            2 -> Step2Physical(profile, vm) { isCurrentStepValid = it }
+                            2 -> Step2ReligiousCommunity(profile, vm) { isCurrentStepValid = it }
                             3 -> Step3Education(profile, vm) { isCurrentStepValid = it }
                             4 -> Step4Family(profile, vm) { isCurrentStepValid = it }
                             5 -> Step5Lifestyle(profile, vm) { isCurrentStepValid = it }
-                            6 -> Step6Horoscope(profile, vm) { isCurrentStepValid = it }
+                            6 -> Step6PartnerPreferences(profile, vm) { isCurrentStepValid = it }
                         }
                         if (!errorMessage.isNullOrBlank()) {
                             PremiumCard(containerColor = MaterialTheme.colorScheme.errorContainer) {
@@ -332,17 +364,12 @@ private fun isProfileSectionComplete(profile: ProfileData?, section: Int): Boole
             resolved.firstName,
             resolved.lastName,
             resolved.dob.orEmpty(),
-            resolved.gender,
-            resolved.religion,
-            resolved.caste,
-            resolved.motherTongue,
-            resolved.maritalStatus
+            resolved.gender
         ).all { it.isNotBlank() }
-        2 -> (resolved.heightCm ?: 0) > 0 &&
-            (resolved.weightKg ?: 0) > 0 &&
-            resolved.complexion.isNotBlank() &&
-            resolved.bodyType.isNotBlank() &&
-            resolved.bloodGroup.isNotBlank()
+        2 -> resolved.religion.isNotBlank() &&
+            resolved.caste.isNotBlank() &&
+            resolved.motherTongue.isNotBlank() &&
+            resolved.maritalStatus.isNotBlank()
         3 -> (resolved.noEducation || resolved.educationLevel.isNotBlank()) &&
             (!resolved.isEmployed || (
                 resolved.occupation.isNotBlank() &&
@@ -371,12 +398,7 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
     var firstName by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.firstName.orEmpty()) }
     var lastName by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.lastName.orEmpty()) }
     var dob by rememberSaveable(existing?.profileId) { mutableStateOf(sanitizeDobForDisplay(existing?.dob).orEmpty()) }
-    var religion by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.religion.orEmpty()) }
-    var caste by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.caste.orEmpty()) }
-    var motherTongue by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.motherTongue.orEmpty()) }
-    var maritalStatus by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.maritalStatus?.ifBlank { "never_married" } ?: "never_married") }
-    var gender by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.gender?.ifBlank { "male" } ?: "male") }
-    var profileCreatedBy by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.profileCreatedBy?.ifBlank { "self" } ?: "self") }
+    var gender by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.gender.orEmpty()) }
     val normalizedDob = normalizeDateOfBirth(dob)
     val dobHasError = dob.isNotBlank() && normalizedDob == null
     val firstNameError = firstName.isNotBlank() && firstName.trim().length < 2
@@ -384,20 +406,15 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
 
     val isValid = !firstNameError &&
         !lastNameError &&
-        listOf(firstName, lastName, gender, religion, caste, motherTongue, maritalStatus).all { it.isNotBlank() } &&
+        listOf(firstName, lastName, gender).all { it.isNotBlank() } &&
         normalizedDob != null
-    LaunchedEffect(firstName, lastName, normalizedDob, dobHasError, gender, religion, caste, motherTongue, maritalStatus, profileCreatedBy) {
+    LaunchedEffect(firstName, lastName, normalizedDob, dobHasError, gender) {
         vm.updateStep1Data(
             mapOf(
                 "firstName" to firstName,
                 "lastName" to lastName,
                 "dob" to (normalizedDob ?: dob.trim()),
-                "gender" to gender,
-                "religion" to religion,
-                "caste" to caste,
-                "motherTongue" to motherTongue,
-                "maritalStatus" to maritalStatus,
-                "profileCreatedBy" to profileCreatedBy
+                "gender" to gender
             )
         )
         onValidityChange(isValid)
@@ -405,7 +422,7 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
 
     PremiumCard {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionLead("Complete the essentials", "These details make the profile searchable and understandable to families.")
+            SectionLead("Basic details", "These details help families understand identity, background, and location.")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 RequiredTextField(
                     firstName,
@@ -424,22 +441,14 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
                     supportingText = if (lastNameError) "Enter at least 2 characters." else null
                 )
             }
-            RequiredTextField(
+            DatePickerField(
                 dob,
-                { value -> dob = formatDateInput(value) },
+                onValueChange = { dob = it },
                 "Date of birth",
-                keyboardType = KeyboardType.Number,
                 isError = dobHasError,
                 supportingText = if (dobHasError) "Use DD-MM-YYYY. Age must be between 18 and 80 years." else "Format: DD-MM-YYYY. Age must be 18 or above."
             )
-            ChipRow("Gender", listOf("male", "female"), gender) { gender = it }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                RequiredTextField(religion, { religion = it }, "Religion", Modifier.weight(1f))
-                RequiredTextField(caste, { caste = it }, "Community / caste", Modifier.weight(1f))
-            }
-            RequiredTextField(motherTongue, { motherTongue = it }, "Mother tongue")
-            ChipRow("Marital status", listOf("never_married", "divorced", "widowed"), maritalStatus) { maritalStatus = it }
-            ChipRow("Profile created by", listOf("self", "mediator"), profileCreatedBy) { profileCreatedBy = it }
+            SelectionField(label = "Gender", value = gender.titleCase(), options = listOf("Male", "Female"), onSelect = { gender = it.lowercase() })
         }
     }
 }
@@ -463,37 +472,20 @@ private fun heightCmFromFeetInches(feet: String, inches: String): Int? {
 }
 
 @Composable
-private fun Step2Physical(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
-    var heightFeet by rememberSaveable(existing?.profileId) { mutableStateOf(heightFeetFromCm(existing?.heightCm)) }
-    var heightInches by rememberSaveable(existing?.profileId) { mutableStateOf(heightInchesFromCm(existing?.heightCm)) }
-    var weightKg by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.weightKg?.toString().orEmpty()) }
-    var complexion by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.complexion.orEmpty()) }
-    var bodyType by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.bodyType.orEmpty()) }
-    var bloodGroup by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.bloodGroup.orEmpty()) }
+private fun Step2ReligiousCommunity(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
+    var religion by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.religion.orEmpty()) }
+    var caste by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.caste.orEmpty()) }
+    var motherTongue by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.motherTongue.orEmpty()) }
+    var maritalStatus by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.maritalStatus.orEmpty()) }
 
-    val feetValue = heightFeet.toIntOrNull()
-    val inchesValue = heightInches.toIntOrNull()
-    val heightValue = heightCmFromFeetInches(heightFeet, heightInches)
-    val weightValue = weightKg.toIntOrNull()
-    val heightHasInput = heightFeet.isNotBlank() || heightInches.isNotBlank()
-    val heightError = heightHasInput &&
-        (feetValue == null || feetValue !in 3..8 || inchesValue == null || inchesValue !in 0..11 || heightValue == null || heightValue !in 100..250)
-    val weightError = weightKg.isNotBlank() && (weightValue == null || weightValue !in 30..200)
-    val isValid = !heightError &&
-        !weightError &&
-        heightValue != null &&
-        weightKg.isNotBlank() &&
-        complexion.isNotBlank() &&
-        bodyType.isNotBlank() &&
-        bloodGroup.isNotBlank()
-    LaunchedEffect(heightFeet, heightInches, weightKg, complexion, bodyType, bloodGroup) {
+    val isValid = listOf(religion, caste, motherTongue, maritalStatus).all { it.isNotBlank() }
+    LaunchedEffect(religion, caste, motherTongue, maritalStatus) {
         vm.updateStep2Data(
             mapOf(
-                "heightCm" to (heightValue ?: 0),
-                "weightKg" to weightKg.toIntOrNull().orZero(),
-                "complexion" to complexion,
-                "bodyType" to bodyType,
-                "bloodGroup" to bloodGroup
+                "religion" to religion,
+                "caste" to caste,
+                "motherTongue" to motherTongue,
+                "maritalStatus" to maritalStatus
             )
         )
         onValidityChange(isValid)
@@ -501,39 +493,14 @@ private fun Step2Physical(existing: ProfileData?, vm: ProfileViewModel, onValidi
 
     PremiumCard {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionLead("Visible traits", "Keep these easy to filter without making the user hunt through the profile.")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                NumberField(
-                    heightFeet,
-                    { heightFeet = it.filter(Char::isDigit).take(1) },
-                    "Height feet",
-                    Modifier.weight(1f),
-                    isError = heightError,
-                    supportingText = if (heightError) "Use 3-8 ft." else null
-                )
-                NumberField(
-                    heightInches,
-                    { heightInches = it.filter(Char::isDigit).take(2) },
-                    "Inches",
-                    Modifier.weight(1f),
-                    isError = heightError,
-                    supportingText = if (heightError) "Use 0-11 in." else null
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                NumberField(
-                    weightKg,
-                    { weightKg = it.filter(Char::isDigit).take(3) },
-                    "Weight in kg",
-                    Modifier.weight(1f),
-                    isError = weightError,
-                    supportingText = if (weightError) "Enter a value between 30 and 200." else null
-                )
-            }
-            ChipRow("Complexion", listOf("Fair", "Wheatish", "Dusky"), complexion) { complexion = it }
-            ChipRow("Body type", listOf("Slim", "Average", "Athletic"), bodyType) { bodyType = it }
-            ChipRow("Blood group", listOf("A+", "B+", "O+", "AB+"), bloodGroup) { bloodGroup = it }
-            SignalChips(listOf("Improves filter accuracy", "Visible in full profile"), tone = ChipTone.Info)
+            SectionLead("Religious and community", "Keep this respectful and accurate for family-led matching.")
+            SelectionField(label = "Religion", value = religion, options = listOf("Hindu", "Muslim", "Christian", "Sikh", "Jain", "Buddhist"), onSelect = { religion = it })
+            RequiredTextField(caste, { caste = it }, "Community / caste")
+            SelectionField(label = "Mother tongue", value = motherTongue, options = listOf("Hindi", "English", "Telugu", "Tamil", "Malayalam", "Kannada", "Gujarati", "Bengali", "Marathi"), onSelect = { motherTongue = it })
+            SelectionField(label = "Marital status", value = maritalStatus.replace('_', ' ').titleCase(), options = listOf("Never married", "Divorced", "Widowed"), onSelect = {
+                maritalStatus = it.lowercase().replace(' ', '_')
+            })
+            SignalChips(listOf("Used in family search", "Used in partner preference matching"), tone = ChipTone.Info)
         }
     }
 }
@@ -806,7 +773,7 @@ private fun Step5Lifestyle(existing: ProfileData?, vm: ProfileViewModel, onValid
 }
 
 @Composable
-private fun Step6Horoscope(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
+private fun Step6PartnerPreferences(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
     val existingPreferences by vm.partnerPreferences.collectAsStateWithLifecycle()
     var ageMin by rememberSaveable(existing?.profileId) { mutableStateOf(existingPreferences.ageMin.toString()) }
     var ageMax by rememberSaveable(existing?.profileId) { mutableStateOf(existingPreferences.ageMax.toString()) }
@@ -869,15 +836,38 @@ private fun SectionLead(title: String, description: String) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ChipRow(title: String, options: List<String>, selected: String, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("$title *", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = SoulMatchTokens.Text)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            options.forEach { option ->
-                FilterChoiceChip(
-                    label = titleCase(option),
-                    selected = selected.equals(option, ignoreCase = true),
-                    onClick = { onSelect(option) }
-                )
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value = selected.replace('_', ' ').titleCase(),
+                onValueChange = {},
+                readOnly = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(),
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
+                singleLine = true
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                options.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option.replace('_', ' ').titleCase()) },
+                        onClick = {
+                            onSelect(option)
+                            expanded = false
+                        }
+                    )
+                }
             }
         }
     }
@@ -1017,5 +1007,51 @@ private fun formatDateInput(value: String): String {
             if ((index == 1 || index == 3) && index != digits.lastIndex) append('-')
         }
     }
+}
+
+@Composable
+private fun DatePickerField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    isError: Boolean = false,
+    supportingText: String? = null
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val calendarValue = remember(value) {
+        sanitizeDobForDisplay(value)?.let {
+            runCatching { LocalDate.parse(it, DateTimeFormatter.ofPattern("dd-MM-uuuu")) }.getOrNull()
+        }
+    } ?: LocalDate.of(1995, 1, 1)
+    val picker = remember(value) {
+        DatePickerDialog(
+            context,
+            { _, year, month, dayOfMonth ->
+                onValueChange(
+                    LocalDate.of(year, month + 1, dayOfMonth)
+                        .format(DateTimeFormatter.ofPattern("dd-MM-uuuu"))
+                )
+            },
+            calendarValue.year,
+            calendarValue.monthValue - 1,
+            calendarValue.dayOfMonth
+        ).apply {
+            datePicker.maxDate = Instant.now().toEpochMilli()
+            datePicker.minDate = LocalDate.now().minusYears(80).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        }
+    }
+    OutlinedTextField(
+        value = value,
+        onValueChange = {},
+        label = { Text("$label *") },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { picker.show() },
+        readOnly = true,
+        isError = isError,
+        supportingText = supportingText?.let { message -> { Text(message) } },
+        shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
+        trailingIcon = { Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = SoulMatchTokens.Tangerine) }
+    )
 }
 

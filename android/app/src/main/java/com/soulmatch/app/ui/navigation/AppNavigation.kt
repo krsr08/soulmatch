@@ -42,8 +42,13 @@ import com.soulmatch.app.data.models.LegalContentData
 import com.soulmatch.app.data.models.MonetizationRuntimeData
 import com.soulmatch.app.data.models.NavigationContentData
 import com.soulmatch.app.ui.screens.auth.OTPVerificationScreen
-import com.soulmatch.app.ui.screens.auth.ExactProfileWizardScreen
 import com.soulmatch.app.ui.screens.auth.PhoneEntryScreen
+import com.soulmatch.app.ui.screens.auth.ProfileCorrectionRequiredScreen
+import com.soulmatch.app.ui.screens.auth.ProfileIntroScreen
+import com.soulmatch.app.ui.screens.auth.ProfilePhotoUploadScreen
+import com.soulmatch.app.ui.screens.auth.ProfilePreviewReviewScreen
+import com.soulmatch.app.ui.screens.auth.ProfileUnderReviewScreen
+import com.soulmatch.app.ui.screens.auth.ProfileVerificationScreen
 import com.soulmatch.app.ui.screens.auth.ProfileWizardScreen
 import com.soulmatch.app.ui.screens.auth.RoleSelectionScreen
 import com.soulmatch.app.ui.screens.auth.WelcomeScreen
@@ -61,9 +66,6 @@ import com.soulmatch.app.ui.screens.agent.AgentPlansScreen
 import com.soulmatch.app.ui.screens.agent.AgentProfilesScreen
 import com.soulmatch.app.ui.screens.chat.ChatListScreen
 import com.soulmatch.app.ui.screens.chat.ChatScreen
-import com.soulmatch.app.ui.screens.design.DesignHotspot
-import com.soulmatch.app.ui.screens.design.ExactDesignScreen
-import com.soulmatch.app.ui.screens.design.backHotspot
 import com.soulmatch.app.ui.screens.home.BestMatchesScreen
 import com.soulmatch.app.ui.screens.home.DashboardScreen
 import com.soulmatch.app.ui.screens.home.NotificationsScreen
@@ -357,20 +359,15 @@ fun AppNavigation(
             )
         }
         composable("profile_intro") {
-            ExactDesignScreen(
-                assetName = "10_profile_creation_intro_screen.png",
-                hotspots = listOf(
-                    DesignHotspot(294f, 104f, 58f, 58f) { nav.navigate("profile_intro_info") },
-                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_wizard/1") }
-                )
+            ProfileIntroScreen(
+                onBack = { nav.popBackStack() },
+                onContinue = { nav.navigate("profile_wizard/1") }
             )
         }
         composable("profile_intro_info") {
-            ExactDesignScreen(
-                assetName = "10a_profile_creation_info_overlay.png",
-                hotspots = listOf(
-                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_wizard/1") }
-                )
+            ProfileIntroScreen(
+                onBack = { nav.popBackStack() },
+                onContinue = { nav.navigate("profile_wizard/1") }
             )
         }
         composable(
@@ -400,8 +397,9 @@ fun AppNavigation(
                     onBack = { nav.popBackStack() }
                 )
             } else {
-                ExactProfileWizardScreen(
+                ProfileWizardScreen(
                     step = resolvedStep,
+                    isSectionEdit = false,
                     onNextStep = { next ->
                         if (next > 6) {
                             nav.navigate("profile_photo_upload")
@@ -414,52 +412,37 @@ fun AppNavigation(
             }
         }
         composable("profile_photo_upload") {
-            ExactDesignScreen(
-                assetName = "17_photo_upload_screen.png",
-                hotspots = listOf(
-                    backHotspot { nav.popBackStack() },
-                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_verification") }
-                )
+            ProfilePhotoUploadScreen(
+                onBack = { nav.popBackStack() },
+                onContinue = { nav.navigate("profile_verification") }
             )
         }
         composable("profile_verification") {
-            ExactDesignScreen(
-                assetName = "18_verification_screen.png",
-                hotspots = listOf(
-                    backHotspot { nav.popBackStack() },
-                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_preview_review") }
-                )
+            ProfileVerificationScreen(
+                onBack = { nav.popBackStack() },
+                onContinue = { nav.navigate("profile_preview_review") }
             )
         }
         composable("profile_preview_review") {
-            ExactDesignScreen(
-                assetName = "19_profile_preview_screen.png",
-                hotspots = listOf(
-                    backHotspot { nav.popBackStack() },
-                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_under_review") }
-                )
+            ProfilePreviewReviewScreen(
+                onBack = { nav.popBackStack() },
+                onSubmit = { nav.navigate("profile_under_review") }
             )
         }
         composable("profile_under_review") {
-            ExactDesignScreen(
-                assetName = "20_profile_under_review_screen.png",
-                hotspots = listOf(
-                    DesignHotspot(28f, 682f, 334f, 58f) { nav.navigate("help_support") },
-                    DesignHotspot(28f, 754f, 334f, 58f) {
-                        nav.navigate("dashboard") {
-                            popUpTo("welcome") { inclusive = true }
-                        }
+            ProfileUnderReviewScreen(
+                onHelp = { nav.navigate("help_support") },
+                onPrimary = {
+                    nav.navigate("dashboard") {
+                        popUpTo("welcome") { inclusive = true }
                     }
-                )
+                }
             )
         }
         composable("profile_correction_required") {
-            ExactDesignScreen(
-                assetName = "21_profile_rejected_correction_required_screen.png",
-                hotspots = listOf(
-                    DesignHotspot(28f, 682f, 334f, 58f) { nav.navigate("profile_wizard/1?returnToProfile=true") },
-                    DesignHotspot(28f, 754f, 334f, 58f) { nav.navigate("profile_under_review") }
-                )
+            ProfileCorrectionRequiredScreen(
+                onBackToEdit = { nav.navigate("profile_wizard/1?returnToProfile=true") },
+                onReviewAgain = { nav.navigate("profile_under_review") }
             )
         }
         composable("dashboard") {

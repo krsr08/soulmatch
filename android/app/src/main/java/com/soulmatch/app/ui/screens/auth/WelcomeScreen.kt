@@ -89,6 +89,7 @@ fun WelcomeScreen(
     val webClientId = rememberGoogleWebClientId(googleWebClientId)
     var phone by remember { mutableStateOf("") }
     var localPhoneError by remember { mutableStateOf<String?>(null) }
+    var lastAction by remember { mutableStateOf("phone") }
     val context = androidx.compose.ui.platform.LocalContext.current
 
     val googleClient = remember(webClientId, context) {
@@ -111,6 +112,7 @@ fun WelcomeScreen(
             if (token.isNullOrBlank()) {
                 vm.reportError("Google sign-in did not return a valid ID token. Please check the app's Google OAuth setup.")
             } else {
+                lastAction = "google"
                 vm.googleLogin(token, "member")
             }
         } catch (error: ApiException) {
@@ -166,12 +168,21 @@ fun WelcomeScreen(
                     onValueChange = {
                         phone = it.filter(Char::isDigit).take(10)
                         localPhoneError = null
+                        lastAction = "phone"
                         vm.clearError()
                     }
                 )
                 if (localPhoneError != null) {
                     Text(
                         text = localPhoneError.orEmpty(),
+                        color = SoulMatchTokens.Error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+                if (state is AuthUiState.Error && lastAction == "phone") {
+                    Text(
+                        text = (state as AuthUiState.Error).message,
                         color = SoulMatchTokens.Error,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(top = 2.dp)
@@ -205,6 +216,7 @@ fun WelcomeScreen(
             Spacer(Modifier.height(28.dp))
             Button(
                 onClick = {
+                    lastAction = "phone"
                     val normalized = normalizeIndianPhone(phone.trim())
                     if (normalized == null) {
                         localPhoneError = "Please enter a valid mobile number"
@@ -234,20 +246,24 @@ fun WelcomeScreen(
                     color = SoulMatchTokens.Tangerine,
                     strokeWidth = 2.dp
                 )
-                is AuthUiState.Error -> Text(
-                    text = (state as AuthUiState.Error).message,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 14.dp),
-                    color = SoulMatchTokens.Error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Start
-                )
+                is AuthUiState.Error ->
+                    if (lastAction == "google") {
+                        Text(
+                            text = (state as AuthUiState.Error).message,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 14.dp),
+                            color = SoulMatchTokens.Error,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Start
+                        )
+                    }
                 else -> Unit
             }
             ContinueWithDivider(modifier = Modifier.padding(vertical = 16.dp))
             OutlinedButton(
                 onClick = {
+                    lastAction = "google"
                     vm.clearError()
                     if (webClientId.isBlank()) {
                         vm.reportError("Google sign-in is not configured yet. Add a valid Google web client ID in public config or local app config.")

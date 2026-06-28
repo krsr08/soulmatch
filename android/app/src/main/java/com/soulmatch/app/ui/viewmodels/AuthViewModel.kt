@@ -25,6 +25,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
 import retrofit2.Response
+import java.io.IOException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 sealed class AuthUiState {
@@ -62,9 +66,11 @@ class AuthViewModel @Inject constructor(
                 _state.value = if (r.isSuccessful && r.body()?.success == true) {
                     AuthUiState.OTPSent
                 } else {
-                    AuthUiState.Error(extractErrorMessage(r, "Failed to send OTP"))
+                    AuthUiState.Error(normalizeAuthMessage(extractErrorMessage(r, "Failed to send OTP"), otpFlow = true))
                 }
-            } catch (e: Exception) { _state.value = AuthUiState.Error(e.message ?: "Network error") }
+            } catch (e: Exception) {
+                _state.value = AuthUiState.Error(friendlyServiceMessage(e))
+            }
         }
     }
 
@@ -82,7 +88,7 @@ class AuthViewModel @Inject constructor(
                 }
 
                 override fun onVerificationFailed(error: FirebaseException) {
-                    _state.value = AuthUiState.Error(error.message ?: "Firebase could not send OTP.")
+                    _state.value = AuthUiState.Error(normalizeAuthMessage(error.message, otpFlow = true))
                 }
 
                 override fun onCodeSent(
@@ -116,10 +122,10 @@ class AuthViewModel @Inject constructor(
                     val route = persistSessionAndResolveRoute(authData, userType)
                     _state.value = AuthUiState.Verified(authData.isNewUser, route)
                 } else {
-                    _state.value = AuthUiState.Error(extractErrorMessage(response, "Could not verify OTP."))
+                    _state.value = AuthUiState.Error(normalizeAuthMessage(extractErrorMessage(response, "Could not verify OTP."), otpFlow = true))
                 }
             } catch (e: Exception) {
-                _state.value = AuthUiState.Error(e.message ?: "Could not verify OTP.")
+                _state.value = AuthUiState.Error(normalizeAuthMessage(friendlyServiceMessage(e), otpFlow = true))
             }
         }
     }
@@ -136,7 +142,7 @@ class AuthViewModel @Inject constructor(
                 val credential = PhoneAuthProvider.getCredential(verificationId, otp)
                 completeFirebasePhoneVerification(phone, credential, userType)
             } catch (e: Exception) {
-                _state.value = AuthUiState.Error(e.message ?: "Phone verification failed.")
+                _state.value = AuthUiState.Error(normalizeAuthMessage(e.message, otpFlow = true))
             }
         }
     }
@@ -155,10 +161,10 @@ class AuthViewModel @Inject constructor(
                     val route = persistSessionAndResolveRoute(d, userType)
                     _state.value = AuthUiState.Verified(d.isNewUser, route)
                 } else {
-                    _state.value = AuthUiState.Error(extractErrorMessage(r, "Google sign-in failed. Please try again."))
+                    _state.value = AuthUiState.Error(normalizeAuthMessage(extractErrorMessage(r, "Google sign-in failed. Please try again.")))
                 }
             } catch (e: Exception) {
-                _state.value = AuthUiState.Error(e.message ?: "Google sign-in could not reach SoulMatch. Check your connection and retry.")
+                _state.value = AuthUiState.Error(friendlyServiceMessage(e))
             }
         }
     }
@@ -177,10 +183,10 @@ class AuthViewModel @Inject constructor(
                     val route = persistSessionAndResolveRoute(authData, userType)
                     _state.value = AuthUiState.Verified(authData.isNewUser, route)
                 } else {
-                    _state.value = AuthUiState.Error(extractErrorMessage(response, "We could not update the account type."))
+                    _state.value = AuthUiState.Error(normalizeAuthMessage(extractErrorMessage(response, "We could not update the account type.")))
                 }
             } catch (e: Exception) {
-                _state.value = AuthUiState.Error(e.message ?: "We could not update the account type.")
+                _state.value = AuthUiState.Error(friendlyServiceMessage(e))
             }
         }
     }
@@ -190,12 +196,12 @@ class AuthViewModel @Inject constructor(
             val signInResult = firebaseAuth.signInWithCredential(credential).await()
             val user = signInResult.user
             if (user == null) {
-                _state.value = AuthUiState.Error("Firebase did not return a signed-in user.")
+                _state.value = AuthUiState.Error("Service is temporarily not available. Please try again.")
                 return
             }
             val firebaseToken = user.getIdToken(false).await().token
             if (firebaseToken.isNullOrBlank()) {
-                _state.value = AuthUiState.Error("Firebase did not return a valid phone token.")
+                _state.value = AuthUiState.Error("Service is temporarily not available. Please try again.")
                 return
             }
             val response = authApi.firebasePhoneLogin(
@@ -211,10 +217,10 @@ class AuthViewModel @Inject constructor(
                 val route = persistSessionAndResolveRoute(authData, userType)
                 _state.value = AuthUiState.Verified(authData.isNewUser, route)
             } else {
-                _state.value = AuthUiState.Error(extractErrorMessage(response, "SoulMatch could not complete phone sign-in."))
+                _state.value = AuthUiState.Error(normalizeAuthMessage(extractErrorMessage(response, "SoulMatch could not complete phone sign-in."), otpFlow = true))
             }
         } catch (e: Exception) {
-            _state.value = AuthUiState.Error(e.message ?: "Phone verification failed.")
+            _state.value = AuthUiState.Error(normalizeAuthMessage(friendlyServiceMessage(e), otpFlow = true))
         }
     }
 
@@ -282,6 +288,7 @@ class AuthViewModel @Inject constructor(
     }
 
     private fun <T> extractErrorMessage(response: Response<T>, fallback: String): String {
+        if (response.code() >= 500) return "Service is temporarily not available. Please try again."
         val body = response.body()
         if (body is com.soulmatch.app.data.models.GenericResponse<*>) {
             body.error?.message?.takeIf { it.isNotBlank() }?.let { return it }
@@ -296,5 +303,37 @@ class AuthViewModel @Inject constructor(
             }.getOrNull()?.let { return it }
         }
         return fallback
+    }
+
+    private fun friendlyServiceMessage(error: Throwable?): String {
+        val raw = error?.message.orEmpty()
+        return when {
+            error is ConnectException || error is SocketTimeoutException || error is UnknownHostException || error is IOException ->
+                "Service is temporarily not available. Please try again."
+            raw.contains("failed to connect", ignoreCase = true) ||
+                raw.contains("connection refused", ignoreCase = true) ||
+                raw.contains("timeout", ignoreCase = true) ||
+                raw.contains("unable to resolve host", ignoreCase = true) ->
+                "Service is temporarily not available. Please try again."
+            else -> raw.ifBlank { "Service is temporarily not available. Please try again." }
+        }
+    }
+
+    private fun normalizeAuthMessage(message: String?, otpFlow: Boolean = false): String {
+        val raw = message.orEmpty()
+        val lower = raw.lowercase()
+        return when {
+            otpFlow && (lower.contains("invalid otp") || lower.contains("invalid code") || lower.contains("otp is invalid")) ->
+                "Invalid OTP"
+            otpFlow && (lower.contains("expired otp") || lower.contains("otp expired") || lower.contains("code expired")) ->
+                "Invalid OTP"
+            lower.contains("temporarily not available") -> "Service is temporarily not available. Please try again."
+            lower.contains("failed to connect") ||
+                lower.contains("connection refused") ||
+                lower.contains("timeout") ||
+                lower.contains("unable to resolve host") ->
+                "Service is temporarily not available. Please try again."
+            else -> raw.ifBlank { "Service is temporarily not available. Please try again." }
+        }
     }
 }

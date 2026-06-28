@@ -57,6 +57,7 @@ fun OTPVerificationScreen(
     var countdown by remember { mutableIntStateOf(30) }
     var canResend by remember { mutableStateOf(false) }
     var resendCycle by remember { mutableIntStateOf(0) }
+    val errorMessage = (state as? AuthUiState.Error)?.message.orEmpty()
 
     LaunchedEffect(phone, resendCycle) {
         countdown = 30
@@ -118,7 +119,11 @@ fun OTPVerificationScreen(
                                 boxes[index] = nextValue
                                 if (nextValue.isNotEmpty() && index < 5) focusers[index + 1].requestFocus()
                                 if (boxes.joinToString("").length == 6) {
-                                    vm.verifyOTP(phone, boxes.joinToString(""), userType)
+                                    runCatching {
+                                        vm.verifyOTP(phone, boxes.joinToString(""), userType)
+                                    }.onFailure {
+                                        vm.reportError("Invalid OTP")
+                                    }
                                 }
                             }
                         },
@@ -144,7 +149,11 @@ fun OTPVerificationScreen(
             }
             if (state is AuthUiState.Error) {
                 Text(
-                    "Invalid OTP. Please enter a valid OTP",
+                    if (errorMessage.equals("Invalid OTP", ignoreCase = true)) {
+                        "Invalid OTP. Please enter a valid OTP"
+                    } else {
+                        errorMessage
+                    },
                     color = SoulMatchTokens.Error,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 8.dp)

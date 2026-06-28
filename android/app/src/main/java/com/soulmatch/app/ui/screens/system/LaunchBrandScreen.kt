@@ -1,6 +1,6 @@
 package com.soulmatch.app.ui.screens.system
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -26,12 +27,15 @@ private const val SplashDesignHeight = 844f
 
 @Composable
 fun LaunchBrandScreen() {
-    val progressTarget = remember { 1f }
-    val progress by animateFloatAsState(
-        targetValue = progressTarget,
-        animationSpec = tween(durationMillis = 3000),
-        label = "splash-progress"
-    )
+    val progress = remember { Animatable(0f) }
+
+    LaunchedEffect(Unit) {
+        progress.snapTo(0f)
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 3000)
+        )
+    }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -45,7 +49,7 @@ fun LaunchBrandScreen() {
             contentScale = ContentScale.FillBounds
         )
         LinearProgressIndicator(
-            progress = progress,
+            progress = progress.value,
             modifier = Modifier
                 .offset(
                     x = (maxWidth.value * 128f / SplashDesignWidth).dp,
