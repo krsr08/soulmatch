@@ -12,12 +12,7 @@ object AppEnvironment {
         BuildConfig.PAYMENT_BASE_URL
     )
 
-    val allowDemoFallback: Boolean = BuildConfig.DEBUG && backendUrls.any { url ->
-        url.contains("10.0.2.2") ||
-            url.contains("localhost", ignoreCase = true) ||
-            url.contains("127.0.0.1") ||
-            url.contains("192.168.")
-    }
+    val allowDemoFallback: Boolean = false
 
     val publicMediaBaseUrl: String = BuildConfig.PROFILE_BASE_URL
         .substringBefore("/api/v1")

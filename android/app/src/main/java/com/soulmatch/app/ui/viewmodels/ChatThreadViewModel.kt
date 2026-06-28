@@ -58,7 +58,7 @@ class ChatThreadViewModel @Inject constructor(
             _sendStatus.value = null
             _currentUserId.value = prefs.userId.first() ?: if (AppEnvironment.allowDemoFallback) MarketFixtures.currentUserId else ""
             activePartnerId = participantUserId
-            val chatId = MarketFixtures.makeChatId(_currentUserId.value, participantUserId)
+            val chatId = buildChatId(_currentUserId.value, participantUserId)
             val channel = if (AppEnvironment.allowDemoFallback) MarketFixtures.conversationForParticipant(participantUserId) else null
             val loadedMessages = runCatching { chatApi.getMessages(chatId) }
                 .getOrNull()
@@ -83,7 +83,7 @@ class ChatThreadViewModel @Inject constructor(
         val trimmed = content.trim()
         if (trimmed.isBlank()) return
         _sendStatus.value = null
-        val chatId = MarketFixtures.makeChatId(_currentUserId.value, participantUserId)
+        val chatId = buildChatId(_currentUserId.value, participantUserId)
         val fallbackMessage = ChatMessage(
             messageId = "local-${System.currentTimeMillis()}",
             chatId = chatId,
@@ -157,6 +157,13 @@ class ChatThreadViewModel @Inject constructor(
         socketToken = null
         super.onCleared()
     }
+}
+
+private fun buildChatId(currentUserId: String, participantUserId: String): String {
+    return listOf(currentUserId, participantUserId)
+        .filter { it.isNotBlank() }
+        .sorted()
+        .joinToString(":")
 }
 
 private fun JSONObject.toChatMessage(): ChatMessage {

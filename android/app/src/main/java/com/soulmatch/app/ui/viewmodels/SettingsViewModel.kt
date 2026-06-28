@@ -7,7 +7,6 @@ import com.soulmatch.app.data.api.ProfileApiService
 import com.soulmatch.app.data.config.AppEnvironment
 import com.soulmatch.app.data.local.UserPreferences
 import com.soulmatch.app.data.local.ProfileInteractionStore
-import com.soulmatch.app.data.mock.MarketFixtures
 import com.soulmatch.app.data.models.PrivacySettingsRequest
 import com.soulmatch.app.data.models.ProfileStatusRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -54,12 +53,8 @@ class SettingsViewModel @Inject constructor(
     private val _contactPrivacy = MutableStateFlow("visible")
     private val removedHiddenProfileIds = mutableSetOf<String>()
     private val removedBlockedProfileIds = mutableSetOf<String>()
-    private val starterHiddenMembers = if (AppEnvironment.allowDemoFallback) MarketFixtures.matches.drop(5).take(1).map {
-        PrivacyMemberUi(it.profileId, it.name, "${it.location} | ${it.community}")
-    } else emptyList()
-    private val starterBlockedMembers = if (AppEnvironment.allowDemoFallback) MarketFixtures.matches.drop(9).take(1).map {
-        PrivacyMemberUi(it.profileId, it.name, "${it.location} | ${it.community}")
-    } else emptyList()
+    private val starterHiddenMembers = emptyList<PrivacyMemberUi>()
+    private val starterBlockedMembers = emptyList<PrivacyMemberUi>()
     private val _hiddenMembers = MutableStateFlow(starterHiddenMembers)
     private val _blockedMembers = MutableStateFlow(starterBlockedMembers)
     private val _reportedConcerns = MutableStateFlow<List<ReportedConcernUi>>(emptyList())
@@ -289,16 +284,6 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun memberForProfileId(profileId: String): PrivacyMemberUi {
-        if (!AppEnvironment.allowDemoFallback) return PrivacyMemberUi(profileId, "Member", "Private profile")
-        val summary = MarketFixtures.matchSeed(profileId)
-        if (summary != null) {
-            return PrivacyMemberUi(summary.profileId, summary.name, "${summary.location} | ${summary.community}")
-        }
-        val detail = MarketFixtures.profileDetails(profileId)
-        return PrivacyMemberUi(
-            detail.profileId,
-            detail.firstName + " " + detail.lastName,
-            "${detail.workingCity} | ${detail.religion}, ${detail.caste}"
-        )
+        return PrivacyMemberUi(profileId, "Member", "Private profile")
     }
 }

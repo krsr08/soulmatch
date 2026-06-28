@@ -1473,9 +1473,9 @@ private fun HomeScamAwarenessInsertCard(
     onOpen: () -> Unit
 ) {
     val awarenessCards = cards
-        .ifEmpty { com.soulmatch.app.data.models.defaultScamAwarenessCards() }
+        .ifEmpty { emptyList() }
         .filter { it.enabled }
-        .ifEmpty { com.soulmatch.app.data.models.defaultScamAwarenessCards() }
+        .ifEmpty { emptyList() }
     var selectedIndex by rememberSaveable(awarenessCards.size) { mutableStateOf(0) }
     val active = awarenessCards[selectedIndex.coerceIn(0, awarenessCards.lastIndex)]
     Card(
@@ -1778,7 +1778,6 @@ private fun homeBestMatchAdCards(
     assistEnabled: Boolean
 ): List<HomeBestMatchAdData> {
     return content.bestMatchAdCards
-        .ifEmpty { defaultHomeBestMatchAds() }
         .filter { it.enabled && (it.title.isNotBlank() || it.body.isNotBlank()) }
         .filterNot { assistEnabled && it.type.equals("assist", ignoreCase = true) }
         .filter { it.isEligibleForPlan(subscription) }

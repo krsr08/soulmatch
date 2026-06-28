@@ -52,7 +52,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.local.ProfileInteractionStore
-import com.soulmatch.app.data.mock.MarketFixtures
 import com.soulmatch.app.data.models.ProfileSummary
 import com.soulmatch.app.data.local.ReportedConcern
 import com.soulmatch.app.data.models.InterestListItem
@@ -83,6 +82,12 @@ private data class InterestActivityItem(
     val directionLabel: String
 )
 
+private data class ManagementProfileItem(
+    val profileId: String,
+    val name: String,
+    val detail: String
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InterestsScreen(
@@ -111,10 +116,10 @@ fun InterestsScreen(
     val declined = remember(received, sent) { buildInterestBucket(received, sent, "declined") }
     val tabs = listOf("Received", "Sent", "Accepted", "Declined", "Shortlist", "Visitors", "Hidden", "Blocked", "Reported")
     val hiddenProfiles = remember(interactions.hiddenProfileIds) {
-        interactions.hiddenProfileIds.mapNotNull { MarketFixtures.matchSeed(it) }
+        interactions.hiddenProfileIds.map(::managementProfileItem)
     }
     val blockedProfiles = remember(interactions.blockedProfileIds) {
-        interactions.blockedProfileIds.mapNotNull { MarketFixtures.matchSeed(it) }
+        interactions.blockedProfileIds.map(::managementProfileItem)
     }
     val reportedConcerns = remember(interactions.reportedConcerns) {
         interactions.reportedConcerns.values.sortedByDescending { it.updatedMillis }
@@ -266,7 +271,7 @@ fun InterestsScreen(
                                                 profile = profile,
                                                 icon = Icons.Filled.Visibility,
                                                 label = "Hidden",
-                                                dateLabel = "Profile added ${formatDate(profile.createdAt)}"
+                                                dateLabel = "Saved in your hidden list"
                                             )
                                         }
                                     }
@@ -282,7 +287,7 @@ fun InterestsScreen(
                                                 profile = profile,
                                                 icon = Icons.Filled.Block,
                                                 label = "Blocked",
-                                                dateLabel = "Profile added ${formatDate(profile.createdAt)}",
+                                                dateLabel = "Saved in your blocked list",
                                                 danger = true
                                             )
                                         }
@@ -521,7 +526,7 @@ private fun EmptyStateCard(message: String, detail: String) {
 
 @Composable
 private fun ManagementProfileRow(
-    profile: ProfileSummary,
+    profile: ManagementProfileItem,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     dateLabel: String,
@@ -546,7 +551,7 @@ private fun ManagementProfileRow(
                     )
                     SignalChip(label, tone = if (danger) ChipTone.Warm else ChipTone.Info)
                 }
-                Text("${profile.location} | ${profile.community}", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                Text(profile.detail, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                 Text(dateLabel, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
             }
         }
@@ -555,7 +560,7 @@ private fun ManagementProfileRow(
 
 @Composable
 private fun ReportedActivityRow(concern: ReportedConcern) {
-    val profile = MarketFixtures.matchSeed(concern.profileId)
+    val profile = managementProfileItem(concern.profileId)
     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), containerColor = SurfaceWarm, contentPadding = PaddingValues(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
             Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, Divider), modifier = Modifier.size(52.dp)) {
@@ -566,7 +571,7 @@ private fun ReportedActivityRow(concern: ReportedConcern) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        profile?.name ?: "Reported member",
+                        profile.name,
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
@@ -575,12 +580,21 @@ private fun ReportedActivityRow(concern: ReportedConcern) {
                     )
                     SignalChip("Reported", tone = ChipTone.Warm)
                 }
-                Text(profile?.let { "${it.location} | ${it.community}" } ?: concern.profileId, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                Text(profile.detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                 Text("Reported ${formatDateMillis(concern.updatedMillis)}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                 Text(concern.concern, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
+}
+
+private fun managementProfileItem(profileId: String): ManagementProfileItem {
+    val shortId = profileId.takeLast(6).ifBlank { "member" }
+    return ManagementProfileItem(
+        profileId = profileId,
+        name = "Member $shortId",
+        detail = "Private profile"
+    )
 }
 
 private fun buildInterestBucket(
