@@ -77,6 +77,11 @@ import com.soulmatch.app.ui.screens.profile.ProfileDetailScreen
 import com.soulmatch.app.ui.screens.profile.SoulMatchAssistScreen
 import com.soulmatch.app.ui.screens.profile.SpotlightScreen
 import com.soulmatch.app.ui.screens.search.SearchScreen
+import com.soulmatch.app.ui.screens.settings.DeleteAccountScreen
+import com.soulmatch.app.ui.screens.settings.LogoutConfirmationScreen
+import com.soulmatch.app.ui.screens.settings.NotificationSettingsScreen
+import com.soulmatch.app.ui.screens.settings.PaymentScreen
+import com.soulmatch.app.ui.screens.settings.PrivacySettingsScreen
 import com.soulmatch.app.ui.screens.settings.SettingsScreen
 import com.soulmatch.app.ui.screens.success.SuccessStoriesScreen
 import com.soulmatch.app.ui.screens.subscription.SubscriptionHistoryScreen
@@ -554,7 +559,39 @@ fun AppNavigation(
         composable("settings") {
             SettingsScreen(
                 onBack = { nav.popBackStack() },
-                onLogout = { nav.navigate("welcome") { popUpTo(0) { inclusive = true } } }
+                onLogout = { nav.navigate("welcome") { popUpTo(0) { inclusive = true } } },
+                onOpenPrivacy = { nav.navigate("privacy_settings") },
+                onOpenNotifications = { nav.navigate("notification_settings") },
+                onOpenPayment = { nav.navigate("payment") },
+                onOpenDeleteAccount = { nav.navigate("delete_account") },
+                onOpenLogout = { nav.navigate("logout_confirmation") }
+            )
+        }
+        composable("privacy_settings") {
+            PrivacySettingsScreen(
+                onBack = { nav.popBackStack() },
+                onOpenNotifications = { nav.navigate("notification_settings") }
+            )
+        }
+        composable("notification_settings") {
+            NotificationSettingsScreen(onBack = { nav.popBackStack() })
+        }
+        composable("payment") {
+            PaymentScreen(
+                onBack = { nav.popBackStack() },
+                onPayNow = { nav.navigate("subscription") }
+            )
+        }
+        composable("delete_account") {
+            DeleteAccountScreen(
+                onBack = { nav.popBackStack() },
+                onDeleted = { nav.navigate("welcome") { popUpTo(0) { inclusive = true } } }
+            )
+        }
+        composable("logout_confirmation") {
+            LogoutConfirmationScreen(
+                onCancel = { nav.popBackStack() },
+                onLoggedOut = { nav.navigate("welcome") { popUpTo(0) { inclusive = true } } }
             )
         }
         composable("spotlight") {

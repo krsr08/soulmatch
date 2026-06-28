@@ -16,10 +16,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Payment
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -73,6 +77,11 @@ fun SettingsScreen(
     onSubscribe: (() -> Unit)? = null,
     onEditSection: ((Int) -> Unit)? = null,
     onLogout: (() -> Unit)? = null,
+    onOpenPrivacy: (() -> Unit)? = null,
+    onOpenNotifications: (() -> Unit)? = null,
+    onOpenPayment: (() -> Unit)? = null,
+    onOpenDeleteAccount: (() -> Unit)? = null,
+    onOpenLogout: (() -> Unit)? = null,
     profileId: String = "",
     chatId: String = "",
     participantName: String = "",
@@ -117,15 +126,72 @@ fun SettingsScreen(
                         Text(status ?: "", style = MaterialTheme.typography.bodyMedium, color = Success, fontWeight = FontWeight.SemiBold)
                     }
                 }
+                SettingsNavigationCard(
+                    onOpenPrivacy = onOpenPrivacy,
+                    onOpenNotifications = onOpenNotifications,
+                    onOpenPayment = onOpenPayment,
+                    onOpenDeleteAccount = onOpenDeleteAccount,
+                    onOpenLogout = onOpenLogout
+                )
                 PrivacyControlsCard(settings = settings, vm = vm)
                 ContactAndVisibilityCard(settings = settings, vm = vm)
                 DataRightsCard(
                     onExport = { vm.exportMyData() },
-                    onDelete = { vm.deleteAccount(logout) }
+                    onDelete = { onOpenDeleteAccount?.invoke() ?: vm.deleteAccount(logout) }
                 )
-                SupportCard(onLogout = { vm.logout(logout) })
+                SupportCard(onLogout = { onOpenLogout?.invoke() ?: vm.logout(logout) })
                 Box(Modifier.padding(bottom = 8.dp))
             }
+        }
+    }
+}
+
+@Composable
+private fun SettingsNavigationCard(
+    onOpenPrivacy: (() -> Unit)?,
+    onOpenNotifications: (() -> Unit)?,
+    onOpenPayment: (() -> Unit)?,
+    onOpenDeleteAccount: (() -> Unit)?,
+    onOpenLogout: (() -> Unit)?
+) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp), containerColor = MaterialTheme.colorScheme.surface) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SettingsNavRow(Icons.Filled.PrivacyTip, "Privacy settings", "Control phone, email, photos, and profile visibility", onOpenPrivacy)
+            SettingsNavRow(Icons.Filled.Notifications, "Notification settings", "Manage match, interest, message, and payment alerts", onOpenNotifications)
+            SettingsNavRow(Icons.Filled.Payment, "Payment", "Review selected plan and secure checkout", onOpenPayment)
+            SettingsNavRow(Icons.Filled.Delete, "Delete account", "Permanently remove your SoulMatch profile", onOpenDeleteAccount, danger = true)
+            SettingsNavRow(Icons.Filled.Logout, "Logout", "Sign out from this phone", onOpenLogout)
+        }
+    }
+}
+
+@Composable
+private fun SettingsNavRow(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    onClick: (() -> Unit)?,
+    danger: Boolean = false
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        shape = RoundedCornerShape(14.dp),
+        color = if (danger) ErrorSoft else SurfaceSoft,
+        border = BorderStroke(1.dp, Divider)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = null, tint = if (danger) Error else PrimaryDark, modifier = Modifier.size(20.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                Text(description, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            }
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(20.dp))
         }
     }
 }
