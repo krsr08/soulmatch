@@ -87,40 +87,30 @@ function validateStepData(step, data) {
       if (isBlank(data.lastName)) return 'Last name is required.';
       if (isBlank(data.dob)) return 'Date of birth is required in DD-MM-YYYY format.';
       if (isBlank(data.gender)) return 'Gender is required.';
+      if (!Number.isFinite(Number(data.heightCm))) return 'Height is required.';
+      if (isBlank(data.motherTongue)) return 'Mother tongue is required.';
+      if (isBlank(data.maritalStatus)) return 'Marital status is required.';
+      if (isBlank(data.workingCity)) return 'Current city is required.';
       return null;
     case 2:
       if (isBlank(data.religion)) return 'Religion is required.';
       if (isBlank(data.caste)) return 'Community / caste is required.';
-      if (isBlank(data.motherTongue)) return 'Mother tongue is required.';
-      if (isBlank(data.maritalStatus)) return 'Marital status is required.';
       return null;
-    case 3: {
-      const isEmployed = data.isEmployed === true || String(data.isEmployed).toLowerCase() === 'true';
+    case 3:
       if (isBlank(data.educationLevel)) return 'Highest qualification is required.';
-      if (!isEmployed) {
-        return null;
-      }
-      if (isBlank(data.occupation)) return 'Occupation is required when employed.';
-      if (isBlank(data.annualIncome)) return 'Annual income is required when employed.';
-      if (isBlank(data.workingCity)) return 'Working city is required when employed.';
-      if (isBlank(data.workingState)) return 'Working state is required when employed.';
-      if (!/^\d{6}$/.test(String(data.workingPincode || '').trim())) return 'Working pincode must be a valid 6-digit code.';
+      if (isBlank(data.occupation)) return 'Occupation is required.';
+      if (isBlank(data.annualIncome)) return 'Annual income is required.';
       return null;
-    }
     case 4:
       if (isBlank(data.fatherOccupation)) return 'Father occupation is required.';
       if (isBlank(data.motherOccupation)) return 'Mother occupation is required.';
-      if (data.numBrothers == null || Number.isNaN(Number(data.numBrothers))) return 'Number of brothers is required.';
-      if (data.numSisters == null || Number.isNaN(Number(data.numSisters))) return 'Number of sisters is required.';
       if (isBlank(data.familyType)) return 'Family type is required.';
-      if (isBlank(data.familyCity)) return 'Family city is required.';
       if (!isBlank(data.familyPincode) && !/^\d{6}$/.test(String(data.familyPincode).trim())) return 'Family pincode must be a valid 6-digit code.';
       return null;
     case 5:
       if (isBlank(data.diet)) return 'Diet is required.';
-      if (isBlank(data.aboutMe) || data.aboutMe.trim().length < 30) {
-        return 'About me should be at least 30 characters.';
-      }
+      if (isBlank(data.smoking)) return 'Smoking preference is required.';
+      if (isBlank(data.drinking)) return 'Drinking preference is required.';
       return null;
     case 6:
       return null;
@@ -176,23 +166,30 @@ function formatProfileForResponse(profile) {
 
 function normalizeStepData(step, data) {
   const normalized = { ...data };
-    if (step === 1) {
-      const dob = normalizeDateOfBirth(data.dob);
-      if (!dob) {
-        return {
-          error: 'Enter date of birth as DD-MM-YYYY. Age must be between 18 and 80 years.'
-        };
-      }
-      normalized.dob = dob;
+  if (step === 1) {
+    const dob = normalizeDateOfBirth(data.dob);
+    if (!dob) {
+      return {
+        error: 'Enter date of birth as DD-MM-YYYY. Age must be between 18 and 80 years.'
+      };
     }
-    if (step === 3) {
-      normalized.noEducation = data.noEducation === true || data.no_education === true || String(data.noEducation || data.no_education).toLowerCase() === 'true';
-      normalized.isEmployed = data.isEmployed === true || String(data.isEmployed).toLowerCase() === 'true';
-      normalized.workingPincode = String(data.workingPincode || '').trim();
-    }
-    if (step === 4) {
-      normalized.familyPincode = String(data.familyPincode || '').trim();
-    }
+    normalized.dob = dob;
+    normalized.heightCm = Number.parseInt(data.heightCm, 10);
+    normalized.workingCity = String(data.workingCity || '').trim();
+  }
+  if (step === 3) {
+    normalized.noEducation = data.noEducation === true || data.no_education === true || String(data.noEducation || data.no_education).toLowerCase() === 'true';
+    normalized.isEmployed = true;
+    normalized.workingCity = String(data.workingCity || '').trim();
+    normalized.workingState = String(data.workingState || '').trim();
+    normalized.workingPincode = String(data.workingPincode || '').trim();
+  }
+  if (step === 4) {
+    normalized.familyPincode = String(data.familyPincode || '').trim();
+  }
+  if (step === 5 && isBlank(data.aboutMe)) {
+    normalized.aboutMe = `Prefers ${String(data.diet || '').trim()}, ${String(data.smoking || '').trim()} smoking, and ${String(data.drinking || '').trim()} drinking habits.`;
+  }
   return { data: normalized };
 }
 
@@ -378,13 +375,26 @@ exports.createOrUpdateStep = async (req, res, next) => {
     const normalizedStepData = normalizeStepData(normalizedStep, data);
     if (normalizedStepData.error) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, normalizedStepData.error));
     const dataForSave = normalizedStepData.data || data;
+    if (normalizedStep === 2) {
+      dataForSave.motherTongue = dataForSave.motherTongue || profile?.mother_tongue || '';
+      dataForSave.maritalStatus = dataForSave.maritalStatus || profile?.marital_status || 'never_married';
+    }
+    if (normalizedStep === 3) {
+      dataForSave.workingCity = dataForSave.workingCity || profile?.working_city || '';
+      dataForSave.workingState = dataForSave.workingState || profile?.working_state || '';
+      dataForSave.workingPincode = dataForSave.workingPincode || profile?.working_pincode || '';
+    }
     const validationError = validateStepData(normalizedStep, dataForSave);
     if (validationError) return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, validationError));
     const before = profile?.profile_id ? await repo.findFullById(profile.profile_id) : null;
     const wasPublished = Boolean(before?.is_published || profile?.is_published);
     let result;
     switch (normalizedStep) {
-      case 1: result = await repo.upsertBasicInfo(userId, dataForSave); break;
+      case 1:
+        result = await repo.upsertBasicInfo(userId, dataForSave);
+        await repo.upsertPhysical(userId, dataForSave);
+        await repo.upsertCurrentCity(userId, dataForSave.workingCity);
+        break;
       case 2: result = await repo.upsertReligiousCommunity(userId, dataForSave); break;
       case 3: result = await repo.upsertEducation(userId, dataForSave); break;
       case 4: result = await repo.upsertFamily(userId, dataForSave); break;

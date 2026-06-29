@@ -982,6 +982,18 @@ exports.upsertReligiousCommunity = async (userId, data) => {
   return p;
 };
 exports.upsertPhysical = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO physical_details (profile_id,height_cm,weight_kg,complexion,body_type,blood_group) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (profile_id) DO UPDATE SET height_cm=$2,weight_kg=$3,complexion=$4,body_type=$5,blood_group=$6', [p.profile_id,data.heightCm,data.weightKg,data.complexion,data.bodyType,data.bloodGroup]); return p; };
+exports.upsertCurrentCity = async (userId, workingCity) => {
+  const db = await getDB();
+  const p = await exports.findByUserId(userId);
+  await db.query(
+    `INSERT INTO education_career (profile_id, working_city)
+     VALUES ($1, $2)
+     ON CONFLICT (profile_id) DO UPDATE SET
+       working_city = COALESCE(NULLIF(EXCLUDED.working_city, ''), education_career.working_city)`,
+    [p.profile_id, workingCity || null]
+  );
+  return p;
+};
 exports.upsertEducation = async (userId, data) => {
   const db = await getDB();
   const p = await exports.findByUserId(userId);

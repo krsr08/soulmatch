@@ -1,6 +1,7 @@
 package com.soulmatch.app.ui.screens.auth
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +19,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -157,11 +160,11 @@ fun LanguageSelectionScreen(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 fun OnboardingBenefitScreen(
     onContinue: () -> Unit,
     vm: IntroViewModel = hiltViewModel()
 ) {
-    var page by remember { mutableStateOf(0) }
     val slides = listOf(
         BenefitSlide(
             icon = Icons.Filled.VerifiedUser,
@@ -179,12 +182,13 @@ fun OnboardingBenefitScreen(
             body = "SoulMatch guides you into profile creation so better matches can begin right away."
         )
     )
-    val slide = slides[page]
+    val pagerState = rememberPagerState(initialPage = 0) { slides.size }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(pagerState) {
         while (true) {
-            kotlinx.coroutines.delay(2200)
-            page = (page + 1) % slides.size
+            kotlinx.coroutines.delay(2400)
+            val nextPage = (pagerState.currentPage + 1) % slides.size
+            pagerState.animateScrollToPage(nextPage)
         }
     }
 
@@ -197,10 +201,17 @@ fun OnboardingBenefitScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.height(70.dp))
-        SoftIcon { Icon(slide.icon, contentDescription = null, tint = SoulMatchTokens.Tangerine, modifier = Modifier.size(34.dp)) }
+        SoftIcon {
+            Icon(
+                slides[pagerState.currentPage].icon,
+                contentDescription = null,
+                tint = SoulMatchTokens.Tangerine,
+                modifier = Modifier.size(34.dp)
+            )
+        }
         Spacer(Modifier.height(28.dp))
         Text(
-            text = slide.title,
+            text = "A safer way to meet",
             color = SoulMatchTokens.Text,
             fontFamily = FontFamily.Serif,
             fontSize = 34.sp,
@@ -209,14 +220,20 @@ fun OnboardingBenefitScreen(
             textAlign = TextAlign.Center
         )
         Text(
-            text = slide.body,
+            text = "SoulMatch keeps verification, privacy, and recommendations moving together while you build your profile.",
             modifier = Modifier.padding(top = 16.dp, bottom = 28.dp),
             color = SoulMatchTokens.Muted,
             style = MaterialTheme.typography.bodyLarge,
             lineHeight = 26.sp,
             textAlign = TextAlign.Center
         )
-        BenefitCard(slide.icon, slide.title, slide.body)
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxWidth()
+        ) { page ->
+            val slide = slides[page]
+            BenefitCard(slide.icon, slide.title, slide.body)
+        }
         Row(
             modifier = Modifier.padding(top = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -224,9 +241,9 @@ fun OnboardingBenefitScreen(
             repeat(slides.size) { index ->
                 Box(
                     modifier = Modifier
-                        .size(width = if (index == page) 30.dp else 10.dp, height = 10.dp)
+                        .size(width = if (index == pagerState.currentPage) 30.dp else 10.dp, height = 10.dp)
                         .background(
-                            if (index == page) SoulMatchTokens.Tangerine else SoulMatchTokens.Border,
+                            if (index == pagerState.currentPage) SoulMatchTokens.Tangerine else SoulMatchTokens.Border,
                             RoundedCornerShape(999.dp)
                         )
                 )

@@ -12,30 +12,26 @@ fun resolveWizardStep(profile: ProfileData?): Int? {
         safeText(data.firstName).isBlank() ||
             safeText(data.lastName).isBlank() ||
             data.dob.isNullOrBlank() ||
-            safeText(data.gender).isBlank() -> 1
+            safeText(data.gender).isBlank() ||
+            data.heightCm == null ||
+            safeText(data.motherTongue).isBlank() ||
+            safeText(data.maritalStatus).isBlank() ||
+            safeText(data.workingCity).isBlank() -> 1
 
         safeText(data.religion).isBlank() ||
-            safeText(data.caste).isBlank() ||
-            safeText(data.motherTongue).isBlank() ||
-            safeText(data.maritalStatus).isBlank() -> 2
+            safeText(data.caste).isBlank() -> 2
 
         safeText(data.educationLevel).isBlank() ||
-            (data.isEmployed && (
-                safeText(data.occupation).isBlank() ||
-                    safeText(data.annualIncome).isBlank() ||
-                    safeText(data.workingCity).isBlank() ||
-                    safeText(data.workingState).isBlank() ||
-                    safeText(data.workingPincode).length != 6
-                )) -> 3
+            safeText(data.occupation).isBlank() ||
+            safeText(data.annualIncome).isBlank() -> 3
 
         safeText(data.fatherOccupation).isBlank() ||
             safeText(data.motherOccupation).isBlank() ||
-            data.numBrothers == null ||
-            data.numSisters == null ||
-            safeText(data.familyType).isBlank() ||
-            safeText(data.familyCity).isBlank() -> 4
+            safeText(data.familyType).isBlank() -> 4
 
-        safeText(data.diet).isBlank() || safeText(data.aboutMe).trim().length < 30 -> 5
+        safeText(data.diet).isBlank() ||
+            safeText(data.smoking).isBlank() ||
+            safeText(data.drinking).isBlank() -> 5
         !data.isPartnerPrefSet -> 6
         else -> null
     }
@@ -43,10 +39,10 @@ fun resolveWizardStep(profile: ProfileData?): Int? {
 
 fun resolvePostLoginRoute(profile: ProfileData?): String {
     val nextWizardStep = resolveWizardStep(profile)
-    return if (profile?.profileId.isNullOrBlank() && nextWizardStep != null) {
-        "profile_wizard/$nextWizardStep"
-    } else {
-        "dashboard"
+    return when {
+        nextWizardStep != null && profile?.profileId.isNullOrBlank() -> "profile_intro"
+        nextWizardStep != null -> "profile_wizard/$nextWizardStep"
+        else -> "dashboard"
     }
 }
 

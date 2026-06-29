@@ -256,7 +256,7 @@ class AuthViewModel @Inject constructor(
                 prefs.saveProfileId(profile?.profileId.orEmpty())
             }
             prefs.saveWizardStep(resolveWizardStep(profile) ?: 7)
-            "dashboard"
+            resolvePostLoginRoute(profile)
         } else {
             val profile = runCatching {
                 profileApi.getMyProfile().body()?.takeIf { it.success }?.data

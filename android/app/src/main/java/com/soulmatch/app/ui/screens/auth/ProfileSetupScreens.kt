@@ -21,12 +21,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -66,9 +68,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -91,18 +96,34 @@ fun ProfileIntroScreen(
 ) {
     ProfileSetupScaffold(
         title = "Create profile",
-        stepLabel = "Screen 1 of 10",
-        headline = "Build a profile families can trust",
-        body = "We guide step by step. Real details now. Better matches later.",
+        stepNumber = 0,
+        progressPercent = 0,
+        headline = "",
+        body = "",
         infoTitle = "Why profile setup matters",
         infoBody = "SoulMatch uses profile details, photos, trust checks, and partner preferences to rank better matches and help families review profiles faster.",
         onBack = onBack,
         primaryText = "Start profile",
         onPrimary = onContinue
     ) {
-        SetupBullet("Basic details first")
-        SetupBullet("Community, career, family, and lifestyle next")
-        SetupBullet("Photos, verification, and final review before launch")
+        ProfileIntroHeroCard(progressPercent = 0)
+        Text(
+            text = "Build a profile families can trust",
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.ExtraBold,
+                lineHeight = 42.sp
+            ),
+            color = SoulMatchTokens.Text
+        )
+        Text(
+            text = "We will guide you through personal details, values, career, family, lifestyle, partner preferences, photos, and verification.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = SoulMatchTokens.Muted,
+            lineHeight = 30.sp
+        )
+        SetupBullet("Personal details and family context")
+        SetupBullet("Partner preferences, photos, and verification")
     }
 }
 
@@ -123,7 +144,8 @@ fun ProfilePhotoUploadScreen(
 
     ProfileSetupScaffold(
         title = "Photo upload",
-        stepLabel = "Screen 8 of 10",
+        stepNumber = 7,
+        progressPercent = 70,
         headline = "Add profile photos",
         body = "Use clear recent photos. Pick one primary photo. Real uploads only.",
         infoTitle = "Photo guidance",
@@ -183,7 +205,8 @@ fun ProfileVerificationScreen(
 
     ProfileSetupScaffold(
         title = "Verification",
-        stepLabel = "Screen 9 of 10",
+        stepNumber = 8,
+        progressPercent = 80,
         headline = "Submit trust checks",
         body = "Phone, profile, and optional identity checks help review move faster.",
         infoTitle = "Verification help",
@@ -272,7 +295,8 @@ fun ProfilePreviewReviewScreen(
 
     ProfileSetupScaffold(
         title = "Preview profile",
-        stepLabel = "Screen 10 of 10",
+        stepNumber = 9,
+        progressPercent = 90,
         headline = "Review before submit",
         body = "Check profile data, photos, and trust status before final review.",
         infoTitle = "Preview review",
@@ -323,7 +347,8 @@ fun ProfileUnderReviewScreen(
 ) {
     ProfileSetupScaffold(
         title = "Under review",
-        stepLabel = "Submitted",
+        stepNumber = 10,
+        progressPercent = 100,
         headline = "Profile sent for review",
         body = "We received your profile. Team review now running.",
         infoTitle = "Review status",
@@ -349,7 +374,8 @@ fun ProfileCorrectionRequiredScreen(
 ) {
     ProfileSetupScaffold(
         title = "Needs correction",
-        stepLabel = "Action needed",
+        stepNumber = 10,
+        progressPercent = 100,
         headline = "Profile needs an update",
         body = "Fix requested details. Then send for review again.",
         infoTitle = "Correction help",
@@ -368,7 +394,8 @@ fun ProfileCorrectionRequiredScreen(
 @Composable
 private fun ProfileSetupScaffold(
     title: String,
-    stepLabel: String,
+    stepNumber: Int? = null,
+    progressPercent: Int? = null,
     headline: String,
     body: String,
     infoTitle: String,
@@ -382,26 +409,17 @@ private fun ProfileSetupScaffold(
 ) {
     var showInfo by remember { mutableStateOf(false) }
     if (showInfo) {
-        ModalBottomSheet(onDismissRequest = { showInfo = false }) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text(infoTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(infoBody, style = MaterialTheme.typography.bodyMedium, color = SoulMatchTokens.Muted)
-            }
-        }
+        ProfileInfoBottomSheet(
+            title = infoTitle,
+            body = infoBody,
+            onDismiss = { showInfo = false }
+        )
     }
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(title, fontWeight = FontWeight.Bold)
-                        Text(stepLabel, style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
-                    }
+                    Text(title, fontWeight = FontWeight.Bold)
                 },
                 navigationIcon = {
                     if (showBack) {
@@ -430,9 +448,25 @@ private fun ProfileSetupScaffold(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(headline, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = SoulMatchTokens.Text)
-                Text(body, style = MaterialTheme.typography.bodyMedium, color = SoulMatchTokens.Muted)
+            if (stepNumber != null && progressPercent != null) {
+                ProfileProgressHeader(stepNumber = stepNumber, progressPercent = progressPercent)
+            }
+            if (headline.isNotBlank() || body.isNotBlank()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (headline.isNotBlank()) {
+                        Text(
+                            headline,
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontFamily = FontFamily.Serif,
+                                fontWeight = FontWeight.ExtraBold
+                            ),
+                            color = SoulMatchTokens.Text
+                        )
+                    }
+                    if (body.isNotBlank()) {
+                        Text(body, style = MaterialTheme.typography.bodyMedium, color = SoulMatchTokens.Muted)
+                    }
+                }
             }
             Column(
                 modifier = Modifier
@@ -444,11 +478,150 @@ private fun ProfileSetupScaffold(
             Button(
                 onClick = onPrimary,
                 enabled = primaryEnabled,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .navigationBarsPadding(),
                 shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
                 colors = ButtonDefaults.buttonColors(containerColor = SoulMatchTokens.Tangerine, contentColor = Color.White)
             ) {
                 Text(primaryText, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileProgressHeader(stepNumber: Int, progressPercent: Int) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Step $stepNumber of 10",
+                color = SoulMatchTokens.Tangerine,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "$progressPercent% complete",
+                color = SoulMatchTokens.Muted,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth().height(10.dp),
+            shape = RoundedCornerShape(999.dp),
+            color = Color(0xFFF3E5DE)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth((progressPercent.coerceIn(0, 100)) / 100f)
+                    .height(10.dp)
+                    .background(SoulMatchTokens.Tangerine, RoundedCornerShape(999.dp))
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileIntroHeroCard(progressPercent: Int) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, SoulMatchTokens.Border)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 22.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Surface(
+                    modifier = Modifier.size(128.dp),
+                    shape = CircleShape,
+                    color = Color.White,
+                    border = BorderStroke(2.dp, SoulMatchTokens.Tangerine)
+                ) {}
+                Text(
+                    text = "$progressPercent%",
+                    color = SoulMatchTokens.Tangerine,
+                    fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 34.sp
+                )
+            }
+            Text(
+                text = "Complete each section to unlock verified matches.",
+                color = SoulMatchTokens.Muted,
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                lineHeight = 30.sp
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProfileInfoBottomSheet(
+    title: String,
+    body: String,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 12.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(56.dp),
+                    shape = CircleShape,
+                    color = SoulMatchTokens.Ivory
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Info, contentDescription = null, tint = SoulMatchTokens.Tangerine)
+                    }
+                }
+                Text(
+                    title,
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontFamily = FontFamily.Serif,
+                        fontWeight = FontWeight.ExtraBold
+                    ),
+                    color = SoulMatchTokens.Text
+                )
+            }
+            Text(
+                body,
+                style = MaterialTheme.typography.bodyLarge,
+                color = SoulMatchTokens.Muted,
+                lineHeight = 30.sp
+            )
+            SetupBullet("Verified profiles receive better responses.")
+            SetupBullet("Privacy controls protect contact and photo access.")
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .padding(bottom = 10.dp),
+                shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SoulMatchTokens.Tangerine,
+                    contentColor = Color.White
+                )
+            ) {
+                Text("Got it", fontWeight = FontWeight.Bold)
             }
         }
     }

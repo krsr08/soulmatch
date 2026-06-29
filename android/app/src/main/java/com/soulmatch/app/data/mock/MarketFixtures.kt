@@ -714,17 +714,14 @@ object MarketFixtures {
                 lastName = payload["lastName"] as? String ?: myProfile.lastName,
                 dob = payload["dob"] as? String ?: myProfile.dob,
                 gender = payload["gender"] as? String ?: myProfile.gender,
-                religion = payload["religion"] as? String ?: myProfile.religion,
-                caste = payload["caste"] as? String ?: myProfile.caste,
                 motherTongue = payload["motherTongue"] as? String ?: myProfile.motherTongue,
-                maritalStatus = payload["maritalStatus"] as? String ?: myProfile.maritalStatus
+                maritalStatus = payload["maritalStatus"] as? String ?: myProfile.maritalStatus,
+                heightCm = payload["heightCm"] as? Int ?: myProfile.heightCm,
+                workingCity = payload["workingCity"] as? String ?: myProfile.workingCity
             )
             2 -> myProfile.copy(
-                heightCm = payload["heightCm"] as? Int ?: myProfile.heightCm,
-                weightKg = payload["weightKg"] as? Int ?: myProfile.weightKg,
-                complexion = payload["complexion"] as? String ?: myProfile.complexion,
-                bodyType = payload["bodyType"] as? String ?: myProfile.bodyType,
-                bloodGroup = payload["bloodGroup"] as? String ?: myProfile.bloodGroup
+                religion = payload["religion"] as? String ?: myProfile.religion,
+                caste = payload["caste"] as? String ?: myProfile.caste
             )
             3 -> myProfile.copy(
                 educationLevel = payload["educationLevel"] as? String ?: myProfile.educationLevel,
@@ -744,7 +741,8 @@ object MarketFixtures {
                 diet = payload["diet"] as? String ?: myProfile.diet,
                 smoking = payload["smoking"] as? String ?: myProfile.smoking,
                 drinking = payload["drinking"] as? String ?: myProfile.drinking,
-                aboutMe = payload["aboutMe"] as? String ?: myProfile.aboutMe
+                aboutMe = payload["aboutMe"] as? String
+                    ?: "Prefers ${(payload["diet"] as? String ?: myProfile.diet).ifBlank { "balanced" }} diet, ${(payload["smoking"] as? String ?: myProfile.smoking).ifBlank { "never" }} smoking, and ${(payload["drinking"] as? String ?: myProfile.drinking).ifBlank { "never" }} drinking habits."
             )
             6 -> myProfile.copy(
                 rashi = payload["rashi"] as? String ?: myProfile.rashi,

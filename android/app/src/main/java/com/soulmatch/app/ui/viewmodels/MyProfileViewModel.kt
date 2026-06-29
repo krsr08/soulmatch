@@ -530,57 +530,46 @@ class MyProfileViewModel @Inject constructor(
         return listOf(
             ProfileChecklistItem(
                 title = "Basic details",
-                description = "Name, DOB, gender, religion, community, language, and marital status",
+                description = "Name, DOB, gender, height, language, marital status, and current city",
                 isComplete = safeText(resolved.firstName).isNotBlank() &&
                     safeText(resolved.lastName).isNotBlank() &&
                     safeText(resolved.dob).isNotBlank() &&
                     safeText(resolved.gender).isNotBlank() &&
-                    safeText(resolved.religion).isNotBlank() &&
-                    safeText(resolved.caste).isNotBlank() &&
+                    resolved.heightCm != null &&
                     safeText(resolved.maritalStatus).isNotBlank() &&
-                    safeText(resolved.motherTongue).isNotBlank(),
+                    safeText(resolved.motherTongue).isNotBlank() &&
+                    safeText(resolved.workingCity).isNotBlank(),
                 editStep = 1
             ),
             ProfileChecklistItem(
                 title = "Religious and community",
-                description = "Religion, community, language, and marital status",
+                description = "Religion and community",
                 isComplete = safeText(resolved.religion).isNotBlank() &&
-                    safeText(resolved.caste).isNotBlank() &&
-                    safeText(resolved.motherTongue).isNotBlank() &&
-                    safeText(resolved.maritalStatus).isNotBlank(),
+                    safeText(resolved.caste).isNotBlank(),
                 editStep = 2
             ),
             ProfileChecklistItem(
                 title = "Work and education",
-                description = "Education level, occupation, annual income, and working city",
-                isComplete = (resolved.noEducation || safeText(resolved.educationLevel).isNotBlank()) &&
-                    (!resolved.isEmployed || (
-                        safeText(resolved.occupation).isNotBlank() &&
-                            safeText(resolved.annualIncome).isNotBlank() &&
-                            safeText(resolved.workingCity).isNotBlank() &&
-                            safeText(resolved.workingState).isNotBlank() &&
-                            safeText(resolved.workingPincode).length == 6
-                        )),
+                description = "Education level, occupation, and annual income",
+                isComplete = safeText(resolved.educationLevel).isNotBlank() &&
+                    safeText(resolved.occupation).isNotBlank() &&
+                    safeText(resolved.annualIncome).isNotBlank(),
                 editStep = 3
             ),
             ProfileChecklistItem(
                 title = "Family details",
-                description = "Parent occupations, siblings, family type, and family city",
+                description = "Parent occupations and family type",
                 isComplete = safeText(resolved.fatherOccupation).isNotBlank() &&
                     safeText(resolved.motherOccupation).isNotBlank() &&
-                    resolved.numBrothers != null &&
-                    resolved.numSisters != null &&
-                    safeText(resolved.familyType).isNotBlank() &&
-                    safeText(resolved.familyCity).isNotBlank(),
+                    safeText(resolved.familyType).isNotBlank(),
                 editStep = 4
             ),
             ProfileChecklistItem(
                 title = "Lifestyle",
-                description = "Diet, smoking, drinking, and an about section with at least 30 characters",
+                description = "Diet, smoking, and drinking",
                 isComplete = safeText(resolved.diet).isNotBlank() &&
                     safeText(resolved.smoking).isNotBlank() &&
-                    safeText(resolved.drinking).isNotBlank() &&
-                    safeText(resolved.aboutMe).trim().length >= 30,
+                    safeText(resolved.drinking).isNotBlank(),
                 editStep = 5
             ),
             ProfileChecklistItem(

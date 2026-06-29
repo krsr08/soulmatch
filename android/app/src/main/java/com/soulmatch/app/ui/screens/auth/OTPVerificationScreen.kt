@@ -27,9 +27,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -44,6 +48,7 @@ import com.soulmatch.app.ui.viewmodels.AuthViewModel
 import kotlinx.coroutines.delay
 
 @Composable
+@OptIn(ExperimentalComposeUiApi::class)
 fun OTPVerificationScreen(
     phone: String,
     userType: String? = null,
@@ -54,6 +59,8 @@ fun OTPVerificationScreen(
     val boxes = remember { mutableStateListOf("", "", "", "", "", "") }
     val focusers = remember { List(6) { FocusRequester() } }
     val state by vm.uiState.collectAsStateWithLifecycle()
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     var countdown by remember { mutableIntStateOf(30) }
     var canResend by remember { mutableStateOf(false) }
     var resendCycle by remember { mutableIntStateOf(0) }
@@ -119,6 +126,7 @@ fun OTPVerificationScreen(
                                 boxes[index] = nextValue
                                 if (nextValue.isNotEmpty() && index < 5) focusers[index + 1].requestFocus()
                                 if (boxes.joinToString("").length == 6) {
+                                    closeOtpKeyboard(focusManager, keyboardController)
                                     runCatching {
                                         vm.verifyOTP(phone, boxes.joinToString(""), userType)
                                     }.onFailure {
@@ -176,4 +184,13 @@ fun OTPVerificationScreen(
             }
         }
     }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+private fun closeOtpKeyboard(
+    focusManager: FocusManager,
+    keyboardController: androidx.compose.ui.platform.SoftwareKeyboardController?
+) {
+    focusManager.clearFocus(force = true)
+    keyboardController?.hide()
 }
