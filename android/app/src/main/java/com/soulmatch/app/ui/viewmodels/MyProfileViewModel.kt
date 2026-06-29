@@ -4,9 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.soulmatch.app.data.api.PaymentApiService
 import com.soulmatch.app.data.api.ProfileApiService
-import com.soulmatch.app.data.config.AppEnvironment
 import com.soulmatch.app.data.local.UserPreferences
-import com.soulmatch.app.data.mock.MarketFixtures
 import com.soulmatch.app.data.models.PartnerPreferencesData
 import com.soulmatch.app.data.models.PhotoAccessActionRequest
 import com.soulmatch.app.data.models.PhotoAccessRequestData
@@ -28,6 +26,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.MultipartBody
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -62,6 +62,8 @@ class MyProfileViewModel @Inject constructor(
     private val _isUploadingPhotos = MutableStateFlow(false)
     private val _isSubmittingVerification = MutableStateFlow(false)
     private val _isSavingAssist = MutableStateFlow(false)
+    private val _photoUploadProgress = MutableStateFlow(0)
+    private val _photoUploadLabel = MutableStateFlow<String?>(null)
     private val _status = MutableStateFlow<String?>(null)
     private val _loadMessage = MutableStateFlow<String?>(null)
 
@@ -79,6 +81,8 @@ class MyProfileViewModel @Inject constructor(
     val isUploadingPhotos: StateFlow<Boolean> = _isUploadingPhotos.asStateFlow()
     val isSubmittingVerification: StateFlow<Boolean> = _isSubmittingVerification.asStateFlow()
     val isSavingAssist: StateFlow<Boolean> = _isSavingAssist.asStateFlow()
+    val photoUploadProgress: StateFlow<Int> = _photoUploadProgress.asStateFlow()
+    val photoUploadLabel: StateFlow<String?> = _photoUploadLabel.asStateFlow()
     val status: StateFlow<String?> = _status.asStateFlow()
     val loadMessage: StateFlow<String?> = _loadMessage.asStateFlow()
 
@@ -86,26 +90,18 @@ class MyProfileViewModel @Inject constructor(
         load()
     }
 
-    private suspend fun canUseDemoFallback(): Boolean =
-        AppEnvironment.allowDemoFallback && prefs.authToken.first().isNullOrBlank()
-
     fun load() {
         viewModelScope.launch {
             _isLoading.value = true
             _loadMessage.value = null
-            val canUseFallback = canUseDemoFallback()
             try {
                 val profileResponse = profileApi.getMyProfile()
                 val profileBody = profileResponse.body()
                 if (!profileResponse.isSuccessful || profileBody?.success != true) {
-                    if (canUseFallback) {
-                        applyMockProfileFallback(profileBody?.error?.message ?: "Showing demo profile data because your saved profile could not be loaded.")
-                    } else {
-                        if (_profile.value == null) {
-                            _checklist.value = buildChecklist(null)
-                        }
-                        _loadMessage.value = profileBody?.error?.message ?: "Your saved profile could not be loaded."
+                    if (_profile.value == null) {
+                        _checklist.value = buildChecklist(null)
                     }
+                    _loadMessage.value = profileBody?.error?.message ?: "Your saved profile could not be loaded."
                     return@launch
                 }
 
@@ -143,7 +139,7 @@ class MyProfileViewModel @Inject constructor(
                         ?.body()
                         ?.takeIf { it.success }
                         ?.data
-                        ?: if (canUseFallback) MarketFixtures.currentSubscription else SubscriptionData(planId = "free", isActive = false)
+                        ?: SubscriptionData(planId = "free", isActive = false)
                     _preferences.value = (preferencesCall.await()
                         ?.body()
                         ?.takeIf { it.success }
@@ -174,30 +170,21 @@ class MyProfileViewModel @Inject constructor(
                             )
                         )
                     _viewers.value = viewersCall.await()?.body()?.takeIf { it.success }?.data.orEmpty()
-                        .ifEmpty { if (canUseFallback) MarketFixtures.recentViewers else emptyList() }
+                        .ifEmpty { emptyList() }
                     _photos.value = photosCall.await()?.body()?.takeIf { it.success }?.data.orEmpty()
-                        .ifEmpty { if (canUseFallback) MarketFixtures.profilePhotos else emptyList() }
+                        .ifEmpty { emptyList() }
                     _verifications.value = verificationsCall.await()?.body()?.takeIf { it.success }?.data.orEmpty()
                     _photoAccessRequests.value = photoAccessCall.await()?.body()?.takeIf { it.success }?.data.orEmpty()
                     _familyDecisions.value = familyDecisionsCall.await()?.body()?.takeIf { it.success }?.data.orEmpty()
                 }
             } catch (error: Exception) {
-                if (canUseFallback) {
-                    applyMockProfileFallback(
-                        when (error) {
-                            is IOException -> "Couldn't reach the server to load your profile. Showing demo profile data for UI testing."
-                            else -> "Couldn't load your saved profile right now. Showing demo profile data for UI testing."
-                        }
-                    )
-                } else {
-                    if (_profile.value == null) {
-                        _checklist.value = buildChecklist(null)
-                        _verifications.value = emptyList()
-                    }
-                    _loadMessage.value = when (error) {
-                        is IOException -> "Couldn't reach the server to refresh your profile. Showing the last saved details on this device."
-                        else -> "Couldn't refresh your saved profile right now. Showing the last saved details on this device."
-                    }
+                if (_profile.value == null) {
+                    _checklist.value = buildChecklist(null)
+                    _verifications.value = emptyList()
+                }
+                _loadMessage.value = when (error) {
+                    is IOException -> "Couldn't reach the server to refresh your profile. Showing the last saved details on this device."
+                    else -> "Couldn't refresh your saved profile right now. Showing the last saved details on this device."
                 }
             } finally {
                 _isLoading.value = false
@@ -205,60 +192,47 @@ class MyProfileViewModel @Inject constructor(
         }
     }
 
-    private fun applyMockProfileFallback(message: String) {
-        if (!AppEnvironment.allowDemoFallback) return
-        val fallback = MarketFixtures.myProfile.safeProfileData()
-        _profile.value = fallback
-        _subscription.value = MarketFixtures.currentSubscription
-        _preferences.value = PartnerPreferencesData(
-            religion = fallback.religion,
-            manglikPref = "any",
-            educationLevels = listOf(fallback.educationLevel).filter { it.isNotBlank() },
-            occupations = listOf(fallback.occupation).filter { it.isNotBlank() },
-            locations = listOf(fallback.workingCity, fallback.familyCity).filter { it.isNotBlank() }.distinct(),
-            dietPrefs = listOf(fallback.diet).filter { it.isNotBlank() },
-            maritalStatuses = listOf(fallback.maritalStatus).filter { it.isNotBlank() },
-            familyTypes = listOf(fallback.familyType).filter { it.isNotBlank() }
-        ).safePreferences()
-        _assistStatus.value = AssistStatusData(
-            profileId = fallback.profileId,
-            location = com.soulmatch.app.data.models.AssistLocationData(
-                city = fallback.familyCity,
-                state = fallback.familyState,
-                locality = fallback.familyLocality,
-                pincode = fallback.familyPincode
-            )
-        )
-        _viewers.value = MarketFixtures.recentViewers
-        _photos.value = MarketFixtures.profilePhotos
-        _verifications.value = emptyList()
-        _photoAccessRequests.value = emptyList()
-        _familyDecisions.value = emptyList()
-        _checklist.value = buildChecklist(fallback)
-        _loadMessage.value = message
-    }
-
     fun uploadPhotos(parts: List<MultipartBody.Part>) {
         val profileId = _profile.value?.profileId ?: return
         if (parts.isEmpty()) return
         viewModelScope.launch {
             _isUploadingPhotos.value = true
+            _photoUploadProgress.value = 0
+            val targetSlot = (_photos.value.size + 1).coerceAtLeast(1)
+            _photoUploadLabel.value = "Uploading gallery photo $targetSlot - 0%"
             _status.value = null
+            val progressJob = launch {
+                while (isActive && _photoUploadProgress.value < 92) {
+                    delay(120)
+                    val next = (_photoUploadProgress.value + 6).coerceAtMost(92)
+                    _photoUploadProgress.value = next
+                    _photoUploadLabel.value = "Uploading gallery photo $targetSlot - $next%"
+                }
+            }
             try {
                 val response = profileApi.uploadPhotos(profileId, parts)
+                progressJob.cancel()
                 if (response.isSuccessful && response.body()?.success == true) {
+                    _photoUploadProgress.value = 100
+                    _photoUploadLabel.value = "Uploading gallery photo $targetSlot - 100%"
                     _status.value = if (parts.size == 1) "Photo uploaded." else "${parts.size} photos uploaded."
                     load()
                 } else {
                     _status.value = response.body()?.error?.message ?: "Couldn't upload photos right now."
                 }
             } catch (error: Exception) {
+                progressJob.cancel()
                 _status.value = when (error) {
                     is IOException -> "Service is temporarily not available. Please try again."
                     else -> "Couldn't upload photos right now. Please try again."
                 }
             } finally {
                 _isUploadingPhotos.value = false
+                if (_photoUploadProgress.value >= 100) {
+                    delay(300)
+                }
+                _photoUploadProgress.value = 0
+                _photoUploadLabel.value = null
             }
         }
     }
@@ -649,7 +623,10 @@ class MyProfileViewModel @Inject constructor(
         educationLevels = safeStringList(educationLevels),
         occupations = safeStringList(occupations),
         locations = safeStringList(locations),
+        locationPreferences = safeStringList(locationPreferences),
         dietPrefs = safeStringList(dietPrefs),
+        incomePreferences = safeStringList(incomePreferences),
+        lifestylePreferences = safeStringList(lifestylePreferences),
         maritalStatuses = safeStringList(maritalStatuses),
         familyTypes = safeStringList(familyTypes),
         timeline = safeText(timeline).ifBlank { null },

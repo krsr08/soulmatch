@@ -381,52 +381,85 @@ fun AppNavigation(
             )
         ) { backStack ->
             val resolvedStep = backStack.arguments?.let { args ->
-                if (args.containsKey("step")) args.getInt("step").coerceIn(1, 6) else 1
+                if (args.containsKey("step")) args.getInt("step").coerceIn(1, 9) else 1
             } ?: 1
             val returnToProfile = backStack.arguments?.getBoolean("returnToProfile") ?: false
-            if (returnToProfile) {
-                ProfileWizardScreen(
-                    step = resolvedStep,
-                    isSectionEdit = true,
-                    onNextStep = {
-                        nav.navigate("my_profile") {
-                            popUpTo("my_profile") { inclusive = true }
-                            launchSingleTop = true
+            if (resolvedStep <= 6) {
+                if (returnToProfile) {
+                    ProfileWizardScreen(
+                        step = resolvedStep,
+                        isSectionEdit = true,
+                        onNextStep = {
+                            nav.navigate("my_profile") {
+                                popUpTo("my_profile") { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        },
+                        onBack = { nav.popBackStack() }
+                    )
+                } else {
+                    ProfileWizardScreen(
+                        step = resolvedStep,
+                        isSectionEdit = false,
+                        onNextStep = { next ->
+                            nav.navigate("profile_wizard/$next")
+                        },
+                        onBack = { nav.popBackStack() }
+                    )
+                }
+            } else if (resolvedStep == 7) {
+                ProfilePhotoUploadScreen(
+                    onBack = { nav.popBackStack() },
+                    onContinue = {
+                        if (returnToProfile) {
+                            nav.navigate("my_profile") {
+                                popUpTo("my_profile") { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        } else {
+                            nav.navigate("profile_wizard/8")
                         }
-                    },
-                    onBack = { nav.popBackStack() }
+                    }
+                )
+            } else if (resolvedStep == 8) {
+                ProfileVerificationScreen(
+                    onBack = { nav.popBackStack() },
+                    onContinue = {
+                        if (returnToProfile) {
+                            nav.navigate("my_profile") {
+                                popUpTo("my_profile") { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        } else {
+                            nav.navigate("profile_wizard/9")
+                        }
+                    }
                 )
             } else {
-                ProfileWizardScreen(
-                    step = resolvedStep,
-                    isSectionEdit = false,
-                    onNextStep = { next ->
-                        if (next > 6) {
-                            nav.navigate("profile_photo_upload")
-                        } else {
-                            nav.navigate("profile_wizard/$next")
-                        }
-                    },
-                    onBack = { nav.popBackStack() }
+                ProfilePreviewReviewScreen(
+                    onBack = { nav.popBackStack() },
+                    onSubmit = { nav.navigate("profile_under_review") },
+                    onEditSection = { stepToEdit -> nav.navigate("profile_wizard/$stepToEdit") }
                 )
             }
         }
         composable("profile_photo_upload") {
             ProfilePhotoUploadScreen(
                 onBack = { nav.popBackStack() },
-                onContinue = { nav.navigate("profile_verification") }
+                onContinue = { nav.navigate("profile_wizard/8") }
             )
         }
         composable("profile_verification") {
             ProfileVerificationScreen(
                 onBack = { nav.popBackStack() },
-                onContinue = { nav.navigate("profile_preview_review") }
+                onContinue = { nav.navigate("profile_wizard/9") }
             )
         }
         composable("profile_preview_review") {
             ProfilePreviewReviewScreen(
                 onBack = { nav.popBackStack() },
-                onSubmit = { nav.navigate("profile_under_review") }
+                onSubmit = { nav.navigate("profile_under_review") },
+                onEditSection = { stepToEdit -> nav.navigate("profile_wizard/$stepToEdit") }
             )
         }
         composable("profile_under_review") {

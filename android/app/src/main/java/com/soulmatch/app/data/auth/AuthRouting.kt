@@ -33,6 +33,8 @@ fun resolveWizardStep(profile: ProfileData?): Int? {
             safeText(data.smoking).isBlank() ||
             safeText(data.drinking).isBlank() -> 5
         !data.isPartnerPrefSet -> 6
+        data.primaryPhotoUrl.isNullOrBlank() -> 7
+        data.verificationStatus.equals("pending", ignoreCase = true) -> 8
         else -> null
     }
 }

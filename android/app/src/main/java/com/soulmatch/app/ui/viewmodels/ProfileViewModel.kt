@@ -3,9 +3,7 @@ package com.soulmatch.app.ui.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.soulmatch.app.data.api.ProfileApiService
-import com.soulmatch.app.data.config.AppEnvironment
 import com.soulmatch.app.data.local.UserPreferences
-import com.soulmatch.app.data.mock.MarketFixtures
 import com.soulmatch.app.data.models.AiBioSuggestionRequest
 import com.soulmatch.app.data.models.PartnerPreferencesData
 import com.soulmatch.app.data.models.ProfileData
@@ -31,7 +29,6 @@ class ProfileViewModel @Inject constructor(
     private val _partnerPreferences = MutableStateFlow(PartnerPreferencesData())
     private val _errorMessage = MutableStateFlow<String?>(null)
     private val _loadMessage = MutableStateFlow<String?>(null)
-    private var usingMockProfile = false
 
     val profile: StateFlow<ProfileData?> = _profile.asStateFlow()
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
@@ -45,13 +42,9 @@ class ProfileViewModel @Inject constructor(
         loadProfile()
     }
 
-    private suspend fun canUseDemoFallback(): Boolean =
-        AppEnvironment.allowDemoFallback && prefs.authToken.first().isNullOrBlank()
-
     fun loadProfile() {
         viewModelScope.launch {
             _loadMessage.value = null
-            val canUseFallback = canUseDemoFallback()
             try {
                 val response = profileApi.getMyProfile()
                 val body = response.body()
@@ -71,33 +64,17 @@ class ProfileViewModel @Inject constructor(
                     } else {
                         _partnerPreferences.value = PartnerPreferencesData()
                     }
-                    usingMockProfile = false
-                } else {
-                    if (canUseFallback) {
-                        _profile.value = MarketFixtures.myProfile
-                        usingMockProfile = true
-                        _loadMessage.value = body?.error?.message ?: "Showing demo profile details because saved details could not be loaded."
-                    } else {
-                        _profile.value = null
-                        usingMockProfile = false
-                        _loadMessage.value = body?.error?.message ?: "Saved profile details could not be loaded."
-                    }
-                }
-            } catch (error: Exception) {
-                if (canUseFallback) {
-                    _profile.value = MarketFixtures.myProfile
-                    usingMockProfile = true
-                    _loadMessage.value = when (error) {
-                        is IOException -> "Service is temporarily not available. Showing demo profile details for UI testing."
-                        else -> "Couldn't load your saved profile details. Showing demo profile details for UI testing."
-                    }
                 } else {
                     _profile.value = null
-                    usingMockProfile = false
-                    _loadMessage.value = when (error) {
-                        is IOException -> "Service is temporarily not available. Please try again."
-                        else -> "Couldn't load your saved profile details."
-                    }
+                    _partnerPreferences.value = PartnerPreferencesData()
+                    _loadMessage.value = body?.error?.message ?: "Saved profile details could not be loaded."
+                }
+            } catch (error: Exception) {
+                _profile.value = null
+                _partnerPreferences.value = PartnerPreferencesData()
+                _loadMessage.value = when (error) {
+                    is IOException -> "Service is temporarily not available. Please try again."
+                    else -> "Couldn't load your saved profile details."
                 }
             }
         }
@@ -161,40 +138,24 @@ class ProfileViewModel @Inject constructor(
             }
             _isSaving.value = true
             _errorMessage.value = null
-            val canUseFallback = canUseDemoFallback()
             try {
                 val req = mutableMapOf<String, Any>("step" to step)
                 req.putAll(payload)
                 val response = profileApi.createProfileStep(req)
                 if (response.isSuccessful && response.body()?.success == true) {
-                    usingMockProfile = false
                     response.body()?.data?.profileId?.let { prefs.saveProfileId(it) }
                     prefs.saveWizardStep(step + 1)
                     loadProfile()
-                    onSuccess()
-                } else if (usingMockProfile && canUseFallback) {
-                    saveMockStep(step, payload)
                     onSuccess()
                 } else {
                     _errorMessage.value = response.body()?.error?.message ?: "Could not save this step."
                 }
             } catch (e: Exception) {
-                if (usingMockProfile && canUseFallback) {
-                    saveMockStep(step, payload)
-                    onSuccess()
-                } else {
-                    _errorMessage.value = profileSaveErrorMessage(e)
-                }
+                _errorMessage.value = profileSaveErrorMessage(e)
             } finally {
                 _isSaving.value = false
             }
         }
-    }
-
-    private fun saveMockStep(step: Int, payload: Map<String, Any>) {
-        MarketFixtures.updateMyProfileStep(step, payload)
-        _profile.value = MarketFixtures.myProfile
-        _loadMessage.value = "Saved locally in demo mode. Start the backend to persist this profile."
     }
 
     private fun profileSaveErrorMessage(error: Throwable): String {
@@ -261,7 +222,10 @@ class ProfileViewModel @Inject constructor(
         educationLevels = educationLevels.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
         occupations = occupations.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
         locations = locations.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+        locationPreferences = locationPreferences.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
         dietPrefs = dietPrefs.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+        incomePreferences = incomePreferences.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
+        lifestylePreferences = lifestylePreferences.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
         maritalStatuses = maritalStatuses.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
         familyTypes = familyTypes.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
         timeline = timeline?.trim()?.ifBlank { null },

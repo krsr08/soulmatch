@@ -91,6 +91,7 @@ function validateStepData(step, data) {
       if (isBlank(data.motherTongue)) return 'Mother tongue is required.';
       if (isBlank(data.maritalStatus)) return 'Marital status is required.';
       if (isBlank(data.workingCity)) return 'Current city is required.';
+      if (isBlank(data.nativePlace)) return 'Native place is required.';
       return null;
     case 2:
       if (isBlank(data.religion)) return 'Religion is required.';
@@ -98,19 +99,27 @@ function validateStepData(step, data) {
       return null;
     case 3:
       if (isBlank(data.educationLevel)) return 'Highest qualification is required.';
+      if (isBlank(data.institutionName)) return 'Institution is required.';
       if (isBlank(data.occupation)) return 'Occupation is required.';
+      if (isBlank(data.companyName)) return 'Company name is missing.';
       if (isBlank(data.annualIncome)) return 'Annual income is required.';
+      if (isBlank(data.workLocation)) return 'Work location is required.';
       return null;
     case 4:
+      if (isBlank(data.familyStatus)) return 'Family status is required.';
       if (isBlank(data.fatherOccupation)) return 'Father occupation is required.';
       if (isBlank(data.motherOccupation)) return 'Mother occupation is required.';
       if (isBlank(data.familyType)) return 'Family type is required.';
+      if (String(data.aboutFamily || '').trim().length < 40) return 'About family needs at least 40 characters.';
       if (!isBlank(data.familyPincode) && !/^\d{6}$/.test(String(data.familyPincode).trim())) return 'Family pincode must be a valid 6-digit code.';
       return null;
     case 5:
       if (isBlank(data.diet)) return 'Diet is required.';
       if (isBlank(data.smoking)) return 'Smoking preference is required.';
       if (isBlank(data.drinking)) return 'Drinking preference is required.';
+      if (!Array.isArray(data.hobbies) || data.hobbies.length === 0) return 'Select at least one hobby.';
+      if (!Array.isArray(data.languagesKnown) || data.languagesKnown.length === 0) return 'Select at least one known language.';
+      if (!Array.isArray(data.personalityTraits) || data.personalityTraits.length === 0) return 'Select at least one personality trait.';
       return null;
     case 6:
       return null;
@@ -176,19 +185,34 @@ function normalizeStepData(step, data) {
     normalized.dob = dob;
     normalized.heightCm = Number.parseInt(data.heightCm, 10);
     normalized.workingCity = String(data.workingCity || '').trim();
+    normalized.nativePlace = String(data.nativePlace || '').trim();
+  }
+  if (step === 2) {
+    normalized.subCaste = String(data.subCaste || '').trim();
+    normalized.gotra = String(data.gotra || '').trim();
+    normalized.religiousValues = String(data.religiousValues || '').trim();
   }
   if (step === 3) {
-    normalized.noEducation = data.noEducation === true || data.no_education === true || String(data.noEducation || data.no_education).toLowerCase() === 'true';
     normalized.isEmployed = true;
     normalized.workingCity = String(data.workingCity || '').trim();
     normalized.workingState = String(data.workingState || '').trim();
     normalized.workingPincode = String(data.workingPincode || '').trim();
+    normalized.institutionName = String(data.institutionName || '').trim();
+    normalized.companyName = String(data.companyName || '').trim();
+    normalized.workLocation = String(data.workLocation || '').trim();
   }
   if (step === 4) {
     normalized.familyPincode = String(data.familyPincode || '').trim();
+    normalized.familyStatus = String(data.familyStatus || '').trim();
+    normalized.aboutFamily = String(data.aboutFamily || '').trim();
   }
-  if (step === 5 && isBlank(data.aboutMe)) {
-    normalized.aboutMe = `Prefers ${String(data.diet || '').trim()}, ${String(data.smoking || '').trim()} smoking, and ${String(data.drinking || '').trim()} drinking habits.`;
+  if (step === 5) {
+    normalized.hobbies = Array.isArray(data.hobbies) ? data.hobbies : String(data.hobbies || '').split(',').map((item) => item.trim()).filter(Boolean);
+    normalized.languagesKnown = Array.isArray(data.languagesKnown) ? data.languagesKnown : String(data.languagesKnown || '').split(',').map((item) => item.trim()).filter(Boolean);
+    normalized.personalityTraits = Array.isArray(data.personalityTraits) ? data.personalityTraits : String(data.personalityTraits || '').split(',').map((item) => item.trim()).filter(Boolean);
+    if (isBlank(data.aboutMe)) {
+      normalized.aboutMe = `Prefers ${String(data.diet || '').trim()}, ${String(data.smoking || '').trim()} smoking, and ${String(data.drinking || '').trim()} drinking habits.`;
+    }
   }
   return { data: normalized };
 }
@@ -394,11 +418,32 @@ exports.createOrUpdateStep = async (req, res, next) => {
         result = await repo.upsertBasicInfo(userId, dataForSave);
         await repo.upsertPhysical(userId, dataForSave);
         await repo.upsertCurrentCity(userId, dataForSave.workingCity);
+        await repo.upsertHoroscope(userId, { birthCity: dataForSave.nativePlace });
+        await repo.upsertExtendedDetails(userId, dataForSave);
         break;
-      case 2: result = await repo.upsertReligiousCommunity(userId, dataForSave); break;
-      case 3: result = await repo.upsertEducation(userId, dataForSave); break;
-      case 4: result = await repo.upsertFamily(userId, dataForSave); break;
-      case 5: result = await repo.upsertLifestyle(userId, dataForSave); break;
+      case 2:
+        result = await repo.upsertReligiousCommunity(userId, dataForSave);
+        await repo.upsertHoroscope(userId, { gotra: dataForSave.gotra });
+        await repo.upsertExtendedDetails(userId, dataForSave);
+        break;
+      case 3:
+        result = await repo.upsertEducation(userId, {
+          ...dataForSave,
+          workingCity: dataForSave.workLocation || dataForSave.workingCity
+        });
+        await repo.upsertExtendedDetails(userId, dataForSave);
+        break;
+      case 4:
+        result = await repo.upsertFamily(userId, {
+          ...dataForSave,
+          familyLocality: dataForSave.familyStatus || dataForSave.familyLocality
+        });
+        await repo.upsertExtendedDetails(userId, dataForSave);
+        break;
+      case 5:
+        result = await repo.upsertLifestyle(userId, dataForSave);
+        await repo.upsertExtendedDetails(userId, dataForSave);
+        break;
       case 6: result = await repo.upsertHoroscope(userId, dataForSave); break;
       default: return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Step must be 1-6'));
     }
@@ -778,12 +823,17 @@ exports.getPreferences = async (req, res, next) => {
 };
 exports.updatePreferences = async (req, res, next) => {
   try {
-    await requireOwnedProfile(req.params.profileId, req.user.userId);
+    const profile = await requireOwnedProfile(req.params.profileId, req.user.userId);
     const before = await repo.getPreferences(req.params.profileId);
     await repo.upsertPreferences(req.params.profileId, req.body);
+    await repo.upsertExtendedDetails(req.user.userId, {
+      locationPreferences: req.body.locationPreferences,
+      incomePreferences: req.body.incomePreferences,
+      lifestylePreferences: req.body.lifestylePreferences
+    });
     const after = await repo.getPreferences(req.params.profileId);
     await auditUserChange(req, {
-      profileId: req.params.profileId,
+      profileId: profile.profile_id,
       entityType: 'partner_preferences',
       entityId: req.params.profileId,
       action: 'partner_preferences.update',

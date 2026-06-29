@@ -8,6 +8,7 @@ const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
 const { buildCorsOptions } = require('./utils/corsOptions');
 const { installExpressObservability } = require('../../shared/observability');
+const profileRepository = require('./repositories/profileRepository');
 const app = express();
 app.use(helmet()); app.use(cors(buildCorsOptions())); app.use(express.json({ limit: '10mb' }));
 installExpressObservability(app, { serviceName: 'profile-service' });
@@ -18,5 +19,8 @@ app.get('/health', (req, res) => res.json({ status: 'ok', service: 'profile-serv
 app.use(notFoundHandler);
 app.use(errorHandler);
 const PORT = process.env.PORT || 3002;
+profileRepository.ensureProfileExtendedSchema().catch((error) => {
+  logger.warn(`Profile extended schema bootstrap skipped: ${error.message}`);
+});
 app.listen(PORT, () => logger.info('Profile Service on port ' + PORT));
 module.exports = app;

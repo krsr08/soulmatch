@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
@@ -445,6 +446,7 @@ private fun BenefitCard(icon: ImageVector, title: String, subtitle: String) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .requiredHeight(154.dp)
             .padding(bottom = 12.dp),
         shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
         color = Color.White,
@@ -461,7 +463,10 @@ private fun BenefitCard(icon: ImageVector, title: String, subtitle: String) {
                     Icon(icon, contentDescription = null, tint = SoulMatchTokens.Tangerine, modifier = Modifier.size(28.dp))
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 Text(title, color = SoulMatchTokens.Text, fontWeight = FontWeight.Bold, fontSize = 19.sp)
                 Text(subtitle, color = SoulMatchTokens.Muted, style = MaterialTheme.typography.bodyMedium, lineHeight = 21.sp)
             }

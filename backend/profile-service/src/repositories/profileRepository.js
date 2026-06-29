@@ -22,6 +22,31 @@ function parseJsonList(value) {
   return [];
 }
 
+exports.ensureProfileExtendedSchema = async () => {
+  const db = await getDB();
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS profile_extended_details (
+      profile_id UUID PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
+      native_place VARCHAR(120),
+      sub_caste VARCHAR(120),
+      religious_values VARCHAR(240),
+      institution_name VARCHAR(160),
+      company_name VARCHAR(160),
+      work_location VARCHAR(160),
+      family_status VARCHAR(80),
+      about_family TEXT,
+      hobbies JSONB DEFAULT '[]'::jsonb,
+      languages_known JSONB DEFAULT '[]'::jsonb,
+      personality_traits JSONB DEFAULT '[]'::jsonb,
+      location_preferences JSONB DEFAULT '[]'::jsonb,
+      income_preferences JSONB DEFAULT '[]'::jsonb,
+      lifestyle_preferences JSONB DEFAULT '[]'::jsonb,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+};
+
 function toComparableJson(value) {
   if (value === undefined || value === null) return null;
   return JSON.parse(JSON.stringify(value));
@@ -1079,6 +1104,70 @@ exports.upsertFamily = async (userId, data) => {
 };
 exports.upsertLifestyle = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO lifestyle_details (profile_id,diet,smoking,drinking,about_me) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (profile_id) DO UPDATE SET diet=$2,smoking=$3,drinking=$4,about_me=$5', [p.profile_id,data.diet,data.smoking||'never',data.drinking||'never',data.aboutMe]); return p; };
 exports.upsertHoroscope = async (userId, data) => { const db = await getDB(); const p = await exports.findByUserId(userId); await db.query('INSERT INTO horoscope_details (profile_id,rashi,nakshatra,is_manglik,birth_city,gotra) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (profile_id) DO UPDATE SET rashi=$2,nakshatra=$3,is_manglik=$4,birth_city=$5,gotra=$6', [p.profile_id,data.rashi,data.nakshatra,data.isManglik||false,data.birthCity,data.gotra]); return p; };
+exports.upsertExtendedDetails = async (userId, data = {}) => {
+  const db = await getDB();
+  const p = await exports.findByUserId(userId);
+  const toTextArray = (value) => {
+    if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
+    if (typeof value === 'string') return value.split(',').map((item) => item.trim()).filter(Boolean);
+    return [];
+  };
+  await db.query(
+    `INSERT INTO profile_extended_details (
+       profile_id,
+       native_place,
+       sub_caste,
+       religious_values,
+       institution_name,
+       company_name,
+       work_location,
+       family_status,
+       about_family,
+       hobbies,
+       languages_known,
+       personality_traits,
+       location_preferences,
+       income_preferences,
+       lifestyle_preferences,
+       updated_at
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12::jsonb,$13::jsonb,$14::jsonb,$15::jsonb,NOW())
+     ON CONFLICT (profile_id) DO UPDATE SET
+       native_place = COALESCE($2, profile_extended_details.native_place),
+       sub_caste = COALESCE($3, profile_extended_details.sub_caste),
+       religious_values = COALESCE($4, profile_extended_details.religious_values),
+       institution_name = COALESCE($5, profile_extended_details.institution_name),
+       company_name = COALESCE($6, profile_extended_details.company_name),
+       work_location = COALESCE($7, profile_extended_details.work_location),
+       family_status = COALESCE($8, profile_extended_details.family_status),
+       about_family = COALESCE($9, profile_extended_details.about_family),
+       hobbies = COALESCE($10::jsonb, profile_extended_details.hobbies),
+       languages_known = COALESCE($11::jsonb, profile_extended_details.languages_known),
+       personality_traits = COALESCE($12::jsonb, profile_extended_details.personality_traits),
+       location_preferences = COALESCE($13::jsonb, profile_extended_details.location_preferences),
+       income_preferences = COALESCE($14::jsonb, profile_extended_details.income_preferences),
+       lifestyle_preferences = COALESCE($15::jsonb, profile_extended_details.lifestyle_preferences),
+       updated_at = NOW()`,
+    [
+      p.profile_id,
+      data.nativePlace ? String(data.nativePlace).trim() : null,
+      data.subCaste ? String(data.subCaste).trim() : null,
+      data.religiousValues ? String(data.religiousValues).trim() : null,
+      data.institutionName ? String(data.institutionName).trim() : null,
+      data.companyName ? String(data.companyName).trim() : null,
+      data.workLocation ? String(data.workLocation).trim() : null,
+      data.familyStatus ? String(data.familyStatus).trim() : null,
+      data.aboutFamily ? String(data.aboutFamily).trim() : null,
+      JSON.stringify(toTextArray(data.hobbies)),
+      JSON.stringify(toTextArray(data.languagesKnown)),
+      JSON.stringify(toTextArray(data.personalityTraits)),
+      JSON.stringify(toTextArray(data.locationPreferences)),
+      JSON.stringify(toTextArray(data.incomePreferences)),
+      JSON.stringify(toTextArray(data.lifestylePreferences))
+    ]
+  );
+  return p;
+};
 exports.upsertPreferences = async (profileId, data = {}) => {
   const db = await getDB();
   const payload = {
@@ -1857,7 +1946,21 @@ exports.findFullByUserId = async (userId) => {
        hd.nakshatra,
        hd.is_manglik,
        hd.birth_city,
-       hd.gotra
+       hd.gotra,
+       ped.native_place,
+       ped.sub_caste,
+       ped.religious_values,
+       ped.institution_name,
+       ped.company_name,
+       ped.work_location,
+       ped.family_status,
+       ped.about_family,
+       COALESCE(ped.hobbies, '[]'::jsonb) AS hobbies,
+       COALESCE(ped.languages_known, '[]'::jsonb) AS languages_known,
+       COALESCE(ped.personality_traits, '[]'::jsonb) AS personality_traits,
+       COALESCE(ped.location_preferences, '[]'::jsonb) AS location_preferences,
+       COALESCE(ped.income_preferences, '[]'::jsonb) AS income_preferences,
+       COALESCE(ped.lifestyle_preferences, '[]'::jsonb) AS lifestyle_preferences
      FROM profiles p
      JOIN users u ON u.user_id=p.user_id
      LEFT JOIN physical_details pd ON p.profile_id=pd.profile_id
@@ -1865,6 +1968,7 @@ exports.findFullByUserId = async (userId) => {
      LEFT JOIN family_details fd ON p.profile_id=fd.profile_id
      LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id
      LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id
+     LEFT JOIN profile_extended_details ped ON p.profile_id=ped.profile_id
      WHERE p.user_id=$1
      LIMIT 1`,
     [userId]
@@ -1912,6 +2016,20 @@ exports.findFullById = async (profileId) => {
        hd.is_manglik,
        hd.birth_city,
        hd.gotra,
+       ped.native_place,
+       ped.sub_caste,
+       ped.religious_values,
+       ped.institution_name,
+       ped.company_name,
+       ped.work_location,
+       ped.family_status,
+       ped.about_family,
+       COALESCE(ped.hobbies, '[]'::jsonb) AS hobbies,
+       COALESCE(ped.languages_known, '[]'::jsonb) AS languages_known,
+       COALESCE(ped.personality_traits, '[]'::jsonb) AS personality_traits,
+       COALESCE(ped.location_preferences, '[]'::jsonb) AS location_preferences,
+       COALESCE(ped.income_preferences, '[]'::jsonb) AS income_preferences,
+       COALESCE(ped.lifestyle_preferences, '[]'::jsonb) AS lifestyle_preferences,
        CASE WHEN pp.profile_id IS NULL THEN NULL ELSE json_build_object(
          'age_min', pp.age_min,
          'age_max', pp.age_max,
@@ -1940,6 +2058,7 @@ exports.findFullById = async (profileId) => {
      LEFT JOIN family_details fd ON p.profile_id=fd.profile_id
      LEFT JOIN lifestyle_details ld ON p.profile_id=ld.profile_id
      LEFT JOIN horoscope_details hd ON p.profile_id=hd.profile_id
+     LEFT JOIN profile_extended_details ped ON p.profile_id=ped.profile_id
      LEFT JOIN partner_preferences pp ON p.profile_id=pp.profile_id
      WHERE p.profile_id=$1
      LIMIT 1`,
