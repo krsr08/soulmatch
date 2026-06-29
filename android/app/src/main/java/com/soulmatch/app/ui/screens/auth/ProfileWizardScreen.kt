@@ -2,6 +2,7 @@ package com.soulmatch.app.ui.screens.auth
 
 import android.app.DatePickerDialog
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -69,7 +70,6 @@ import com.soulmatch.app.data.models.PartnerPreferencesData
 import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.ui.components.premium.ChipTone
 import com.soulmatch.app.ui.components.premium.FilterChoiceChip
-import com.soulmatch.app.ui.components.premium.LabeledProgress
 import com.soulmatch.app.ui.components.premium.PremiumCard
 import com.soulmatch.app.ui.components.premium.PremiumScreen
 import com.soulmatch.app.ui.components.premium.SignalChip
@@ -154,7 +154,9 @@ private val profileCityOptions = listOf(
 )
 
 private val motherTongueOptions = listOf(
-    "Hindi", "English", "Telugu", "Tamil", "Malayalam", "Kannada", "Gujarati", "Bengali", "Marathi", "Punjabi"
+    "Assamese", "Bengali", "Bodo", "Dogri", "English", "Gujarati", "Hindi", "Kannada",
+    "Kashmiri", "Konkani", "Maithili", "Malayalam", "Manipuri", "Marathi", "Nepali",
+    "Odia", "Punjabi", "Sanskrit", "Santali", "Sindhi", "Tamil", "Telugu", "Urdu"
 )
 
 private val hobbyOptions = listOf("Travel", "Reading", "Music", "Fitness", "Cooking", "Movies", "Photography", "Temple visits")
@@ -202,10 +204,7 @@ fun ProfileWizardScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(copy.title, fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
-                        Text(copy.eyebrow, style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
-                    }
+                    Text(copy.title, fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = SoulMatchTokens.Bg,
@@ -219,7 +218,7 @@ fun ProfileWizardScreen(
                 },
                 actions = {
                     IconButton(onClick = { showInfo = true }) {
-                        Icon(Icons.Filled.Info, contentDescription = "Info")
+                        Icon(Icons.Filled.Info, contentDescription = "Info", tint = SoulMatchTokens.Tangerine)
                     }
                 }
             )
@@ -237,22 +236,11 @@ fun ProfileWizardScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp), containerColor = SoulMatchTokens.TangerineSoft) {
-                        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            LabeledProgress(
-                                label = if (isSectionEdit) "Section edit" else "Profile readiness",
-                                value = profileSectionCompletionPercent(profile, currentStep),
-                                detail = if (isSectionEdit) {
-                                    "Save this section to return to My Profile. Other completed sections remain marked complete."
-                                } else {
-                                    "Complete all required fields in this section to keep your profile eligible for recommendations."
-                                }
-                            )
-                            StepRail(currentStep = currentStep, profile = profile)
-                            Text(copy.subtitle, style = MaterialTheme.typography.bodyMedium, color = SoulMatchTokens.Tangerine)
-                            Text(copy.helper, style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
-                        }
-                    }
+                    WizardProgressHeader(
+                        stepNumber = currentStep,
+                        progressPercent = (currentStep * 10).coerceIn(0, 100),
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
                     if (!loadMessage.isNullOrBlank()) {
                         PremiumCard(modifier = Modifier.padding(horizontal = 16.dp), containerColor = MaterialTheme.colorScheme.errorContainer) {
                             Text(loadMessage ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
@@ -374,12 +362,6 @@ private fun StepRail(currentStep: Int, profile: ProfileData?) {
     }
 }
 
-private fun profileSectionCompletionPercent(profile: ProfileData?, currentStep: Int): Int {
-    val completedSections = (1..6).count { isProfileSectionComplete(profile, it) }
-    val currentSectionBoost = if (profile != null && !isProfileSectionComplete(profile, currentStep)) 1 else 0
-    return ((completedSections + currentSectionBoost) * 100 / 6).coerceIn(0, 100)
-}
-
 private fun isProfileSectionComplete(profile: ProfileData?, section: Int): Boolean {
     val resolved = profile ?: return false
     return when (section) {
@@ -445,8 +427,13 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
     val (firstName, lastName) = splitFullName(fullName)
     val fullNameError = fullName.isNotBlank() && (firstName.trim().length < 2 || lastName.trim().length < 2)
     val heightCm = heightCmFromLabel(heightLabel)
-    val genderError = gender.isBlank()
-    val nativePlaceError = nativePlace.isBlank()
+    val hasInteracted = listOf(fullName, dob, gender, heightLabel, maritalStatus, motherTongue, currentCity, nativePlace).any { it.isNotBlank() }
+    val genderError = hasInteracted && gender.isBlank()
+    val heightError = hasInteracted && heightLabel.isBlank()
+    val maritalStatusError = hasInteracted && maritalStatus.isBlank()
+    val motherTongueError = hasInteracted && motherTongue.isBlank()
+    val currentCityError = hasInteracted && currentCity.isBlank()
+    val nativePlaceError = hasInteracted && nativePlace.isBlank()
 
     val isValid = !fullNameError &&
         normalizedDob != null &&
@@ -469,57 +456,67 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
         onValidityChange(isValid)
     }
 
-    PremiumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionLead("Basic details", "These details help families understand identity, background, and location.")
-            RequiredTextField(
-                fullName,
-                { fullName = it },
-                "Full name",
-                isError = fullNameError,
-                supportingText = if (fullNameError) "Enter first and last name." else null
-            )
-            SelectionField(
-                label = "Gender",
-                value = titleCase(gender),
-                options = listOf("Male", "Female"),
-                onSelect = { gender = it.lowercase() },
-                isError = genderError,
-                supportingText = if (genderError) "Gender is required" else null
-            )
-            DatePickerField(
-                dob,
-                onValueChange = { dob = it },
-                "Date of birth",
-                isError = dobHasError,
-                supportingText = if (dobHasError) "Use DD-MM-YYYY. Age must be between 18 and 80 years." else "Format: DD-MM-YYYY. Age must be 18 or above."
-            )
-            SelectionField(label = "Height", value = heightLabel, options = profileHeightOptions, onSelect = { heightLabel = it })
-            SelectionField(
-                label = "Marital status",
-                value = titleCase(maritalStatus.replace('_', ' ')),
-                options = listOf("Never married", "Divorced", "Widowed"),
-                onSelect = { maritalStatus = it.lowercase().replace(' ', '_') }
-            )
-            SelectionField(
-                label = "Mother tongue",
-                value = motherTongue,
-                options = motherTongueOptions,
-                onSelect = { motherTongue = it }
-            )
-            SelectionField(label = "Current city", value = currentCity, options = profileCityOptions, onSelect = { currentCity = it })
-            SelectionField(
-                label = "Native place",
-                value = nativePlace,
-                options = profileCityOptions,
-                onSelect = { nativePlace = it },
-                isError = nativePlaceError,
-                supportingText = if (nativePlaceError) "Native place is required" else null
-            )
-            if (!isValid) {
-                ValidationBanner("Please correct highlighted fields before continuing.")
-            }
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        RequiredTextField(
+            fullName,
+            { fullName = it },
+            "Full name",
+            isError = fullNameError,
+            supportingText = if (fullNameError) "Enter first and last name." else null
+        )
+        SelectionField(
+            label = "Gender",
+            value = titleCase(gender),
+            options = listOf("Male", "Female"),
+            onSelect = { gender = it.lowercase() },
+            isError = genderError,
+            supportingText = if (genderError) "Gender is required" else null
+        )
+        DatePickerField(
+            dob,
+            onValueChange = { dob = it },
+            "Date of birth",
+            isError = dobHasError,
+            supportingText = if (dobHasError) "Age must be 20 years or above." else null
+        )
+        SelectionField(
+            label = "Height",
+            value = heightLabel,
+            options = profileHeightOptions,
+            onSelect = { heightLabel = it },
+            isError = heightError,
+            supportingText = if (heightError) "Height is required" else null
+        )
+        SelectionField(
+            label = "Marital status",
+            value = titleCase(maritalStatus.replace('_', ' ')),
+            options = listOf("Never married", "Divorced", "Widowed"),
+            onSelect = { maritalStatus = it.lowercase().replace(' ', '_') },
+            isError = maritalStatusError,
+            supportingText = if (maritalStatusError) "Marital status is required" else null
+        )
+        SelectionField(
+            label = "Mother tongue",
+            value = motherTongue,
+            options = motherTongueOptions,
+            onSelect = { motherTongue = it },
+            isError = motherTongueError,
+            supportingText = if (motherTongueError) "Mother tongue is required" else null
+        )
+        RequiredTextField(
+            currentCity,
+            { currentCity = it },
+            "Current city",
+            isError = currentCityError,
+            supportingText = if (currentCityError) "Current city is required" else null
+        )
+        RequiredTextField(
+            nativePlace,
+            { nativePlace = it },
+            "Native place",
+            isError = nativePlaceError,
+            supportingText = if (nativePlaceError) "Native place is required" else null
+        )
     }
 }
 
@@ -905,52 +902,29 @@ private fun ProfileWizardInfoBottomSheet(
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = SoulMatchTokens.Ivory,
-                    modifier = Modifier.size(60.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Filled.Info,
-                            contentDescription = null,
-                            tint = SoulMatchTokens.Tangerine,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.headlineSmall.copy(
-                            fontFamily = FontFamily.Serif,
-                            fontWeight = FontWeight.ExtraBold,
-                            lineHeight = 38.sp
-                        ),
-                        color = SoulMatchTokens.Text
-                    )
-                    Text(
-                        text = body,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = SoulMatchTokens.Muted,
-                        lineHeight = 30.sp
-                    )
-                }
-            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.ExtraBold,
+                    lineHeight = 38.sp
+                ),
+                color = SoulMatchTokens.Text
+            )
+            Text(
+                text = body,
+                style = MaterialTheme.typography.bodyLarge,
+                color = SoulMatchTokens.Muted,
+                lineHeight = 30.sp
+            )
             WizardInfoBullet("Verified profiles receive better responses.")
             WizardInfoBullet("Privacy controls protect contact and photo access.")
             Button(
                 onClick = onDismiss,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
+                    .height(56.dp)
+                    .padding(bottom = 10.dp),
                 shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = SoulMatchTokens.Tangerine,
@@ -959,7 +933,6 @@ private fun ProfileWizardInfoBottomSheet(
             ) {
                 Text("Got it", fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             }
-            Spacer(Modifier.height(8.dp))
         }
     }
 }
@@ -992,6 +965,49 @@ private fun SectionLead(title: String, description: String) {
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
         Text(description, style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
+    }
+}
+
+@Composable
+private fun WizardProgressHeader(
+    stepNumber: Int,
+    progressPercent: Int,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Step $stepNumber of 10",
+                color = SoulMatchTokens.Tangerine,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "$progressPercent% complete",
+                color = SoulMatchTokens.Muted,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(10.dp),
+            shape = RoundedCornerShape(999.dp),
+            color = Color(0xFFF3E5DE)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth((progressPercent.coerceIn(0, 100)) / 100f)
+                    .height(10.dp)
+                    .background(SoulMatchTokens.Tangerine, RoundedCornerShape(999.dp))
+            )
+        }
     }
 }
 
@@ -1177,7 +1193,7 @@ private fun normalizeDateOfBirth(value: String): String? {
     }
     val today = LocalDate.now()
     val oldestAllowed = today.minusYears(80)
-    val youngestAllowed = today.minusYears(18)
+    val youngestAllowed = today.minusYears(20)
     if (dob.isBefore(oldestAllowed) || dob.isAfter(youngestAllowed)) return null
     return dob.format(DateTimeFormatter.ofPattern("dd-MM-uuuu"))
 }
@@ -1233,7 +1249,7 @@ private fun DatePickerField(
             calendarValue.monthValue - 1,
             calendarValue.dayOfMonth
         ).apply {
-            datePicker.maxDate = Instant.now().toEpochMilli()
+            datePicker.maxDate = LocalDate.now().minusYears(20).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
             datePicker.minDate = LocalDate.now().minusYears(80).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         }
     }
@@ -1247,8 +1263,7 @@ private fun DatePickerField(
         readOnly = true,
         isError = isError,
         supportingText = supportingText?.let { message -> { Text(message) } },
-        shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
-        trailingIcon = { Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = SoulMatchTokens.Tangerine) }
+        shape = RoundedCornerShape(SoulMatchTokens.CardRadius)
     )
 }
 

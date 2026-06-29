@@ -97,8 +97,8 @@ fun ProfileIntroScreen(
 ) {
     ProfileSetupScaffold(
         title = "Create profile",
-        stepNumber = 0,
-        progressPercent = 0,
+        stepNumber = null,
+        progressPercent = null,
         headline = "",
         body = "",
         infoTitle = "Why profile setup matters",
@@ -107,7 +107,6 @@ fun ProfileIntroScreen(
         primaryText = "Start profile",
         onPrimary = onContinue
     ) {
-        ProfileIntroHeroCard(progressPercent = 0)
         Text(
             text = "Build a profile families can trust",
             style = MaterialTheme.typography.headlineMedium.copy(
@@ -649,28 +648,14 @@ private fun ProfileInfoBottomSheet(
                 .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    modifier = Modifier.size(56.dp),
-                    shape = CircleShape,
-                    color = SoulMatchTokens.Ivory
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.Info, contentDescription = null, tint = SoulMatchTokens.Tangerine)
-                    }
-                }
-                Text(
-                    title,
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontFamily = FontFamily.Serif,
-                        fontWeight = FontWeight.ExtraBold
-                    ),
-                    color = SoulMatchTokens.Text
-                )
-            }
+            Text(
+                title,
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.ExtraBold
+                ),
+                color = SoulMatchTokens.Text
+            )
             Text(
                 body,
                 style = MaterialTheme.typography.bodyLarge,
