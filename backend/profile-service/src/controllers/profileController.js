@@ -84,7 +84,6 @@ function validateStepData(step, data) {
   switch (step) {
     case 1:
       if (isBlank(data.firstName)) return 'First name is required.';
-      if (isBlank(data.lastName)) return 'Last name is required.';
       if (isBlank(data.dob)) return 'Date of birth is required in DD-MM-YYYY format.';
       if (isBlank(data.gender)) return 'Gender is required.';
       if (!Number.isFinite(Number(data.heightCm))) return 'Height is required.';
@@ -151,7 +150,7 @@ function normalizeDateOfBirth(value) {
   if (!isRealDate) return null;
 
   const today = new Date();
-  const youngestAllowed = new Date(Date.UTC(today.getUTCFullYear() - 18, today.getUTCMonth(), today.getUTCDate()));
+  const youngestAllowed = new Date(Date.UTC(today.getUTCFullYear() - 20, today.getUTCMonth(), today.getUTCDate()));
   const oldestAllowed = new Date(Date.UTC(today.getUTCFullYear() - 80, today.getUTCMonth(), today.getUTCDate()));
   if (date > youngestAllowed || date < oldestAllowed) return null;
   return date.toISOString().slice(0, 10);
@@ -179,7 +178,7 @@ function normalizeStepData(step, data) {
     const dob = normalizeDateOfBirth(data.dob);
     if (!dob) {
       return {
-        error: 'Enter date of birth as DD-MM-YYYY. Age must be between 18 and 80 years.'
+        error: 'Enter date of birth as DD-MM-YYYY. Age must be between 20 and 80 years.'
       };
     }
     normalized.dob = dob;
@@ -1375,6 +1374,24 @@ exports.submitManagedProfile = async (req, res, next) => {
       entityType: 'managed_profile',
       entityId: req.params.profileId,
       action: 'managed_profile.submit',
+      beforeData: {},
+      afterData: result.profile || {}
+    });
+    res.json({ success: true, data: result.profile, message: 'Profile submitted for admin review.' });
+  } catch (err) { next(err); }
+};
+
+exports.submitMyProfile = async (req, res, next) => {
+  try {
+    const result = await repo.submitOwnProfileByUserId(req.user.userId);
+    if (result.status === 'not_found') return next(new AppError(404, ErrorCodes.NOT_FOUND, 'Profile not found'));
+    if (result.status === 'incomplete_profile') return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, `Complete more profile details before submitting. Current completion: ${result.completionScore}%.`));
+    if (result.status === 'photos_required') return next(new AppError(400, ErrorCodes.VALIDATION_ERROR, 'Upload at least one profile photo before submitting.'));
+    await auditUserChange(req, {
+      profileId: result.profile?.profile_id,
+      entityType: 'profile_review',
+      entityId: result.profile?.profile_id,
+      action: 'profile.submit',
       beforeData: {},
       afterData: result.profile || {}
     });

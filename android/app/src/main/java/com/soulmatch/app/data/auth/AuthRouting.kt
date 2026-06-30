@@ -5,6 +5,32 @@ import com.soulmatch.app.data.models.AgentProfileData
 
 private fun safeText(value: String?): String = value.orEmpty()
 
+fun resolveMemberResumeRoute(
+    profile: ProfileData?,
+    storedWizardStep: Int,
+    onboardingSeen: Boolean = false
+): String {
+    val safeProfile = profile ?: return if (onboardingSeen) "profile_intro" else "onboarding_benefit"
+    if (safeProfile.profileId.isBlank()) {
+        return if (onboardingSeen) "profile_intro" else "onboarding_benefit"
+    }
+    if (safeText(safeProfile.reviewStatus).equals("submitted", true) || safeText(safeProfile.reviewStatus).equals("under_review", true)) {
+        return "profile_under_review"
+    }
+    val resolvedStep = resolveWizardStep(safeProfile)
+    val preferredStep = when {
+        storedWizardStep >= 10 -> 10
+        resolvedStep == null && storedWizardStep in 7..9 -> storedWizardStep
+        resolvedStep != null && storedWizardStep in 1..9 && storedWizardStep > resolvedStep -> storedWizardStep
+        else -> resolvedStep
+    }
+    return when {
+        preferredStep == 10 -> "profile_under_review"
+        preferredStep in 1..9 -> "profile_wizard/$preferredStep"
+        else -> "dashboard"
+    }
+}
+
 fun resolveWizardStep(profile: ProfileData?): Int? {
     val data = profile ?: return 1
     return when {

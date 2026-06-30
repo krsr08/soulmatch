@@ -59,7 +59,7 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.soulmatch.app.data.api.NotificationApiService
 import com.soulmatch.app.data.api.ProfileApiService
 import com.soulmatch.app.data.auth.resolveAgentRoute
-import com.soulmatch.app.data.auth.resolvePostLoginRoute
+import com.soulmatch.app.data.auth.resolveMemberResumeRoute
 import com.soulmatch.app.data.auth.resolveWizardStep
 import com.soulmatch.app.data.local.UserPreferences
 import com.soulmatch.app.data.models.FcmTokenRequest
@@ -205,6 +205,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                 when {
                     response?.isSuccessful == true && body?.success == true -> {
                         val profile = body.data
+                        val storedWizardStep = userPreferences.wizardStep.first()
                         if (profile?.profileId.isNullOrBlank()) {
                             userPreferences.clearProfileProgress()
                             userPreferences.saveWizardStep(1)
@@ -218,8 +219,12 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                             userType = "member",
                             profileId = profile?.profileId
                         )
-                        userPreferences.saveWizardStep(resolveWizardStep(profile) ?: 7)
-                        startDestination = resolvePostLoginRoute(profile)
+                        val resolvedWizardStep = when {
+                            profile?.reviewStatus.equals("submitted", true) || profile?.reviewStatus.equals("under_review", true) -> 10
+                            else -> resolveWizardStep(profile) ?: storedWizardStep.coerceAtLeast(7)
+                        }
+                        userPreferences.saveWizardStep(resolvedWizardStep)
+                        startDestination = resolveMemberResumeRoute(profile, storedWizardStep, memberOnboardingSeen)
                     }
                     response?.code() == 401 -> {
                         userPreferences.clearAll()

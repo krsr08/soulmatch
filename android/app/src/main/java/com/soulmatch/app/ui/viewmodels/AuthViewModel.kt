@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.soulmatch.app.data.api.AuthApiService
 import com.soulmatch.app.data.api.ProfileApiService
 import com.soulmatch.app.data.auth.resolveAgentRoute
-import com.soulmatch.app.data.auth.resolvePostLoginRoute
+import com.soulmatch.app.data.auth.resolveMemberResumeRoute
 import com.soulmatch.app.data.auth.resolveWizardStep
 import com.soulmatch.app.data.local.UserPreferences
 import com.soulmatch.app.data.models.AuthData
@@ -250,29 +250,40 @@ class AuthViewModel @Inject constructor(
             val profile = runCatching {
                 profileApi.getMyProfile().body()?.takeIf { it.success }?.data
             }.getOrNull()
+            val storedWizardStep = prefs.wizardStep.first()
             if (profile?.profileId.isNullOrBlank()) {
                 prefs.clearProfileProgress()
             } else {
                 prefs.saveProfileId(profile?.profileId.orEmpty())
             }
-            prefs.saveWizardStep(resolveWizardStep(profile) ?: 7)
-            resolvePostLoginRoute(profile)
+            val resolvedWizardStep = when {
+                profile?.reviewStatus.equals("submitted", true) || profile?.reviewStatus.equals("under_review", true) -> 10
+                else -> resolveWizardStep(profile) ?: storedWizardStep.coerceAtLeast(7)
+            }
+            prefs.saveWizardStep(resolvedWizardStep)
+            resolveMemberResumeRoute(profile, storedWizardStep, onboardingSeen = true)
         } else {
             val profile = runCatching {
                 profileApi.getMyProfile().body()?.takeIf { it.success }?.data
             }.getOrNull()
             val resolvedStep = resolveWizardStep(profile)
             val onboardingSeen = prefs.memberOnboardingSeen.first()
+            val storedWizardStep = prefs.wizardStep.first()
             if (profile?.profileId.isNullOrBlank()) {
                 prefs.clearProfileProgress()
             } else {
                 prefs.saveProfileId(profile?.profileId.orEmpty())
             }
-            prefs.saveWizardStep(resolvedStep ?: 7)
+            prefs.saveWizardStep(
+                when {
+                    profile?.reviewStatus.equals("submitted", true) || profile?.reviewStatus.equals("under_review", true) -> 10
+                    else -> resolvedStep ?: storedWizardStep.coerceAtLeast(7)
+                }
+            )
             if (requestedUserType == "member" && data.isNewUser && profile?.profileId.isNullOrBlank()) {
                 if (onboardingSeen) "profile_intro" else "onboarding_benefit"
             } else {
-                resolvePostLoginRoute(profile)
+                resolveMemberResumeRoute(profile, storedWizardStep, onboardingSeen)
             }
         }
         if (needsRoleSelection) {

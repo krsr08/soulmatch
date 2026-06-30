@@ -17,6 +17,7 @@ interface AuthApiService {
 }
 interface ProfileApiService {
     @POST("profile/create") suspend fun createProfileStep(@Body req: Map<String, @JvmSuppressWildcards Any>): Response<GenericResponse<ProfileStepResponse>>
+    @POST("profile/submit") suspend fun submitMyProfile(): Response<GenericResponse<ProfileData>>
     @GET("profile/me") suspend fun getMyProfile(): Response<GenericResponse<ProfileData>>
     @GET("profile/export") suspend fun exportMyData(): Response<GenericResponse<Any>>
     @POST("profile/delete-account") suspend fun deleteAccount(@Body req: Map<String, @JvmSuppressWildcards String>): Response<GenericResponse<Any>>

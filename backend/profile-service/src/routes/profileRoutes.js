@@ -32,6 +32,7 @@ function profileViewRateLimit(req, res, next) {
   next();
 }
 router.post('/create', authenticate, ctrl.createOrUpdateStep);
+router.post('/submit', authenticate, ctrl.submitMyProfile);
 router.get('/me', authenticate, ctrl.getMyProfile);
 router.get('/export', authenticate, ctrl.exportMyData);
 router.post('/delete-account', authenticate, ctrl.deleteMyAccount);

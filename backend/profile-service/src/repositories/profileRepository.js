@@ -3947,6 +3947,29 @@ exports.submitManagedProfileByAgentUserId = async (userId, profileId) => {
   return { status: 'submitted', profile: await exports.findFullById(profileId) };
 };
 
+exports.submitOwnProfileByUserId = async (userId) => {
+  const profile = await exports.findByUserId(userId);
+  if (!profile) return { status: 'not_found' };
+  const completionScore = await exports.calcCompletion(profile.profile_id);
+  const photoCount = await exports.getPhotoCount(profile.profile_id);
+  if (completionScore < 10) return { status: 'incomplete_profile', completionScore };
+  if (photoCount < 1) return { status: 'photos_required' };
+  const db = await getDB();
+  await db.query(
+    `UPDATE profiles
+     SET review_status = 'submitted',
+         verification_status = CASE WHEN verification_status = 'verified' THEN 'verified' ELSE 'pending' END,
+         submitted_at = NOW(),
+         reviewed_at = NULL,
+         rejection_reason = NULL,
+         review_notes = NULL,
+         updated_at = NOW()
+     WHERE profile_id = $1`,
+    [profile.profile_id]
+  );
+  return { status: 'submitted', profile: await exports.findFullById(profile.profile_id) };
+};
+
 exports.listManagedProfileDocumentsByAgentUserId = async (userId, profileId) => {
   const advisor = await getAdvisorByUserId(userId);
   if (!advisor) return null;

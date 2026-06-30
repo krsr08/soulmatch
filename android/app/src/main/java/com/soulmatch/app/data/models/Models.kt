@@ -528,6 +528,7 @@ data class ProfileData(
     @SerializedName("profile_status") val profileStatus: String = "active",
     @SerializedName("profile_created_by") val profileCreatedBy: String = "self",
     @SerializedName("verification_status") val verificationStatus: String = "pending",
+    @SerializedName("review_status") val reviewStatus: String = "draft",
     @SerializedName("trust_score") val trustScore: Int = 0,
     @SerializedName("trust_level") val trustLevel: String = "low",
     @SerializedName("trust_signals") val trustSignals: List<String> = emptyList(),

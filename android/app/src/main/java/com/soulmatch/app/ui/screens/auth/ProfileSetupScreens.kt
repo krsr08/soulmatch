@@ -1,5 +1,6 @@
 package com.soulmatch.app.ui.screens.auth
 
+import androidx.activity.ComponentActivity
 import android.content.Context
 import android.net.Uri
 import android.webkit.MimeTypeMap
@@ -137,10 +138,10 @@ fun ProfileIntroScreen(
 @Composable
 fun ProfilePhotoUploadScreen(
     onBack: () -> Unit,
-    onContinue: () -> Unit,
-    vm: MyProfileViewModel = hiltViewModel()
+    onContinue: () -> Unit
 ) {
     val context = LocalContext.current
+    val vm: MyProfileViewModel = hiltViewModel(context as ComponentActivity)
     val photos by vm.photos.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     val isUploading by vm.isUploadingPhotos.collectAsStateWithLifecycle()
@@ -162,7 +163,10 @@ fun ProfilePhotoUploadScreen(
         onBack = onBack,
         primaryText = "Continue",
         primaryEnabled = photos.isNotEmpty() && !isUploading,
-        onPrimary = onContinue
+        onPrimary = {
+            vm.saveWizardStep(8)
+            onContinue()
+        }
     ) {
         PrimaryPhotoSlot(
             primaryPhoto = photos.firstOrNull { it.isPrimary } ?: photos.firstOrNull(),
@@ -213,10 +217,10 @@ fun ProfilePhotoUploadScreen(
 @Composable
 fun ProfileVerificationScreen(
     onBack: () -> Unit,
-    onContinue: () -> Unit,
-    vm: MyProfileViewModel = hiltViewModel()
+    onContinue: () -> Unit
 ) {
     val context = LocalContext.current
+    val vm: MyProfileViewModel = hiltViewModel(context as ComponentActivity)
     val profile by vm.profile.collectAsStateWithLifecycle()
     val verifications by vm.verifications.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
@@ -245,6 +249,7 @@ fun ProfileVerificationScreen(
             if (selectedUri.isNullOrBlank() && verifications.none { it.type.equals("identity", true) || it.type.equals("aadhaar", true) }) {
                 showDocumentError = true
             } else {
+                vm.saveWizardStep(9)
                 onContinue()
             }
         }
@@ -334,12 +339,14 @@ fun ProfileVerificationScreen(
 fun ProfilePreviewReviewScreen(
     onBack: () -> Unit,
     onSubmit: () -> Unit,
-    onEditSection: (Int) -> Unit,
-    vm: MyProfileViewModel = hiltViewModel()
+    onEditSection: (Int) -> Unit
 ) {
+    val context = LocalContext.current
+    val vm: MyProfileViewModel = hiltViewModel(context as ComponentActivity)
     val profile by vm.profile.collectAsStateWithLifecycle()
     val photos by vm.photos.collectAsStateWithLifecycle()
     val verifications by vm.verifications.collectAsStateWithLifecycle()
+    val status by vm.status.collectAsStateWithLifecycle()
 
     ProfileSetupScaffold(
         title = "Preview Profile",
@@ -352,7 +359,9 @@ fun ProfilePreviewReviewScreen(
         onBack = onBack,
         primaryText = "Submit for review",
         primaryEnabled = profile != null,
-        onPrimary = onSubmit
+        onPrimary = {
+            vm.submitProfileForReview(onSubmit)
+        }
     ) {
         PreviewHeader(profile)
         PreviewSection("Basic details", editStep = 1, onEdit = onEditSection) {
@@ -411,6 +420,14 @@ fun ProfilePreviewReviewScreen(
             Text(
                 if (verifications.isEmpty()) "No verification request yet" else "${verifications.size} verification request(s) submitted",
                 color = SoulMatchTokens.Text
+            )
+        }
+        if (!status.isNullOrBlank()) {
+            InlineNotice(
+                status.orEmpty(),
+                error = status.orEmpty().contains("couldn't", ignoreCase = true) ||
+                    status.orEmpty().contains("complete more", ignoreCase = true) ||
+                    status.orEmpty().contains("upload at least", ignoreCase = true)
             )
         }
     }

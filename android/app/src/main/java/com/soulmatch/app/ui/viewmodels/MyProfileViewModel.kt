@@ -493,6 +493,41 @@ class MyProfileViewModel @Inject constructor(
         _status.value = null
     }
 
+    fun saveWizardStep(step: Int) {
+        viewModelScope.launch {
+            prefs.saveWizardStep(step)
+        }
+    }
+
+    fun submitProfileForReview(onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _status.value = null
+            try {
+                val response = profileApi.submitMyProfile()
+                val body = response.body()
+                if (response.isSuccessful && body?.success == true) {
+                    body.data?.let { profile ->
+                        _profile.value = profile
+                        if (profile.profileId.isNotBlank()) {
+                            prefs.saveProfileId(profile.profileId)
+                        }
+                    }
+                    prefs.saveWizardStep(10)
+                    _status.value = body.message ?: "Profile submitted for review."
+                    load()
+                    onSuccess()
+                } else {
+                    _status.value = body?.error?.message ?: "Couldn't submit profile for review right now."
+                }
+            } catch (error: Exception) {
+                _status.value = when (error) {
+                    is IOException -> "Service is temporarily not available. Please try again."
+                    else -> "Couldn't submit profile for review right now. Please try again."
+                }
+            }
+        }
+    }
+
     private fun buildChecklist(profile: ProfileData?): List<ProfileChecklistItem> {
         val resolved = profile?.safeProfileData() ?: ProfileData()
         val hasHoroscopeDetails = safeText(resolved.rashi).isNotBlank() ||
