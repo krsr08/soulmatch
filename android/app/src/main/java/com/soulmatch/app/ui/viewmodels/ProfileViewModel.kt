@@ -90,6 +90,7 @@ class ProfileViewModel @Inject constructor(
     fun updateStep4Data(d: Map<String, Any>) { stepData[4] = d }
     fun updateStep5Data(d: Map<String, Any>) { stepData[5] = d }
     fun updateStep6Data(d: Map<String, Any>) { stepData[6] = d }
+    fun stepData(step: Int): Map<String, Any> = stepData[step].orEmpty()
 
     fun updatePartnerPreferences(preferences: PartnerPreferencesData) {
         _partnerPreferences.value = preferences.safePreferences()

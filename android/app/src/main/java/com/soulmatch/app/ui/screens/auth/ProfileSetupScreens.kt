@@ -68,6 +68,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -564,6 +565,7 @@ private fun ProfileSetupScaffold(
 
 @Composable
 private fun ProfileProgressHeader(stepNumber: Int, progressPercent: Int) {
+    val progress = (progressPercent.coerceIn(0, 100)) / 100f
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -581,18 +583,15 @@ private fun ProfileProgressHeader(stepNumber: Int, progressPercent: Int) {
                 fontWeight = FontWeight.Bold
             )
         }
-        Surface(
-            modifier = Modifier.fillMaxWidth().height(10.dp),
-            shape = RoundedCornerShape(999.dp),
-            color = Color(0xFFF3E5DE)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth((progressPercent.coerceIn(0, 100)) / 100f)
-                    .height(10.dp)
-                    .background(SoulMatchTokens.Tangerine, RoundedCornerShape(999.dp))
-            )
-        }
+        LinearProgressIndicator(
+            progress = progress,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(10.dp)
+                .clip(RoundedCornerShape(999.dp)),
+            color = SoulMatchTokens.Tangerine,
+            trackColor = Color(0xFFF3E5DE)
+        )
     }
 }
 

@@ -506,7 +506,6 @@ class MyProfileViewModel @Inject constructor(
                 title = "Basic details",
                 description = "Name, DOB, gender, height, language, marital status, and current city",
                 isComplete = safeText(resolved.firstName).isNotBlank() &&
-                    safeText(resolved.lastName).isNotBlank() &&
                     safeText(resolved.dob).isNotBlank() &&
                     safeText(resolved.gender).isNotBlank() &&
                     resolved.heightCm != null &&

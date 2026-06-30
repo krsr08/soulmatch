@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
@@ -38,25 +39,22 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.Divider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -101,7 +99,8 @@ private data class WizardStepCopy(
     val eyebrow: String,
     val subtitle: String,
     val helper: String,
-    val info: String
+    val info: String,
+    val infoBullets: List<String>
 )
 
 private val wizardCopy = mapOf(
@@ -110,42 +109,66 @@ private val wizardCopy = mapOf(
         eyebrow = "Step 1 of 10",
         subtitle = "Start with identity basics first.",
         helper = "Full name, gender, date of birth, height, marital status, mother tongue, and current city are required.",
-        info = "Basic details help SoulMatch create your member identity and decide what screen comes next."
+        info = "Basic details help SoulMatch create your member identity and decide what screen comes next.",
+        infoBullets = listOf(
+            "Correct identity details help profile verification.",
+            "Location and language improve relevant family matches."
+        )
     ),
     2 to WizardStepCopy(
         title = "Religious And Community",
         eyebrow = "Step 2 of 10",
         subtitle = "Keep this respectful and accurate for family-led matching.",
         helper = "Religion and community details help families filter and review profiles quickly.",
-        info = "These details help family filtering, search relevance, and partner preference matching."
+        info = "These details help family filtering, search relevance, and partner preference matching.",
+        infoBullets = listOf(
+            "Family search often uses religion and community first.",
+            "Accurate values improve shortlist quality and trust."
+        )
     ),
     3 to WizardStepCopy(
         title = "Education And Career",
         eyebrow = "Step 3 of 10",
         subtitle = "Add professional context that supports serious introductions.",
         helper = "Education, occupation, and annual income are required.",
-        info = "Education and work details directly affect search, ranking, and shortlist quality."
+        info = "Education and work details directly affect search, ranking, and shortlist quality.",
+        infoBullets = listOf(
+            "Career details help families assess life-stage fit.",
+            "Work and education improve recommendation quality."
+        )
     ),
     4 to WizardStepCopy(
         title = "Family Details",
         eyebrow = "Step 4 of 10",
         subtitle = "Share the family context most parents look for first.",
         helper = "Parent occupations and family type are required.",
-        info = "Family details help parents review profile fit faster and with more trust."
+        info = "Family details help parents review profile fit faster and with more trust.",
+        infoBullets = listOf(
+            "Family context gives stronger trust to profile reviews.",
+            "Clear family details reduce back-and-forth questions."
+        )
     ),
     5 to WizardStepCopy(
         title = "Lifestyle Details",
         eyebrow = "Step 5 of 10",
         subtitle = "Help matches understand daily habits and communication style.",
         helper = "Diet, smoking, and drinking details are required.",
-        info = "Lifestyle details give families and matches a clearer idea of daily compatibility."
+        info = "Lifestyle details give families and matches a clearer idea of daily compatibility.",
+        infoBullets = listOf(
+            "Daily habit details prevent mismatch later.",
+            "Lifestyle fit helps matching stay practical and honest."
+        )
     ),
     6 to WizardStepCopy(
         title = "Partner Preferences",
         eyebrow = "Step 6 of 10",
         subtitle = "Set the match basics you care about most before profile review.",
         helper = "Height range, religion/community, education, and occupation preferences power match quality.",
-        info = "Partner preferences directly drive recommendation quality and shortlist relevance."
+        info = "Partner preferences directly drive recommendation quality and shortlist relevance.",
+        infoBullets = listOf(
+            "Good preferences improve recommendation accuracy.",
+            "Balanced filters give more relevant matches."
+        )
     )
 )
 
@@ -186,6 +209,17 @@ private val profileHeightOptions = buildList {
 }
 
 private fun wizardStepProgress(stepNumber: Int): Int = stepNumber.coerceIn(1, 10) * 10
+private val fullNamePattern = Regex("""^[A-Za-z][A-Za-z .'-]*$""")
+private val locationPattern = Regex("""^[A-Za-z][A-Za-z ,.'-]*$""")
+
+private fun isValidFullName(value: String): Boolean =
+    value.trim().length >= 2 && fullNamePattern.matches(value.trim()) && value.trim().any(Char::isLetter)
+
+private fun isValidLocationName(value: String): Boolean =
+    locationPattern.matches(value.trim()) && value.trim().any(Char::isLetter)
+
+private fun Map<String, Any>.stringValue(key: String, fallback: String = ""): String =
+    (this[key] as? String)?.takeIf { it.isNotBlank() } ?: fallback
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -200,7 +234,6 @@ fun ProfileWizardScreen(
     val profile by vm.profile.collectAsStateWithLifecycle()
     val isSaving by vm.isSaving.collectAsStateWithLifecycle()
     val errorMessage by vm.errorMessage.collectAsStateWithLifecycle()
-    val loadMessage by vm.loadMessage.collectAsStateWithLifecycle()
     var isCurrentStepValid by remember(currentStep) { mutableStateOf(false) }
     var showInfo by remember(currentStep) { mutableStateOf(false) }
     val copy = wizardCopy.getValue(currentStep)
@@ -208,8 +241,9 @@ fun ProfileWizardScreen(
 
     if (showInfo) {
         ProfileWizardInfoBottomSheet(
-            title = "Why complete your profile?",
+            title = "Why ${copy.title.lowercase()} matters",
             body = copy.info,
+            bullets = copy.infoBullets,
             onDismiss = { showInfo = false }
         )
     }
@@ -251,11 +285,6 @@ fun ProfileWizardScreen(
                         progressPercent = progressPercent,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
-                    if (!loadMessage.isNullOrBlank()) {
-                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp), containerColor = MaterialTheme.colorScheme.errorContainer) {
-                            Text(loadMessage ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
-                        }
-                    }
                     Column(
                         modifier = Modifier.padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -276,29 +305,19 @@ fun ProfileWizardScreen(
                         Spacer(Modifier.height(4.dp))
                     }
                 }
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        .padding(16.dp)
                 ) {
-                    if (currentStep > 1) {
-                        OutlinedButton(
-                            onClick = onBack,
-                            modifier = Modifier.weight(1f).height(54.dp),
-                            shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
-                            border = BorderStroke(1.dp, SoulMatchTokens.Border),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = SoulMatchTokens.Text)
-                        ) {
-                            Text("Back")
-                        }
-                    }
                     Button(
                         onClick = {
                             vm.clearError()
                             vm.saveStep(currentStep) { onNextStep(currentStep + 1) }
                         },
-                        modifier = Modifier.weight(1f).height(54.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(60.dp),
                         enabled = isCurrentStepValid && !isSaving,
                         shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
                         colors = ButtonDefaults.buttonColors(
@@ -383,7 +402,6 @@ private fun isProfileSectionComplete(profile: ProfileData?, section: Int): Boole
             resolved.maritalStatus,
             resolved.workingCity
         ).all { it.isNotBlank() } &&
-            resolved.lastName.isNotBlank() &&
             resolved.heightCm != null
         2 -> resolved.religion.isNotBlank() && resolved.caste.isNotBlank()
         3 -> resolved.educationLevel.isNotBlank() &&
@@ -424,31 +442,59 @@ private fun heightCmFromLabel(value: String): Int? {
 
 @Composable
 private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
-    var fullName by rememberSaveable(existing?.profileId) { mutableStateOf(listOf(existing?.firstName, existing?.lastName).filterNotNull().filter { it.isNotBlank() }.joinToString(" ")) }
-    var dob by rememberSaveable(existing?.profileId) { mutableStateOf(sanitizeDobForDisplay(existing?.dob).orEmpty()) }
-    var gender by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.gender.orEmpty()) }
-    var heightLabel by rememberSaveable(existing?.profileId) { mutableStateOf(heightLabelFromCm(existing?.heightCm)) }
-    var maritalStatus by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.maritalStatus.orEmpty()) }
-    var motherTongue by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.motherTongue.orEmpty()) }
-    var currentCity by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.workingCity.orEmpty()) }
-    var nativePlace by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.nativePlace?.ifBlank { existing.birthCity.orEmpty() } ?: existing?.birthCity.orEmpty()) }
+    val draft = vm.stepData(1)
+    var fullName by rememberSaveable(existing?.profileId) {
+        mutableStateOf(
+            draft.stringValue(
+                "firstName",
+                listOf(existing?.firstName, existing?.lastName).filterNotNull().filter { it.isNotBlank() }.joinToString(" ")
+            ).let { first ->
+                val draftLastName = draft.stringValue("lastName", existing?.lastName.orEmpty())
+                listOf(first, draftLastName).filter { it.isNotBlank() }.joinToString(" ").ifBlank {
+                    listOf(existing?.firstName, existing?.lastName).filterNotNull().filter { it.isNotBlank() }.joinToString(" ")
+                }
+            }
+        )
+    }
+    var dob by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("dob", sanitizeDobForDisplay(existing?.dob).orEmpty())) }
+    var gender by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("gender", existing?.gender.orEmpty())) }
+    var heightLabel by rememberSaveable(existing?.profileId) {
+        mutableStateOf(
+            draft.stringValue("heightCm").toIntOrNull()?.let(::heightLabelFromCm)
+                ?: heightLabelFromCm(existing?.heightCm)
+        )
+    }
+    var maritalStatus by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("maritalStatus", existing?.maritalStatus.orEmpty())) }
+    var motherTongue by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("motherTongue", existing?.motherTongue.orEmpty())) }
+    var currentCity by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("workingCity", existing?.workingCity.orEmpty())) }
+    var nativePlace by rememberSaveable(existing?.profileId) {
+        mutableStateOf(
+            draft.stringValue(
+                "nativePlace",
+                existing?.nativePlace?.ifBlank { existing.birthCity.orEmpty() } ?: existing?.birthCity.orEmpty()
+            )
+        )
+    }
     val normalizedDob = normalizeDateOfBirth(dob)
     val dobHasError = dob.isNotBlank() && normalizedDob == null
     val (firstName, lastName) = splitFullName(fullName)
-    val fullNameError = fullName.isNotBlank() && (firstName.trim().length < 2 || lastName.trim().length < 2)
+    val fullNameError = fullName.isNotBlank() && !isValidFullName(fullName)
     val heightCm = heightCmFromLabel(heightLabel)
     val hasInteracted = listOf(fullName, dob, gender, heightLabel, maritalStatus, motherTongue, currentCity, nativePlace).any { it.isNotBlank() }
     val genderError = hasInteracted && gender.isBlank()
     val heightError = hasInteracted && heightLabel.isBlank()
     val maritalStatusError = hasInteracted && maritalStatus.isBlank()
     val motherTongueError = hasInteracted && motherTongue.isBlank()
-    val currentCityError = hasInteracted && currentCity.isBlank()
-    val nativePlaceError = hasInteracted && nativePlace.isBlank()
+    val currentCityError = (hasInteracted && currentCity.isBlank()) || (currentCity.isNotBlank() && !isValidLocationName(currentCity))
+    val nativePlaceError = (hasInteracted && nativePlace.isBlank()) || (nativePlace.isNotBlank() && !isValidLocationName(nativePlace))
 
     val isValid = !fullNameError &&
         normalizedDob != null &&
         heightCm != null &&
-        listOf(firstName, lastName, gender, maritalStatus, motherTongue, currentCity, nativePlace).all { it.isNotBlank() }
+        firstName.isNotBlank() &&
+        listOf(gender, maritalStatus, motherTongue, currentCity, nativePlace).all { it.isNotBlank() } &&
+        !currentCityError &&
+        !nativePlaceError
     LaunchedEffect(fullName, normalizedDob, dobHasError, gender, heightCm, maritalStatus, motherTongue, currentCity, nativePlace) {
         vm.updateStep1Data(
             mapOf(
@@ -473,7 +519,7 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             "Full name",
             leadingIcon = Icons.Filled.Person,
             isError = fullNameError,
-            supportingText = if (fullNameError) "Enter first and last name." else null
+            supportingText = if (fullNameError) "Please enter a valid name." else null
         )
         SelectionField(
             label = "Gender",
@@ -525,7 +571,11 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             "Current city",
             leadingIcon = Icons.Filled.LocationOn,
             isError = currentCityError,
-            supportingText = if (currentCityError) "Current city is required" else null
+            supportingText = when {
+                currentCity.isBlank() && hasInteracted -> "Current city is required"
+                currentCity.isNotBlank() && !isValidLocationName(currentCity) -> "Please enter a valid city name"
+                else -> null
+            }
         )
         RequiredTextField(
             nativePlace,
@@ -533,7 +583,11 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             "Native place",
             leadingIcon = Icons.Filled.Home,
             isError = nativePlaceError,
-            supportingText = if (nativePlaceError) "Native place is required" else null
+            supportingText = when {
+                nativePlace.isBlank() && hasInteracted -> "Native place is required"
+                nativePlace.isNotBlank() && !isValidLocationName(nativePlace) -> "Please enter a valid native place"
+                else -> null
+            }
         )
     }
 }
@@ -558,12 +612,15 @@ private fun heightCmFromFeetInches(feet: String, inches: String): Int? {
 
 @Composable
 private fun Step2ReligiousCommunity(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
-    var religion by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.religion.orEmpty()) }
-    var caste by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.caste.orEmpty()) }
-    var subCaste by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.subCaste.orEmpty()) }
-    var gothram by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.gotra.orEmpty()) }
-    var religiousValues by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.religiousValues.orEmpty()) }
-    val casteError = caste.isBlank()
+    val draft = vm.stepData(2)
+    var religion by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("religion", existing?.religion.orEmpty())) }
+    var caste by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("caste", existing?.caste.orEmpty())) }
+    var subCaste by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("subCaste", existing?.subCaste.orEmpty())) }
+    var gothram by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("gotra", existing?.gotra.orEmpty())) }
+    var religiousValues by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("religiousValues", existing?.religiousValues.orEmpty())) }
+    val hasInteracted = listOf(religion, caste, subCaste, gothram, religiousValues).any { it.isNotBlank() }
+    val religionError = hasInteracted && religion.isBlank()
+    val casteError = hasInteracted && caste.isBlank()
 
     val isValid = religion.isNotBlank() && caste.isNotBlank()
     LaunchedEffect(religion, caste, subCaste, gothram, religiousValues) {
@@ -579,41 +636,48 @@ private fun Step2ReligiousCommunity(existing: ProfileData?, vm: ProfileViewModel
         onValidityChange(isValid)
     }
 
-    PremiumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionLead("Religious and community", "Keep this respectful and accurate for family-led matching.")
-            SelectionField(label = "Religion", value = religion, options = listOf("Hindu", "Muslim", "Christian", "Sikh", "Jain", "Buddhist"), onSelect = { religion = it })
-            RequiredTextField(
-                caste,
-                { caste = it },
-                "Community / caste",
-                isError = casteError,
-                supportingText = if (casteError) "Community is required for preference matching." else null
-            )
-            RequiredTextField(subCaste, { subCaste = it }, "Sub-caste")
-            RequiredTextField(gothram, { gothram = it }, "Gothram")
-            SelectionField(
-                label = "Religious values",
-                value = religiousValues,
-                options = listOf("Traditional", "Moderate", "Spiritual", "Liberal"),
-                onSelect = { religiousValues = it }
-            )
-            SignalChips(listOf("Used in family search", "Used in partner preference matching"), tone = ChipTone.Info)
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        RequiredTextField(
+            religion,
+            { religion = it },
+            "Religion",
+            isError = religionError,
+            supportingText = if (religionError) "Religion is required" else null
+        )
+        RequiredTextField(
+            caste,
+            { caste = it },
+            "Community / caste",
+            isError = casteError,
+            supportingText = if (casteError) "Community is required" else null
+        )
+        RequiredTextField(subCaste, { subCaste = it }, "Sub-caste")
+        RequiredTextField(gothram, { gothram = it }, "Gothram")
+        SelectionField(
+            label = "Religious values",
+            value = religiousValues,
+            options = listOf("Traditional", "Moderate", "Spiritual", "Liberal"),
+            onSelect = { religiousValues = it }
+        )
+        SignalChips(listOf("Used in family search", "Used in partner preference matching"), tone = ChipTone.Info)
     }
 }
 
 @Composable
 private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
-    var educationLevel by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.educationLevel.orEmpty()) }
-    var institutionName by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.institutionName.orEmpty()) }
-    var occupation by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.occupation.orEmpty()) }
-    var companyName by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.companyName.orEmpty()) }
-    var annualIncome by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.annualIncome.orEmpty()) }
-    var workLocation by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.workLocation?.ifBlank { existing.workingCity.orEmpty() } ?: existing?.workingCity.orEmpty()) }
+    val draft = vm.stepData(3)
+    var educationLevel by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("educationLevel", existing?.educationLevel.orEmpty())) }
+    var institutionName by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("institutionName", existing?.institutionName.orEmpty())) }
+    var occupation by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("occupation", existing?.occupation.orEmpty())) }
+    var companyName by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("companyName", existing?.companyName.orEmpty())) }
+    var annualIncome by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("annualIncome", existing?.annualIncome.orEmpty())) }
+    var workLocation by rememberSaveable(existing?.profileId) {
+        mutableStateOf(draft.stringValue("workingCity", existing?.workLocation?.ifBlank { existing.workingCity.orEmpty() } ?: existing?.workingCity.orEmpty()))
+    }
     val workingState = existing?.workingState.orEmpty()
     val workingPincode = existing?.workingPincode.orEmpty()
-    val companyError = companyName.isBlank()
+    val hasInteracted = listOf(educationLevel, institutionName, occupation, companyName, annualIncome, workLocation).any { it.isNotBlank() }
+    val companyError = hasInteracted && companyName.isBlank()
 
     val isValid = educationLevel.isNotBlank() &&
         institutionName.isNotBlank() &&
@@ -639,58 +703,62 @@ private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValid
         onValidityChange(isValid)
     }
 
-    PremiumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionLead("Education and career", "These details shape how serious recommendations and family shortlists feel.")
-            SelectionField(
-                label = "Highest qualification",
-                value = educationLevel,
-                options = listOf("High School", "Diploma", "Graduate", "Post Graduate", "MBA", "Doctorate", "Professional"),
-                onSelect = { educationLevel = it }
-            )
-            RequiredTextField(institutionName, { institutionName = it }, "Institution")
-            RequiredTextField(occupation, { occupation = it }, "Occupation")
-            RequiredTextField(
-                companyName,
-                { companyName = it },
-                "Company",
-                isError = companyError,
-                supportingText = if (companyError) "Company name is missing." else null
-            )
-            SelectionField(
-                label = "Annual income",
-                value = annualIncome,
-                options = listOf("< 3 LPA", "3-5 LPA", "5-10 LPA", "10-20 LPA", "20-35 LPA", "35+ LPA"),
-                onSelect = { annualIncome = it }
-            )
-            SelectionField(
-                label = "Work location",
-                value = workLocation,
-                options = profileCityOptions,
-                onSelect = { workLocation = it }
-            )
-            PremiumCard(containerColor = SoulMatchTokens.TangerineSoft, contentPadding = PaddingValues(14.dp)) {
-                Text("Institution, company, and work location now save with this profile step.", style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Tangerine)
-            }
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        SelectionField(
+            label = "Highest qualification",
+            value = educationLevel,
+            options = listOf("High School", "Diploma", "Graduate", "Post Graduate", "MBA", "Doctorate", "Professional"),
+            onSelect = { educationLevel = it }
+        )
+        RequiredTextField(institutionName, { institutionName = it }, "Institution")
+        RequiredTextField(occupation, { occupation = it }, "Occupation")
+        RequiredTextField(
+            companyName,
+            { companyName = it },
+            "Company",
+            isError = companyError,
+            supportingText = if (companyError) "Company name is required" else null
+        )
+        SelectionField(
+            label = "Annual income",
+            value = annualIncome,
+            options = listOf("< 3 LPA", "3-5 LPA", "5-10 LPA", "10-20 LPA", "20-35 LPA", "35+ LPA"),
+            onSelect = { annualIncome = it }
+        )
+        SelectionField(
+            label = "Work location",
+            value = workLocation,
+            options = profileCityOptions,
+            onSelect = { workLocation = it }
+        )
     }
 }
 
 @Composable
 private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
-    var familyStatus by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.familyStatus.orEmpty()) }
-    var fatherOccupation by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.fatherOccupation.orEmpty()) }
-    var motherOccupation by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.motherOccupation.orEmpty()) }
-    var familyType by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.familyType.orEmpty()) }
-    var numBrothers by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.numBrothers?.toString().orEmpty()) }
-    var numSisters by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.numSisters?.toString().orEmpty()) }
-    var aboutFamily by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.aboutFamily?.ifBlank { existing.familyLocality.orEmpty() } ?: existing?.familyLocality.orEmpty()) }
-    val aboutFamilyError = aboutFamily.trim().length < 40
+    val draft = vm.stepData(4)
+    var familyStatus by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("familyStatus", existing?.familyStatus.orEmpty())) }
+    var fatherOccupation by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("fatherOccupation", existing?.fatherOccupation.orEmpty())) }
+    var motherOccupation by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("motherOccupation", existing?.motherOccupation.orEmpty())) }
+    var familyType by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("familyType", existing?.familyType.orEmpty())) }
+    var numBrothers by rememberSaveable(existing?.profileId) { mutableStateOf(draft["numBrothers"]?.toString() ?: existing?.numBrothers?.toString().orEmpty()) }
+    var numSisters by rememberSaveable(existing?.profileId) { mutableStateOf(draft["numSisters"]?.toString() ?: existing?.numSisters?.toString().orEmpty()) }
+    var aboutFamily by rememberSaveable(existing?.profileId) {
+        mutableStateOf(
+            draft.stringValue(
+                "aboutFamily",
+                existing?.aboutFamily?.ifBlank { existing.familyLocality.orEmpty() } ?: existing?.familyLocality.orEmpty()
+            )
+        )
+    }
+    val hasInteracted = listOf(familyStatus, fatherOccupation, motherOccupation, familyType, numBrothers, numSisters, aboutFamily).any { it.isNotBlank() }
+    val aboutFamilyError = aboutFamily.isNotBlank() && aboutFamily.trim().length < 40
 
     val isValid = familyStatus.isNotBlank() &&
         fatherOccupation.isNotBlank() &&
         motherOccupation.isNotBlank() &&
         familyType.isNotBlank() &&
+        aboutFamily.isNotBlank() &&
         !aboutFamilyError
     LaunchedEffect(familyStatus, fatherOccupation, motherOccupation, familyType, numBrothers, numSisters, aboutFamily) {
         vm.updateStep4Data(
@@ -711,64 +779,71 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
         onValidityChange(isValid)
     }
 
-    PremiumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionLead("Family details", "Parents usually scan this block fast, so clarity matters more than length.")
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        SelectionField(
+            label = "Family status",
+            value = familyStatus,
+            options = listOf("Middle class", "Upper middle class", "Affluent", "Simple and grounded"),
+            onSelect = { familyStatus = it }
+        )
+        SelectionField(
+            label = "Family type",
+            value = familyType,
+            options = listOf("Nuclear", "Joint"),
+            onSelect = { familyType = it }
+        )
+        RequiredTextField(fatherOccupation, { fatherOccupation = it }, "Father occupation")
+        RequiredTextField(motherOccupation, { motherOccupation = it }, "Mother occupation")
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             SelectionField(
-                label = "Family status",
-                value = familyStatus,
-                options = listOf("Middle class", "Upper middle class", "Affluent", "Simple and grounded"),
-                onSelect = { familyStatus = it }
+                label = "Brothers",
+                value = numBrothers,
+                options = listOf("0", "1", "2", "3", "4+"),
+                onSelect = { numBrothers = it.filter(Char::isDigit) },
+                modifier = Modifier.weight(1f)
             )
             SelectionField(
-                label = "Family type",
-                value = familyType,
-                options = listOf("Nuclear", "Joint"),
-                onSelect = { familyType = it }
+                label = "Sisters",
+                value = numSisters,
+                options = listOf("0", "1", "2", "3", "4+"),
+                onSelect = { numSisters = it.filter(Char::isDigit) },
+                modifier = Modifier.weight(1f)
             )
-            RequiredTextField(fatherOccupation, { fatherOccupation = it }, "Father occupation")
-            RequiredTextField(motherOccupation, { motherOccupation = it }, "Mother occupation")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SelectionField(
-                    label = "Brothers",
-                    value = numBrothers,
-                    options = listOf("0", "1", "2", "3", "4+"),
-                    onSelect = { numBrothers = it.filter(Char::isDigit) },
-                    modifier = Modifier.weight(1f)
-                )
-                SelectionField(
-                    label = "Sisters",
-                    value = numSisters,
-                    options = listOf("0", "1", "2", "3", "4+"),
-                    onSelect = { numSisters = it.filter(Char::isDigit) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            OutlinedTextField(
-                value = aboutFamily,
-                onValueChange = { aboutFamily = it },
-                label = { Text("About family *") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 4,
-                isError = aboutFamilyError,
-                supportingText = { if (aboutFamilyError) Text("About family needs at least 40 characters.") }
-            )
-            if (aboutFamilyError) {
-                ValidationBanner("About family needs at least 40 characters.")
-            }
-            SignalChip("Families can scan this section quickly", tone = ChipTone.Gold)
         }
+        OutlinedTextField(
+            value = aboutFamily,
+            onValueChange = { aboutFamily = it },
+            label = { Text("About family *") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 4,
+            isError = aboutFamilyError,
+            supportingText = {
+                if (aboutFamilyError) {
+                    Text("About family needs at least 40 characters.")
+                } else if (hasInteracted && aboutFamily.isBlank()) {
+                    Text("About family is required")
+                }
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                disabledContainerColor = Color.White,
+                errorContainerColor = Color.White
+            )
+        )
+        SignalChip("Families can scan this section quickly", tone = ChipTone.Gold)
     }
 }
 
 @Composable
 private fun Step5Lifestyle(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
-    var diet by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.diet.orEmpty()) }
-    var smoking by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.smoking?.ifBlank { "never" } ?: "never") }
-    var drinking by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.drinking?.ifBlank { "never" } ?: "never") }
-    var hobbies by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.hobbies ?: emptyList()) }
-    var languagesKnown by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.languagesKnown ?: emptyList()) }
-    var personalityTraits by rememberSaveable(existing?.profileId) { mutableStateOf(existing?.personalityTraits ?: emptyList()) }
+    val draft = vm.stepData(5)
+    var diet by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("diet", existing?.diet.orEmpty())) }
+    var smoking by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("smoking", existing?.smoking?.ifBlank { "never" } ?: "never")) }
+    var drinking by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("drinking", existing?.drinking?.ifBlank { "never" } ?: "never")) }
+    var hobbies by rememberSaveable(existing?.profileId) { mutableStateOf((draft["hobbies"] as? List<*>)?.filterIsInstance<String>() ?: (existing?.hobbies ?: emptyList())) }
+    var languagesKnown by rememberSaveable(existing?.profileId) { mutableStateOf((draft["languagesKnown"] as? List<*>)?.filterIsInstance<String>() ?: (existing?.languagesKnown ?: emptyList())) }
+    var personalityTraits by rememberSaveable(existing?.profileId) { mutableStateOf((draft["personalityTraits"] as? List<*>)?.filterIsInstance<String>() ?: (existing?.personalityTraits ?: emptyList())) }
     val isValid = diet.isNotBlank() &&
         smoking.isNotBlank() &&
         drinking.isNotBlank() &&
@@ -789,19 +864,13 @@ private fun Step5Lifestyle(existing: ProfileData?, vm: ProfileViewModel, onValid
         onValidityChange(isValid)
     }
 
-    PremiumCard {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            SectionLead("Lifestyle details", "Simple habit choices help families understand compatibility quickly.")
-            ChipRow("Diet", listOf("vegetarian", "jain", "eggetarian", "non_vegetarian"), diet) { diet = it }
-            ChipRow("Smoking", listOf("never", "occasionally"), smoking) { smoking = it }
-            ChipRow("Drinking", listOf("never", "socially", "occasionally"), drinking) { drinking = it }
-            MultiSelectChipField("Hobbies", hobbyOptions, hobbies) { hobbies = it }
-            MultiSelectChipField("Languages known", languageOptions, languagesKnown) { languagesKnown = it }
-            MultiSelectChipField("Personality traits", personalityOptions, personalityTraits) { personalityTraits = it }
-            PremiumCard(containerColor = SoulMatchTokens.TangerineSoft, contentPadding = PaddingValues(14.dp)) {
-                Text("Profile summary text can be improved later. These three lifestyle choices are the required part here.", style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Tangerine)
-            }
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        ChipRow("Diet", listOf("vegetarian", "jain", "eggetarian", "non_vegetarian"), diet) { diet = it }
+        ChipRow("Smoking", listOf("never", "occasionally"), smoking) { smoking = it }
+        ChipRow("Drinking", listOf("never", "socially", "occasionally"), drinking) { drinking = it }
+        MultiSelectChipField("Hobbies", hobbyOptions, hobbies) { hobbies = it }
+        MultiSelectChipField("Languages known", languageOptions, languagesKnown) { languagesKnown = it }
+        MultiSelectChipField("Personality traits", personalityOptions, personalityTraits) { personalityTraits = it }
     }
 }
 
@@ -910,6 +979,7 @@ private fun Step6PartnerPreferences(existing: ProfileData?, vm: ProfileViewModel
 private fun ProfileWizardInfoBottomSheet(
     title: String,
     body: String,
+    bullets: List<String>,
     onDismiss: () -> Unit
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -935,8 +1005,9 @@ private fun ProfileWizardInfoBottomSheet(
                 color = SoulMatchTokens.Muted,
                 lineHeight = 30.sp
             )
-            WizardInfoBullet("Verified profiles receive better responses.")
-            WizardInfoBullet("Privacy controls protect contact and photo access.")
+            bullets.forEach { bullet ->
+                WizardInfoBullet(bullet)
+            }
             Button(
                 onClick = onDismiss,
                 modifier = Modifier
@@ -992,6 +1063,7 @@ private fun WizardProgressHeader(
     progressPercent: Int,
     modifier: Modifier = Modifier
 ) {
+    val progress = (progressPercent.coerceIn(0, 100)) / 100f
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1012,20 +1084,15 @@ private fun WizardProgressHeader(
                 fontWeight = FontWeight.Bold
             )
         }
-        Surface(
+        LinearProgressIndicator(
+            progress = progress,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(10.dp),
-            shape = RoundedCornerShape(999.dp),
-            color = Color(0xFFF3E5DE)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth((progressPercent.coerceIn(0, 100)) / 100f)
-                    .height(10.dp)
-                    .background(SoulMatchTokens.Tangerine, RoundedCornerShape(999.dp))
-            )
-        }
+                .height(10.dp)
+                .clip(RoundedCornerShape(999.dp)),
+            color = SoulMatchTokens.Tangerine,
+            trackColor = Color(0xFFF3E5DE)
+        )
     }
 }
 
@@ -1062,7 +1129,7 @@ private fun ChipRow(title: String, options: List<String>, selected: String, onSe
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
-                options.forEach { option ->
+                options.forEachIndexed { index, option ->
                     DropdownMenuItem(
                         text = { Text(titleCase(option.replace('_', ' '))) },
                         onClick = {
@@ -1070,6 +1137,9 @@ private fun ChipRow(title: String, options: List<String>, selected: String, onSe
                             expanded = false
                         }
                     )
+                    if (index < options.lastIndex) {
+                        Divider(color = SoulMatchTokens.Border)
+                    }
                 }
             }
         }
@@ -1153,6 +1223,12 @@ private fun NumberField(
         supportingText = supportingText?.let { message -> { Text(message) } },
         modifier = modifier.fillMaxWidth(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = Color.White,
+            unfocusedContainerColor = Color.White,
+            disabledContainerColor = Color.White,
+            errorContainerColor = Color.White
+        ),
         shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
         singleLine = true
     )
@@ -1204,7 +1280,7 @@ private fun SelectionField(
                 .exposedDropdownSize(matchTextFieldWidth = true)
                 .background(Color.White)
         ) {
-            options.forEach { option ->
+            options.forEachIndexed { index, option ->
                 DropdownMenuItem(
                     text = { Text(option) },
                     onClick = {
@@ -1212,6 +1288,9 @@ private fun SelectionField(
                         expanded = false
                     }
                 )
+                if (index < options.lastIndex) {
+                    Divider(color = SoulMatchTokens.Border)
+                }
             }
         }
     }

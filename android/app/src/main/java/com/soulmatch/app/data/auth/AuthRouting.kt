@@ -10,7 +10,6 @@ fun resolveWizardStep(profile: ProfileData?): Int? {
     return when {
         data.profileId.isBlank() -> 1
         safeText(data.firstName).isBlank() ||
-            safeText(data.lastName).isBlank() ||
             data.dob.isNullOrBlank() ||
             safeText(data.gender).isBlank() ||
             data.heightCm == null ||

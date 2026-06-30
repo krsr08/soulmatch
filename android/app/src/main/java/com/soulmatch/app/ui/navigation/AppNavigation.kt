@@ -171,7 +171,7 @@ fun AppNavigation(
             OnboardingBenefitScreen(
                 onContinue = {
                     nav.navigate("profile_intro") {
-                        popUpTo("onboarding_benefit") { inclusive = true }
+                        popUpTo("welcome") { inclusive = false }
                         launchSingleTop = true
                     }
                 }
