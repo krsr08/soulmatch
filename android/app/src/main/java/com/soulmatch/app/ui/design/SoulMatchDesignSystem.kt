@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -58,6 +59,8 @@ object SoulMatchTokens {
     val CompactControlHeight = 48.dp
     val IconButtonSize = 44.dp
     val IconSize = 22.dp
+    val HeaderIconButtonSize = 62.dp
+    val HeaderIconSize = 26.dp
 }
 
 @Composable
@@ -265,6 +268,36 @@ fun SoulMatchIconButton(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(SoulMatchTokens.IconSize))
+            }
+        }
+    }
+}
+
+@Composable
+fun SoulMatchHeaderIconButton(
+    icon: ImageVector,
+    contentDescription: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: Color = SoulMatchTokens.Tangerine
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier.size(SoulMatchTokens.HeaderIconButtonSize)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            shape = CircleShape,
+            color = Color.White,
+            border = BorderStroke(1.dp, SoulMatchTokens.Border)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    icon,
+                    contentDescription = contentDescription,
+                    tint = tint,
+                    modifier = Modifier.size(SoulMatchTokens.HeaderIconSize)
+                )
             }
         }
     }

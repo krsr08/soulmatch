@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.data.models.PhoneEntryContentData
 import com.soulmatch.app.ui.components.premium.PremiumCard
 import com.soulmatch.app.ui.components.premium.PremiumScreen
+import com.soulmatch.app.ui.design.SoulMatchHeaderIconButton
 import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.Error
@@ -82,9 +83,7 @@ fun PhoneEntryScreen(
             TopAppBar(
                 title = { Text(content.topBarTitle.ifBlank { "Mobile verification" }, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                    }
+                    SoulMatchHeaderIconButton(icon = Icons.Filled.ArrowBack, contentDescription = "Back", onClick = onBack)
                 }
             )
         }

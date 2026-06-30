@@ -39,8 +39,10 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -83,7 +85,9 @@ import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.ProfilePhoto
 import com.soulmatch.app.data.models.VerificationRequestData
 import com.soulmatch.app.data.models.fullName
+import com.soulmatch.app.ui.design.SoulMatchHeaderIconButton
 import com.soulmatch.app.ui.design.SoulMatchTokens
+import com.soulmatch.app.ui.titleCase
 import com.soulmatch.app.ui.viewmodels.MyProfileViewModel
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -104,9 +108,10 @@ fun ProfileIntroScreen(
         infoTitle = "Why profile setup matters",
         infoBody = "SoulMatch uses profile details, photos, trust checks, and partner preferences to rank better matches and help families review profiles faster.",
         onBack = onBack,
-        primaryText = "Start profile",
+        primaryText = "Start Profile",
         onPrimary = onContinue
     ) {
+        ProfileIntroHeroCard(progressPercent = 0)
         Text(
             text = "Build a profile families can trust",
             style = MaterialTheme.typography.headlineMedium.copy(
@@ -122,6 +127,7 @@ fun ProfileIntroScreen(
             color = SoulMatchTokens.Muted,
             lineHeight = 30.sp
         )
+        CreateProfileInfoNotice()
         SetupBullet("Personal details and family context")
         SetupBullet("Partner preferences, photos, and verification")
     }
@@ -145,7 +151,7 @@ fun ProfilePhotoUploadScreen(
     }
 
     ProfileSetupScaffold(
-        title = "Photo upload",
+        title = "Photo Upload",
         stepNumber = 7,
         progressPercent = 70,
         headline = "Add profile photos",
@@ -335,7 +341,7 @@ fun ProfilePreviewReviewScreen(
     val verifications by vm.verifications.collectAsStateWithLifecycle()
 
     ProfileSetupScaffold(
-        title = "Preview profile",
+        title = "Preview Profile",
         stepNumber = 9,
         progressPercent = 90,
         headline = "Review before submit",
@@ -415,7 +421,7 @@ fun ProfileUnderReviewScreen(
     onHelp: () -> Unit
 ) {
     ProfileSetupScaffold(
-        title = "Under review",
+        title = "Under Review",
         stepNumber = 10,
         progressPercent = 100,
         headline = "Profile sent for review",
@@ -442,7 +448,7 @@ fun ProfileCorrectionRequiredScreen(
     onReviewAgain: () -> Unit
 ) {
     ProfileSetupScaffold(
-        title = "Needs correction",
+        title = "Needs Correction",
         stepNumber = 10,
         progressPercent = 100,
         headline = "Profile needs an update",
@@ -486,21 +492,17 @@ private fun ProfileSetupScaffold(
     }
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
-                    Text(title, fontWeight = FontWeight.Bold)
+                    Text(titleCase(title), fontWeight = FontWeight.Bold)
                 },
                 navigationIcon = {
                     if (showBack) {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = SoulMatchTokens.Tangerine)
-                        }
+                        SoulMatchHeaderIconButton(icon = Icons.Filled.ArrowBack, contentDescription = "Back", onClick = onBack)
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showInfo = true }) {
-                        Icon(Icons.Filled.Info, contentDescription = "Info", tint = SoulMatchTokens.Tangerine)
-                    }
+                    SoulMatchHeaderIconButton(icon = Icons.Filled.Info, contentDescription = "Info", onClick = { showInfo = true })
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = SoulMatchTokens.Bg,
@@ -607,6 +609,17 @@ private fun ProfileIntroHeroCard(progressPercent: Int) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.AutoAwesome,
+                    contentDescription = null,
+                    tint = SoulMatchTokens.Gold,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
             Box(contentAlignment = Alignment.Center) {
                 Surface(
                     modifier = Modifier.size(128.dp),
@@ -628,6 +641,35 @@ private fun ProfileIntroHeroCard(progressPercent: Int) {
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
                 lineHeight = 30.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun CreateProfileInfoNotice() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFFFFF8F0),
+        border = BorderStroke(1.dp, SoulMatchTokens.Border)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Info,
+                contentDescription = null,
+                tint = SoulMatchTokens.Tangerine,
+                modifier = Modifier.size(22.dp)
+            )
+            Text(
+                text = "Required fields and privacy-sensitive items will be checked before review.",
+                color = SoulMatchTokens.Muted,
+                style = MaterialTheme.typography.bodyLarge,
+                lineHeight = 28.sp
             )
         }
     }

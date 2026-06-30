@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.soulmatch.app.R
+import com.soulmatch.app.ui.design.SoulMatchHeaderIconButton
 import com.soulmatch.app.ui.design.SoulMatchPrimaryButton
 import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.viewmodels.IntroViewModel
@@ -319,16 +320,13 @@ fun AuthPageHeader(
             .fillMaxWidth()
             .padding(top = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
-            Icon(
-                imageVector = Icons.Filled.ArrowBack,
-                contentDescription = "Back",
-                tint = SoulMatchTokens.Tangerine,
-                modifier = Modifier.size(30.dp)
-            )
-        }
+        SoulMatchHeaderIconButton(
+            icon = Icons.Filled.ArrowBack,
+            contentDescription = "Back",
+            onClick = onBack
+        )
         Text(
             text = title,
             color = SoulMatchTokens.Text,
@@ -483,15 +481,23 @@ private fun SoftIcon(content: @Composable () -> Unit) {
 
 @Composable
 private fun BackText(label: String, onClick: () -> Unit) {
-    Text(
-        text = "< $label",
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        color = SoulMatchTokens.Tangerine,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        SoulMatchHeaderIconButton(
+            icon = Icons.Filled.ArrowBack,
+            contentDescription = "Back",
+            onClick = onClick
+        )
+        Text(
+            text = label,
+            color = SoulMatchTokens.Text,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+    }
 }
 
 private data class BenefitSlide(

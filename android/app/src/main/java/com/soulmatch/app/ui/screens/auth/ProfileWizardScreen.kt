@@ -26,9 +26,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -42,6 +50,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -58,6 +67,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -74,6 +84,7 @@ import com.soulmatch.app.ui.components.premium.PremiumCard
 import com.soulmatch.app.ui.components.premium.PremiumScreen
 import com.soulmatch.app.ui.components.premium.SignalChip
 import com.soulmatch.app.ui.components.premium.SignalChips
+import com.soulmatch.app.ui.design.SoulMatchHeaderIconButton
 import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.theme.Success
 import com.soulmatch.app.ui.titleCase
@@ -95,42 +106,42 @@ private data class WizardStepCopy(
 
 private val wizardCopy = mapOf(
     1 to WizardStepCopy(
-        title = "Basic details",
+        title = "Basic Details",
         eyebrow = "Step 1 of 10",
         subtitle = "Start with identity basics first.",
         helper = "Full name, gender, date of birth, height, marital status, mother tongue, and current city are required.",
         info = "Basic details help SoulMatch create your member identity and decide what screen comes next."
     ),
     2 to WizardStepCopy(
-        title = "Religious and community",
+        title = "Religious And Community",
         eyebrow = "Step 2 of 10",
         subtitle = "Keep this respectful and accurate for family-led matching.",
         helper = "Religion and community details help families filter and review profiles quickly.",
         info = "These details help family filtering, search relevance, and partner preference matching."
     ),
     3 to WizardStepCopy(
-        title = "Education and career",
+        title = "Education And Career",
         eyebrow = "Step 3 of 10",
         subtitle = "Add professional context that supports serious introductions.",
         helper = "Education, occupation, and annual income are required.",
         info = "Education and work details directly affect search, ranking, and shortlist quality."
     ),
     4 to WizardStepCopy(
-        title = "Family details",
+        title = "Family Details",
         eyebrow = "Step 4 of 10",
         subtitle = "Share the family context most parents look for first.",
         helper = "Parent occupations and family type are required.",
         info = "Family details help parents review profile fit faster and with more trust."
     ),
     5 to WizardStepCopy(
-        title = "Lifestyle details",
+        title = "Lifestyle Details",
         eyebrow = "Step 5 of 10",
         subtitle = "Help matches understand daily habits and communication style.",
         helper = "Diet, smoking, and drinking details are required.",
         info = "Lifestyle details give families and matches a clearer idea of daily compatibility."
     ),
     6 to WizardStepCopy(
-        title = "Partner preferences",
+        title = "Partner Preferences",
         eyebrow = "Step 6 of 10",
         subtitle = "Set the match basics you care about most before profile review.",
         helper = "Height range, religion/community, education, and occupation preferences power match quality.",
@@ -174,6 +185,8 @@ private val profileHeightOptions = buildList {
     }
 }
 
+private fun wizardStepProgress(stepNumber: Int): Int = stepNumber.coerceIn(1, 10) * 10
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileWizardScreen(
@@ -191,6 +204,7 @@ fun ProfileWizardScreen(
     var isCurrentStepValid by remember(currentStep) { mutableStateOf(false) }
     var showInfo by remember(currentStep) { mutableStateOf(false) }
     val copy = wizardCopy.getValue(currentStep)
+    val progressPercent = wizardStepProgress(currentStep)
 
     if (showInfo) {
         ProfileWizardInfoBottomSheet(
@@ -202,9 +216,9 @@ fun ProfileWizardScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
-                    Text(copy.title, fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
+                    Text(titleCase(copy.title), fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = SoulMatchTokens.Bg,
@@ -212,14 +226,10 @@ fun ProfileWizardScreen(
                     titleContentColor = SoulMatchTokens.Text
                 ),
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                    }
+                    SoulMatchHeaderIconButton(icon = Icons.Filled.ArrowBack, contentDescription = "Back", onClick = onBack)
                 },
                 actions = {
-                    IconButton(onClick = { showInfo = true }) {
-                        Icon(Icons.Filled.Info, contentDescription = "Info", tint = SoulMatchTokens.Tangerine)
-                    }
+                    SoulMatchHeaderIconButton(icon = Icons.Filled.Info, contentDescription = "Info", onClick = { showInfo = true })
                 }
             )
         }
@@ -238,7 +248,7 @@ fun ProfileWizardScreen(
                 ) {
                     WizardProgressHeader(
                         stepNumber = currentStep,
-                        progressPercent = (currentStep * 10).coerceIn(0, 100),
+                        progressPercent = progressPercent,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
                     if (!loadMessage.isNullOrBlank()) {
@@ -461,6 +471,7 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             fullName,
             { fullName = it },
             "Full name",
+            leadingIcon = Icons.Filled.Person,
             isError = fullNameError,
             supportingText = if (fullNameError) "Enter first and last name." else null
         )
@@ -469,6 +480,7 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             value = titleCase(gender),
             options = listOf("Male", "Female"),
             onSelect = { gender = it.lowercase() },
+            leadingIcon = Icons.Filled.People,
             isError = genderError,
             supportingText = if (genderError) "Gender is required" else null
         )
@@ -476,6 +488,7 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             dob,
             onValueChange = { dob = it },
             "Date of birth",
+            leadingIcon = Icons.Filled.DateRange,
             isError = dobHasError,
             supportingText = if (dobHasError) "Age must be 20 years or above." else null
         )
@@ -484,6 +497,7 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             value = heightLabel,
             options = profileHeightOptions,
             onSelect = { heightLabel = it },
+            leadingIcon = Icons.Filled.Straighten,
             isError = heightError,
             supportingText = if (heightError) "Height is required" else null
         )
@@ -492,6 +506,7 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             value = titleCase(maritalStatus.replace('_', ' ')),
             options = listOf("Never married", "Divorced", "Widowed"),
             onSelect = { maritalStatus = it.lowercase().replace(' ', '_') },
+            leadingIcon = Icons.Filled.CheckCircle,
             isError = maritalStatusError,
             supportingText = if (maritalStatusError) "Marital status is required" else null
         )
@@ -500,6 +515,7 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             value = motherTongue,
             options = motherTongueOptions,
             onSelect = { motherTongue = it },
+            leadingIcon = Icons.Filled.Language,
             isError = motherTongueError,
             supportingText = if (motherTongueError) "Mother tongue is required" else null
         )
@@ -507,6 +523,7 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             currentCity,
             { currentCity = it },
             "Current city",
+            leadingIcon = Icons.Filled.LocationOn,
             isError = currentCityError,
             supportingText = if (currentCityError) "Current city is required" else null
         )
@@ -514,6 +531,7 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             nativePlace,
             { nativePlace = it },
             "Native place",
+            leadingIcon = Icons.Filled.Home,
             isError = nativePlaceError,
             supportingText = if (nativePlaceError) "Native place is required" else null
         )
@@ -1065,6 +1083,7 @@ private fun RequiredTextField(
     label: String,
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
+    leadingIcon: ImageVector? = null,
     isError: Boolean = false,
     supportingText: String? = null
 ) {
@@ -1076,6 +1095,13 @@ private fun RequiredTextField(
         supportingText = supportingText?.let { message -> { Text(message) } },
         modifier = modifier.fillMaxWidth(),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        leadingIcon = leadingIcon?.let { icon -> { Icon(icon, contentDescription = null, tint = SoulMatchTokens.Tangerine) } },
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = Color.White,
+            unfocusedContainerColor = Color.White,
+            disabledContainerColor = Color.White,
+            errorContainerColor = Color.White
+        ),
         shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
         singleLine = true
     )
@@ -1140,6 +1166,7 @@ private fun SelectionField(
     options: List<String>,
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
+    leadingIcon: ImageVector? = null,
     isError: Boolean = false,
     supportingText: String? = null
 ) {
@@ -1159,13 +1186,23 @@ private fun SelectionField(
             readOnly = true,
             isError = isError,
             supportingText = supportingText?.let { message -> { Text(message) } },
+            leadingIcon = leadingIcon?.let { icon -> { Icon(icon, contentDescription = null, tint = SoulMatchTokens.Tangerine) } },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                disabledContainerColor = Color.White,
+                errorContainerColor = Color.White
+            ),
             shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
             singleLine = true
         )
         ExposedDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = { expanded = false },
+            modifier = Modifier
+                .exposedDropdownSize(matchTextFieldWidth = true)
+                .background(Color.White)
         ) {
             options.forEach { option ->
                 DropdownMenuItem(
@@ -1227,6 +1264,7 @@ private fun DatePickerField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
+    leadingIcon: ImageVector? = null,
     isError: Boolean = false,
     supportingText: String? = null
 ) {
@@ -1255,15 +1293,29 @@ private fun DatePickerField(
     }
     OutlinedTextField(
         value = value,
-        onValueChange = {},
+        onValueChange = { raw -> onValueChange(formatDateInput(raw)) },
         label = { Text("$label *") },
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { picker.show() },
-        readOnly = true,
+        modifier = Modifier.fillMaxWidth(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         isError = isError,
         supportingText = supportingText?.let { message -> { Text(message) } },
-        shape = RoundedCornerShape(SoulMatchTokens.CardRadius)
+        leadingIcon = leadingIcon?.let { icon -> { Icon(icon, contentDescription = null, tint = SoulMatchTokens.Tangerine) } },
+        trailingIcon = {
+            Icon(
+                Icons.Filled.DateRange,
+                contentDescription = "Open calendar",
+                tint = SoulMatchTokens.Tangerine,
+                modifier = Modifier.clickable { picker.show() }
+            )
+        },
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = Color.White,
+            unfocusedContainerColor = Color.White,
+            disabledContainerColor = Color.White,
+            errorContainerColor = Color.White
+        ),
+        shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
+        singleLine = true
     )
 }
 
