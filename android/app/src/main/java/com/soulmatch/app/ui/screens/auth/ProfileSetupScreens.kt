@@ -35,12 +35,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -153,22 +157,24 @@ fun ProfilePhotoUploadScreen(
     }
 
     ProfileSetupScaffold(
-        title = "Photo Upload",
+        title = "Photos",
         stepNumber = 7,
         progressPercent = 70,
+        stepLabel = "Step 7 of 10",
+        progressLabel = "70% complete",
         headline = "Add profile photos",
-        body = "Use clear recent photos. Pick one primary photo. Real uploads only.",
+        body = "Use clear, recent photos. You control who can view them.",
         infoTitle = "Photo guidance",
         infoBody = "At least one clear face photo helps verification and trust. Primary photo shows first in match cards.",
         onBack = onBack,
-        primaryText = "Continue",
+        primaryText = "Save and Continue",
         primaryEnabled = photos.isNotEmpty() && !isUploading,
         onPrimary = {
             vm.saveWizardStep(8)
             onContinue()
         }
     ) {
-        PrimaryPhotoSlot(
+        PhotoHeroCard(
             primaryPhoto = photos.firstOrNull { it.isPrimary } ?: photos.firstOrNull(),
             onAdd = {
                 vm.clearStatus()
@@ -178,28 +184,7 @@ fun ProfilePhotoUploadScreen(
                 photos.firstOrNull { it.isPrimary }?.let { vm.deletePhoto(it.photoId) }
             }
         )
-        if (isUploading && uploadLabel != null) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                color = Color.White,
-                border = BorderStroke(1.dp, SoulMatchTokens.Border)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(uploadLabel.orEmpty(), color = SoulMatchTokens.Tangerine, fontWeight = FontWeight.Bold)
-                    LinearProgressIndicator(
-                        progress = (uploadProgress.coerceIn(0, 100)) / 100f,
-                        modifier = Modifier.fillMaxWidth().height(10.dp),
-                        color = SoulMatchTokens.Tangerine,
-                        trackColor = Color(0xFFF3E5DE)
-                    )
-                }
-            }
-        }
-        PhotoGridRow(
+        PhotoUploadSlots(
             photos = photos,
             onAdd = {
                 vm.clearStatus()
@@ -208,8 +193,12 @@ fun ProfilePhotoUploadScreen(
             onMakePrimary = { vm.setPrimaryPhoto(it) },
             onDelete = { vm.deletePhoto(it) }
         )
+        if (isUploading && uploadLabel != null) {
+            UploadProgressCard(uploadLabel.orEmpty(), uploadProgress)
+        }
+        SetupInfoNotice("Photos stay private until you choose visibility settings. Drag photos to reorder.")
         if (!status.isNullOrBlank()) {
-            InlineNotice(status.orEmpty(), error = false)
+            InlineNotice(status.orEmpty(), error = status.orEmpty().contains("couldn't", ignoreCase = true))
         }
     }
 }
@@ -226,9 +215,11 @@ fun ProfileVerificationScreen(
     val status by vm.status.collectAsStateWithLifecycle()
     val isSubmitting by vm.isSubmittingVerification.collectAsStateWithLifecycle()
     var documentType by rememberSaveable { mutableStateOf("aadhaar") }
-    var referenceNumber by rememberSaveable { mutableStateOf("") }
     var selectedUri by rememberSaveable { mutableStateOf<String?>(null) }
     var showDocumentError by rememberSaveable { mutableStateOf(false) }
+    val hasIdentityVerification = verifications.any {
+        it.type.equals("identity", true) || it.type.equals("aadhaar", true)
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         selectedUri = uri?.toString()
         showDocumentError = false
@@ -238,15 +229,17 @@ fun ProfileVerificationScreen(
         title = "Verification",
         stepNumber = 8,
         progressPercent = 80,
-        headline = "Submit trust checks",
-        body = "Phone, profile, and optional identity checks help review move faster.",
+        stepLabel = "Step 8 of 10",
+        progressLabel = "80% complete",
+        headline = "Verify your profile",
+        body = "Verified profiles receive more serious interest and clearer family responses.",
         infoTitle = "Verification help",
         infoBody = "Profile verification marks the account for review. Identity documents add stronger trust signals when available.",
         onBack = onBack,
-        primaryText = "Continue",
-        primaryEnabled = !isSubmitting,
+        primaryText = "Submit for review",
+        primaryEnabled = hasIdentityVerification && !isSubmitting,
         onPrimary = {
-            if (selectedUri.isNullOrBlank() && verifications.none { it.type.equals("identity", true) || it.type.equals("aadhaar", true) }) {
+            if (!hasIdentityVerification) {
                 showDocumentError = true
             } else {
                 vm.saveWizardStep(9)
@@ -256,66 +249,44 @@ fun ProfileVerificationScreen(
     ) {
         VerificationStatusRow(
             title = "Mobile verified",
-            subtitle = if (profile?.isPhoneVerified == true) "Verified" else "Pending",
+            subtitle = if (profile?.isPhoneVerified == true) profile?.phone?.ifBlank { "Verified by OTP" } ?: "Verified by OTP" else "Pending",
             verified = profile?.isPhoneVerified == true
         )
         VerificationStatusRow(
             title = "Email verified",
-            subtitle = if (!profile?.email.isNullOrBlank()) "Available" else "Not added",
+            subtitle = if (!profile?.email.isNullOrBlank()) "${profile?.email} verified" else "Not added",
             verified = !profile?.email.isNullOrBlank()
         )
-        OutlinedButton(
-            onClick = {
-                vm.clearStatus()
-                vm.submitProfileVerification()
+        VerificationUploadCard(
+            selected = !selectedUri.isNullOrBlank() || hasIdentityVerification,
+            subtitle = when {
+                hasIdentityVerification -> "Document uploaded for review"
+                !selectedUri.isNullOrBlank() -> "Document selected. Upload to continue."
+                else -> "Upload Aadhaar, Passport, or driving licence"
             },
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(SoulMatchTokens.PillRadius)
-        ) {
-            Icon(Icons.Filled.VerifiedUser, contentDescription = null)
-            Spacer(Modifier.width(10.dp))
-            Text(if (isSubmitting) "Submitting..." else "Submit profile verification")
-        }
-        SetupDropdown(
-            label = "Document type",
-            value = documentType,
-            options = listOf("aadhaar", "pan", "voter_id", "education_certificate", "income_payslip"),
-            onSelect = { documentType = it }
+            onClick = { picker.launch("*/*") }
         )
-        OutlinedTextField(
-            value = referenceNumber,
-            onValueChange = { referenceNumber = it.replace(" ", "") },
-            label = { Text("Reference number") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-        OutlinedButton(
-            onClick = { picker.launch("*/*") },
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(SoulMatchTokens.PillRadius)
-        ) {
-            Text(if (selectedUri.isNullOrBlank()) "Choose document" else "Document selected")
-        }
-        Button(
-            onClick = {
-                val uri = selectedUri?.let(Uri::parse) ?: return@Button
-                context.toVerificationDocumentPart(uri)?.let { part ->
-                    vm.clearStatus()
-                    showDocumentError = false
-                    vm.submitTrustVerification(
-                        type = "identity",
-                        document = part,
-                        documentType = documentType,
-                        referenceNumber = referenceNumber
-                    )
-                }
-            },
-            enabled = !selectedUri.isNullOrBlank() && !isSubmitting,
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
-            colors = ButtonDefaults.buttonColors(containerColor = SoulMatchTokens.Tangerine, contentColor = Color.White)
-        ) {
-            Text("Upload document for review")
+        if (!selectedUri.isNullOrBlank() && !hasIdentityVerification) {
+            Button(
+                onClick = {
+                    val uri = selectedUri?.let(Uri::parse) ?: return@Button
+                    context.toVerificationDocumentPart(uri)?.let { part ->
+                        vm.clearStatus()
+                        showDocumentError = false
+                        vm.submitTrustVerification(
+                            type = "identity",
+                            document = part,
+                            documentType = documentType
+                        )
+                    }
+                },
+                enabled = !isSubmitting,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                colors = ButtonDefaults.buttonColors(containerColor = SoulMatchTokens.Tangerine, contentColor = Color.White)
+            ) {
+                Text(if (isSubmitting) "Uploading..." else "Upload document")
+            }
         }
         if (showDocumentError) {
             InlineNotice("ID verification document is required before review.", error = true)
@@ -323,15 +294,7 @@ fun ProfileVerificationScreen(
         if (!status.isNullOrBlank()) {
             InlineNotice(status.orEmpty(), error = status.orEmpty().contains("couldn't", ignoreCase = true))
         }
-        if (verifications.isEmpty()) {
-            EmptySetupCard("No verification requests yet. Submit profile or document verification above.")
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                verifications.forEach { item ->
-                    VerificationCard(item)
-                }
-            }
-        }
+        SetupInfoNotice("A verification badge tells families that contact and identity checks were completed.")
     }
 }
 
@@ -347,18 +310,23 @@ fun ProfilePreviewReviewScreen(
     val photos by vm.photos.collectAsStateWithLifecycle()
     val verifications by vm.verifications.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
+    val hasIdentityVerification = verifications.any {
+        it.type.equals("identity", true) || it.type.equals("aadhaar", true)
+    }
 
     ProfileSetupScaffold(
-        title = "Preview Profile",
+        title = "Preview",
         stepNumber = 9,
-        progressPercent = 90,
-        headline = "Review before submit",
-        body = "Check profile data, photos, and trust status before final review.",
+        progressPercent = 92,
+        stepLabel = "Step 9 of 10",
+        progressLabel = "92% complete",
+        headline = "Review Profile",
+        body = "Expand each section to review details. Use Edit to return to that step.",
         infoTitle = "Preview review",
         infoBody = "This is the final check before the profile moves into review. Go back and edit any section if something looks wrong.",
         onBack = onBack,
-        primaryText = "Submit for review",
-        primaryEnabled = profile != null,
+        primaryText = "Submit profile",
+        primaryEnabled = profile != null && photos.isNotEmpty() && hasIdentityVerification,
         onPrimary = {
             vm.submitProfileForReview(onSubmit)
         }
@@ -417,10 +385,10 @@ fun ProfilePreviewReviewScreen(
             }
         }
         PreviewSection("Verification", editStep = 8, onEdit = onEditSection) {
-            Text(
-                if (verifications.isEmpty()) "No verification request yet" else "${verifications.size} verification request(s) submitted",
-                color = SoulMatchTokens.Text
-            )
+            Text(if (hasIdentityVerification) "ID verification uploaded" else "ID verification pending", color = SoulMatchTokens.Text)
+        }
+        if (!hasIdentityVerification) {
+            InlineNotice("One required verification item still needs attention.", error = true)
         }
         if (!status.isNullOrBlank()) {
             InlineNotice(
@@ -435,50 +403,85 @@ fun ProfilePreviewReviewScreen(
 
 @Composable
 fun ProfileUnderReviewScreen(
+    onBack: () -> Unit,
     onPrimary: () -> Unit,
     onHelp: () -> Unit
 ) {
+    val context = LocalContext.current
+    val vm: MyProfileViewModel = hiltViewModel(context as ComponentActivity)
+    val profile by vm.profile.collectAsStateWithLifecycle()
     ProfileSetupScaffold(
-        title = "Under Review",
+        title = "Submitted",
         stepNumber = 10,
         progressPercent = 100,
-        headline = "Profile sent for review",
-        body = "We received your profile. Team review now running.",
+        stepLabel = "Step 10 of 10",
+        progressLabel = "100% complete",
+        headline = "",
+        body = "",
         infoTitle = "Review status",
         infoBody = "Review checks profile quality, trust signals, and uploaded documents before the profile becomes broadly visible.",
-        onBack = {},
-        showBack = false,
-        primaryText = "Go to home",
+        onBack = onBack,
+        primaryText = "Save and Continue",
+        secondaryText = "Contact support",
+        onSecondary = onHelp,
         onPrimary = onPrimary
     ) {
-        SetupBullet("Profile data saved")
-        SetupBullet("Photos uploaded")
-        SetupBullet("Verification request queued")
-        OutlinedButton(onClick = onHelp, modifier = Modifier.fillMaxWidth()) {
-            Text("Help and support")
-        }
+        SubmittedHeroCard()
+        SetupInfoNotice("Approval is pending while our team checks photos, verification, and profile quality.")
+        SetupInfoNotice(
+            profile?.reviewNotes?.takeIf { it.isNotBlank() }
+                ?: "Estimated review time: 12-24 hours. We will notify you when your profile goes live."
+        )
     }
 }
 
 @Composable
 fun ProfileCorrectionRequiredScreen(
+    onBack: () -> Unit,
     onBackToEdit: () -> Unit,
     onReviewAgain: () -> Unit
 ) {
+    val context = LocalContext.current
+    val vm: MyProfileViewModel = hiltViewModel(context as ComponentActivity)
+    val profile by vm.profile.collectAsStateWithLifecycle()
+    val status by vm.status.collectAsStateWithLifecycle()
     ProfileSetupScaffold(
-        title = "Needs Correction",
+        title = "Corrections",
         stepNumber = 10,
-        progressPercent = 100,
-        headline = "Profile needs an update",
-        body = "Fix requested details. Then send for review again.",
+        progressPercent = 86,
+        stepLabel = "Review update",
+        progressLabel = "86% complete",
+        headline = "Correction required",
+        body = "Some items need changes before your profile can be approved.",
         infoTitle = "Correction help",
         infoBody = "Review may ask for better photos, clearer documents, or profile detail corrections.",
-        onBack = onBackToEdit,
-        primaryText = "Back to edit",
-        onPrimary = onBackToEdit
+        onBack = onBack,
+        primaryText = "Resubmit",
+        secondaryText = "Edit profile",
+        onSecondary = onBackToEdit,
+        onPrimary = { vm.submitProfileForReview(onReviewAgain) }
     ) {
-        OutlinedButton(onClick = onReviewAgain, modifier = Modifier.fillMaxWidth()) {
-            Text("Go to review status")
+        InlineNotice(
+            profile?.reviewNotes?.takeIf { it.isNotBlank() }
+                ?: profile?.rejectionReason?.takeIf { it.isNotBlank() }
+                ?: "Profile photo is unclear and the family description is too short.",
+            error = true
+        )
+        CorrectionItemCard(
+            title = "Profile photo",
+            detail = "Upload a clear front-facing photo without filters."
+        )
+        CorrectionItemCard(
+            title = "About family",
+            detail = "Add at least 40 characters about family values and background."
+        )
+        CorrectionItemCard(
+            title = "ID verification upload",
+            detail = "Document image must be readable and complete."
+        )
+        SetupInfoNotice("Only corrected sections will be reviewed again after resubmission.")
+        if (!status.isNullOrBlank()) {
+            InlineNotice(status.orEmpty(), error = status.orEmpty().contains("couldn't", ignoreCase = true))
         }
     }
 }
@@ -489,6 +492,8 @@ private fun ProfileSetupScaffold(
     title: String,
     stepNumber: Int? = null,
     progressPercent: Int? = null,
+    stepLabel: String? = null,
+    progressLabel: String? = null,
     headline: String,
     body: String,
     infoTitle: String,
@@ -497,6 +502,8 @@ private fun ProfileSetupScaffold(
     primaryText: String,
     onPrimary: () -> Unit,
     primaryEnabled: Boolean = true,
+    secondaryText: String? = null,
+    onSecondary: (() -> Unit)? = null,
     showBack: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -538,7 +545,12 @@ private fun ProfileSetupScaffold(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             if (stepNumber != null && progressPercent != null) {
-                ProfileProgressHeader(stepNumber = stepNumber, progressPercent = progressPercent)
+                ProfileProgressHeader(
+                    stepNumber = stepNumber,
+                    progressPercent = progressPercent,
+                    stepLabel = stepLabel,
+                    progressLabel = progressLabel
+                )
             }
             if (headline.isNotBlank() || body.isNotBlank()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -564,6 +576,22 @@ private fun ProfileSetupScaffold(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 content = content
             )
+            if (!secondaryText.isNullOrBlank() && onSecondary != null) {
+                OutlinedButton(
+                    onClick = onSecondary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                    border = BorderStroke(1.dp, SoulMatchTokens.Border),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.White,
+                        contentColor = SoulMatchTokens.Tangerine
+                    )
+                ) {
+                    Text(secondaryText, fontWeight = FontWeight.Bold)
+                }
+            }
             Button(
                 onClick = onPrimary,
                 enabled = primaryEnabled,
@@ -581,7 +609,12 @@ private fun ProfileSetupScaffold(
 }
 
 @Composable
-private fun ProfileProgressHeader(stepNumber: Int, progressPercent: Int) {
+private fun ProfileProgressHeader(
+    stepNumber: Int,
+    progressPercent: Int,
+    stepLabel: String? = null,
+    progressLabel: String? = null
+) {
     val progress = (progressPercent.coerceIn(0, 100)) / 100f
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
@@ -590,12 +623,12 @@ private fun ProfileProgressHeader(stepNumber: Int, progressPercent: Int) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Step $stepNumber of 10",
+                text = stepLabel ?: "Step $stepNumber of 10",
                 color = SoulMatchTokens.Tangerine,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "$progressPercent% complete",
+                text = progressLabel ?: "$progressPercent% complete",
                 color = SoulMatchTokens.Muted,
                 fontWeight = FontWeight.Bold
             )
@@ -664,31 +697,7 @@ private fun ProfileIntroHeroCard(progressPercent: Int) {
 
 @Composable
 private fun CreateProfileInfoNotice() {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = Color(0xFFFFF8F0),
-        border = BorderStroke(1.dp, SoulMatchTokens.Border)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Info,
-                contentDescription = null,
-                tint = SoulMatchTokens.Tangerine,
-                modifier = Modifier.size(22.dp)
-            )
-            Text(
-                text = "Required fields and privacy-sensitive items will be checked before review.",
-                color = SoulMatchTokens.Muted,
-                style = MaterialTheme.typography.bodyLarge,
-                lineHeight = 28.sp
-            )
-        }
-    }
+    SetupInfoNotice("Required fields and privacy-sensitive items will be checked before review.")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -771,6 +780,326 @@ private fun InlineNotice(message: String, error: Boolean) {
             modifier = Modifier.padding(14.dp),
             color = if (error) MaterialTheme.colorScheme.onErrorContainer else SoulMatchTokens.Tangerine
         )
+    }
+}
+
+@Composable
+private fun SetupInfoNotice(message: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFFFFF8F0),
+        border = BorderStroke(1.dp, SoulMatchTokens.Border)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Info,
+                contentDescription = null,
+                tint = SoulMatchTokens.Tangerine,
+                modifier = Modifier.size(22.dp)
+            )
+            Text(
+                text = message,
+                color = SoulMatchTokens.Muted,
+                style = MaterialTheme.typography.bodyLarge,
+                lineHeight = 28.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun UploadProgressCard(label: String, progress: Int) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, SoulMatchTokens.Border)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(label, color = SoulMatchTokens.Muted, fontWeight = FontWeight.Bold)
+            LinearProgressIndicator(
+                progress = (progress.coerceIn(0, 100)) / 100f,
+                modifier = Modifier.fillMaxWidth().height(10.dp),
+                color = SoulMatchTokens.Tangerine,
+                trackColor = Color(0xFFF3E5DE)
+            )
+        }
+    }
+}
+
+@Composable
+private fun PhotoHeroCard(
+    primaryPhoto: ProfilePhoto?,
+    onAdd: () -> Unit,
+    onRemove: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, SoulMatchTokens.Border)
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(120.dp),
+                shape = RoundedCornerShape(22.dp),
+                color = Color(0xFFF7F8FA)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (primaryPhoto == null) {
+                        Icon(Icons.Filled.PhotoCamera, contentDescription = null, tint = SoulMatchTokens.Gold, modifier = Modifier.size(42.dp))
+                    } else {
+                        AsyncImage(
+                            model = mediaUrl(primaryPhoto.photoUrl),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("Profile photo", fontWeight = FontWeight.ExtraBold, color = SoulMatchTokens.Text, style = MaterialTheme.typography.titleLarge)
+                Text(
+                    if (primaryPhoto == null) "Upload one front-facing photo for faster review."
+                    else "Primary photo selected for review and match cards.",
+                    color = SoulMatchTokens.Muted,
+                    style = MaterialTheme.typography.bodyLarge,
+                    lineHeight = 28.sp
+                )
+                Text(
+                    if (primaryPhoto == null) "Add photo" else "Remove photo",
+                    color = if (primaryPhoto == null) SoulMatchTokens.Tangerine else Color(0xFFD83A2E),
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable(onClick = if (primaryPhoto == null) onAdd else onRemove)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhotoUploadSlots(
+    photos: List<ProfilePhoto>,
+    onAdd: () -> Unit,
+    onMakePrimary: (String) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+        val visiblePhotos = photos.take(2)
+        repeat(2) { index ->
+            val photo = visiblePhotos.getOrNull(index)
+            PhotoMiniSlot(
+                modifier = Modifier.weight(1f),
+                label = "Photo ${index + 1}",
+                selected = photo != null,
+                onClick = {
+                    if (photo == null) onAdd() else onMakePrimary(photo.photoId)
+                },
+                onDelete = if (photo != null) ({ onDelete(photo.photoId) }) else null,
+                photo = photo
+            )
+        }
+        PhotoMiniSlot(
+            modifier = Modifier.weight(1f),
+            label = "Add",
+            selected = false,
+            onClick = onAdd,
+            onDelete = null,
+            photo = null
+        )
+    }
+}
+
+@Composable
+private fun PhotoMiniSlot(
+    modifier: Modifier,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onDelete: (() -> Unit)?,
+    photo: ProfilePhoto?
+) {
+    Surface(
+        modifier = modifier
+            .height(150.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(22.dp),
+        color = Color(0xFFF7F8FA),
+        border = BorderStroke(1.dp, if (selected) SoulMatchTokens.Tangerine else SoulMatchTokens.Border)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                if (photo != null) {
+                    AsyncImage(
+                        model = mediaUrl(photo.photoUrl),
+                        contentDescription = null,
+                        modifier = Modifier.size(54.dp),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = when {
+                            label == "Add" -> Icons.Filled.Add
+                            else -> Icons.Filled.Image
+                        },
+                        contentDescription = null,
+                        tint = SoulMatchTokens.Gold,
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(label, color = SoulMatchTokens.Muted, fontWeight = FontWeight.Bold)
+            }
+            if (onDelete != null) {
+                Text(
+                    text = "Remove",
+                    color = Color(0xFFD83A2E),
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 12.dp)
+                        .clickable(onClick = onDelete)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun VerificationUploadCard(
+    selected: Boolean,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(22.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, if (selected) SoulMatchTokens.Border else Color(0xFFE05B52))
+    ) {
+        Row(
+            modifier = Modifier.padding(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(62.dp),
+                shape = CircleShape,
+                color = if (selected) Color(0xFFEAF7F1) else Color(0xFFFFF1EE)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Outlined.CloudUpload,
+                        contentDescription = null,
+                        tint = if (selected) SoulMatchTokens.Success else Color(0xFFD83A2E)
+                    )
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("ID verification upload", fontWeight = FontWeight.ExtraBold, color = SoulMatchTokens.Text, style = MaterialTheme.typography.titleLarge)
+                Text(subtitle, color = SoulMatchTokens.Muted, style = MaterialTheme.typography.bodyLarge, lineHeight = 28.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SubmittedHeroCard() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        color = Color(0xFFF7F8FA),
+        border = BorderStroke(1.dp, SoulMatchTokens.Border)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 22.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            Surface(
+                modifier = Modifier.size(148.dp),
+                shape = CircleShape,
+                color = Color(0xFFEAF7F1),
+                border = BorderStroke(2.dp, Color(0xFFBFE8D1))
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = SoulMatchTokens.Success, modifier = Modifier.size(56.dp))
+                }
+            }
+            Text(
+                "Profile submitted\nsuccessfully",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.ExtraBold,
+                    lineHeight = 42.sp
+                ),
+                color = SoulMatchTokens.Text,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                "Your SoulMatch profile is now under review.",
+                color = SoulMatchTokens.Muted,
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun CorrectionItemCard(
+    title: String,
+    detail: String
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFE05B52))
+    ) {
+        Row(
+            modifier = Modifier.padding(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(58.dp),
+                shape = CircleShape,
+                color = Color(0xFFFFF1EE)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Info, contentDescription = null, tint = Color(0xFFD83A2E))
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, fontWeight = FontWeight.ExtraBold, color = SoulMatchTokens.Text, style = MaterialTheme.typography.titleLarge)
+                Text(detail, color = SoulMatchTokens.Muted, style = MaterialTheme.typography.bodyLarge, lineHeight = 28.sp)
+            }
+        }
     }
 }
 
@@ -941,18 +1270,26 @@ private fun VerificationStatusRow(
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(title, fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
-                Text(subtitle, color = if (verified) SoulMatchTokens.Success else SoulMatchTokens.Muted)
+            Surface(
+                modifier = Modifier.size(58.dp),
+                shape = CircleShape,
+                color = if (verified) Color(0xFFEAF7F1) else Color(0xFFFFF1EE)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Filled.CheckCircle,
+                        contentDescription = null,
+                        tint = if (verified) SoulMatchTokens.Success else SoulMatchTokens.Border
+                    )
+                }
             }
-            Icon(
-                Icons.Filled.CheckCircle,
-                contentDescription = null,
-                tint = if (verified) SoulMatchTokens.Success else SoulMatchTokens.Border
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
+                Text(subtitle, color = SoulMatchTokens.Muted)
+            }
         }
     }
 }
@@ -961,19 +1298,49 @@ private fun VerificationStatusRow(
 private fun PreviewHeader(profile: ProfileData?) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(22.dp),
         color = Color.White,
         border = BorderStroke(1.dp, SoulMatchTokens.Border)
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(profile?.fullName().orEmpty().ifBlank { "New member" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
-            Text(
-                listOf(profile?.gender, profile?.workingCity, profile?.familyCity).filterNotNull().filter { it.isNotBlank() }.joinToString(" | "),
-                color = SoulMatchTokens.Muted
-            )
+            Surface(
+                modifier = Modifier.size(94.dp),
+                shape = CircleShape,
+                color = Color.White,
+                border = BorderStroke(2.dp, SoulMatchTokens.Tangerine)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Person, contentDescription = null, tint = SoulMatchTokens.Tangerine, modifier = Modifier.size(42.dp))
+                }
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    profile?.fullName().orEmpty().ifBlank { "New member" },
+                    style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.ExtraBold),
+                    color = SoulMatchTokens.Tangerine
+                )
+                Text(
+                    listOf(profile?.occupation, profile?.workingCity, profile?.motherTongue).filterNotNull().filter { it.isNotBlank() }.joinToString(" • "),
+                    color = SoulMatchTokens.Muted
+                )
+                Text(profile?.aboutMe?.takeIf { it.isNotBlank() } ?: "Family-oriented, calm, and ambitious.", color = SoulMatchTokens.Text)
+            }
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = Color(0xFFF7F8FA),
+                border = BorderStroke(1.dp, SoulMatchTokens.Border)
+            ) {
+                Text(
+                    "92%",
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    color = SoulMatchTokens.Tangerine,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
         }
     }
 }
@@ -985,12 +1352,12 @@ private fun PreviewSection(
     onEdit: (Int) -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    var expanded by rememberSaveable(title) { mutableStateOf(true) }
+    var expanded by rememberSaveable(title) { mutableStateOf(title == "Basic details") }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(22.dp),
         color = Color.White,
-        border = BorderStroke(1.dp, SoulMatchTokens.Border)
+        border = BorderStroke(1.dp, if (title == "Verification" || title == "Photos") Color(0xFFFFC5BC) else SoulMatchTokens.Border)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -1001,18 +1368,22 @@ private fun PreviewSection(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    title,
-                    fontWeight = FontWeight.Bold,
-                    color = SoulMatchTokens.Text,
-                    modifier = Modifier.clickable { expanded = !expanded }
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        if (expanded) "Hide" else "Show",
-                        color = SoulMatchTokens.Muted,
+                        if (expanded) "⌄" else "›",
+                        color = SoulMatchTokens.Tangerine,
+                        fontWeight = FontWeight.Bold,
                         modifier = Modifier.clickable { expanded = !expanded }
                     )
+                    Text(
+                        title,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = SoulMatchTokens.Text,
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.clickable { expanded = !expanded }
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "Edit",
                         color = SoulMatchTokens.Tangerine,

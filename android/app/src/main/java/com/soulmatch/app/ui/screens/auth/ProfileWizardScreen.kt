@@ -36,7 +36,9 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -199,6 +201,10 @@ private val personalityOptions = listOf("Calm", "Family-oriented", "Ambitious", 
 private val locationPreferenceOptions = listOf("Same city", "Same state", "South India", "Metro cities", "Tier 2 cities", "Open to relocate")
 private val incomePreferenceOptions = listOf("< 5 LPA", "5-10 LPA", "10-20 LPA", "20-35 LPA", "35+ LPA")
 private val lifestylePreferenceOptions = listOf("Vegetarian", "No smoking", "No drinking", "Family-focused", "Career-minded", "Traditional values")
+private val partnerAgeRangeOptions = listOf("23 - 28 years", "24 - 30 years", "25 - 31 years", "26 - 32 years", "27 - 33 years")
+private val partnerHeightRangeOptions = listOf("5 ft 0 in - 5 ft 6 in", "5 ft 2 in - 5 ft 8 in", "5 ft 3 in - 5 ft 9 in", "5 ft 4 in - 5 ft 10 in", "5 ft 5 in - 6 ft 0 in")
+private val partnerEducationOptions = listOf("Graduate or higher", "Postgraduate", "MBA", "Doctorate", "Professional degree")
+private val partnerOccupationOptions = listOf("Professional / business", "Engineer", "Doctor", "Government", "Teacher", "Entrepreneur")
 
 private val profileHeightOptions = buildList {
     for (feet in 4..7) {
@@ -257,7 +263,7 @@ fun ProfileWizardScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Text(if (currentStep == 6) "" else titleCase(copy.title), fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
+                    Text(titleCase(copy.title), fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = SoulMatchTokens.Bg,
@@ -294,6 +300,23 @@ fun ProfileWizardScreen(
                         modifier = Modifier.padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+                        if (currentStep == 6) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    text = "Partner preferences",
+                                    style = MaterialTheme.typography.headlineMedium.copy(
+                                        fontFamily = FontFamily.Serif,
+                                        fontWeight = FontWeight.ExtraBold
+                                    ),
+                                    color = SoulMatchTokens.Text
+                                )
+                                Text(
+                                    text = "Set flexible expectations to improve recommendations.",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = SoulMatchTokens.Muted
+                                )
+                            }
+                        }
                         when (currentStep) {
                             1 -> Step1BasicInfo(profile, vm) { isCurrentStepValid = it }
                             2 -> Step2ReligiousCommunity(profile, vm) { isCurrentStepValid = it }
@@ -443,6 +466,26 @@ private fun heightCmFromLabel(value: String): Int? {
     val feet = match.groupValues[1].toIntOrNull() ?: return null
     val inches = match.groupValues[2].toIntOrNull() ?: return null
     return ((feet * 12 + inches) * 2.54).roundToInt()
+}
+
+private fun heightLabelVerboseFromCm(heightCm: Int?): String {
+    val compact = heightLabelFromCm(heightCm)
+    if (compact.isBlank()) return ""
+    val match = Regex("""(\d+)'\s*(\d+)\"""").matchEntire(compact) ?: return compact
+    return "${match.groupValues[1]} ft ${match.groupValues[2]} in"
+}
+
+private fun heightCmFromVerboseLabel(value: String): Int? {
+    val match = Regex("""(\d+)\s*ft\s*(\d+)\s*in""", RegexOption.IGNORE_CASE).find(value.trim())
+        ?: return heightCmFromLabel(value)
+    val feet = match.groupValues[1].toIntOrNull() ?: return null
+    val inches = match.groupValues[2].toIntOrNull() ?: return null
+    return ((feet * 12 + inches) * 2.54).roundToInt()
+}
+
+private fun parseAgeRange(value: String): Pair<Int?, Int?> {
+    val match = Regex("""(\d+)\s*-\s*(\d+)""").find(value)
+    return (match?.groupValues?.getOrNull(1)?.toIntOrNull()) to (match?.groupValues?.getOrNull(2)?.toIntOrNull())
 }
 
 @Composable
@@ -938,43 +981,59 @@ private fun Step5Lifestyle(existing: ProfileData?, vm: ProfileViewModel, onValid
 @Composable
 private fun Step6PartnerPreferences(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
     val existingPreferences by vm.partnerPreferences.collectAsStateWithLifecycle()
-    var ageMin by rememberSaveable(existing?.profileId) { mutableStateOf("") }
-    var ageMax by rememberSaveable(existing?.profileId) { mutableStateOf("") }
-    var heightMin by rememberSaveable(existing?.profileId) { mutableStateOf("") }
-    var heightMax by rememberSaveable(existing?.profileId) { mutableStateOf("") }
+    var ageRange by rememberSaveable(existing?.profileId) { mutableStateOf("") }
+    var heightRange by rememberSaveable(existing?.profileId) { mutableStateOf("") }
     var religionCommunity by rememberSaveable(existing?.profileId) { mutableStateOf("") }
-    var locationPreferences by rememberSaveable(existing?.profileId) { mutableStateOf(emptyList<String>()) }
-    var education by rememberSaveable(existing?.profileId) { mutableStateOf(emptyList<String>()) }
-    var occupation by rememberSaveable(existing?.profileId) { mutableStateOf(emptyList<String>()) }
-    var incomePreferences by rememberSaveable(existing?.profileId) { mutableStateOf(emptyList<String>()) }
-    var lifestylePreferences by rememberSaveable(existing?.profileId) { mutableStateOf(emptyList<String>()) }
+    var locationPreferenceText by rememberSaveable(existing?.profileId) { mutableStateOf("") }
+    var educationPreference by rememberSaveable(existing?.profileId) { mutableStateOf("") }
+    var occupationPreference by rememberSaveable(existing?.profileId) { mutableStateOf("") }
+    var incomePreference by rememberSaveable(existing?.profileId) { mutableStateOf("") }
+    var lifestylePreference by rememberSaveable(existing?.profileId) { mutableStateOf("") }
 
     LaunchedEffect(existing?.profileId, existingPreferences) {
-        if (ageMin.isBlank() && existingPreferences.ageMin > 0) ageMin = existingPreferences.ageMin.toString()
-        if (ageMax.isBlank() && existingPreferences.ageMax > 0) ageMax = existingPreferences.ageMax.toString()
-        if (heightMin.isBlank() && existingPreferences.heightMinCm != null) heightMin = heightLabelFromCm(existingPreferences.heightMinCm)
-        if (heightMax.isBlank() && existingPreferences.heightMaxCm != null) heightMax = heightLabelFromCm(existingPreferences.heightMaxCm)
+        if (ageRange.isBlank() && existingPreferences.ageMin > 0 && existingPreferences.ageMax > 0) {
+            ageRange = "${existingPreferences.ageMin} - ${existingPreferences.ageMax} years"
+        }
+        if (heightRange.isBlank() && existingPreferences.heightMinCm != null && existingPreferences.heightMaxCm != null) {
+            heightRange = "${heightLabelVerboseFromCm(existingPreferences.heightMinCm)} - ${heightLabelVerboseFromCm(existingPreferences.heightMaxCm)}"
+        }
         if (religionCommunity.isBlank() && !existingPreferences.religion.isNullOrBlank()) religionCommunity = existingPreferences.religion.orEmpty()
-        if (locationPreferences.isEmpty()) {
-            locationPreferences = existingPreferences.locationPreferences.ifEmpty { existing?.locationPreferences ?: emptyList() }
+        if (locationPreferenceText.isBlank()) {
+            locationPreferenceText = existingPreferences.locationPreferences
+                .ifEmpty { existing?.locationPreferences ?: emptyList() }
+                .joinToString(", ")
         }
-        if (education.isEmpty()) education = existingPreferences.educationLevels
-        if (occupation.isEmpty()) occupation = existingPreferences.occupations
-        if (incomePreferences.isEmpty()) {
-            incomePreferences = existingPreferences.incomePreferences.ifEmpty { existing?.incomePreferences ?: emptyList() }
+        if (educationPreference.isBlank()) {
+            educationPreference = existingPreferences.educationLevels.firstOrNull().orEmpty()
         }
-        if (lifestylePreferences.isEmpty()) {
-            lifestylePreferences = existingPreferences.lifestylePreferences.ifEmpty { existing?.lifestylePreferences ?: emptyList() }
+        if (occupationPreference.isBlank()) {
+            occupationPreference = existingPreferences.occupations.firstOrNull().orEmpty()
+        }
+        if (incomePreference.isBlank()) {
+            incomePreference = existingPreferences.incomePreferences.firstOrNull()
+                ?: existing?.incomePreferences?.firstOrNull().orEmpty()
+        }
+        if (lifestylePreference.isBlank()) {
+            lifestylePreference = existingPreferences.lifestylePreferences.firstOrNull()
+                ?: existing?.lifestylePreferences?.firstOrNull().orEmpty()
         }
     }
 
-    val ageMinValue = ageMin.toIntOrNull()
-    val ageMaxValue = ageMax.toIntOrNull()
-    val heightMinCm = heightCmFromLabel(heightMin)
-    val heightMaxCm = heightCmFromLabel(heightMax)
-    val isTooRestrictive = (ageMinValue != null && ageMaxValue != null && ageMaxValue - ageMinValue <= 3) &&
-        education.size <= 1 &&
-        occupation.size <= 1 &&
+    val (ageMinValue, ageMaxValue) = parseAgeRange(ageRange)
+    val heightRangeParts = heightRange.split(" - ")
+    val heightMinCm = heightCmFromVerboseLabel(heightRangeParts.getOrNull(0).orEmpty())
+    val heightMaxCm = heightCmFromVerboseLabel(heightRangeParts.getOrNull(1).orEmpty())
+    val locationPreferences = locationPreferenceText
+        .split(",")
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()
+    val hasInteracted = listOf(ageRange, heightRange, religionCommunity, locationPreferenceText, educationPreference, occupationPreference, incomePreference, lifestylePreference)
+        .any { it.isNotBlank() }
+    val religionError = religionCommunity.isNotBlank() && !isValidPlainText(religionCommunity)
+    val locationError = locationPreferenceText.isNotBlank() && locationPreferences.isEmpty()
+    val isTooRestrictive = hasInteracted &&
+        (ageMinValue != null && ageMaxValue != null && ageMaxValue - ageMinValue <= 3) &&
         locationPreferences.size <= 1
     val isValid = ageMinValue != null &&
         ageMaxValue != null &&
@@ -983,26 +1042,30 @@ private fun Step6PartnerPreferences(existing: ProfileData?, vm: ProfileViewModel
         heightMaxCm != null &&
         heightMinCm <= heightMaxCm &&
         religionCommunity.isNotBlank() &&
-        education.isNotEmpty() &&
-        occupation.isNotEmpty() &&
+        !religionError &&
         locationPreferences.isNotEmpty() &&
-        incomePreferences.isNotEmpty() &&
-        lifestylePreferences.isNotEmpty()
+        !locationError &&
+        educationPreference.isNotBlank() &&
+        occupationPreference.isNotBlank() &&
+        incomePreference.isNotBlank() &&
+        lifestylePreference.isNotBlank() &&
+        locationPreferences.isNotEmpty() &&
+        locationPreferences.all(::isValidLocationName)
 
-    LaunchedEffect(ageMin, ageMax, heightMin, heightMax, religionCommunity, locationPreferences, education, occupation, incomePreferences, lifestylePreferences) {
+    LaunchedEffect(ageRange, heightRange, religionCommunity, locationPreferenceText, educationPreference, occupationPreference, incomePreference, lifestylePreference) {
         vm.updatePartnerPreferences(
             PartnerPreferencesData(
                 ageMin = ageMinValue ?: 23,
                 ageMax = ageMaxValue ?: 31,
                 religion = religionCommunity.trim().ifBlank { null },
-                educationLevels = education,
-                occupations = occupation,
+                educationLevels = listOf(educationPreference).filter { it.isNotBlank() },
+                occupations = listOf(occupationPreference).filter { it.isNotBlank() },
                 heightMinCm = heightMinCm,
                 heightMaxCm = heightMaxCm,
                 locations = locationPreferences,
                 locationPreferences = locationPreferences,
-                incomePreferences = incomePreferences,
-                lifestylePreferences = lifestylePreferences,
+                incomePreferences = listOf(incomePreference).filter { it.isNotBlank() },
+                lifestylePreferences = listOf(lifestylePreference).filter { it.isNotBlank() },
                 maritalStatuses = listOfNotNull(existing?.maritalStatus?.takeIf { it.isNotBlank() }),
                 familyTypes = listOfNotNull(existing?.familyType?.takeIf { it.isNotBlank() })
             )
@@ -1011,41 +1074,77 @@ private fun Step6PartnerPreferences(existing: ProfileData?, vm: ProfileViewModel
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            NumberField(ageMin, { ageMin = it.filter(Char::isDigit).take(2) }, "Age min", Modifier.weight(1f))
-            NumberField(ageMax, { ageMax = it.filter(Char::isDigit).take(2) }, "Age max", Modifier.weight(1f))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SelectionField(
-                label = "Height min",
-                value = heightMin,
-                options = profileHeightOptions,
-                onSelect = { heightMin = it },
-                modifier = Modifier.weight(1f)
-            )
-            SelectionField(
-                label = "Height max",
-                value = heightMax,
-                options = profileHeightOptions,
-                onSelect = { heightMax = it },
-                modifier = Modifier.weight(1f)
-            )
-        }
-        if (heightMin.isNotBlank() && heightMax.isNotBlank() && heightMinCm != null && heightMaxCm != null && heightMinCm > heightMaxCm) {
+        SelectionField(
+            label = "Age range",
+            value = ageRange,
+            options = partnerAgeRangeOptions,
+            onSelect = { ageRange = it },
+            leadingIcon = Icons.Filled.DateRange
+        )
+        SelectionField(
+            label = "Height range",
+            value = heightRange,
+            options = partnerHeightRangeOptions,
+            onSelect = { heightRange = it },
+            leadingIcon = Icons.Filled.Straighten
+        )
+        if (heightRange.isNotBlank() && heightMinCm != null && heightMaxCm != null && heightMinCm > heightMaxCm) {
             Text(
                 "Height range is not valid.",
                 color = SoulMatchTokens.Error,
                 style = MaterialTheme.typography.bodySmall
             )
         }
-        RequiredTextField(religionCommunity, { religionCommunity = it }, "Religion / community")
-        MultiSelectChipField("Location preference", locationPreferenceOptions, locationPreferences) { locationPreferences = it }
-        MultiSelectChipField("Education preference", listOf("Graduate", "Post Graduate", "MBA", "Doctorate", "Professional"), education) { education = it }
-        MultiSelectChipField("Occupation preference", listOf("Engineer", "Doctor", "Business", "Teacher", "Government", "Designer"), occupation) { occupation = it }
-        MultiSelectChipField("Income preference", incomePreferenceOptions, incomePreferences) { incomePreferences = it }
-        MultiSelectChipField("Lifestyle preference", lifestylePreferenceOptions, lifestylePreferences) { lifestylePreferences = it }
+        RequiredTextField(
+            value = religionCommunity,
+            onValueChange = { religionCommunity = it },
+            label = "Religion / community",
+            leadingIcon = Icons.Filled.People,
+            isError = religionError,
+            supportingText = if (religionError) "Please enter a valid religion/community" else null
+        )
+        RequiredTextField(
+            value = locationPreferenceText,
+            onValueChange = { locationPreferenceText = it },
+            label = "Location preference",
+            leadingIcon = Icons.Filled.LocationOn,
+            isError = locationError || locationPreferences.any { !isValidLocationName(it) },
+            supportingText = when {
+                hasInteracted && locationPreferenceText.isBlank() -> "Location preference is required"
+                locationPreferences.any { !isValidLocationName(it) } -> "Please enter valid city names separated by commas"
+                else -> null
+            }
+        )
+        SelectionField(
+            label = "Education preference",
+            value = educationPreference,
+            options = partnerEducationOptions,
+            onSelect = { educationPreference = it },
+            leadingIcon = Icons.Filled.School
+        )
+        SelectionField(
+            label = "Occupation preference",
+            value = occupationPreference,
+            options = partnerOccupationOptions,
+            onSelect = { occupationPreference = it },
+            leadingIcon = Icons.Filled.Work
+        )
+        SelectionField(
+            label = "Income preference",
+            value = incomePreference,
+            options = listOf("₹5 LPA and above", "₹8 LPA and above", "₹12 LPA and above", "₹20 LPA and above"),
+            onSelect = { incomePreference = it }
+        )
+        SelectionField(
+            label = "Lifestyle preference",
+            value = lifestylePreference,
+            options = listOf("Vegetarian preferred", "No smoking", "No drinking", "Family-focused", "Open minded"),
+            onSelect = { lifestylePreference = it },
+            isError = hasInteracted && lifestylePreference.isBlank(),
+            supportingText = if (hasInteracted && lifestylePreference.isBlank()) "Lifestyle preference is required." else null
+        )
         if (isTooRestrictive) {
-            ValidationBanner("Preferences look very restrictive. Match count may reduce.")
+            ValidationBanner("Strict filters may reduce high-quality recommendations.")
         }
     }
 }
@@ -1198,12 +1297,21 @@ private fun ChipRow(title: String, options: List<String>, selected: String, onSe
                     .fillMaxWidth()
                     .menuAnchor(),
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    disabledContainerColor = Color.White,
+                    errorContainerColor = Color.White
+                ),
                 shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
                 singleLine = true
             )
             ExposedDropdownMenu(
                 expanded = expanded,
-                onDismissRequest = { expanded = false }
+                onDismissRequest = { expanded = false },
+                modifier = Modifier
+                    .exposedDropdownSize(matchTextFieldWidth = true)
+                    .background(Color.White, RoundedCornerShape(SoulMatchTokens.CardRadius))
             ) {
                 options.forEachIndexed { index, option ->
                     DropdownMenuItem(

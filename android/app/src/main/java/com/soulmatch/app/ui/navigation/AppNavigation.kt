@@ -464,6 +464,7 @@ fun AppNavigation(
         }
         composable("profile_under_review") {
             ProfileUnderReviewScreen(
+                onBack = { nav.popBackStack() },
                 onHelp = { nav.navigate("help_support") },
                 onPrimary = {
                     nav.navigate("dashboard") {
@@ -474,7 +475,8 @@ fun AppNavigation(
         }
         composable("profile_correction_required") {
             ProfileCorrectionRequiredScreen(
-                onBackToEdit = { nav.navigate("profile_wizard/1?returnToProfile=true") },
+                onBack = { nav.popBackStack() },
+                onBackToEdit = { nav.navigate("profile_preview_review") },
                 onReviewAgain = { nav.navigate("profile_under_review") }
             )
         }

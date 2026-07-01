@@ -257,6 +257,7 @@ class AuthViewModel @Inject constructor(
                 prefs.saveProfileId(profile?.profileId.orEmpty())
             }
             val resolvedWizardStep = when {
+                profile?.reviewStatus.equals("rejected", true) -> 9
                 profile?.reviewStatus.equals("submitted", true) || profile?.reviewStatus.equals("under_review", true) -> 10
                 else -> resolveWizardStep(profile) ?: storedWizardStep.coerceAtLeast(7)
             }
@@ -276,6 +277,7 @@ class AuthViewModel @Inject constructor(
             }
             prefs.saveWizardStep(
                 when {
+                    profile?.reviewStatus.equals("rejected", true) -> 9
                     profile?.reviewStatus.equals("submitted", true) || profile?.reviewStatus.equals("under_review", true) -> 10
                     else -> resolvedStep ?: storedWizardStep.coerceAtLeast(7)
                 }

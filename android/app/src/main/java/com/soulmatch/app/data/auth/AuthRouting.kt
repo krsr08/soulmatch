@@ -14,6 +14,9 @@ fun resolveMemberResumeRoute(
     if (safeProfile.profileId.isBlank()) {
         return if (onboardingSeen) "profile_intro" else "onboarding_benefit"
     }
+    if (safeText(safeProfile.reviewStatus).equals("rejected", true)) {
+        return "profile_correction_required"
+    }
     if (safeText(safeProfile.reviewStatus).equals("submitted", true) || safeText(safeProfile.reviewStatus).equals("under_review", true)) {
         return "profile_under_review"
     }
