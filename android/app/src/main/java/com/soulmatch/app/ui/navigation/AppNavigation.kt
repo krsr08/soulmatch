@@ -171,7 +171,7 @@ fun AppNavigation(
             OnboardingBenefitScreen(
                 onContinue = {
                     nav.navigate("profile_intro") {
-                        popUpTo("welcome") { inclusive = false }
+                        popUpTo("onboarding_benefit") { inclusive = true }
                         launchSingleTop = true
                     }
                 }
@@ -361,13 +361,23 @@ fun AppNavigation(
         composable("profile_intro") {
             ProfileIntroScreen(
                 onBack = { nav.popBackStack() },
-                onContinue = { nav.navigate("profile_wizard/1") }
+                onContinue = {
+                    nav.navigate("profile_wizard/1") {
+                        popUpTo("profile_intro") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             )
         }
         composable("profile_intro_info") {
             ProfileIntroScreen(
                 onBack = { nav.popBackStack() },
-                onContinue = { nav.navigate("profile_wizard/1") }
+                onContinue = {
+                    nav.navigate("profile_wizard/1") {
+                        popUpTo("profile_intro_info") { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             )
         }
         composable(
@@ -402,7 +412,9 @@ fun AppNavigation(
                         step = resolvedStep,
                         isSectionEdit = false,
                         onNextStep = { next ->
-                            nav.navigate("profile_wizard/$next")
+                            nav.navigate("profile_wizard/$next") {
+                                launchSingleTop = true
+                            }
                         },
                         onBack = { nav.popBackStack() }
                     )

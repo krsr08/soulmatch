@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -97,8 +98,8 @@ import java.time.format.DateTimeParseException
 import kotlin.math.roundToInt
 
 private data class WizardStepCopy(
-    val title: String,
-    val eyebrow: String,
+    val topBarTitle: String,
+    val headline: String,
     val subtitle: String,
     val helper: String,
     val info: String,
@@ -107,9 +108,9 @@ private data class WizardStepCopy(
 
 private val wizardCopy = mapOf(
     1 to WizardStepCopy(
-        title = "Basic Details",
-        eyebrow = "Step 1 of 10",
-        subtitle = "Start with identity basics first.",
+        topBarTitle = "Basic Details",
+        headline = "Basic details",
+        subtitle = "These details help families understand identity, background, and location.",
         helper = "Full name, gender, date of birth, height, marital status, mother tongue, and current city are required.",
         info = "Basic details help SoulMatch create your member identity and decide what screen comes next.",
         infoBullets = listOf(
@@ -118,8 +119,8 @@ private val wizardCopy = mapOf(
         )
     ),
     2 to WizardStepCopy(
-        title = "Religious And Community",
-        eyebrow = "Step 2 of 10",
+        topBarTitle = "Religious Details",
+        headline = "Religious and community",
         subtitle = "Keep this respectful and accurate for family-led matching.",
         helper = "Religion and community details help families filter and review profiles quickly.",
         info = "These details help family filtering, search relevance, and partner preference matching.",
@@ -129,8 +130,8 @@ private val wizardCopy = mapOf(
         )
     ),
     3 to WizardStepCopy(
-        title = "Education And Career",
-        eyebrow = "Step 3 of 10",
+        topBarTitle = "Education & Career",
+        headline = "Education and career",
         subtitle = "Add professional context that supports serious introductions.",
         helper = "Education, occupation, and annual income are required.",
         info = "Education and work details directly affect search, ranking, and shortlist quality.",
@@ -140,8 +141,8 @@ private val wizardCopy = mapOf(
         )
     ),
     4 to WizardStepCopy(
-        title = "Family Details",
-        eyebrow = "Step 4 of 10",
+        topBarTitle = "Family Details",
+        headline = "Family details",
         subtitle = "Share the family context most parents look for first.",
         helper = "Parent occupations and family type are required.",
         info = "Family details help parents review profile fit faster and with more trust.",
@@ -151,9 +152,9 @@ private val wizardCopy = mapOf(
         )
     ),
     5 to WizardStepCopy(
-        title = "Lifestyle Details",
-        eyebrow = "Step 5 of 10",
-        subtitle = "Help matches understand daily habits and communication style.",
+        topBarTitle = "Lifestyle",
+        headline = "Lifestyle details",
+        subtitle = "Help matches understand daily habits, interests, and communication style.",
         helper = "Diet, smoking, and drinking details are required.",
         info = "Lifestyle details give families and matches a clearer idea of daily compatibility.",
         infoBullets = listOf(
@@ -162,8 +163,8 @@ private val wizardCopy = mapOf(
         )
     ),
     6 to WizardStepCopy(
-        title = "Partner Preferences",
-        eyebrow = "Step 6 of 10",
+        topBarTitle = "Partner Preferences",
+        headline = "Partner preferences",
         subtitle = "Set the match basics you care about most before profile review.",
         helper = "Height range, religion/community, education, and occupation preferences power match quality.",
         info = "Partner preferences directly drive recommendation quality and shortlist relevance.",
@@ -252,7 +253,7 @@ fun ProfileWizardScreen(
 
     if (showInfo) {
         ProfileWizardInfoBottomSheet(
-            title = "Why ${copy.title.lowercase()} matters",
+            title = "Why ${copy.headline.lowercase()} matters",
             body = copy.info,
             bullets = copy.infoBullets,
             onDismiss = { showInfo = false }
@@ -263,7 +264,7 @@ fun ProfileWizardScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Text(titleCase(copy.title), fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
+                    Text(titleCase(copy.topBarTitle), fontWeight = FontWeight.Bold, color = SoulMatchTokens.Text)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = SoulMatchTokens.Bg,
@@ -300,23 +301,10 @@ fun ProfileWizardScreen(
                         modifier = Modifier.padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        if (currentStep == 6) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(
-                                    text = "Partner preferences",
-                                    style = MaterialTheme.typography.headlineMedium.copy(
-                                        fontFamily = FontFamily.Serif,
-                                        fontWeight = FontWeight.ExtraBold
-                                    ),
-                                    color = SoulMatchTokens.Text
-                                )
-                                Text(
-                                    text = "Set flexible expectations to improve recommendations.",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = SoulMatchTokens.Muted
-                                )
-                            }
-                        }
+                        WizardStepLead(
+                            headline = copy.headline,
+                            description = copy.subtitle
+                        )
                         when (currentStep) {
                             1 -> Step1BasicInfo(profile, vm) { isCurrentStepValid = it }
                             2 -> Step2ReligiousCommunity(profile, vm) { isCurrentStepValid = it }
@@ -523,18 +511,25 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             )
         )
     }
+    var fullNameTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var dobTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var genderTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var heightTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var maritalStatusTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var motherTongueTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var currentCityTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var nativePlaceTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
     val normalizedDob = normalizeDateOfBirth(dob)
-    val dobHasError = dob.isNotBlank() && normalizedDob == null
+    val dobHasError = dobTouched && (dob.isBlank() || normalizedDob == null)
     val (firstName, lastName) = splitFullName(fullName)
-    val fullNameError = fullName.isNotBlank() && !isValidFullName(fullName)
+    val fullNameError = fullNameTouched && (fullName.isBlank() || !isValidFullName(fullName))
     val heightCm = heightCmFromLabel(heightLabel)
-    val hasInteracted = listOf(fullName, dob, gender, heightLabel, maritalStatus, motherTongue, currentCity, nativePlace).any { it.isNotBlank() }
-    val genderError = hasInteracted && gender.isBlank()
-    val heightError = hasInteracted && heightLabel.isBlank()
-    val maritalStatusError = hasInteracted && maritalStatus.isBlank()
-    val motherTongueError = hasInteracted && motherTongue.isBlank()
-    val currentCityError = (hasInteracted && currentCity.isBlank()) || (currentCity.isNotBlank() && !isValidLocationName(currentCity))
-    val nativePlaceError = (hasInteracted && nativePlace.isBlank()) || (nativePlace.isNotBlank() && !isValidLocationName(nativePlace))
+    val genderError = genderTouched && gender.isBlank()
+    val heightError = heightTouched && heightLabel.isBlank()
+    val maritalStatusError = maritalStatusTouched && maritalStatus.isBlank()
+    val motherTongueError = motherTongueTouched && motherTongue.isBlank()
+    val currentCityError = currentCityTouched && (currentCity.isBlank() || !isValidLocationName(currentCity))
+    val nativePlaceError = nativePlaceTouched && (nativePlace.isBlank() || !isValidLocationName(nativePlace))
 
     val isValid = !fullNameError &&
         normalizedDob != null &&
@@ -563,8 +558,12 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         RequiredTextField(
             fullName,
-            { fullName = it },
+            {
+                fullNameTouched = true
+                fullName = it
+            },
             "Full name",
+            placeholder = "Enter full name",
             leadingIcon = Icons.Filled.Person,
             isError = fullNameError,
             supportingText = if (fullNameError) "Please enter a valid name." else null
@@ -573,15 +572,23 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             label = "Gender",
             value = titleCase(gender),
             options = listOf("Male", "Female"),
-            onSelect = { gender = it.lowercase() },
+            onSelect = {
+                genderTouched = true
+                gender = it.lowercase()
+            },
+            placeholder = "Select gender",
             leadingIcon = Icons.Filled.People,
             isError = genderError,
             supportingText = if (genderError) "Gender is required" else null
         )
         DatePickerField(
             dob,
-            onValueChange = { dob = it },
+            onValueChange = {
+                dobTouched = true
+                dob = it
+            },
             "Date of birth",
+            placeholder = "DD-MM-YYYY",
             leadingIcon = Icons.Filled.DateRange,
             isError = dobHasError,
             supportingText = if (dobHasError) "Age must be 20 years or above." else null
@@ -590,7 +597,11 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             label = "Height",
             value = heightLabel,
             options = profileHeightOptions,
-            onSelect = { heightLabel = it },
+            onSelect = {
+                heightTouched = true
+                heightLabel = it
+            },
+            placeholder = "Select height",
             leadingIcon = Icons.Filled.Straighten,
             isError = heightError,
             supportingText = if (heightError) "Height is required" else null
@@ -599,7 +610,11 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             label = "Marital status",
             value = titleCase(maritalStatus.replace('_', ' ')),
             options = listOf("Never married", "Divorced", "Widowed"),
-            onSelect = { maritalStatus = it.lowercase().replace(' ', '_') },
+            onSelect = {
+                maritalStatusTouched = true
+                maritalStatus = it.lowercase().replace(' ', '_')
+            },
+            placeholder = "Select marital status",
             leadingIcon = Icons.Filled.CheckCircle,
             isError = maritalStatusError,
             supportingText = if (maritalStatusError) "Marital status is required" else null
@@ -608,31 +623,43 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             label = "Mother tongue",
             value = motherTongue,
             options = motherTongueOptions,
-            onSelect = { motherTongue = it },
+            onSelect = {
+                motherTongueTouched = true
+                motherTongue = it
+            },
+            placeholder = "Select mother tongue",
             leadingIcon = Icons.Filled.Language,
             isError = motherTongueError,
             supportingText = if (motherTongueError) "Mother tongue is required" else null
         )
         RequiredTextField(
             currentCity,
-            { currentCity = it },
+            {
+                currentCityTouched = true
+                currentCity = it
+            },
             "Current city",
+            placeholder = "Enter current city",
             leadingIcon = Icons.Filled.LocationOn,
             isError = currentCityError,
             supportingText = when {
-                currentCity.isBlank() && hasInteracted -> "Current city is required"
+                currentCityTouched && currentCity.isBlank() -> "Current city is required"
                 currentCity.isNotBlank() && !isValidLocationName(currentCity) -> "Please enter a valid city name"
                 else -> null
             }
         )
         RequiredTextField(
             nativePlace,
-            { nativePlace = it },
+            {
+                nativePlaceTouched = true
+                nativePlace = it
+            },
             "Native place",
+            placeholder = "Enter native place",
             leadingIcon = Icons.Filled.Home,
             isError = nativePlaceError,
             supportingText = when {
-                nativePlace.isBlank() && hasInteracted -> "Native place is required"
+                nativePlaceTouched && nativePlace.isBlank() -> "Native place is required"
                 nativePlace.isNotBlank() && !isValidLocationName(nativePlace) -> "Please enter a valid native place"
                 else -> null
             }
@@ -666,6 +693,11 @@ private fun Step2ReligiousCommunity(existing: ProfileData?, vm: ProfileViewModel
     var subCaste by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("subCaste", existing?.subCaste.orEmpty())) }
     var gothram by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("gotra", existing?.gotra.orEmpty())) }
     var religiousValues by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("religiousValues", existing?.religiousValues.orEmpty())) }
+    var religionTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var casteTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var subCasteTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var gothramTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var religiousValuesTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
     LaunchedEffect(existing?.profileId) {
         if (religion.isBlank() && existing?.religion?.isNotBlank() == true) religion = existing.religion
         if (caste.isBlank() && existing?.caste?.isNotBlank() == true) caste = existing.caste
@@ -673,10 +705,9 @@ private fun Step2ReligiousCommunity(existing: ProfileData?, vm: ProfileViewModel
         if (gothram.isBlank() && existing?.gotra?.isNotBlank() == true) gothram = existing.gotra
         if (religiousValues.isBlank() && existing?.religiousValues?.isNotBlank() == true) religiousValues = existing.religiousValues
     }
-    val hasInteracted = listOf(religion, caste, subCaste, gothram, religiousValues).any { it.isNotBlank() }
-    val religionError = (hasInteracted && religion.isBlank()) || (religion.isNotBlank() && !isValidPlainText(religion))
-    val casteError = (hasInteracted && caste.isBlank()) || (caste.isNotBlank() && !isValidPlainText(caste))
-    val gothramError = gothram.isNotBlank() && !isValidPlainText(gothram)
+    val religionError = religionTouched && (religion.isBlank() || !isValidPlainText(religion))
+    val casteError = casteTouched && (caste.isBlank() || !isValidPlainText(caste))
+    val gothramError = gothramTouched && gothram.isNotBlank() && !isValidPlainText(gothram)
 
     val isValid = religion.isNotBlank() && caste.isNotBlank() && !religionError && !casteError && !gothramError
     LaunchedEffect(religion, caste, subCaste, gothram, religiousValues) {
@@ -695,31 +726,55 @@ private fun Step2ReligiousCommunity(existing: ProfileData?, vm: ProfileViewModel
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         RequiredTextField(
             religion,
-            { religion = it },
+            {
+                religionTouched = true
+                religion = it
+            },
             "Religion",
+            placeholder = "Enter religion",
+            leadingIcon = Icons.Outlined.AutoAwesome,
             isError = religionError,
             supportingText = when {
-                religion.isBlank() && hasInteracted -> "Religion is required"
+                religionTouched && religion.isBlank() -> "Religion is required"
                 religion.isNotBlank() && !isValidPlainText(religion) -> "Please enter a valid religion"
                 else -> null
             }
         )
         RequiredTextField(
             caste,
-            { caste = it },
-            "Community / caste",
+            {
+                casteTouched = true
+                caste = it
+            },
+            "Caste / community",
+            placeholder = "Select community",
+            leadingIcon = Icons.Filled.People,
             isError = casteError,
             supportingText = when {
-                caste.isBlank() && hasInteracted -> "Community is required"
+                casteTouched && caste.isBlank() -> "Community is required"
                 caste.isNotBlank() && !isValidPlainText(caste) -> "Please enter a valid community"
                 else -> null
             }
         )
-        RequiredTextField(subCaste, { subCaste = it }, "Sub-caste")
+        RequiredTextField(
+            subCaste,
+            {
+                subCasteTouched = true
+                subCaste = it
+            },
+            "Sub-caste",
+            placeholder = "Enter sub-caste",
+            leadingIcon = Icons.Filled.Home
+        )
         RequiredTextField(
             gothram,
-            { gothram = it },
-            "Gothram",
+            {
+                gothramTouched = true
+                gothram = it
+            },
+            "Gothram / denomination",
+            placeholder = "Enter gothram",
+            leadingIcon = Icons.Filled.Home,
             isError = gothramError,
             supportingText = if (gothramError) "Please enter a valid gothram" else null
         )
@@ -727,7 +782,12 @@ private fun Step2ReligiousCommunity(existing: ProfileData?, vm: ProfileViewModel
             label = "Religious values",
             value = religiousValues,
             options = listOf("Traditional", "Moderate", "Spiritual", "Liberal"),
-            onSelect = { religiousValues = it }
+            onSelect = {
+                religiousValuesTouched = true
+                religiousValues = it
+            },
+            placeholder = "Select religious values",
+            leadingIcon = Icons.Filled.CheckCircle
         )
     }
 }
@@ -741,23 +801,28 @@ private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValid
     var companyName by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("companyName", existing?.companyName.orEmpty())) }
     var annualIncome by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("annualIncome", existing?.annualIncome.orEmpty())) }
     var workLocation by rememberSaveable(existing?.profileId) {
-        mutableStateOf(draft.stringValue("workingCity", existing?.workLocation?.ifBlank { existing.workingCity.orEmpty() } ?: existing?.workingCity.orEmpty()))
+        mutableStateOf(draft.stringValue("workLocation", existing?.workLocation.orEmpty()))
     }
+    var educationTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var institutionTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var occupationTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var companyTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var incomeTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var workLocationTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
     LaunchedEffect(existing?.profileId) {
         if (educationLevel.isBlank() && existing?.educationLevel?.isNotBlank() == true) educationLevel = existing.educationLevel
         if (institutionName.isBlank() && existing?.institutionName?.isNotBlank() == true) institutionName = existing.institutionName
         if (occupation.isBlank() && existing?.occupation?.isNotBlank() == true) occupation = existing.occupation
         if (companyName.isBlank() && existing?.companyName?.isNotBlank() == true) companyName = existing.companyName
         if (annualIncome.isBlank() && existing?.annualIncome?.isNotBlank() == true) annualIncome = existing.annualIncome
-        if (workLocation.isBlank()) {
-            workLocation = existing?.workLocation?.ifBlank { existing.workingCity.orEmpty() } ?: existing?.workingCity.orEmpty()
+        if (workLocation.isBlank() && existing?.workLocation?.isNotBlank() == true) {
+            workLocation = existing.workLocation
         }
     }
     val workingState = existing?.workingState.orEmpty()
     val workingPincode = existing?.workingPincode.orEmpty()
-    val hasInteracted = listOf(educationLevel, institutionName, occupation, companyName, annualIncome, workLocation).any { it.isNotBlank() }
-    val companyError = hasInteracted && companyName.isBlank()
-    val workLocationError = (hasInteracted && workLocation.isBlank()) || (workLocation.isNotBlank() && !isValidLocationName(workLocation))
+    val companyError = companyTouched && companyName.isBlank()
+    val workLocationError = workLocationTouched && (workLocation.isBlank() || !isValidLocationName(workLocation))
 
     val isValid = educationLevel.isNotBlank() &&
         institutionName.isNotBlank() &&
@@ -786,17 +851,45 @@ private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValid
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         SelectionField(
-            label = "Highest qualification",
+            label = "Highest education",
             value = educationLevel,
             options = listOf("High School", "Diploma", "Graduate", "Post Graduate", "MBA", "Doctorate", "Professional"),
-            onSelect = { educationLevel = it }
+            onSelect = {
+                educationTouched = true
+                educationLevel = it
+            },
+            placeholder = "Select education",
+            leadingIcon = Icons.Filled.School
         )
-        RequiredTextField(institutionName, { institutionName = it }, "Institution")
-        RequiredTextField(occupation, { occupation = it }, "Occupation")
+        RequiredTextField(
+            institutionName,
+            {
+                institutionTouched = true
+                institutionName = it
+            },
+            "Institution",
+            placeholder = "Enter institution",
+            leadingIcon = Icons.Filled.School
+        )
+        RequiredTextField(
+            occupation,
+            {
+                occupationTouched = true
+                occupation = it
+            },
+            "Occupation",
+            placeholder = "Enter occupation",
+            leadingIcon = Icons.Filled.Work
+        )
         RequiredTextField(
             companyName,
-            { companyName = it },
+            {
+                companyTouched = true
+                companyName = it
+            },
             "Company",
+            placeholder = "Enter company",
+            leadingIcon = Icons.Filled.Work,
             isError = companyError,
             supportingText = if (companyError) "Company name is required" else null
         )
@@ -804,15 +897,25 @@ private fun Step3Education(existing: ProfileData?, vm: ProfileViewModel, onValid
             label = "Annual income",
             value = annualIncome,
             options = listOf("< 3 LPA", "3-5 LPA", "5-10 LPA", "10-20 LPA", "20-35 LPA", "35+ LPA"),
-            onSelect = { annualIncome = it }
+            onSelect = {
+                incomeTouched = true
+                annualIncome = it
+            },
+            placeholder = "Select annual income",
+            leadingIcon = Icons.Filled.CheckCircle
         )
         RequiredTextField(
             workLocation,
-            { workLocation = it },
+            {
+                workLocationTouched = true
+                workLocation = it
+            },
             "Work location",
+            placeholder = "Enter work location",
+            leadingIcon = Icons.Filled.LocationOn,
             isError = workLocationError,
             supportingText = when {
-                workLocation.isBlank() && hasInteracted -> "Work location is required"
+                workLocationTouched && workLocation.isBlank() -> "Work location is required"
                 workLocation.isNotBlank() && !isValidLocationName(workLocation) -> "Please enter a valid work location"
                 else -> null
             }
@@ -837,6 +940,12 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
             )
         )
     }
+    var familyStatusTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var familyTypeTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var fatherOccupationTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var motherOccupationTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var siblingsTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
+    var aboutFamilyTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
     LaunchedEffect(existing?.profileId) {
         if (familyStatus.isBlank() && existing?.familyStatus?.isNotBlank() == true) familyStatus = existing.familyStatus
         if (fatherOccupation.isBlank() && existing?.fatherOccupation?.isNotBlank() == true) fatherOccupation = existing.fatherOccupation
@@ -848,8 +957,7 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
             aboutFamily = existing?.aboutFamily?.ifBlank { existing.familyLocality.orEmpty() } ?: existing?.familyLocality.orEmpty()
         }
     }
-    val hasInteracted = listOf(familyStatus, fatherOccupation, motherOccupation, familyType, numBrothers, numSisters, aboutFamily).any { it.isNotBlank() }
-    val aboutFamilyError = aboutFamily.isNotBlank() && aboutFamily.trim().length < 40
+    val aboutFamilyError = aboutFamilyTouched && (aboutFamily.isBlank() || aboutFamily.trim().length < 40)
 
     val isValid = familyStatus.isNotBlank() &&
         fatherOccupation.isNotBlank() &&
@@ -878,55 +986,90 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         SelectionField(
-            label = "Family status",
-            value = familyStatus,
-            options = listOf("Middle class", "Upper middle class", "Affluent", "Simple and grounded"),
-            onSelect = { familyStatus = it }
-        )
-        SelectionField(
             label = "Family type",
             value = familyType,
             options = listOf("Nuclear", "Joint"),
-            onSelect = { familyType = it }
+            onSelect = {
+                familyTypeTouched = true
+                familyType = it
+            },
+            placeholder = "Select family type",
+            leadingIcon = Icons.Filled.People
         )
-        RequiredTextField(fatherOccupation, { fatherOccupation = it }, "Father occupation")
-        RequiredTextField(motherOccupation, { motherOccupation = it }, "Mother occupation")
+        SelectionField(
+            label = "Family status",
+            value = familyStatus,
+            options = listOf("Middle class", "Upper middle class", "Affluent", "Simple and grounded"),
+            onSelect = {
+                familyStatusTouched = true
+                familyStatus = it
+            },
+            placeholder = "Select family status",
+            leadingIcon = Icons.Filled.Home
+        )
+        RequiredTextField(
+            fatherOccupation,
+            {
+                fatherOccupationTouched = true
+                fatherOccupation = it
+            },
+            "Father occupation",
+            placeholder = "Enter father occupation",
+            leadingIcon = Icons.Filled.Work
+        )
+        RequiredTextField(
+            motherOccupation,
+            {
+                motherOccupationTouched = true
+                motherOccupation = it
+            },
+            "Mother occupation",
+            placeholder = "Enter mother occupation",
+            leadingIcon = Icons.Filled.Work
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             SelectionField(
                 label = "Brothers",
                 value = numBrothers,
                 options = listOf("0", "1", "2", "3", "4+"),
-                onSelect = { numBrothers = it.filter(Char::isDigit) },
+                onSelect = {
+                    siblingsTouched = true
+                    numBrothers = it.filter(Char::isDigit)
+                },
+                placeholder = "Select brothers",
+                leadingIcon = Icons.Filled.People,
                 modifier = Modifier.weight(1f)
             )
             SelectionField(
                 label = "Sisters",
                 value = numSisters,
                 options = listOf("0", "1", "2", "3", "4+"),
-                onSelect = { numSisters = it.filter(Char::isDigit) },
+                onSelect = {
+                    siblingsTouched = true
+                    numSisters = it.filter(Char::isDigit)
+                },
+                placeholder = "Select sisters",
+                leadingIcon = Icons.Filled.People,
                 modifier = Modifier.weight(1f)
             )
         }
-        OutlinedTextField(
+        RequiredTextField(
             value = aboutFamily,
-            onValueChange = { aboutFamily = it },
-            label = { Text("About family *") },
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 4,
-            isError = aboutFamilyError,
-            supportingText = {
-                if (aboutFamilyError) {
-                    Text("About family needs at least 40 characters.")
-                } else if (hasInteracted && aboutFamily.isBlank()) {
-                    Text("About family is required")
-                }
+            onValueChange = {
+                aboutFamilyTouched = true
+                aboutFamily = it
             },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White,
-                disabledContainerColor = Color.White,
-                errorContainerColor = Color.White
-            )
+            label = "About family",
+            placeholder = "Enter a short family note",
+            leadingIcon = Icons.Filled.Info,
+            isError = aboutFamilyError,
+            supportingText = when {
+                aboutFamilyTouched && aboutFamily.isBlank() -> "About family is required"
+                aboutFamilyTouched && aboutFamily.trim().length < 40 -> "About family needs at least 40 characters."
+                else -> null
+            },
+            minLines = 4,
+            singleLine = false
         )
     }
 }
@@ -1278,12 +1421,60 @@ private fun ValidationBanner(message: String) {
     }
 }
 
+@Composable
+private fun WizardStepLead(headline: String, description: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = headline,
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.ExtraBold
+            ),
+            color = SoulMatchTokens.Text
+        )
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyLarge,
+            color = SoulMatchTokens.Muted,
+            lineHeight = 28.sp
+        )
+    }
+}
+
+@Composable
+private fun FieldLabel(label: String) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = SoulMatchTokens.Muted
+    )
+}
+
+private fun selectPlaceholderForLabel(label: String): String = when {
+    label.contains("community", ignoreCase = true) -> "Select community"
+    label.contains("gender", ignoreCase = true) -> "Select gender"
+    label.contains("mother tongue", ignoreCase = true) -> "Select mother tongue"
+    label.contains("marital", ignoreCase = true) -> "Select marital status"
+    label.contains("height", ignoreCase = true) -> "Select height"
+    label.contains("family type", ignoreCase = true) -> "Select family type"
+    label.contains("family status", ignoreCase = true) -> "Select family status"
+    label.contains("annual income", ignoreCase = true) -> "Select annual income"
+    else -> "Select ${label.lowercase()}"
+}
+
+private fun enterPlaceholderForLabel(label: String): String = when {
+    label.contains("full name", ignoreCase = true) -> "Enter full name"
+    label.contains("date of birth", ignoreCase = true) -> "DD-MM-YYYY"
+    else -> "Enter ${label.lowercase()}"
+}
+
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun ChipRow(title: String, options: List<String>, selected: String, onSelect: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("$title *", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = SoulMatchTokens.Text)
+        FieldLabel(title)
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = { expanded = !expanded },
@@ -1335,30 +1526,40 @@ private fun RequiredTextField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
+    placeholder: String = enterPlaceholderForLabel(label),
     modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text,
     leadingIcon: ImageVector? = null,
     isError: Boolean = false,
-    supportingText: String? = null
+    supportingText: String? = null,
+    minLines: Int = 1,
+    singleLine: Boolean = true
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text("$label *") },
-        isError = isError,
-        supportingText = supportingText?.let { message -> { Text(message) } },
+    Column(
         modifier = modifier.fillMaxWidth(),
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        leadingIcon = leadingIcon?.let { icon -> { Icon(icon, contentDescription = null, tint = SoulMatchTokens.Tangerine) } },
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = Color.White,
-            unfocusedContainerColor = Color.White,
-            disabledContainerColor = Color.White,
-            errorContainerColor = Color.White
-        ),
-        shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
-        singleLine = true
-    )
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        FieldLabel(label)
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = { Text(placeholder, color = SoulMatchTokens.Muted) },
+            isError = isError,
+            supportingText = supportingText?.let { message -> { Text(message) } },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            leadingIcon = leadingIcon?.let { icon -> { Icon(icon, contentDescription = null, tint = SoulMatchTokens.Tangerine) } },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                disabledContainerColor = Color.White,
+                errorContainerColor = Color.White
+            ),
+            shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
+            minLines = minLines,
+            singleLine = singleLine
+        )
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -1370,7 +1571,7 @@ private fun MultiSelectChipField(
     onChange: (List<String>) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("$title *", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = SoulMatchTokens.Text)
+        FieldLabel(title)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             options.forEach { option ->
                 FilterChoiceChip(
@@ -1399,23 +1600,29 @@ private fun NumberField(
     isError: Boolean = false,
     supportingText: String? = null
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text("$label *") },
-        isError = isError,
-        supportingText = supportingText?.let { message -> { Text(message) } },
+    Column(
         modifier = modifier.fillMaxWidth(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = Color.White,
-            unfocusedContainerColor = Color.White,
-            disabledContainerColor = Color.White,
-            errorContainerColor = Color.White
-        ),
-        shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
-        singleLine = true
-    )
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        FieldLabel(label)
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = { Text(enterPlaceholderForLabel(label), color = SoulMatchTokens.Muted) },
+            isError = isError,
+            supportingText = supportingText?.let { message -> { Text(message) } },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                disabledContainerColor = Color.White,
+                errorContainerColor = Color.White
+            ),
+            shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
+            singleLine = true
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1426,54 +1633,61 @@ private fun SelectionField(
     options: List<String>,
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
+    placeholder: String = selectPlaceholderForLabel(label),
     leadingIcon: ImageVector? = null,
     isError: Boolean = false,
     supportingText: String? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
-        modifier = modifier.fillMaxWidth()
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {},
-            label = { Text("$label *") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(),
-            readOnly = true,
-            isError = isError,
-            supportingText = supportingText?.let { message -> { Text(message) } },
-            leadingIcon = leadingIcon?.let { icon -> { Icon(icon, contentDescription = null, tint = SoulMatchTokens.Tangerine) } },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White,
-                disabledContainerColor = Color.White,
-                errorContainerColor = Color.White
-            ),
-            shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
-            singleLine = true
-        )
-        ExposedDropdownMenu(
+        FieldLabel(label)
+        ExposedDropdownMenuBox(
             expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier
-                .exposedDropdownSize(matchTextFieldWidth = true)
-                .background(Color.White)
+            onExpandedChange = { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth()
         ) {
-            options.forEachIndexed { index, option ->
-                DropdownMenuItem(
-                    text = { Text(option) },
-                    onClick = {
-                        onSelect(option)
-                        expanded = false
+            OutlinedTextField(
+                value = value,
+                onValueChange = {},
+                placeholder = { Text(placeholder, color = SoulMatchTokens.Muted) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(),
+                readOnly = true,
+                isError = isError,
+                supportingText = supportingText?.let { message -> { Text(message) } },
+                leadingIcon = leadingIcon?.let { icon -> { Icon(icon, contentDescription = null, tint = SoulMatchTokens.Tangerine) } },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    disabledContainerColor = Color.White,
+                    errorContainerColor = Color.White
+                ),
+                shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
+                singleLine = true
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier
+                    .exposedDropdownSize(matchTextFieldWidth = true)
+                    .background(Color.White, RoundedCornerShape(SoulMatchTokens.CardRadius))
+            ) {
+                options.forEachIndexed { index, option ->
+                    DropdownMenuItem(
+                        text = { Text(option, modifier = Modifier.fillMaxWidth()) },
+                        onClick = {
+                            onSelect(option)
+                            expanded = false
+                        }
+                    )
+                    if (index < options.lastIndex) {
+                        Divider(color = SoulMatchTokens.Border)
                     }
-                )
-                if (index < options.lastIndex) {
-                    Divider(color = SoulMatchTokens.Border)
                 }
             }
         }
@@ -1527,6 +1741,7 @@ private fun DatePickerField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
+    placeholder: String = enterPlaceholderForLabel(label),
     leadingIcon: ImageVector? = null,
     isError: Boolean = false,
     supportingText: String? = null
@@ -1554,31 +1769,34 @@ private fun DatePickerField(
             datePicker.minDate = LocalDate.now().minusYears(80).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         }
     }
-    OutlinedTextField(
-        value = value,
-        onValueChange = { raw -> onValueChange(formatDateInput(raw)) },
-        label = { Text("$label *") },
-        modifier = Modifier.fillMaxWidth(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        isError = isError,
-        supportingText = supportingText?.let { message -> { Text(message) } },
-        leadingIcon = leadingIcon?.let { icon -> { Icon(icon, contentDescription = null, tint = SoulMatchTokens.Tangerine) } },
-        trailingIcon = {
-            Icon(
-                Icons.Filled.ArrowDropDown,
-                contentDescription = "Open calendar",
-                tint = SoulMatchTokens.Tangerine,
-                modifier = Modifier.clickable { picker.show() }
-            )
-        },
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = Color.White,
-            unfocusedContainerColor = Color.White,
-            disabledContainerColor = Color.White,
-            errorContainerColor = Color.White
-        ),
-        shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
-        singleLine = true
-    )
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FieldLabel(label)
+        OutlinedTextField(
+            value = value,
+            onValueChange = { raw -> onValueChange(formatDateInput(raw)) },
+            placeholder = { Text(placeholder, color = SoulMatchTokens.Muted) },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            isError = isError,
+            supportingText = supportingText?.let { message -> { Text(message) } },
+            leadingIcon = leadingIcon?.let { icon -> { Icon(icon, contentDescription = null, tint = SoulMatchTokens.Tangerine) } },
+            trailingIcon = {
+                Icon(
+                    Icons.Filled.ArrowDropDown,
+                    contentDescription = "Open calendar",
+                    tint = SoulMatchTokens.Tangerine,
+                    modifier = Modifier.clickable { picker.show() }
+                )
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White,
+                disabledContainerColor = Color.White,
+                errorContainerColor = Color.White
+            ),
+            shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
+            singleLine = true
+        )
+    }
 }
 

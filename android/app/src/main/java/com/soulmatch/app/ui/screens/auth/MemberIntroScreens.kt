@@ -26,6 +26,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.VerifiedUser
@@ -194,71 +195,85 @@ fun OnboardingBenefitScreen(
         }
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(SoulMatchTokens.Bg)
             .statusBarsPadding()
-            .padding(horizontal = 22.dp, vertical = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(horizontal = 22.dp, vertical = 24.dp)
     ) {
-        Spacer(Modifier.height(70.dp))
-        SoftIcon {
-            Icon(
-                slides[pagerState.currentPage].icon,
-                contentDescription = null,
-                tint = SoulMatchTokens.Tangerine,
-                modifier = Modifier.size(34.dp)
-            )
-        }
-        Spacer(Modifier.height(28.dp))
-        Text(
-            text = "A safer way to meet",
-            color = SoulMatchTokens.Text,
-            fontFamily = FontFamily.Serif,
-            fontSize = 34.sp,
-            lineHeight = 40.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
+        DecorativeStar(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 120.dp, end = 20.dp)
         )
-        Text(
-            text = "SoulMatch keeps verification, privacy, and recommendations moving together while you build your profile.",
-            modifier = Modifier.padding(top = 16.dp, bottom = 28.dp),
-            color = SoulMatchTokens.Muted,
-            style = MaterialTheme.typography.bodyLarge,
-            lineHeight = 26.sp,
-            textAlign = TextAlign.Center
+        DecorativeStar(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 46.dp, bottom = 170.dp)
         )
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxWidth()
-        ) { page ->
-            val slide = slides[page]
-            BenefitCard(slide.icon, slide.title, slide.body)
-        }
-        Row(
-            modifier = Modifier.padding(top = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            repeat(slides.size) { index ->
-                Box(
-                    modifier = Modifier
-                        .size(width = if (index == pagerState.currentPage) 30.dp else 10.dp, height = 10.dp)
-                        .background(
-                            if (index == pagerState.currentPage) SoulMatchTokens.Tangerine else SoulMatchTokens.Border,
-                            RoundedCornerShape(999.dp)
-                        )
+            Spacer(Modifier.height(70.dp))
+            SoftIcon {
+                Icon(
+                    Icons.Filled.Favorite,
+                    contentDescription = null,
+                    tint = SoulMatchTokens.Tangerine,
+                    modifier = Modifier.size(34.dp)
                 )
             }
+            Spacer(Modifier.height(28.dp))
+            Text(
+                text = "A safer way to meet",
+                color = SoulMatchTokens.Text,
+                fontFamily = FontFamily.Serif,
+                fontSize = 34.sp,
+                lineHeight = 40.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "SoulMatch keeps verification, privacy, and recommendations moving together while you build your profile.",
+                modifier = Modifier.padding(top = 16.dp, bottom = 28.dp),
+                color = SoulMatchTokens.Muted,
+                style = MaterialTheme.typography.bodyLarge,
+                lineHeight = 26.sp,
+                textAlign = TextAlign.Center
+            )
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxWidth()
+            ) { page ->
+                val slide = slides[page]
+                BenefitCard(slide.icon, slide.title, slide.body)
+            }
+            Row(
+                modifier = Modifier.padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                repeat(slides.size) { index ->
+                    Box(
+                        modifier = Modifier
+                            .size(width = if (index == pagerState.currentPage) 30.dp else 10.dp, height = 10.dp)
+                            .background(
+                                if (index == pagerState.currentPage) SoulMatchTokens.Tangerine else SoulMatchTokens.Border,
+                                RoundedCornerShape(999.dp)
+                            )
+                    )
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            SoulMatchPrimaryButton(
+                text = "Continue to profile creation",
+                onClick = {
+                    vm.completeOnboarding(onContinue)
+                },
+                modifier = Modifier.height(64.dp)
+            )
         }
-        Spacer(Modifier.weight(1f))
-        SoulMatchPrimaryButton(
-            text = "Continue to profile creation",
-            onClick = {
-                vm.completeOnboarding(onContinue)
-            },
-            modifier = Modifier.height(64.dp)
-        )
     }
 }
 
@@ -473,7 +488,7 @@ private fun BenefitCard(icon: ImageVector, title: String, subtitle: String) {
 }
 
 @Composable
-private fun SoftIcon(content: @Composable () -> Unit) {
+fun SoftIcon(content: @Composable () -> Unit) {
     Surface(shape = CircleShape, color = SoulMatchTokens.Ivory, border = BorderStroke(1.dp, SoulMatchTokens.Border), modifier = Modifier.size(86.dp)) {
         Box(contentAlignment = Alignment.Center) { content() }
     }
@@ -505,6 +520,16 @@ private data class BenefitSlide(
     val title: String,
     val body: String
 )
+
+@Composable
+fun DecorativeStar(modifier: Modifier = Modifier) {
+    Icon(
+        imageVector = Icons.Outlined.AutoAwesome,
+        contentDescription = null,
+        tint = SoulMatchTokens.Tangerine,
+        modifier = modifier.size(16.dp)
+    )
+}
 
 @Composable
 private fun SparkleCluster(modifier: Modifier = Modifier) {

@@ -4,15 +4,16 @@ import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.AgentProfileData
 
 private fun safeText(value: String?): String = value.orEmpty()
+private fun profileDraftRoute(step: Int): String = "profile_wizard/${step.coerceIn(1, 6)}"
 
 fun resolveMemberResumeRoute(
     profile: ProfileData?,
     storedWizardStep: Int,
     onboardingSeen: Boolean = false
 ): String {
-    val safeProfile = profile ?: return if (onboardingSeen) "profile_intro" else "onboarding_benefit"
+    val safeProfile = profile ?: return if (onboardingSeen) profileDraftRoute(storedWizardStep) else "onboarding_benefit"
     if (safeProfile.profileId.isBlank()) {
-        return if (onboardingSeen) "profile_intro" else "onboarding_benefit"
+        return if (onboardingSeen) profileDraftRoute(storedWizardStep) else "onboarding_benefit"
     }
     if (safeText(safeProfile.reviewStatus).equals("rejected", true)) {
         return "profile_correction_required"

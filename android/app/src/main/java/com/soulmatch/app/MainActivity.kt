@@ -209,7 +209,11 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                         if (profile?.profileId.isNullOrBlank()) {
                             userPreferences.clearProfileProgress()
                             userPreferences.saveWizardStep(1)
-                            startDestination = if (memberOnboardingSeen) "profile_intro" else "onboarding_benefit"
+                            startDestination = if (memberOnboardingSeen) {
+                                "profile_wizard/1"
+                            } else {
+                                "onboarding_benefit"
+                            }
                             return@LaunchedEffect
                         } else {
                             userPreferences.saveProfileId(profile?.profileId.orEmpty())

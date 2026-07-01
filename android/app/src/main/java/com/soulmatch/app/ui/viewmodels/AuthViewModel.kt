@@ -283,7 +283,7 @@ class AuthViewModel @Inject constructor(
                 }
             )
             if (requestedUserType == "member" && data.isNewUser && profile?.profileId.isNullOrBlank()) {
-                if (onboardingSeen) "profile_intro" else "onboarding_benefit"
+                if (onboardingSeen) "profile_wizard/1" else "onboarding_benefit"
             } else {
                 resolveMemberResumeRoute(profile, storedWizardStep, onboardingSeen)
             }
@@ -293,7 +293,7 @@ class AuthViewModel @Inject constructor(
         } else {
             prefs.savePendingAuthRoute(route)
         }
-        if (route == "profile_intro") {
+        if (route == "profile_intro" || route == "profile_wizard/1") {
             prefs.clearProfileProgress()
             prefs.saveWizardStep(1)
         }
@@ -337,9 +337,9 @@ class AuthViewModel @Inject constructor(
         val lower = raw.lowercase()
         return when {
             otpFlow && (lower.contains("invalid otp") || lower.contains("invalid code") || lower.contains("otp is invalid")) ->
-                "Invalid OTP"
+                "Wrong / Expired OTP. Please check and enter again."
             otpFlow && (lower.contains("expired otp") || lower.contains("otp expired") || lower.contains("code expired")) ->
-                "Invalid OTP"
+                "Wrong / Expired OTP. Please check and enter again."
             lower.contains("temporarily not available") -> "Service is temporarily not available. Please try again."
             lower.contains("failed to connect") ||
                 lower.contains("connection refused") ||

@@ -6,7 +6,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,12 +26,10 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -141,79 +138,89 @@ fun WelcomeScreen(
                 .statusBarsPadding()
                 .imePadding()
                 .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            AuthPageHeader(
-                title = "Login or register",
-                onBack = onBackToLanguage
-            )
-            Spacer(Modifier.height(22.dp))
-            Text(
-                text = "Enter your mobile number or continue with Google. We'll verify your number with OTP and then take you to the right screen.",
-                modifier = Modifier.fillMaxWidth(),
-                color = SoulMatchTokens.Muted,
-                style = MaterialTheme.typography.bodyLarge,
-                lineHeight = 28.sp
-            )
-            Spacer(Modifier.height(28.dp))
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text("Mobile number", color = SoulMatchTokens.Muted, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                MobileNumberField(
-                    value = phone,
-                    onValueChange = {
-                        phone = it.filter(Char::isDigit).take(10)
-                        localPhoneError = null
-                        lastAction = "phone"
-                        vm.clearError()
-                    }
-                )
-                if (localPhoneError != null) {
-                    Text(
-                        text = localPhoneError.orEmpty(),
-                        color = SoulMatchTokens.Error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                }
-                if (state is AuthUiState.Error && lastAction == "phone") {
-                    Text(
-                        text = (state as AuthUiState.Error).message,
-                        color = SoulMatchTokens.Error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                }
-            }
-            Surface(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 28.dp),
-                color = SoulMatchTokens.Ivory,
-                shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
-                border = BorderStroke(1.dp, SoulMatchTokens.Border)
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(
+                AuthPageHeader(
+                    title = "Login or Register",
+                    onBack = onBackToLanguage
+                )
+                Spacer(Modifier.height(22.dp))
+                Text(
+                    text = "Enter your mobile number or continue with Google. We'll verify your number with OTP and then take you to the right screen.",
+                    modifier = Modifier.fillMaxWidth(),
+                    color = SoulMatchTokens.Muted,
+                    style = MaterialTheme.typography.bodyLarge,
+                    lineHeight = 28.sp
+                )
+                Spacer(Modifier.height(28.dp))
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("Mobile number", color = SoulMatchTokens.Muted, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    MobileNumberField(
+                        value = phone,
+                        onValueChange = {
+                            phone = it.filter(Char::isDigit).take(10)
+                            localPhoneError = null
+                            lastAction = "phone"
+                            vm.clearError()
+                        }
+                    )
+                    if (localPhoneError != null) {
+                        Text(
+                            text = localPhoneError.orEmpty(),
+                            color = SoulMatchTokens.Error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                    if (state is AuthUiState.Error && lastAction == "phone") {
+                        Text(
+                            text = (state as AuthUiState.Error).message,
+                            color = SoulMatchTokens.Error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 18.dp, vertical = 18.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        .padding(top = 28.dp),
+                    color = SoulMatchTokens.Ivory,
+                    shape = RoundedCornerShape(SoulMatchTokens.CardRadius),
+                    border = BorderStroke(1.dp, SoulMatchTokens.Border)
                 ) {
-                    Icon(Icons.Filled.Security, contentDescription = null, tint = SoulMatchTokens.Tangerine, modifier = Modifier.size(28.dp))
-                    Text(
-                        text = "After OTP, existing users continue to their app and new users start profile setup.",
-                        color = SoulMatchTokens.Muted,
-                        style = MaterialTheme.typography.bodyMedium,
-                        lineHeight = 22.sp
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp, vertical = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.login_route_icon),
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Text(
+                            text = "After OTP, existing users continue to their app and new users start profile setup.",
+                            color = SoulMatchTokens.Muted,
+                            style = MaterialTheme.typography.bodyMedium,
+                            lineHeight = 22.sp
+                        )
+                    }
                 }
+                Spacer(Modifier.height(24.dp))
             }
-            Spacer(Modifier.height(28.dp))
             Button(
                 onClick = {
                     lastAction = "phone"
@@ -260,7 +267,7 @@ fun WelcomeScreen(
                     }
                 else -> Unit
             }
-            ContinueWithDivider(modifier = Modifier.padding(vertical = 16.dp))
+            ContinueWithDivider(modifier = Modifier.padding(top = 16.dp, bottom = 16.dp))
             OutlinedButton(
                 onClick = {
                     lastAction = "google"
@@ -292,6 +299,7 @@ fun WelcomeScreen(
                 Spacer(Modifier.width(12.dp))
                 Text(content.googleCta.ifBlank { "Continue with Google" }, fontWeight = FontWeight.Bold, fontSize = 17.sp)
             }
+            Spacer(Modifier.height(12.dp))
             LegalLinks(
                 prefix = content.termsPrefix.ifBlank { "By continuing, you agree to our" },
                 onOpenTerms = onOpenTerms,
@@ -312,29 +320,42 @@ private fun MobileNumberField(
         border = BorderStroke(1.dp, SoulMatchTokens.Border),
         color = SoulMatchTokens.Ivory
     ) {
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 18.dp, vertical = 18.dp),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            textStyle = TextStyle(
-                color = SoulMatchTokens.Text,
-                fontSize = 18.sp
-            ),
-            decorationBox = { inner ->
-                if (value.isBlank()) {
-                    Text(
-                        text = "Enter your mobile number",
-                        color = SoulMatchTokens.Muted,
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Image(
+                painter = painterResource(R.drawable.mobile_login_icon),
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Box(modifier = Modifier.weight(1f)) {
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    textStyle = TextStyle(
+                        color = SoulMatchTokens.Text,
                         fontSize = 18.sp
-                    )
-                }
-                inner()
+                    ),
+                    decorationBox = { inner ->
+                        if (value.isBlank()) {
+                            Text(
+                                text = "Enter your mobile number",
+                                color = SoulMatchTokens.Muted,
+                                fontSize = 18.sp
+                            )
+                        }
+                        inner()
+                    }
+                )
             }
-        )
+        }
     }
 }
 
@@ -347,7 +368,7 @@ private fun ContinueWithDivider(modifier: Modifier = Modifier) {
     ) {
         Divider(modifier = Modifier.weight(1f), color = SoulMatchTokens.Border)
         Text(
-            text = "Or",
+            text = "or",
             color = SoulMatchTokens.Muted,
             fontSize = 14.sp
         )
