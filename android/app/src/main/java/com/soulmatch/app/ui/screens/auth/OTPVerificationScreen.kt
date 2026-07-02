@@ -8,9 +8,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -40,8 +42,14 @@ import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +81,8 @@ fun OTPVerificationScreen(
     val state by vm.uiState.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val density = LocalDensity.current
+    val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
     var countdown by remember { mutableIntStateOf(30) }
     var canResend by remember { mutableStateOf(false) }
     var resendCycle by remember { mutableIntStateOf(0) }
@@ -184,13 +194,18 @@ fun OTPVerificationScreen(
                         value = value,
                         onValueChange = { nextValue ->
                             if (nextValue.length <= 1 && nextValue.all(Char::isDigit)) {
-                                boxes[index] = nextValue
-                                if (errorMessage.isNotBlank()) vm.clearError()
-                                if (nextValue.isNotEmpty() && index < 5) {
-                                    focusers[index + 1].requestFocus()
-                                }
-                                if (boxes.joinToString("").length == 6) {
-                                    closeOtpKeyboard(focusManager, keyboardController)
+                                if (nextValue.isEmpty() && boxes[index].isNotEmpty()) {
+                                    boxes[index] = ""
+                                    if (errorMessage.isNotBlank()) vm.clearError()
+                                } else {
+                                    boxes[index] = nextValue
+                                    if (errorMessage.isNotBlank()) vm.clearError()
+                                    if (nextValue.isNotEmpty() && index < 5) {
+                                        focusers[index + 1].requestFocus()
+                                    }
+                                    if (boxes.joinToString("").length == 6) {
+                                        closeOtpKeyboard(focusManager, keyboardController)
+                                    }
                                 }
                             }
                         },
@@ -198,7 +213,27 @@ fun OTPVerificationScreen(
                             .weight(1f)
                             .height(76.dp)
                             .border(2.dp, borderColor, RoundedCornerShape(SoulMatchTokens.CardRadius))
-                            .focusRequester(focusers[index]),
+                            .focusRequester(focusers[index])
+                            .onPreviewKeyEvent { event ->
+                                if (event.type == KeyEventType.KeyDown && event.key == Key.Backspace) {
+                                    when {
+                                        boxes[index].isNotEmpty() -> {
+                                            boxes[index] = ""
+                                            if (errorMessage.isNotBlank()) vm.clearError()
+                                            true
+                                        }
+                                        index > 0 -> {
+                                            boxes[index - 1] = ""
+                                            focusers[index - 1].requestFocus()
+                                            if (errorMessage.isNotBlank()) vm.clearError()
+                                            true
+                                        }
+                                        else -> false
+                                    }
+                                } else {
+                                    false
+                                }
+                            },
                         textStyle = TextStyle(
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
@@ -248,27 +283,29 @@ fun OTPVerificationScreen(
             }
             Spacer(Modifier.weight(1f))
         }
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            if (state is AuthUiState.Loading) {
-                CircularProgressIndicator(
-                    color = SoulMatchTokens.Tangerine,
-                    modifier = Modifier
-                        .padding(bottom = 14.dp)
-                        .size(22.dp),
-                    strokeWidth = 2.dp
+        if (!isKeyboardOpen) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (state is AuthUiState.Loading) {
+                    CircularProgressIndicator(
+                        color = SoulMatchTokens.Tangerine,
+                        modifier = Modifier
+                            .padding(bottom = 14.dp)
+                            .size(22.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+                SoulMatchPrimaryButton(
+                    text = "Verify OTP",
+                    enabled = otpValue.length == 6 && state !is AuthUiState.Loading,
+                    onClick = { verifyOtp() },
+                    modifier = Modifier.height(64.dp)
                 )
             }
-            SoulMatchPrimaryButton(
-                text = "Verify OTP",
-                enabled = otpValue.length == 6 && state !is AuthUiState.Loading,
-                onClick = { verifyOtp() },
-                modifier = Modifier.height(64.dp)
-            )
         }
     }
 }

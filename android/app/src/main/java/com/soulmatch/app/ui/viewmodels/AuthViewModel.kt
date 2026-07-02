@@ -251,9 +251,7 @@ class AuthViewModel @Inject constructor(
                 profileApi.getMyProfile().body()?.takeIf { it.success }?.data
             }.getOrNull()
             val storedWizardStep = prefs.wizardStep.first()
-            if (profile?.profileId.isNullOrBlank()) {
-                prefs.clearProfileProgress()
-            } else {
+            if (!profile?.profileId.isNullOrBlank()) {
                 prefs.saveProfileId(profile?.profileId.orEmpty())
             }
             val resolvedWizardStep = when {
@@ -270,9 +268,7 @@ class AuthViewModel @Inject constructor(
             val resolvedStep = resolveWizardStep(profile)
             val onboardingSeen = prefs.memberOnboardingSeen.first()
             val storedWizardStep = prefs.wizardStep.first()
-            if (profile?.profileId.isNullOrBlank()) {
-                prefs.clearProfileProgress()
-            } else {
+            if (!profile?.profileId.isNullOrBlank()) {
                 prefs.saveProfileId(profile?.profileId.orEmpty())
             }
             prefs.saveWizardStep(
@@ -283,7 +279,7 @@ class AuthViewModel @Inject constructor(
                 }
             )
             if (requestedUserType == "member" && data.isNewUser && profile?.profileId.isNullOrBlank()) {
-                if (onboardingSeen) "profile_wizard/1" else "onboarding_benefit"
+                if (onboardingSeen) "profile_wizard/${storedWizardStep.coerceIn(1, 9)}" else "onboarding_benefit"
             } else {
                 resolveMemberResumeRoute(profile, storedWizardStep, onboardingSeen)
             }
@@ -293,8 +289,7 @@ class AuthViewModel @Inject constructor(
         } else {
             prefs.savePendingAuthRoute(route)
         }
-        if (route == "profile_intro" || route == "profile_wizard/1") {
-            prefs.clearProfileProgress()
+        if (route == "profile_intro" && prefs.wizardStep.first() <= 0) {
             prefs.saveWizardStep(1)
         }
         return route

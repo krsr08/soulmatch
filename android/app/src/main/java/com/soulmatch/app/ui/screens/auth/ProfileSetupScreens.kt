@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.VerifiedUser
@@ -153,7 +154,7 @@ fun ProfilePhotoUploadScreen(
     val uploadLabel by vm.photoUploadLabel.collectAsStateWithLifecycle()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
-        context.toPhotoPart(uri, photos.size)?.let { vm.uploadPhotos(listOf(it)) }
+        context.toPhotoPart(uri, photos.size)?.let { vm.uploadPhotos(listOf(it)) } ?: vm.setStatus("Couldn't read this photo. Please try another image.")
     }
 
     ProfileSetupScaffold(
@@ -162,7 +163,7 @@ fun ProfilePhotoUploadScreen(
         progressPercent = 70,
         stepLabel = "Step 7 of 10",
         progressLabel = "70% complete",
-        headline = "Add profile photos",
+        headline = "",
         body = "Use clear, recent photos. You control who can view them.",
         infoTitle = "Photo guidance",
         infoBody = "At least one clear face photo helps verification and trust. Primary photo shows first in match cards.",
@@ -196,7 +197,10 @@ fun ProfilePhotoUploadScreen(
         if (isUploading && uploadLabel != null) {
             UploadProgressCard(uploadLabel.orEmpty(), uploadProgress)
         }
-        SetupInfoNotice("Photos stay private until you choose visibility settings. Drag photos to reorder.")
+        SetupInfoNotice(
+            message = "Photos stay private until you choose visibility settings. Drag photos to reorder.",
+            icon = Icons.Filled.Lock
+        )
         if (!status.isNullOrBlank()) {
             InlineNotice(status.orEmpty(), error = status.orEmpty().contains("couldn't", ignoreCase = true))
         }
@@ -784,7 +788,10 @@ private fun InlineNotice(message: String, error: Boolean) {
 }
 
 @Composable
-private fun SetupInfoNotice(message: String) {
+private fun SetupInfoNotice(
+    message: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Filled.Info
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -797,7 +804,7 @@ private fun SetupInfoNotice(message: String) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Filled.Info,
+                imageVector = icon,
                 contentDescription = null,
                 tint = SoulMatchTokens.Tangerine,
                 modifier = Modifier.size(22.dp)

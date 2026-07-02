@@ -4,7 +4,7 @@ import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.AgentProfileData
 
 private fun safeText(value: String?): String = value.orEmpty()
-private fun profileDraftRoute(step: Int): String = "profile_wizard/${step.coerceIn(1, 6)}"
+private fun profileDraftRoute(step: Int): String = "profile_wizard/${step.coerceIn(1, 9)}"
 
 fun resolveMemberResumeRoute(
     profile: ProfileData?,

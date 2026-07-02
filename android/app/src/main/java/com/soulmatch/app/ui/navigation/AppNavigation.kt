@@ -394,6 +394,12 @@ fun AppNavigation(
                 if (args.containsKey("step")) args.getInt("step").coerceIn(1, 9) else 1
             } ?: 1
             val returnToProfile = backStack.arguments?.getBoolean("returnToProfile") ?: false
+            val goToWizardStep: (Int) -> Unit = { targetStep ->
+                nav.navigate("profile_wizard/$targetStep") {
+                    popUpTo("profile_wizard/$resolvedStep") { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
             if (resolvedStep <= 6) {
                 if (returnToProfile) {
                     ProfileWizardScreen(
@@ -405,7 +411,12 @@ fun AppNavigation(
                                 launchSingleTop = true
                             }
                         },
-                        onBack = { nav.popBackStack() }
+                        onBack = {
+                            when {
+                                resolvedStep > 1 -> goToWizardStep(resolvedStep - 1)
+                                else -> nav.popBackStack()
+                            }
+                        }
                     )
                 } else {
                     ProfileWizardScreen(
@@ -416,12 +427,17 @@ fun AppNavigation(
                                 launchSingleTop = true
                             }
                         },
-                        onBack = { nav.popBackStack() }
+                        onBack = {
+                            when {
+                                resolvedStep > 1 -> goToWizardStep(resolvedStep - 1)
+                                else -> nav.navigate("profile_intro") { launchSingleTop = true }
+                            }
+                        }
                     )
                 }
             } else if (resolvedStep == 7) {
                 ProfilePhotoUploadScreen(
-                    onBack = { nav.popBackStack() },
+                    onBack = { goToWizardStep(6) },
                     onContinue = {
                         if (returnToProfile) {
                             nav.navigate("my_profile") {
@@ -435,7 +451,7 @@ fun AppNavigation(
                 )
             } else if (resolvedStep == 8) {
                 ProfileVerificationScreen(
-                    onBack = { nav.popBackStack() },
+                    onBack = { goToWizardStep(7) },
                     onContinue = {
                         if (returnToProfile) {
                             nav.navigate("my_profile") {
@@ -449,7 +465,7 @@ fun AppNavigation(
                 )
             } else {
                 ProfilePreviewReviewScreen(
-                    onBack = { nav.popBackStack() },
+                    onBack = { goToWizardStep(8) },
                     onSubmit = { nav.navigate("profile_under_review") },
                     onEditSection = { stepToEdit -> nav.navigate("profile_wizard/$stepToEdit") }
                 )
@@ -457,19 +473,19 @@ fun AppNavigation(
         }
         composable("profile_photo_upload") {
             ProfilePhotoUploadScreen(
-                onBack = { nav.popBackStack() },
+                onBack = { nav.navigate("profile_wizard/6") { launchSingleTop = true } },
                 onContinue = { nav.navigate("profile_wizard/8") }
             )
         }
         composable("profile_verification") {
             ProfileVerificationScreen(
-                onBack = { nav.popBackStack() },
+                onBack = { nav.navigate("profile_wizard/7") { launchSingleTop = true } },
                 onContinue = { nav.navigate("profile_wizard/9") }
             )
         }
         composable("profile_preview_review") {
             ProfilePreviewReviewScreen(
-                onBack = { nav.popBackStack() },
+                onBack = { nav.navigate("profile_wizard/8") { launchSingleTop = true } },
                 onSubmit = { nav.navigate("profile_under_review") },
                 onEditSection = { stepToEdit -> nav.navigate("profile_wizard/$stepToEdit") }
             )

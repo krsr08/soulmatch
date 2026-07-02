@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -43,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -88,6 +91,8 @@ fun WelcomeScreen(
     var localPhoneError by remember { mutableStateOf<String?>(null) }
     var lastAction by remember { mutableStateOf("phone") }
     val context = androidx.compose.ui.platform.LocalContext.current
+    val density = LocalDensity.current
+    val isKeyboardOpen = WindowInsets.ime.getBottom(density) > 0
 
     val googleClient = remember(webClientId, context) {
         val optionsBuilder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -209,7 +214,7 @@ fun WelcomeScreen(
                         Image(
                             painter = painterResource(R.drawable.login_route_icon),
                             contentDescription = null,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                         Text(
                             text = "After OTP, existing users continue to their app and new users start profile setup.",
@@ -221,90 +226,92 @@ fun WelcomeScreen(
                 }
                 Spacer(Modifier.height(24.dp))
             }
-            Button(
-                onClick = {
-                    lastAction = "phone"
-                    val normalized = normalizeIndianPhone(phone.trim())
-                    if (normalized == null) {
-                        localPhoneError = "Please enter a valid mobile number"
-                    } else {
-                        localPhoneError = null
-                        vm.clearError()
-                        vm.sendOTP(normalized, "member")
-                    }
-                },
-                enabled = state !is AuthUiState.Loading,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp),
-                shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = SoulMatchTokens.Tangerine,
-                    contentColor = Color.White
-                )
-            ) {
-                Text("Register / Login", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            }
-            when (state) {
-                is AuthUiState.Loading -> CircularProgressIndicator(
-                    modifier = Modifier
-                        .padding(top = 16.dp)
-                        .size(22.dp),
-                    color = SoulMatchTokens.Tangerine,
-                    strokeWidth = 2.dp
-                )
-                is AuthUiState.Error ->
-                    if (lastAction == "google") {
-                        Text(
-                            text = (state as AuthUiState.Error).message,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 14.dp),
-                            color = SoulMatchTokens.Error,
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Start
-                        )
-                    }
-                else -> Unit
-            }
-            ContinueWithDivider(modifier = Modifier.padding(top = 16.dp, bottom = 16.dp))
-            OutlinedButton(
-                onClick = {
-                    lastAction = "google"
-                    vm.clearError()
-                    if (webClientId.isBlank()) {
-                        vm.reportError("Google sign-in is not configured yet. Add a valid Google web client ID in public config or local app config.")
-                    } else {
-                        googleClient.signOut().addOnCompleteListener {
-                            googleLauncher.launch(googleClient.signInIntent)
+            if (!isKeyboardOpen) {
+                Button(
+                    onClick = {
+                        lastAction = "phone"
+                        val normalized = normalizeIndianPhone(phone.trim())
+                        if (normalized == null) {
+                            localPhoneError = "Please enter a valid mobile number"
+                        } else {
+                            localPhoneError = null
+                            vm.clearError()
+                            vm.sendOTP(normalized, "member")
                         }
-                    }
-                },
-                enabled = state !is AuthUiState.Loading,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp),
-                shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
-                border = BorderStroke(1.dp, SoulMatchTokens.Border),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = Color.White,
-                    contentColor = Color(0xFF2D2D2D)
+                    },
+                    enabled = state !is AuthUiState.Loading,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp),
+                    shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SoulMatchTokens.Tangerine,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("Register / Login", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                }
+                when (state) {
+                    is AuthUiState.Loading -> CircularProgressIndicator(
+                        modifier = Modifier
+                            .padding(top = 16.dp)
+                            .size(22.dp),
+                        color = SoulMatchTokens.Tangerine,
+                        strokeWidth = 2.dp
+                    )
+                    is AuthUiState.Error ->
+                        if (lastAction == "google") {
+                            Text(
+                                text = (state as AuthUiState.Error).message,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 14.dp),
+                                color = SoulMatchTokens.Error,
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Start
+                            )
+                        }
+                    else -> Unit
+                }
+                ContinueWithDivider(modifier = Modifier.padding(top = 16.dp, bottom = 16.dp))
+                OutlinedButton(
+                    onClick = {
+                        lastAction = "google"
+                        vm.clearError()
+                        if (webClientId.isBlank()) {
+                            vm.reportError("Google sign-in is not configured yet. Add a valid Google web client ID in public config or local app config.")
+                        } else {
+                            googleClient.signOut().addOnCompleteListener {
+                                googleLauncher.launch(googleClient.signInIntent)
+                            }
+                        }
+                    },
+                    enabled = state !is AuthUiState.Loading,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp),
+                    shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
+                    border = BorderStroke(1.dp, SoulMatchTokens.Border),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.White,
+                        contentColor = Color(0xFF2D2D2D)
+                    )
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.ic_google_g),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(content.googleCta.ifBlank { "Continue with Google" }, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                }
+                Spacer(Modifier.height(12.dp))
+                LegalLinks(
+                    prefix = content.termsPrefix.ifBlank { "By continuing, you agree to our" },
+                    onOpenTerms = onOpenTerms,
+                    onOpenPrivacy = onOpenPrivacy
                 )
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.ic_google_g),
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(Modifier.width(12.dp))
-                Text(content.googleCta.ifBlank { "Continue with Google" }, fontWeight = FontWeight.Bold, fontSize = 17.sp)
             }
-            Spacer(Modifier.height(12.dp))
-            LegalLinks(
-                prefix = content.termsPrefix.ifBlank { "By continuing, you agree to our" },
-                onOpenTerms = onOpenTerms,
-                onOpenPrivacy = onOpenPrivacy
-            )
         }
     }
 }
@@ -330,7 +337,7 @@ private fun MobileNumberField(
             Image(
                 painter = painterResource(R.drawable.mobile_login_icon),
                 contentDescription = null,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(18.dp)
             )
             Box(modifier = Modifier.weight(1f)) {
                 BasicTextField(

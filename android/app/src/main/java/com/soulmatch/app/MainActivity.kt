@@ -207,10 +207,9 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                         val profile = body.data
                         val storedWizardStep = userPreferences.wizardStep.first()
                         if (profile?.profileId.isNullOrBlank()) {
-                            userPreferences.clearProfileProgress()
-                            userPreferences.saveWizardStep(1)
+                            val resumeStep = storedWizardStep.coerceIn(1, 9)
                             startDestination = if (memberOnboardingSeen) {
-                                "profile_wizard/1"
+                                "profile_wizard/$resumeStep"
                             } else {
                                 "onboarding_benefit"
                             }
@@ -236,7 +235,12 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                         startDestination = "welcome"
                     }
                     else -> {
-                        startDestination = "dashboard"
+                        val resumeStep = userPreferences.wizardStep.first().coerceIn(1, 9)
+                        startDestination = if (memberOnboardingSeen) {
+                            "profile_wizard/$resumeStep"
+                        } else {
+                            "welcome"
+                        }
                     }
                 }
             }

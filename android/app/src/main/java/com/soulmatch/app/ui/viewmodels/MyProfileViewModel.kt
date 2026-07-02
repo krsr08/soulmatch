@@ -193,9 +193,18 @@ class MyProfileViewModel @Inject constructor(
     }
 
     fun uploadPhotos(parts: List<MultipartBody.Part>) {
-        val profileId = _profile.value?.profileId ?: return
         if (parts.isEmpty()) return
         viewModelScope.launch {
+            val profileId = _profile.value?.profileId?.takeIf { it.isNotBlank() }
+                ?: prefs.profileId.first()?.takeIf { it.isNotBlank() }
+                ?: run {
+                    _status.value = "Profile setup is still syncing. Please try again."
+                    return@launch
+                }
+            if (profileId.isBlank()) {
+                _status.value = "Profile setup is still syncing. Please try again."
+                return@launch
+            }
             _isUploadingPhotos.value = true
             _photoUploadProgress.value = 0
             val targetSlot = (_photos.value.size + 1).coerceAtLeast(1)
@@ -491,6 +500,10 @@ class MyProfileViewModel @Inject constructor(
 
     fun clearStatus() {
         _status.value = null
+    }
+
+    fun setStatus(message: String) {
+        _status.value = message
     }
 
     fun saveWizardStep(step: Int) {
