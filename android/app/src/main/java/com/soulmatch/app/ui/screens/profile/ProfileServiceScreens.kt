@@ -1431,71 +1431,58 @@ fun HelpSupportScreen(
                     }
                 }
                 item {
-                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            SectionTitle("Contact SoulMatch", "Use email for detailed help. Call is useful for urgent support follow-up.")
-                            DrawerActionButton(
-                                icon = Icons.Filled.Email,
-                                title = SupportEmail,
-                                subtitle = "Email support for account, payment, or verification help.",
-                                onClick = {
-                                    status = context.launchExternal(
-                                        Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$SupportEmail?subject=${Uri.encode("SoulMatch support request")}"))
-                                    )
-                                }
-                            )
-                            DrawerActionButton(
-                                icon = Icons.Filled.Call,
-                                title = SupportPhone,
-                                subtitle = "Call support if a live follow-up has already been arranged.",
-                                onClick = {
-                                    status = context.launchExternal(
-                                        Intent(Intent.ACTION_DIAL, Uri.parse("tel:$SupportPhone"))
-                                    )
-                                }
-                            )
-                        }
-                    }
-                }
-                item {
-                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            SectionTitle("Useful actions", "Go straight to the area that solves the issue faster.")
-                            DrawerActionButton(
-                                icon = Icons.Filled.Lock,
-                                title = "Safety Center",
-                                subtitle = "Report suspicious behavior, review safety tips, and open privacy controls.",
-                                onClick = onOpenSafetyCenter
-                            )
-                            DrawerActionButton(
-                                icon = Icons.Filled.Verified,
-                                title = "Privacy Policy",
-                                subtitle = "Understand how SoulMatch stores and uses your account data.",
-                                onClick = onOpenPrivacy
-                            )
-                            DrawerActionButton(
-                                icon = Icons.Filled.CheckCircle,
-                                title = "Terms of Service",
-                                subtitle = "Review account, plan, payment, and platform responsibilities.",
-                                onClick = onOpenTerms
-                            )
-                        }
-                    }
-                }
-                item {
-                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceSoft) {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            SectionTitle("Frequently asked questions")
-                            faqs.forEach { faq ->
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    border = BorderStroke(1.dp, Divider),
-                                    color = MaterialTheme.colorScheme.surface
-                                ) {
-                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        Text(faq.question, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                                        Text(faq.answer, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                                    }
+                    Column(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        SectionTitle("Help & Support")
+                        DrawerActionButton(
+                            icon = Icons.Filled.Email,
+                            title = SupportEmail,
+                            subtitle = "Email support for account, payment, or verification help.",
+                            onClick = {
+                                status = context.launchExternal(
+                                    Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$SupportEmail?subject=${Uri.encode("SoulMatch support request")}"))
+                                )
+                            }
+                        )
+                        DrawerActionButton(
+                            icon = Icons.Filled.Call,
+                            title = SupportPhone,
+                            subtitle = "Call support if a live follow-up has already been arranged.",
+                            onClick = {
+                                status = context.launchExternal(
+                                    Intent(Intent.ACTION_DIAL, Uri.parse("tel:$SupportPhone"))
+                                )
+                            }
+                        )
+                        DrawerActionButton(
+                            icon = Icons.Filled.Lock,
+                            title = "Safety Center",
+                            subtitle = "Report suspicious behavior, review safety tips, and open privacy controls.",
+                            onClick = onOpenSafetyCenter
+                        )
+                        DrawerActionButton(
+                            icon = Icons.Filled.Verified,
+                            title = "Privacy Policy",
+                            subtitle = "Understand how SoulMatch stores and uses your account data.",
+                            onClick = onOpenPrivacy
+                        )
+                        DrawerActionButton(
+                            icon = Icons.Filled.CheckCircle,
+                            title = "Terms of Service",
+                            subtitle = "Review account, plan, payment, and platform responsibilities.",
+                            onClick = onOpenTerms
+                        )
+                        faqs.forEach { faq ->
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(1.dp, Divider),
+                                color = Color.White
+                            ) {
+                                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(faq.question, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                    Text(faq.answer, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                                 }
                             }
                         }

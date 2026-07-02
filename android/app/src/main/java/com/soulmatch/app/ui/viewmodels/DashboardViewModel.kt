@@ -83,11 +83,21 @@ class DashboardViewModel @Inject constructor(
                 ?.body()
                 ?.takeIf { response.isSuccessful && it.success }
                 ?.data
-            val resolvedProfile = (profile ?: if (canUseFallback) MarketFixtures.myProfile else _myProfile.value).safeDashboardProfile()
-            _myProfile.value = resolvedProfile
+            var resolvedProfile = (profile ?: if (canUseFallback) MarketFixtures.myProfile else _myProfile.value).safeDashboardProfile()
             if (resolvedProfile.profileId.isNotBlank()) {
                 prefs.saveProfileId(resolvedProfile.profileId)
+                val photos = runCatching { profileApi.getPhotos(resolvedProfile.profileId) }
+                    .getOrNull()
+                    ?.body()
+                    ?.takeIf { it.success }
+                    ?.data
+                    .orEmpty()
+                val photoUrl = photos.firstOrNull { it.isPrimary }?.photoUrl ?: photos.firstOrNull()?.photoUrl
+                if (!photoUrl.isNullOrBlank() && resolvedProfile.primaryPhotoUrl.isNullOrBlank()) {
+                    resolvedProfile = resolvedProfile.copy(primaryPhotoUrl = photoUrl)
+                }
             }
+            _myProfile.value = resolvedProfile
             _matches.value = loadedMatches.applyLocalInteractionState().filterVisibleProfiles()
             val assistResponse = runCatching { profileApi.getAssistStatus() }.getOrNull()
             _assistEnabled.value = assistResponse

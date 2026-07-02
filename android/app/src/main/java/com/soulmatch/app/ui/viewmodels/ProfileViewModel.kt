@@ -39,6 +39,7 @@ class ProfileViewModel @Inject constructor(
     val loadMessage: StateFlow<String?> = _loadMessage.asStateFlow()
 
     init {
+        stepData.putAll(prefs.getProfileStepDrafts())
         loadProfile()
     }
 
@@ -65,13 +66,9 @@ class ProfileViewModel @Inject constructor(
                         _partnerPreferences.value = PartnerPreferencesData()
                     }
                 } else {
-                    _profile.value = null
-                    _partnerPreferences.value = PartnerPreferencesData()
                     _loadMessage.value = body?.error?.message ?: "Saved profile details could not be loaded."
                 }
             } catch (error: Exception) {
-                _profile.value = null
-                _partnerPreferences.value = PartnerPreferencesData()
                 _loadMessage.value = when (error) {
                     is IOException -> "Service is temporarily not available. Please try again."
                     else -> "Couldn't load your saved profile details."
@@ -84,12 +81,12 @@ class ProfileViewModel @Inject constructor(
         _errorMessage.value = null
     }
 
-    fun updateStep1Data(d: Map<String, Any>) { stepData[1] = d }
-    fun updateStep2Data(d: Map<String, Any>) { stepData[2] = d }
-    fun updateStep3Data(d: Map<String, Any>) { stepData[3] = d }
-    fun updateStep4Data(d: Map<String, Any>) { stepData[4] = d }
-    fun updateStep5Data(d: Map<String, Any>) { stepData[5] = d }
-    fun updateStep6Data(d: Map<String, Any>) { stepData[6] = d }
+    fun updateStep1Data(d: Map<String, Any>) = persistStepData(1, d)
+    fun updateStep2Data(d: Map<String, Any>) = persistStepData(2, d)
+    fun updateStep3Data(d: Map<String, Any>) = persistStepData(3, d)
+    fun updateStep4Data(d: Map<String, Any>) = persistStepData(4, d)
+    fun updateStep5Data(d: Map<String, Any>) = persistStepData(5, d)
+    fun updateStep6Data(d: Map<String, Any>) = persistStepData(6, d)
     fun stepData(step: Int): Map<String, Any> = stepData[step].orEmpty()
 
     fun updatePartnerPreferences(preferences: PartnerPreferencesData) {
@@ -145,6 +142,8 @@ class ProfileViewModel @Inject constructor(
                 val response = profileApi.createProfileStep(req)
                 if (response.isSuccessful && response.body()?.success == true) {
                     response.body()?.data?.profileId?.let { prefs.saveProfileId(it) }
+                    stepData.remove(step)
+                    prefs.clearProfileStepDraft(step)
                     prefs.saveWizardStep(step + 1)
                     loadProfile()
                     onSuccess()
@@ -187,6 +186,8 @@ class ProfileViewModel @Inject constructor(
                 val response = profileApi.updatePreferences(profileId, request)
                 if (response.isSuccessful && response.body()?.success == true) {
                     _profile.value = _profile.value?.copy(isPartnerPrefSet = true)
+                    stepData.remove(6)
+                    prefs.clearProfileStepDraft(6)
                     prefs.saveWizardStep(7)
                     loadProfile()
                     onSuccess()
@@ -233,4 +234,11 @@ class ProfileViewModel @Inject constructor(
         dealBreakers = dealBreakers.map { it.trim() }.filter { it.isNotBlank() }.distinct(),
         goodToHave = goodToHave.map { it.trim() }.filter { it.isNotBlank() }.distinct()
     )
+
+    private fun persistStepData(step: Int, data: Map<String, Any>) {
+        stepData[step] = data
+        viewModelScope.launch {
+            prefs.saveProfileStepDraft(step, data)
+        }
+    }
 }

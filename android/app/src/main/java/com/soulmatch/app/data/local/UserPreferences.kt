@@ -10,6 +10,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -36,6 +38,7 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
         private const val SECURE_AUTH_TOKEN = "auth_token"
         private const val SECURE_REFRESH_TOKEN = "refresh_token"
         private const val SECURE_INSTALLATION_ID = "installation_id"
+        private const val SECURE_PROFILE_DRAFT_PREFIX = "profile_draft_step_"
         val AUTH_TOKEN = stringPreferencesKey("auth_token")
         val REFRESH_TOKEN = stringPreferencesKey("refresh_token")
         val USER_ID = stringPreferencesKey("user_id")
@@ -119,6 +122,23 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
     }
     suspend fun saveAppLanguage(language: String) { store.edit { it[APP_LANGUAGE] = language } }
     suspend fun saveMemberOnboardingSeen(seen: Boolean) { store.edit { it[MEMBER_ONBOARDING_SEEN] = seen } }
+    fun getProfileStepDrafts(): Map<Int, Map<String, Any>> =
+        securePrefs.all
+            .mapNotNull { (key, value) ->
+                val step = key.removePrefix(SECURE_PROFILE_DRAFT_PREFIX).toIntOrNull()
+                    ?: return@mapNotNull null
+                val raw = value as? String ?: return@mapNotNull null
+                step to decodeProfileDraft(raw)
+            }
+            .toMap()
+    suspend fun saveProfileStepDraft(step: Int, payload: Map<String, Any>) {
+        securePrefs.edit()
+            .putString("$SECURE_PROFILE_DRAFT_PREFIX$step", encodeProfileDraft(payload))
+            .apply()
+    }
+    suspend fun clearProfileStepDraft(step: Int) {
+        securePrefs.edit().remove("$SECURE_PROFILE_DRAFT_PREFIX$step").apply()
+    }
     suspend fun clearPendingOtpSession() {
         store.edit {
             it.remove(PENDING_OTP_PHONE)
@@ -126,6 +146,9 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
         }
     }
     suspend fun clearProfileProgress() {
+        securePrefs.all.keys
+            .filter { it.startsWith(SECURE_PROFILE_DRAFT_PREFIX) }
+            .forEach { securePrefs.edit().remove(it).apply() }
         store.edit {
             it.remove(PROFILE_ID)
             it.remove(WIZARD_STEP)
@@ -136,5 +159,40 @@ class UserPreferences @Inject constructor(@ApplicationContext private val contex
         authTokenState.value = null
         refreshTokenState.value = null
         store.edit { it.clear() }
+    }
+
+    private fun encodeProfileDraft(payload: Map<String, Any>): String {
+        val json = JSONObject()
+        payload.forEach { (key, value) ->
+            when (value) {
+                is String, is Number, is Boolean -> json.put(key, value)
+                is List<*> -> {
+                    val array = JSONArray()
+                    value.filterNotNull().forEach { array.put(it.toString()) }
+                    json.put(key, array)
+                }
+                null -> json.put(key, JSONObject.NULL)
+                else -> json.put(key, value.toString())
+            }
+        }
+        return json.toString()
+    }
+
+    private fun decodeProfileDraft(raw: String): Map<String, Any> {
+        val json = runCatching { JSONObject(raw) }.getOrElse { return emptyMap() }
+        val result = mutableMapOf<String, Any>()
+        json.keys().forEach { key ->
+            when (val value = json.opt(key)) {
+                is JSONArray -> {
+                    result[key] = buildList {
+                        for (index in 0 until value.length()) {
+                            value.opt(index)?.takeIf { it != JSONObject.NULL }?.let { add(it.toString()) }
+                        }
+                    }
+                }
+                is Int, is Long, is Double, is Boolean, is String -> result[key] = value
+            }
+        }
+        return result
     }
 }

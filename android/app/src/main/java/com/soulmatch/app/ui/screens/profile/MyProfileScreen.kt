@@ -208,7 +208,7 @@ fun MyProfileScreen(
             if (status?.contains("uploaded", ignoreCase = true) == true) {
                 localPhotoUris = emptyList()
             }
-            delay(3000)
+            delay(5000)
             vm.clearStatus()
         }
     }
@@ -230,7 +230,7 @@ fun MyProfileScreen(
             TopAppBar(
                 title = {
                     Text(
-                        profile?.profileId?.takeIf { it.isNotBlank() }?.take(10) ?: "My profile",
+                        "My Profile",
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis

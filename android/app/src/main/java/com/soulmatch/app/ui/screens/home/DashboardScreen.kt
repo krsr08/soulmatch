@@ -454,7 +454,7 @@ private fun HomeTopBar(
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        "My matches",
+                        profile.fullName().ifBlank { "SoulMatch member" },
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontFamily = FontFamily.SansSerif,
                             fontWeight = FontWeight.ExtraBold,

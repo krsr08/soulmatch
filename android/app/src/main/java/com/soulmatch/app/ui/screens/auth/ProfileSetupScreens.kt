@@ -26,8 +26,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,6 +38,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Image
@@ -67,6 +70,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,6 +79,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -82,6 +87,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -92,10 +98,12 @@ import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.ProfilePhoto
 import com.soulmatch.app.data.models.VerificationRequestData
 import com.soulmatch.app.data.models.fullName
+import com.soulmatch.app.ui.components.media.MemberPhoto
 import com.soulmatch.app.ui.design.SoulMatchHeaderIconButton
 import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.titleCase
 import com.soulmatch.app.ui.viewmodels.MyProfileViewModel
+import kotlinx.coroutines.delay
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -152,9 +160,23 @@ fun ProfilePhotoUploadScreen(
     val isUploading by vm.isUploadingPhotos.collectAsStateWithLifecycle()
     val uploadProgress by vm.photoUploadProgress.collectAsStateWithLifecycle()
     val uploadLabel by vm.photoUploadLabel.collectAsStateWithLifecycle()
+    val visibleStatus = status?.takeIf {
+        it.contains("photo", ignoreCase = true) ||
+            it.contains("primary", ignoreCase = true) ||
+            it.contains("removed", ignoreCase = true) ||
+            it.contains("service is temporarily not available", ignoreCase = true) ||
+            it.contains("couldn't", ignoreCase = true)
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri ?: return@rememberLauncherForActivityResult
         context.toPhotoPart(uri, photos.size)?.let { vm.uploadPhotos(listOf(it)) } ?: vm.setStatus("Couldn't read this photo. Please try another image.")
+    }
+
+    LaunchedEffect(visibleStatus) {
+        if (!visibleStatus.isNullOrBlank()) {
+            delay(5_000)
+            vm.clearStatus()
+        }
     }
 
     ProfileSetupScaffold(
@@ -201,8 +223,8 @@ fun ProfilePhotoUploadScreen(
             message = "Photos stay private until you choose visibility settings. Drag photos to reorder.",
             icon = Icons.Filled.Lock
         )
-        if (!status.isNullOrBlank()) {
-            InlineNotice(status.orEmpty(), error = status.orEmpty().contains("couldn't", ignoreCase = true))
+        if (!visibleStatus.isNullOrBlank()) {
+            InlineNotice(visibleStatus, error = visibleStatus.contains("couldn't", ignoreCase = true) || visibleStatus.contains("temporarily", ignoreCase = true))
         }
     }
 }
@@ -224,9 +246,25 @@ fun ProfileVerificationScreen(
     val hasIdentityVerification = verifications.any {
         it.type.equals("identity", true) || it.type.equals("aadhaar", true)
     }
+    val visibleStatus = status?.takeIf {
+        !it.contains("photo uploaded", ignoreCase = true) &&
+            (
+                it.contains("verification", ignoreCase = true) ||
+                    it.contains("document", ignoreCase = true) ||
+                    it.contains("service is temporarily not available", ignoreCase = true) ||
+                    it.contains("couldn't", ignoreCase = true)
+                )
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         selectedUri = uri?.toString()
         showDocumentError = false
+    }
+
+    LaunchedEffect(visibleStatus) {
+        if (!visibleStatus.isNullOrBlank()) {
+            delay(5_000)
+            vm.clearStatus()
+        }
     }
 
     ProfileSetupScaffold(
@@ -235,7 +273,7 @@ fun ProfileVerificationScreen(
         progressPercent = 80,
         stepLabel = "Step 8 of 10",
         progressLabel = "80% complete",
-        headline = "Verify your profile",
+        headline = "",
         body = "Verified profiles receive more serious interest and clearer family responses.",
         infoTitle = "Verification help",
         infoBody = "Profile verification marks the account for review. Identity documents add stronger trust signals when available.",
@@ -295,8 +333,12 @@ fun ProfileVerificationScreen(
         if (showDocumentError) {
             InlineNotice("ID verification document is required before review.", error = true)
         }
-        if (!status.isNullOrBlank()) {
-            InlineNotice(status.orEmpty(), error = status.orEmpty().contains("couldn't", ignoreCase = true))
+        if (!visibleStatus.isNullOrBlank()) {
+            InlineNotice(
+                visibleStatus,
+                error = visibleStatus.contains("couldn't", ignoreCase = true) ||
+                    visibleStatus.contains("temporarily", ignoreCase = true)
+            )
         }
         SetupInfoNotice("A verification badge tells families that contact and identity checks were completed.")
     }
@@ -313,7 +355,7 @@ fun ProfilePreviewReviewScreen(
     val profile by vm.profile.collectAsStateWithLifecycle()
     val photos by vm.photos.collectAsStateWithLifecycle()
     val verifications by vm.verifications.collectAsStateWithLifecycle()
-    val status by vm.status.collectAsStateWithLifecycle()
+    val preferences by vm.preferences.collectAsStateWithLifecycle()
     val hasIdentityVerification = verifications.any {
         it.type.equals("identity", true) || it.type.equals("aadhaar", true)
     }
@@ -324,7 +366,7 @@ fun ProfilePreviewReviewScreen(
         progressPercent = 92,
         stepLabel = "Step 9 of 10",
         progressLabel = "92% complete",
-        headline = "Review Profile",
+        headline = "",
         body = "Expand each section to review details. Use Edit to return to that step.",
         infoTitle = "Preview review",
         infoBody = "This is the final check before the profile moves into review. Go back and edit any section if something looks wrong.",
@@ -335,72 +377,119 @@ fun ProfilePreviewReviewScreen(
             vm.submitProfileForReview(onSubmit)
         }
     ) {
-        PreviewHeader(profile)
-        PreviewSection("Basic details", editStep = 1, onEdit = onEditSection) {
+        PreviewHeader(profile, photos)
+        PreviewSection(
+            title = "Basic details",
+            editStep = 1,
+            collapsedSummary = listOf(profile?.fullName(), profile?.workingCity, profile?.motherTongue).filterNotNull().filter { it.isNotBlank() }.joinToString(" • "),
+            onEdit = onEditSection,
+            defaultExpanded = true
+        ) {
             PreviewLine("Name", profile?.fullName().orEmpty())
             PreviewLine("Gender", profile?.gender.orEmpty())
             PreviewLine("Current city", profile?.workingCity.orEmpty())
             PreviewLine("Native place", profile?.nativePlace.orEmpty())
         }
-        PreviewSection("Religious details", editStep = 2, onEdit = onEditSection) {
+        PreviewSection(
+            title = "Religious details",
+            editStep = 2,
+            collapsedSummary = listOf(profile?.religion, profile?.caste, profile?.gotra).filterNotNull().filter { it.isNotBlank() }.joinToString(" • "),
+            onEdit = onEditSection
+        ) {
             PreviewLine("Religion", profile?.religion.orEmpty())
             PreviewLine("Community", profile?.caste.orEmpty())
             PreviewLine("Sub-caste", profile?.subCaste.orEmpty())
             PreviewLine("Gothram", profile?.gotra.orEmpty())
         }
-        PreviewSection("Education and career", editStep = 3, onEdit = onEditSection) {
+        PreviewSection(
+            title = "Education and career",
+            editStep = 3,
+            collapsedSummary = listOf(profile?.educationLevel, profile?.occupation, profile?.annualIncome).filterNotNull().filter { it.isNotBlank() }.joinToString(" • "),
+            onEdit = onEditSection
+        ) {
             PreviewLine("Education", profile?.educationLevel.orEmpty())
             PreviewLine("Institution", profile?.institutionName.orEmpty())
             PreviewLine("Occupation", profile?.occupation.orEmpty())
             PreviewLine("Company", profile?.companyName.orEmpty())
         }
-        PreviewSection("Family details", editStep = 4, onEdit = onEditSection) {
+        PreviewSection(
+            title = "Family details",
+            editStep = 4,
+            collapsedSummary = listOf(profile?.familyType, profile?.familyStatus, profile?.fatherOccupation).filterNotNull().filter { it.isNotBlank() }.joinToString(" • "),
+            onEdit = onEditSection
+        ) {
             PreviewLine("Family type", profile?.familyType.orEmpty())
             PreviewLine("Family status", profile?.familyStatus.orEmpty())
             PreviewLine("Father occupation", profile?.fatherOccupation.orEmpty())
             PreviewLine("Mother occupation", profile?.motherOccupation.orEmpty())
         }
-        PreviewSection("Lifestyle", editStep = 5, onEdit = onEditSection) {
+        PreviewSection(
+            title = "Lifestyle",
+            editStep = 5,
+            collapsedSummary = listOf(profile?.diet, profile?.smoking, profile?.drinking).filterNotNull().filter { it.isNotBlank() }.joinToString(" • "),
+            onEdit = onEditSection
+        ) {
             PreviewLine("Diet", profile?.diet.orEmpty())
             PreviewLine("Smoking", profile?.smoking.orEmpty())
             PreviewLine("Drinking", profile?.drinking.orEmpty())
             PreviewLine("Hobbies", profile?.hobbies?.joinToString(", ").orEmpty())
         }
-        PreviewSection("Partner preferences", editStep = 6, onEdit = onEditSection) {
-            PreviewLine("Religion", profile?.partnerPreferences?.religion.orEmpty())
-            PreviewLine("Education", profile?.partnerPreferences?.educationLevels?.joinToString(", ").orEmpty())
-            PreviewLine("Occupation", profile?.partnerPreferences?.occupations?.joinToString(", ").orEmpty())
-            PreviewLine("Location", profile?.locationPreferences?.joinToString(", ").orEmpty())
+        PreviewSection(
+            title = "Partner preferences",
+            editStep = 6,
+            collapsedSummary = listOf(
+                preferences.religion,
+                preferences.locationPreferences.joinToString(", ").ifBlank { null },
+                preferences.educationLevels.joinToString(", ").ifBlank { null }
+            ).filterNotNull().filter { it.isNotBlank() }.joinToString(" • "),
+            onEdit = onEditSection
+        ) {
+            PreviewLine("Religion", preferences.religion.orEmpty())
+            PreviewLine("Education", preferences.educationLevels.joinToString(", "))
+            PreviewLine("Occupation", preferences.occupations.joinToString(", "))
+            PreviewLine("Location", preferences.locationPreferences.joinToString(", "))
+            PreviewLine("Income", preferences.incomePreferences.joinToString(", "))
+            PreviewLine("Lifestyle", preferences.lifestylePreferences.joinToString(", "))
         }
-        PreviewSection("Photos", editStep = 7, onEdit = onEditSection) {
+        PreviewSection(
+            title = "Photos",
+            editStep = 7,
+            collapsedSummary = if (photos.isEmpty()) "No uploaded photos" else "${photos.size} photo${if (photos.size == 1) "" else "s"} uploaded",
+            onEdit = onEditSection,
+            highlighted = true
+        ) {
             if (photos.isEmpty()) {
                 Text("No uploaded photos", color = SoulMatchTokens.Muted)
             } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    photos.take(3).forEach { photo ->
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(photos, key = { it.photoId }) { photo ->
                         AsyncImage(
                             model = mediaUrl(photo.photoUrl),
                             contentDescription = null,
-                            modifier = Modifier.size(92.dp),
+                            modifier = Modifier
+                                .size(92.dp)
+                                .clip(RoundedCornerShape(18.dp)),
                             contentScale = ContentScale.Crop
                         )
                     }
                 }
             }
         }
-        PreviewSection("Verification", editStep = 8, onEdit = onEditSection) {
-            Text(if (hasIdentityVerification) "ID verification uploaded" else "ID verification pending", color = SoulMatchTokens.Text)
+        PreviewSection(
+            title = "Verification",
+            editStep = 8,
+            collapsedSummary = if (hasIdentityVerification) "Pending" else "Pending",
+            onEdit = onEditSection,
+            highlighted = true
+        ) {
+            PreviewLine("Status", "Pending")
+            Text(
+                if (hasIdentityVerification) "Verification document uploaded and waiting for review." else "ID verification is still pending upload.",
+                color = SoulMatchTokens.Muted
+            )
         }
         if (!hasIdentityVerification) {
             InlineNotice("One required verification item still needs attention.", error = true)
-        }
-        if (!status.isNullOrBlank()) {
-            InlineNotice(
-                status.orEmpty(),
-                error = status.orEmpty().contains("couldn't", ignoreCase = true) ||
-                    status.orEmpty().contains("complete more", ignoreCase = true) ||
-                    status.orEmpty().contains("upload at least", ignoreCase = true)
-            )
         }
     }
 }
@@ -779,11 +868,22 @@ private fun InlineNotice(message: String, error: Boolean) {
         shape = RoundedCornerShape(16.dp),
         color = if (error) MaterialTheme.colorScheme.errorContainer else SoulMatchTokens.TangerineSoft
     ) {
-        Text(
-            message,
+        Row(
             modifier = Modifier.padding(14.dp),
-            color = if (error) MaterialTheme.colorScheme.onErrorContainer else SoulMatchTokens.Tangerine
-        )
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (error) Icons.Filled.Info else Icons.Filled.CheckCircle,
+                contentDescription = null,
+                tint = if (error) SoulMatchTokens.Error else SoulMatchTokens.Tangerine
+            )
+            Text(
+                message,
+                modifier = Modifier.weight(1f),
+                color = if (error) MaterialTheme.colorScheme.onErrorContainer else SoulMatchTokens.Tangerine
+            )
+        }
     }
 }
 
@@ -1302,7 +1402,10 @@ private fun VerificationStatusRow(
 }
 
 @Composable
-private fun PreviewHeader(profile: ProfileData?) {
+private fun PreviewHeader(profile: ProfileData?, photos: List<ProfilePhoto>) {
+    val headerPhoto = photos.firstOrNull { it.isPrimary }?.photoUrl
+        ?: photos.firstOrNull()?.photoUrl
+        ?: profile?.primaryPhotoUrl
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -1320,32 +1423,33 @@ private fun PreviewHeader(profile: ProfileData?) {
                 color = Color.White,
                 border = BorderStroke(2.dp, SoulMatchTokens.Tangerine)
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Person, contentDescription = null, tint = SoulMatchTokens.Tangerine, modifier = Modifier.size(42.dp))
-                }
+                MemberPhoto(
+                    photoUrl = headerPhoto,
+                    contentDescription = "Profile photo",
+                    modifier = Modifier
+                        .padding(4.dp)
+                        .fillMaxSize(),
+                    shape = RoundedCornerShape(999.dp)
+                )
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    profile?.fullName().orEmpty().ifBlank { "New member" },
+                    listOf(
+                        profile?.fullName(),
+                        profile?.age?.takeIf { it > 0 }?.toString()
+                    ).filterNotNull().filter { it.isNotBlank() }.joinToString(", ").ifBlank { "New member" },
                     style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.ExtraBold),
                     color = SoulMatchTokens.Tangerine
                 )
                 Text(
-                    listOf(profile?.occupation, profile?.workingCity, profile?.motherTongue).filterNotNull().filter { it.isNotBlank() }.joinToString(" â€¢ "),
+                    listOf(profile?.occupation, profile?.workingCity, profile?.motherTongue).filterNotNull().filter { it.isNotBlank() }.joinToString(" • "),
                     color = SoulMatchTokens.Muted
                 )
-                Text(profile?.aboutMe?.takeIf { it.isNotBlank() } ?: "Family-oriented, calm, and ambitious.", color = SoulMatchTokens.Text)
-            }
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = Color(0xFFF7F8FA),
-                border = BorderStroke(1.dp, SoulMatchTokens.Border)
-            ) {
                 Text(
-                    "92%",
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    color = SoulMatchTokens.Tangerine,
-                    fontWeight = FontWeight.ExtraBold
+                    profile?.aboutMe?.takeIf { it.isNotBlank() } ?: "Family-oriented, calm, and ambitious.",
+                    color = SoulMatchTokens.Text,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -1356,38 +1460,47 @@ private fun PreviewHeader(profile: ProfileData?) {
 private fun PreviewSection(
     title: String,
     editStep: Int,
+    collapsedSummary: String,
     onEdit: (Int) -> Unit,
+    highlighted: Boolean = false,
+    defaultExpanded: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    var expanded by rememberSaveable(title) { mutableStateOf(title == "Basic details") }
+    var expanded by rememberSaveable(title) { mutableStateOf(defaultExpanded) }
+    val interactionSource = remember(title) { MutableInteractionSource() }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         color = Color.White,
-        border = BorderStroke(1.dp, if (title == "Verification" || title == "Photos") Color(0xFFFFC5BC) else SoulMatchTokens.Border)
+        border = BorderStroke(1.dp, if (highlighted) Color(0xFFFFC5BC) else SoulMatchTokens.Border)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null
+                    ) { expanded = !expanded },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (expanded) "âŒ„" else "â€º",
-                        color = SoulMatchTokens.Tangerine,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable { expanded = !expanded }
+                    Icon(
+                        Icons.Filled.ArrowDropDown,
+                        contentDescription = null,
+                        tint = SoulMatchTokens.Tangerine,
+                        modifier = Modifier.rotate(if (expanded) 0f else -90f)
                     )
                     Text(
                         title,
                         fontWeight = FontWeight.ExtraBold,
                         color = SoulMatchTokens.Text,
                         style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.clickable { expanded = !expanded }
+                        modifier = Modifier
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1395,12 +1508,21 @@ private fun PreviewSection(
                         "Edit",
                         color = SoulMatchTokens.Tangerine,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable { onEdit(editStep) }
+                        modifier = Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { onEdit(editStep) }
                     )
                 }
             }
             if (expanded) {
                 content()
+            } else if (collapsedSummary.isNotBlank()) {
+                Text(
+                    collapsedSummary,
+                    color = SoulMatchTokens.Muted,
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
     }
@@ -1409,7 +1531,10 @@ private fun PreviewSection(
 @Composable
 private fun PreviewLine(label: String, value: String) {
     if (value.isBlank()) return
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
         Text(label, color = SoulMatchTokens.Muted)
         Text(value, color = SoulMatchTokens.Text, fontWeight = FontWeight.SemiBold)
     }
@@ -1465,3 +1590,5 @@ private fun Context.toVerificationDocumentPart(uri: Uri): MultipartBody.Part? {
     val body = bytes.toRequestBody(contentType.toMediaTypeOrNull())
     return MultipartBody.Part.createFormData("document", fileName, body)
 }
+
+

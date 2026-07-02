@@ -99,6 +99,7 @@ import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.theme.Success
 import com.soulmatch.app.ui.titleCase
 import com.soulmatch.app.ui.viewmodels.ProfileViewModel
+import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -241,6 +242,14 @@ private fun isValidPlainText(value: String): Boolean =
 private fun Map<String, Any>.stringValue(key: String, fallback: String = ""): String =
     (this[key] as? String)?.takeIf { it.isNotBlank() } ?: fallback
 
+private fun composeFullName(firstName: String?, lastName: String?): String {
+    val first = firstName.orEmpty().trim()
+    val last = lastName.orEmpty().trim()
+    if (first.isBlank()) return last
+    if (last.isBlank()) return first
+    return if (first.endsWith(last, ignoreCase = true)) first else "$first $last"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileWizardScreen(
@@ -267,6 +276,13 @@ fun ProfileWizardScreen(
             bullets = copy.infoBullets,
             onDismiss = { showInfo = false }
         )
+    }
+
+    LaunchedEffect(errorMessage) {
+        if (!errorMessage.isNullOrBlank()) {
+            delay(5_000)
+            vm.clearError()
+        }
     }
 
     Scaffold(
@@ -311,7 +327,7 @@ fun ProfileWizardScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         WizardStepLead(
-                            headline = if (currentStep == 3) copy.headline else "",
+                            headline = "",
                             description = copy.subtitle
                         )
                         when (currentStep) {
@@ -324,7 +340,18 @@ fun ProfileWizardScreen(
                         }
                         if (!errorMessage.isNullOrBlank()) {
                             PremiumCard(containerColor = MaterialTheme.colorScheme.errorContainer) {
-                                Text(errorMessage ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Filled.Info, contentDescription = null, tint = SoulMatchTokens.Error)
+                                    Text(
+                                        errorMessage ?: "",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
                             }
                         }
                         Spacer(Modifier.height(4.dp))
@@ -491,14 +518,14 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
     var fullName by rememberSaveable(existing?.profileId) {
         mutableStateOf(
             draft.stringValue(
-                "firstName",
-                listOf(existing?.firstName, existing?.lastName).filterNotNull().filter { it.isNotBlank() }.joinToString(" ")
-            ).let { first ->
-                val draftLastName = draft.stringValue("lastName", existing?.lastName.orEmpty())
-                listOf(first, draftLastName).filter { it.isNotBlank() }.joinToString(" ").ifBlank {
-                    listOf(existing?.firstName, existing?.lastName).filterNotNull().filter { it.isNotBlank() }.joinToString(" ")
+                "fullName",
+                composeFullName(
+                    draft.stringValue("firstName", existing?.firstName.orEmpty()),
+                    draft.stringValue("lastName", existing?.lastName.orEmpty())
+                ).ifBlank {
+                    composeFullName(existing?.firstName, existing?.lastName)
                 }
-            }
+            )
         )
     }
     var dob by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("dob", sanitizeDobForDisplay(existing?.dob).orEmpty())) }
@@ -552,6 +579,7 @@ private fun Step1BasicInfo(existing: ProfileData?, vm: ProfileViewModel, onValid
             mapOf(
                 "firstName" to firstName,
                 "lastName" to lastName,
+                "fullName" to fullName.trim(),
                 "dob" to (normalizedDob ?: dob.trim()),
                 "gender" to gender,
                 "heightCm" to (heightCm ?: 0),
@@ -1003,7 +1031,7 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
                 familyType = it
             },
             placeholder = "Select family type",
-            leadingIcon = Icons.Filled.People
+            leadingIcon = Icons.Filled.Home
         )
         SelectionField(
             label = "Family status",
@@ -1014,7 +1042,7 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
                 familyStatus = it
             },
             placeholder = "Select family status",
-            leadingIcon = Icons.Filled.Groups
+            leadingIcon = Icons.Filled.AccountBalance
         )
         RequiredTextField(
             fatherOccupation,
@@ -1024,7 +1052,7 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
             },
             "Father occupation",
             placeholder = "Enter father occupation",
-            leadingIcon = Icons.Filled.Person
+            leadingIcon = Icons.Filled.Work
         )
         RequiredTextField(
             motherOccupation,
@@ -1034,7 +1062,7 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
             },
             "Mother occupation",
             placeholder = "Enter mother occupation",
-            leadingIcon = Icons.Filled.Person
+            leadingIcon = Icons.Filled.MenuBook
         )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             SelectionField(
@@ -1150,15 +1178,16 @@ private fun Step5Lifestyle(existing: ProfileData?, vm: ProfileViewModel, onValid
 
 @Composable
 private fun Step6PartnerPreferences(existing: ProfileData?, vm: ProfileViewModel, onValidityChange: (Boolean) -> Unit) {
+    val draft = vm.stepData(6)
     val existingPreferences by vm.partnerPreferences.collectAsStateWithLifecycle()
-    var ageRange by rememberSaveable(existing?.profileId) { mutableStateOf("") }
-    var heightRange by rememberSaveable(existing?.profileId) { mutableStateOf("") }
-    var religionCommunity by rememberSaveable(existing?.profileId) { mutableStateOf("") }
-    var locationPreferenceText by rememberSaveable(existing?.profileId) { mutableStateOf("") }
-    var educationPreference by rememberSaveable(existing?.profileId) { mutableStateOf("") }
-    var occupationPreference by rememberSaveable(existing?.profileId) { mutableStateOf("") }
-    var incomePreference by rememberSaveable(existing?.profileId) { mutableStateOf("") }
-    var lifestylePreference by rememberSaveable(existing?.profileId) { mutableStateOf("") }
+    var ageRange by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("ageRange")) }
+    var heightRange by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("heightRange")) }
+    var religionCommunity by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("religionCommunity")) }
+    var locationPreferenceText by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("locationPreferenceText")) }
+    var educationPreference by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("educationPreference")) }
+    var occupationPreference by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("occupationPreference")) }
+    var incomePreference by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("incomePreference")) }
+    var lifestylePreference by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("lifestylePreference")) }
     var religionTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
     var locationTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
     var lifestyleTouched by rememberSaveable(existing?.profileId) { mutableStateOf(false) }
@@ -1169,6 +1198,9 @@ private fun Step6PartnerPreferences(existing: ProfileData?, vm: ProfileViewModel
         }
         if (heightRange.isBlank() && existingPreferences.heightMinCm != null && existingPreferences.heightMaxCm != null) {
             heightRange = "${heightLabelVerboseFromCm(existingPreferences.heightMinCm)} - ${heightLabelVerboseFromCm(existingPreferences.heightMaxCm)}"
+        }
+        if (religionCommunity.isBlank()) {
+            religionCommunity = existingPreferences.religion ?: existing?.partnerPreferences?.religion.orEmpty()
         }
         if (locationPreferenceText.isBlank()) {
             locationPreferenceText = existingPreferences.locationPreferences
@@ -1228,6 +1260,18 @@ private fun Step6PartnerPreferences(existing: ProfileData?, vm: ProfileViewModel
         locationPreferences.all(::isValidLocationName)
 
     LaunchedEffect(ageRange, heightRange, religionCommunity, locationPreferenceText, educationPreference, occupationPreference, incomePreference, lifestylePreference) {
+        vm.updateStep6Data(
+            mapOf(
+                "ageRange" to ageRange,
+                "heightRange" to heightRange,
+                "religionCommunity" to religionCommunity,
+                "locationPreferenceText" to locationPreferenceText,
+                "educationPreference" to educationPreference,
+                "occupationPreference" to occupationPreference,
+                "incomePreference" to incomePreference,
+                "lifestylePreference" to lifestylePreference
+            )
+        )
         vm.updatePartnerPreferences(
             PartnerPreferencesData(
                 ageMin = ageMinValue ?: 23,
@@ -1318,7 +1362,8 @@ private fun Step6PartnerPreferences(existing: ProfileData?, vm: ProfileViewModel
             label = "Income preference",
             value = incomePreference,
             options = listOf("₹5 LPA and above", "₹8 LPA and above", "₹12 LPA and above", "₹20 LPA and above"),
-            onSelect = { incomePreference = it }
+            onSelect = { incomePreference = it },
+            leadingIcon = Icons.Filled.AccountBalance
         )
         SelectionField(
             label = "Lifestyle preference",
@@ -1328,6 +1373,7 @@ private fun Step6PartnerPreferences(existing: ProfileData?, vm: ProfileViewModel
                 lifestyleTouched = true
                 lifestylePreference = it
             },
+            leadingIcon = Icons.Outlined.AutoAwesome,
             isError = lifestyleTouched && lifestylePreference.isBlank(),
             supportingText = if (lifestyleTouched && lifestylePreference.isBlank()) "Lifestyle preference is required." else null
         )
