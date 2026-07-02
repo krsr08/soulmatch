@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,6 +22,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -130,7 +130,6 @@ fun OTPVerificationScreen(
             .fillMaxSize()
             .background(SoulMatchTokens.Bg)
             .statusBarsPadding()
-            .imePadding()
             .navigationBarsPadding()
             .padding(horizontal = 24.dp, vertical = 20.dp)
     ) {
@@ -155,10 +154,11 @@ fun OTPVerificationScreen(
             }
             Spacer(Modifier.height(56.dp))
             SoftIcon {
-                Image(
-                    painter = painterResource(R.drawable.login_route_icon),
+                androidx.compose.material3.Icon(
+                    imageVector = Icons.Filled.VerifiedUser,
                     contentDescription = null,
-                    modifier = Modifier.size(38.dp)
+                    tint = SoulMatchTokens.Tangerine,
+                    modifier = Modifier.size(34.dp)
                 )
             }
             Spacer(Modifier.height(28.dp))

@@ -168,6 +168,7 @@ fun OnboardingBenefitScreen(
     onContinue: () -> Unit,
     vm: IntroViewModel = hiltViewModel()
 ) {
+    val onboardingSeen by vm.memberOnboardingSeen.collectAsStateWithLifecycle()
     val slides = listOf(
         BenefitSlide(
             icon = Icons.Filled.VerifiedUser,
@@ -186,6 +187,10 @@ fun OnboardingBenefitScreen(
         )
     )
     val pagerState = rememberPagerState(initialPage = 0) { slides.size }
+
+    LaunchedEffect(onboardingSeen) {
+        if (onboardingSeen) onContinue()
+    }
 
     LaunchedEffect(pagerState) {
         while (true) {

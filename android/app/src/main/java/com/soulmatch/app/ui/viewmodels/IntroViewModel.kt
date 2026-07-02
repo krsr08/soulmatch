@@ -19,6 +19,11 @@ class IntroViewModel @Inject constructor(
         SharingStarted.WhileSubscribed(5_000),
         null
     )
+    val memberOnboardingSeen: StateFlow<Boolean> = prefs.memberOnboardingSeen.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        false
+    )
 
     fun saveLanguage(language: String, onDone: () -> Unit) {
         viewModelScope.launch {
