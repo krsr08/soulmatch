@@ -329,20 +329,37 @@ fun DashboardScreen(
                         }
                         if (bestMatches.isEmpty()) {
                             item {
+                                val profileReady = profileStrengthScore >= 100
                                 EmptyHomeCard(
                                     title = if (selectedFeedFilter == null) {
-                                        content.emptyTitle.ifBlank { "Your profile needs a little more detail" }
+                                        if (profileReady) {
+                                            "No matches available yet"
+                                        } else {
+                                            content.emptyTitle.ifBlank { "Your profile needs a little more detail" }
+                                        }
                                     } else {
                                         "No ${selectedFeedFilter?.label.orEmpty().lowercase(Locale.getDefault())} matches yet"
                                     },
                                     body = if (selectedFeedFilter == null) {
-                                        content.emptyBody.ifBlank { "Complete family, lifestyle, and preference details to unlock stronger recommendations." }
+                                        if (profileReady) {
+                                            "Your profile is saved. We will show new matches here as recommendations refresh."
+                                        } else {
+                                            content.emptyBody.ifBlank { "Complete family, lifestyle, and preference details to unlock stronger recommendations." }
+                                        }
                                     } else {
                                         "Try another filter or refine your preferences to continue browsing compatible profiles."
                                     },
-                                    action = if (selectedFeedFilter == null) content.emptyCta.ifBlank { "Improve my profile" } else "Open filters",
+                                    action = if (selectedFeedFilter == null) {
+                                        if (profileReady) "Open search" else content.emptyCta.ifBlank { "Improve my profile" }
+                                    } else {
+                                        "Open filters"
+                                    },
                                     onAction = {
-                                        if (selectedFeedFilter == null) onOpenProfile() else showFilterDialog = true
+                                        if (selectedFeedFilter == null) {
+                                            if (profileReady) onOpenSearch() else onOpenProfile()
+                                        } else {
+                                            showFilterDialog = true
+                                        }
                                     }
                                 )
                             }

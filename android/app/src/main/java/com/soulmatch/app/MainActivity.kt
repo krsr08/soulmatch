@@ -207,12 +207,7 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                         val profile = body.data
                         val storedWizardStep = userPreferences.wizardStep.first()
                         if (profile?.profileId.isNullOrBlank()) {
-                            val resumeStep = storedWizardStep.coerceIn(1, 9)
-                            startDestination = if (memberOnboardingSeen) {
-                                "profile_wizard/$resumeStep"
-                            } else {
-                                "onboarding_benefit"
-                            }
+                            startDestination = resolveMemberResumeRoute(profile, storedWizardStep, memberOnboardingSeen)
                             return@LaunchedEffect
                         } else {
                             userPreferences.saveProfileId(profile?.profileId.orEmpty())
@@ -235,9 +230,9 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                         startDestination = "welcome"
                     }
                     else -> {
-                        val resumeStep = userPreferences.wizardStep.first().coerceIn(1, 9)
-                        startDestination = if (memberOnboardingSeen) {
-                            "profile_wizard/$resumeStep"
+                        val storedWizardStep = userPreferences.wizardStep.first()
+                        startDestination = if (memberOnboardingSeen || storedWizardStep > 0) {
+                            resolveMemberResumeRoute(null, storedWizardStep, memberOnboardingSeen)
                         } else {
                             "welcome"
                         }

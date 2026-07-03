@@ -132,9 +132,13 @@ class DashboardViewModel @Inject constructor(
                 }
                 loadedMatches = applyInteractionState(expandedMatches.map { it.safeDashboardSummary() })
                 _matches.value = loadedMatches.applyLocalInteractionState().filterVisibleProfiles()
+                val profileReady = _myProfile.value.reviewStatus.equals("submitted", ignoreCase = true) ||
+                    _myProfile.value.reviewStatus.equals("under_review", ignoreCase = true) ||
+                    _myProfile.value.reviewStatus.equals("approved", ignoreCase = true)
                 _headline.value = when {
                     verifiedOnly && _matches.value.isEmpty() -> "No verified profiles available yet"
                     _matches.value.any { it.compatibilityScore >= 90 } -> "High-compatibility matches this week"
+                    _matches.value.isEmpty() && profileReady -> "New matches will appear here soon"
                     _matches.value.isEmpty() -> "Complete your profile for more visibility"
                     else -> "Profiles aligned to your preferences"
                 }

@@ -6,112 +6,99 @@ import com.soulmatch.app.data.models.ProfileData
 
 object ProfileStrengthAdvisor {
     fun score(profile: ProfileData): Int {
+        if (isProfileSubmitted(profile)) return 100
         val firstName = safe(profile.firstName)
-        val lastName = safe(profile.lastName)
         val dob = safe(profile.dob)
         val gender = safe(profile.gender)
         val religion = safe(profile.religion)
         val caste = safe(profile.caste)
         val maritalStatus = safe(profile.maritalStatus)
         val motherTongue = safe(profile.motherTongue)
-        val complexion = safe(profile.complexion)
-        val bodyType = safe(profile.bodyType)
-        val bloodGroup = safe(profile.bloodGroup)
+        val nativePlace = safe(profile.nativePlace)
         val educationLevel = safe(profile.educationLevel)
+        val institutionName = safe(profile.institutionName)
         val occupation = safe(profile.occupation)
+        val companyName = safe(profile.companyName)
         val annualIncome = safe(profile.annualIncome)
         val workingCity = safe(profile.workingCity)
-        val workingState = safe(profile.workingState)
-        val workingPincode = safe(profile.workingPincode)
         val fatherOccupation = safe(profile.fatherOccupation)
         val motherOccupation = safe(profile.motherOccupation)
         val familyType = safe(profile.familyType)
-        val familyCity = safe(profile.familyCity)
+        val familyStatus = safe(profile.familyStatus)
+        val aboutFamily = safe(profile.aboutFamily)
         val diet = safe(profile.diet)
         val smoking = safe(profile.smoking)
         val drinking = safe(profile.drinking)
-        val aboutMe = safe(profile.aboutMe)
-        val rashi = safe(profile.rashi)
-        val nakshatra = safe(profile.nakshatra)
-        val birthCity = safe(profile.birthCity)
-        val gotra = safe(profile.gotra)
+        val hobbies = profile.hobbies
+        val languagesKnown = profile.languagesKnown
+        val personalityTraits = profile.personalityTraits
         val sections = listOf(
             firstName.isNotBlank() &&
-                lastName.isNotBlank() &&
                 dob.isNotBlank() &&
                 gender.isNotBlank() &&
-                religion.isNotBlank() &&
-                caste.isNotBlank() &&
                 maritalStatus.isNotBlank() &&
-                motherTongue.isNotBlank(),
-            (profile.heightCm ?: 0) > 0 &&
-                (profile.weightKg ?: 0) > 0 &&
-                complexion.isNotBlank() &&
-                bodyType.isNotBlank() &&
-                bloodGroup.isNotBlank(),
+                motherTongue.isNotBlank() &&
+                workingCity.isNotBlank() &&
+                nativePlace.isNotBlank() &&
+                (profile.heightCm ?: 0) > 0,
+            religion.isNotBlank() &&
+                caste.isNotBlank(),
             educationLevel.isNotBlank() &&
-                (!profile.isEmployed || (
-                    occupation.isNotBlank() &&
-                        annualIncome.isNotBlank() &&
-                        workingCity.isNotBlank() &&
-                        workingState.isNotBlank() &&
-                        workingPincode.length == 6
-                    )),
+                institutionName.isNotBlank() &&
+                occupation.isNotBlank() &&
+                companyName.isNotBlank() &&
+                annualIncome.isNotBlank() &&
+                (profile.workLocation.isNotBlank() || workingCity.isNotBlank()),
             fatherOccupation.isNotBlank() &&
                 motherOccupation.isNotBlank() &&
-                profile.numBrothers != null &&
-                profile.numSisters != null &&
                 familyType.isNotBlank() &&
-                familyCity.isNotBlank(),
+                familyStatus.isNotBlank() &&
+                aboutFamily.trim().length >= 40,
             diet.isNotBlank() &&
                 smoking.isNotBlank() &&
                 drinking.isNotBlank() &&
-                aboutMe.trim().length >= 30,
-            rashi.isNotBlank() ||
-                nakshatra.isNotBlank() ||
-                birthCity.isNotBlank() ||
-                gotra.isNotBlank() ||
-                profile.isManglik
+                hobbies.isNotEmpty() &&
+                languagesKnown.isNotEmpty() &&
+                personalityTraits.isNotEmpty(),
+            profile.isPartnerPrefSet &&
+                profile.primaryPhotoUrl.isNullOrBlank().not()
         )
         return ((sections.count { it }.toFloat() / sections.size.toFloat()) * 100f).toInt().coerceIn(0, 100)
     }
 
     fun pendingUpdates(profile: ProfileData): List<String> {
+        if (isProfileSubmitted(profile)) {
+            return listOf("Your profile is complete")
+        }
         val profileScore = score(profile)
         val primaryPhotoUrl = safe(profile.primaryPhotoUrl)
         val fatherOccupation = safe(profile.fatherOccupation)
         val motherOccupation = safe(profile.motherOccupation)
-        val familyCity = safe(profile.familyCity)
+        val familyStatus = safe(profile.familyStatus)
+        val aboutFamily = safe(profile.aboutFamily)
         val educationLevel = safe(profile.educationLevel)
+        val institutionName = safe(profile.institutionName)
         val occupation = safe(profile.occupation)
+        val companyName = safe(profile.companyName)
         val annualIncome = safe(profile.annualIncome)
-        val complexion = safe(profile.complexion)
-        val bodyType = safe(profile.bodyType)
         val diet = safe(profile.diet)
         val smoking = safe(profile.smoking)
         val drinking = safe(profile.drinking)
-        val aboutMe = safe(profile.aboutMe)
-        val rashi = safe(profile.rashi)
-        val nakshatra = safe(profile.nakshatra)
-        val birthCity = safe(profile.birthCity)
         val updates = buildList {
             if (primaryPhotoUrl.isBlank()) add("Add your profile photo")
-            if (fatherOccupation.isBlank() || motherOccupation.isBlank() || familyCity.isBlank()) {
+            if (fatherOccupation.isBlank() || motherOccupation.isBlank() || familyStatus.isBlank() || aboutFamily.trim().length < 40) {
                 add("Complete family details")
             }
-            if (educationLevel.isBlank() || occupation.isBlank() || annualIncome.isBlank()) {
+            if (educationLevel.isBlank() || institutionName.isBlank() || occupation.isBlank() || companyName.isBlank() || annualIncome.isBlank()) {
                 add("Add work and education")
             }
-            if ((profile.heightCm ?: 0) <= 0 || complexion.isBlank() || bodyType.isBlank()) {
-                add("Add height and personal details")
+            if ((profile.heightCm ?: 0) <= 0 || safe(profile.nativePlace).isBlank() || safe(profile.workingCity).isBlank()) {
+                add("Complete basic details")
             }
-            if (diet.isBlank() || smoking.isBlank() || drinking.isBlank()) {
+            if (diet.isBlank() || smoking.isBlank() || drinking.isBlank() || profile.hobbies.isEmpty() || profile.languagesKnown.isEmpty() || profile.personalityTraits.isEmpty()) {
                 add("Complete lifestyle choices")
             }
-            if (aboutMe.trim().length < 30) add("Write a short introduction")
-            if (rashi.isBlank() && nakshatra.isBlank() && birthCity.isBlank()) {
-                add("Add horoscope details if your family uses them")
-            }
+            if (!profile.isPartnerPrefSet) add("Review partner preferences")
         }
 
         if (updates.isNotEmpty()) return updates
@@ -130,4 +117,9 @@ object ProfileStrengthAdvisor {
     }
 
     private fun safe(value: String?): String = value.orEmpty()
+
+    private fun isProfileSubmitted(profile: ProfileData): Boolean {
+        val reviewStatus = safe(profile.reviewStatus).lowercase()
+        return reviewStatus == "submitted" || reviewStatus == "under_review" || reviewStatus == "approved"
+    }
 }

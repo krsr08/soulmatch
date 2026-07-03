@@ -279,7 +279,7 @@ class AuthViewModel @Inject constructor(
                 }
             )
             if (requestedUserType == "member" && data.isNewUser && profile?.profileId.isNullOrBlank()) {
-                if (onboardingSeen) "profile_wizard/${storedWizardStep.coerceIn(1, 9)}" else "onboarding_benefit"
+                resolveMemberResumeRoute(profile, storedWizardStep, onboardingSeen)
             } else {
                 resolveMemberResumeRoute(profile, storedWizardStep, onboardingSeen)
             }

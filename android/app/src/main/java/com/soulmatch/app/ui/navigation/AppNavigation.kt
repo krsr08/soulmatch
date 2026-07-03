@@ -496,7 +496,8 @@ fun AppNavigation(
                 onHelp = { nav.navigate("help_support") },
                 onPrimary = {
                     nav.navigate("dashboard") {
-                        popUpTo("welcome") { inclusive = true }
+                        popUpTo("profile_under_review") { inclusive = true }
+                        launchSingleTop = true
                     }
                 }
             )

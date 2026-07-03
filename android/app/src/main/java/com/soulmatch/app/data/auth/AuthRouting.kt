@@ -4,7 +4,11 @@ import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.AgentProfileData
 
 private fun safeText(value: String?): String = value.orEmpty()
-private fun profileDraftRoute(step: Int): String = "profile_wizard/${step.coerceIn(1, 9)}"
+private fun profileDraftRoute(step: Int): String = when {
+    step >= 10 -> "dashboard"
+    step <= 0 -> "profile_intro"
+    else -> "profile_wizard/${step.coerceIn(1, 9)}"
+}
 
 fun resolveMemberResumeRoute(
     profile: ProfileData?,
@@ -19,7 +23,7 @@ fun resolveMemberResumeRoute(
         return "profile_correction_required"
     }
     if (safeText(safeProfile.reviewStatus).equals("submitted", true) || safeText(safeProfile.reviewStatus).equals("under_review", true)) {
-        return "profile_under_review"
+        return "dashboard"
     }
     val resolvedStep = resolveWizardStep(safeProfile)
     val preferredStep = when {
@@ -29,7 +33,7 @@ fun resolveMemberResumeRoute(
         else -> resolvedStep
     }
     return when {
-        preferredStep == 10 -> "profile_under_review"
+        preferredStep == 10 -> "dashboard"
         preferredStep in 1..9 -> "profile_wizard/$preferredStep"
         else -> "dashboard"
     }
@@ -69,6 +73,12 @@ fun resolveWizardStep(profile: ProfileData?): Int? {
 }
 
 fun resolvePostLoginRoute(profile: ProfileData?): String {
+    if (profile != null) {
+        val reviewStatus = safeText(profile.reviewStatus)
+        if (reviewStatus.equals("submitted", true) || reviewStatus.equals("under_review", true) || reviewStatus.equals("approved", true)) {
+            return "dashboard"
+        }
+    }
     val nextWizardStep = resolveWizardStep(profile)
     return when {
         nextWizardStep != null && profile?.profileId.isNullOrBlank() -> "profile_intro"
