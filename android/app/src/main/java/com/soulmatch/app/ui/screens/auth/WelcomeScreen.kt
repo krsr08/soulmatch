@@ -212,7 +212,7 @@ fun WelcomeScreen(
                         Image(
                             painter = painterResource(R.drawable.login_route_icon),
                             contentDescription = null,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(26.dp)
                         )
                         Text(
                             text = "After OTP, existing users continue to their app and new users start profile setup.",
@@ -335,7 +335,7 @@ private fun MobileNumberField(
             Image(
                 painter = painterResource(R.drawable.mobile_login_icon),
                 contentDescription = null,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(20.dp)
             )
             Box(modifier = Modifier.weight(1f)) {
                 BasicTextField(

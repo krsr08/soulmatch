@@ -1090,7 +1090,7 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
                     siblingsTouched = true
                     numBrothers = it.filter(Char::isDigit)
                 },
-                placeholder = "Select brothers",
+                placeholder = "Select",
                 leadingIcon = Icons.Filled.People,
                 modifier = Modifier.weight(1f)
             )
@@ -1102,7 +1102,7 @@ private fun Step4Family(existing: ProfileData?, vm: ProfileViewModel, onValidity
                     siblingsTouched = true
                     numSisters = it.filter(Char::isDigit)
                 },
-                placeholder = "Select sisters",
+                placeholder = "Select",
                 leadingIcon = Icons.Filled.People,
                 modifier = Modifier.weight(1f)
             )

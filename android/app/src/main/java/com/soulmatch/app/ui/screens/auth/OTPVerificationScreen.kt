@@ -144,20 +144,27 @@ fun OTPVerificationScreen(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 SoulMatchHeaderIconButton(
                     icon = Icons.Filled.ArrowBack,
                     contentDescription = "Back",
                     onClick = onBack
                 )
+                Text(
+                    text = "OTP Verification",
+                    color = SoulMatchTokens.Text,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.size(44.dp))
             }
             Spacer(Modifier.height(56.dp))
             SoftIcon {
-                androidx.compose.material3.Icon(
-                    imageVector = Icons.Filled.VerifiedUser,
+                Image(
+                    painter = painterResource(R.drawable.login_route_icon),
                     contentDescription = null,
-                    tint = SoulMatchTokens.Tangerine,
                     modifier = Modifier.size(34.dp)
                 )
             }

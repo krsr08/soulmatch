@@ -328,23 +328,28 @@ fun ProfileVerificationScreen(
             onClick = { picker.launch("*/*") }
         )
         if (!selectedUri.isNullOrBlank() && !hasIdentityVerification) {
-            Text(
-                text = if (isSubmitting) "Uploading..." else "Upload document",
-                color = SoulMatchTokens.Tangerine,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable(enabled = !isSubmitting) {
-                    val uri = selectedUri?.let(Uri::parse) ?: return@clickable
-                    context.toVerificationDocumentPart(uri)?.let { part ->
-                        vm.clearStatus()
-                        showDocumentError = false
-                        vm.submitTrustVerification(
-                            type = "identity",
-                            document = part,
-                            documentType = documentType
-                        )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Text(
+                    text = if (isSubmitting) "Uploading..." else "Upload document",
+                    color = SoulMatchTokens.Tangerine,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable(enabled = !isSubmitting) {
+                        val uri = selectedUri?.let(Uri::parse) ?: return@clickable
+                        context.toVerificationDocumentPart(uri)?.let { part ->
+                            vm.clearStatus()
+                            showDocumentError = false
+                            vm.submitTrustVerification(
+                                type = "identity",
+                                document = part,
+                                documentType = documentType
+                            )
+                        }
                     }
-                }
-            )
+                )
+            }
         }
         if (showDocumentError) {
             InlineNotice("ID verification document is required before review.", error = true)

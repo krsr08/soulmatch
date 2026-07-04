@@ -1400,7 +1400,6 @@ fun HelpSupportScreen(
     onOpenTerms: () -> Unit
 ) {
     val context = LocalContext.current
-    var status by remember { mutableStateOf<String?>(null) }
     val faqs = listOf(
         FaqItem("How do I request verification?", "Open My Profile and use the Profile verification card. Add at least one photo and complete the profile to improve approval chances."),
         FaqItem("Why is a member not replying?", "Some members wait for family review before responding. Better photos, a complete profile, and verified status usually improve response rate."),
@@ -1420,30 +1419,24 @@ fun HelpSupportScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
-                if (!status.isNullOrBlank()) {
-                    item {
-                        StatusInfoCard(
-                            title = "Action update",
-                            detail = status ?: "",
-                            toneColor = SuccessSoft,
-                            contentColor = Success
-                        )
-                    }
-                }
                 item {
                     Column(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        SectionTitle("Help & Support")
                         DrawerActionButton(
                             icon = Icons.Filled.Email,
                             title = SupportEmail,
                             subtitle = "Email support for account, payment, or verification help.",
                             onClick = {
-                                status = context.launchExternal(
-                                    Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$SupportEmail?subject=${Uri.encode("SoulMatch support request")}"))
-                                )
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(
+                                            Intent.ACTION_SENDTO,
+                                            Uri.parse("mailto:$SupportEmail?subject=${Uri.encode("SoulMatch support request")}")
+                                        )
+                                    )
+                                }
                             }
                         )
                         DrawerActionButton(
@@ -1451,9 +1444,9 @@ fun HelpSupportScreen(
                             title = SupportPhone,
                             subtitle = "Call support if a live follow-up has already been arranged.",
                             onClick = {
-                                status = context.launchExternal(
-                                    Intent(Intent.ACTION_DIAL, Uri.parse("tel:$SupportPhone"))
-                                )
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$SupportPhone")))
+                                }
                             }
                         )
                         DrawerActionButton(
@@ -1474,6 +1467,7 @@ fun HelpSupportScreen(
                             subtitle = "Review account, plan, payment, and platform responsibilities.",
                             onClick = onOpenTerms
                         )
+                        SectionTitle("Frequently Asked Questions")
                         faqs.forEach { faq ->
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
