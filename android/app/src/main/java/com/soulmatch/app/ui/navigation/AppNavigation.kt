@@ -170,7 +170,7 @@ fun AppNavigation(
         composable("onboarding_benefit") {
             OnboardingBenefitScreen(
                 onContinue = {
-                    nav.navigate("profile_intro") {
+                    nav.navigate("profile_wizard/1") {
                         popUpTo("onboarding_benefit") { inclusive = true }
                         launchSingleTop = true
                     }

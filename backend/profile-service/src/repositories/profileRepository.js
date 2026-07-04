@@ -1271,7 +1271,21 @@ exports.upsertPreferences = async (profileId, data = {}) => {
   );
   await db.query('UPDATE profiles SET is_partner_pref_set=true,updated_at=NOW() WHERE profile_id=$1', [profileId]);
 };
-exports.getPreferences = async (profileId) => { const db = await getDB(); const r = await db.query('SELECT * FROM partner_preferences WHERE profile_id=$1', [profileId]); return r.rows[0] || null; };
+exports.getPreferences = async (profileId) => {
+  const db = await getDB();
+  const r = await db.query(
+    `SELECT
+       pp.*,
+       COALESCE(ped.location_preferences, '[]'::jsonb) AS location_preferences,
+       COALESCE(ped.income_preferences, '[]'::jsonb) AS income_preferences,
+       COALESCE(ped.lifestyle_preferences, '[]'::jsonb) AS lifestyle_preferences
+     FROM partner_preferences pp
+     LEFT JOIN profile_extended_details ped ON ped.profile_id = pp.profile_id
+     WHERE pp.profile_id=$1`,
+    [profileId]
+  );
+  return r.rows[0] || null;
+};
 exports.recordMatchFeedback = async (userId, targetProfileId, data = {}) => {
   const db = await getDB();
   const sourceProfile = await exports.findByUserId(userId);

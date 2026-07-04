@@ -213,7 +213,17 @@ private val locationPreferenceOptions = listOf("Same city", "Same state", "South
 private val incomePreferenceOptions = listOf("< 5 LPA", "5-10 LPA", "10-20 LPA", "20-35 LPA", "35+ LPA")
 private val lifestylePreferenceOptions = listOf("Vegetarian", "No smoking", "No drinking", "Family-focused", "Career-minded", "Traditional values")
 private val partnerAgeRangeOptions = listOf("23 - 28 years", "24 - 30 years", "25 - 31 years", "26 - 32 years", "27 - 33 years")
-private val partnerHeightRangeOptions = listOf("5 ft 0 in - 5 ft 6 in", "5 ft 2 in - 5 ft 8 in", "5 ft 3 in - 5 ft 9 in", "5 ft 4 in - 5 ft 10 in", "5 ft 5 in - 6 ft 0 in")
+private val partnerHeightRangeOptions = listOf(
+    "3 ft 0 in - 3 ft 6 in",
+    "3 ft 3 in - 3 ft 9 in",
+    "4 ft 0 in - 4 ft 6 in",
+    "4 ft 3 in - 4 ft 9 in",
+    "5 ft 0 in - 5 ft 6 in",
+    "5 ft 2 in - 5 ft 8 in",
+    "5 ft 3 in - 5 ft 9 in",
+    "5 ft 4 in - 5 ft 10 in",
+    "5 ft 5 in - 6 ft 0 in"
+)
 private val partnerEducationOptions = listOf("Graduate or higher", "Postgraduate", "MBA", "Doctorate", "Professional degree")
 private val partnerOccupationOptions = listOf("Professional / business", "Engineer", "Doctor", "Government", "Teacher", "Entrepreneur")
 
@@ -242,6 +252,9 @@ private fun isValidPlainText(value: String): Boolean =
 private fun Map<String, Any>.stringValue(key: String, fallback: String = ""): String =
     (this[key] as? String)?.takeIf { it.isNotBlank() } ?: fallback
 
+private fun Map<String, Any>.stringListValue(key: String, fallback: List<String> = emptyList()): List<String> =
+    (this[key] as? List<*>)?.filterIsInstance<String>()?.filter { it.isNotBlank() } ?: fallback
+
 private fun composeFullName(firstName: String?, lastName: String?): String {
     val first = firstName.orEmpty().trim()
     val last = lastName.orEmpty().trim()
@@ -268,6 +281,10 @@ fun ProfileWizardScreen(
     var showInfo by remember(currentStep) { mutableStateOf(false) }
     val copy = wizardCopy.getValue(currentStep)
     val progressPercent = wizardStepProgress(currentStep)
+
+    LaunchedEffect(currentStep) {
+        vm.saveWizardStep(currentStep)
+    }
 
     if (showInfo) {
         ProfileWizardInfoBottomSheet(
@@ -1117,10 +1134,10 @@ private fun Step5Lifestyle(existing: ProfileData?, vm: ProfileViewModel, onValid
     var diet by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("diet", existing?.diet.orEmpty())) }
     var smoking by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("smoking", existing?.smoking?.ifBlank { "never" } ?: "never")) }
     var drinking by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringValue("drinking", existing?.drinking?.ifBlank { "never" } ?: "never")) }
-    var hobbies by rememberSaveable(existing?.profileId) { mutableStateOf((draft["hobbies"] as? List<*>)?.filterIsInstance<String>() ?: (existing?.hobbies ?: emptyList())) }
-    var languagesKnown by rememberSaveable(existing?.profileId) { mutableStateOf((draft["languagesKnown"] as? List<*>)?.filterIsInstance<String>() ?: (existing?.languagesKnown ?: emptyList())) }
-    var personalityTraits by rememberSaveable(existing?.profileId) { mutableStateOf((draft["personalityTraits"] as? List<*>)?.filterIsInstance<String>() ?: (existing?.personalityTraits ?: emptyList())) }
-    LaunchedEffect(existing?.profileId) {
+    var hobbies by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringListValue("hobbies", existing?.hobbies ?: emptyList())) }
+    var languagesKnown by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringListValue("languagesKnown", existing?.languagesKnown ?: emptyList())) }
+    var personalityTraits by rememberSaveable(existing?.profileId) { mutableStateOf(draft.stringListValue("personalityTraits", existing?.personalityTraits ?: emptyList())) }
+    LaunchedEffect(existing?.updatedAt, existing?.hobbies, existing?.languagesKnown, existing?.personalityTraits) {
         if (diet.isBlank() && existing?.diet?.isNotBlank() == true) diet = existing.diet
         if (smoking.isBlank() && existing?.smoking?.isNotBlank() == true) smoking = existing.smoking
         if (drinking.isBlank() && existing?.drinking?.isNotBlank() == true) drinking = existing.drinking
@@ -1200,7 +1217,7 @@ private fun Step6PartnerPreferences(existing: ProfileData?, vm: ProfileViewModel
             heightRange = "${heightLabelVerboseFromCm(existingPreferences.heightMinCm)} - ${heightLabelVerboseFromCm(existingPreferences.heightMaxCm)}"
         }
         if (religionCommunity.isBlank()) {
-            religionCommunity = existingPreferences.religion ?: existing?.partnerPreferences?.religion.orEmpty()
+            religionCommunity = existingPreferences.religion.orEmpty()
         }
         if (locationPreferenceText.isBlank()) {
             locationPreferenceText = existingPreferences.locationPreferences

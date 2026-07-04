@@ -56,11 +56,13 @@ class ProfileViewModel @Inject constructor(
                         val prefResponse = runCatching { profileApi.getPreferences(profileId) }.getOrNull()
                         _partnerPreferences.value = prefResponse?.body()?.takeIf { it.success }?.data
                             ?: PartnerPreferencesData(
-                                religion = body.data?.religion,
-                                educationLevels = listOf(body.data?.educationLevel.orEmpty()).filter { it.isNotBlank() },
-                                occupations = listOf(body.data?.occupation.orEmpty()).filter { it.isNotBlank() },
-                                locations = listOf(body.data?.workingCity.orEmpty(), body.data?.familyCity.orEmpty()).filter { it.isNotBlank() }.distinct(),
-                                dietPrefs = listOf(body.data?.diet.orEmpty()).filter { it.isNotBlank() }
+                                locations = body.data?.locationPreferences.orEmpty(),
+                                locationPreferences = body.data?.locationPreferences.orEmpty(),
+                                incomePreferences = body.data?.incomePreferences.orEmpty(),
+                                lifestylePreferences = body.data?.lifestylePreferences.orEmpty(),
+                                dietPrefs = listOf(body.data?.diet.orEmpty()).filter { it.isNotBlank() },
+                                maritalStatuses = listOf(body.data?.maritalStatus.orEmpty()).filter { it.isNotBlank() },
+                                familyTypes = listOf(body.data?.familyType.orEmpty()).filter { it.isNotBlank() }
                             )
                     } else {
                         _partnerPreferences.value = PartnerPreferencesData()
@@ -88,6 +90,11 @@ class ProfileViewModel @Inject constructor(
     fun updateStep5Data(d: Map<String, Any>) = persistStepData(5, d)
     fun updateStep6Data(d: Map<String, Any>) = persistStepData(6, d)
     fun stepData(step: Int): Map<String, Any> = stepData[step].orEmpty()
+    fun saveWizardStep(step: Int) {
+        viewModelScope.launch {
+            prefs.saveWizardStep(step.coerceIn(1, 10))
+        }
+    }
 
     fun updatePartnerPreferences(preferences: PartnerPreferencesData) {
         _partnerPreferences.value = preferences.safePreferences()

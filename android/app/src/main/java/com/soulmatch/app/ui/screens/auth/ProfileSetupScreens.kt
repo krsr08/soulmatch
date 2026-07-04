@@ -98,6 +98,7 @@ import com.soulmatch.app.data.models.ProfileData
 import com.soulmatch.app.data.models.ProfilePhoto
 import com.soulmatch.app.data.models.VerificationRequestData
 import com.soulmatch.app.data.models.fullName
+
 import com.soulmatch.app.ui.components.media.MemberPhoto
 import com.soulmatch.app.ui.design.SoulMatchHeaderIconButton
 import com.soulmatch.app.ui.design.SoulMatchTokens
@@ -108,6 +109,16 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.Locale
+
+private fun previewHeightLabel(heightCm: Int?): String {
+    val cm = heightCm ?: return ""
+    if (cm <= 0) return ""
+    val totalInches = (cm / 2.54).toInt()
+    val feet = totalInches / 12
+    val inches = totalInches % 12
+    return "${feet} ft ${inches} in"
+}
+
 
 @Composable
 fun ProfileIntroScreen(
@@ -179,6 +190,10 @@ fun ProfilePhotoUploadScreen(
         }
     }
 
+
+    LaunchedEffect(Unit) {
+        vm.saveWizardStep(7)
+    }
     ProfileSetupScaffold(
         title = "Photos",
         stepNumber = 7,
@@ -267,6 +282,10 @@ fun ProfileVerificationScreen(
         }
     }
 
+
+    LaunchedEffect(Unit) {
+        vm.saveWizardStep(8)
+    }
     ProfileSetupScaffold(
         title = "Verification",
         stepNumber = 8,
@@ -309,9 +328,12 @@ fun ProfileVerificationScreen(
             onClick = { picker.launch("*/*") }
         )
         if (!selectedUri.isNullOrBlank() && !hasIdentityVerification) {
-            Button(
-                onClick = {
-                    val uri = selectedUri?.let(Uri::parse) ?: return@Button
+            Text(
+                text = if (isSubmitting) "Uploading..." else "Upload document",
+                color = SoulMatchTokens.Tangerine,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable(enabled = !isSubmitting) {
+                    val uri = selectedUri?.let(Uri::parse) ?: return@clickable
                     context.toVerificationDocumentPart(uri)?.let { part ->
                         vm.clearStatus()
                         showDocumentError = false
@@ -321,14 +343,8 @@ fun ProfileVerificationScreen(
                             documentType = documentType
                         )
                     }
-                },
-                enabled = !isSubmitting,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                shape = RoundedCornerShape(SoulMatchTokens.PillRadius),
-                colors = ButtonDefaults.buttonColors(containerColor = SoulMatchTokens.Tangerine, contentColor = Color.White)
-            ) {
-                Text(if (isSubmitting) "Uploading..." else "Upload document")
-            }
+                }
+            )
         }
         if (showDocumentError) {
             InlineNotice("ID verification document is required before review.", error = true)
@@ -360,8 +376,12 @@ fun ProfilePreviewReviewScreen(
         it.type.equals("identity", true) || it.type.equals("aadhaar", true)
     }
 
+
+    LaunchedEffect(Unit) {
+        vm.saveWizardStep(9)
+    }
     ProfileSetupScaffold(
-        title = "Preview",
+        title = "Profile Preview",
         stepNumber = 9,
         progressPercent = 92,
         stepLabel = "Step 9 of 10",
@@ -385,10 +405,18 @@ fun ProfilePreviewReviewScreen(
             onEdit = onEditSection,
             defaultExpanded = true
         ) {
-            PreviewLine("Name", profile?.fullName().orEmpty())
-            PreviewLine("Gender", profile?.gender.orEmpty())
-            PreviewLine("Current city", profile?.workingCity.orEmpty())
-            PreviewLine("Native place", profile?.nativePlace.orEmpty())
+            PreviewTwoColumnGrid(
+                listOf(
+                    "Full name" to profile?.fullName().orEmpty(),
+                    "Gender" to profile?.gender.orEmpty(),
+                    "Date of birth" to profile?.dob.orEmpty(),
+                    "Height" to previewHeightLabel(profile?.heightCm),
+                    "Marital status" to titleCase(profile?.maritalStatus.orEmpty().replace('_', ' ')),
+                    "Mother tongue" to profile?.motherTongue.orEmpty(),
+                    "Current city" to profile?.workingCity.orEmpty(),
+                    "Native place" to profile?.nativePlace.orEmpty()
+                )
+            )
         }
         PreviewSection(
             title = "Religious details",
@@ -478,14 +506,13 @@ fun ProfilePreviewReviewScreen(
         PreviewSection(
             title = "Verification",
             editStep = 8,
-            collapsedSummary = if (hasIdentityVerification) "Pending" else "Pending",
+            collapsedSummary = "Documents uploaded for review : Pending",
             onEdit = onEditSection,
             highlighted = true
         ) {
-            PreviewLine("Status", "Pending")
-            Text(
-                if (hasIdentityVerification) "Verification document uploaded and waiting for review." else "ID verification is still pending upload.",
-                color = SoulMatchTokens.Muted
+            PreviewStatusRow(
+                label = "Documents uploaded for review :",
+                status = "Pending"
             )
         }
         if (!hasIdentityVerification) {
@@ -696,9 +723,9 @@ private fun ProfileSetupScaffold(
                 colors = ButtonDefaults.buttonColors(containerColor = SoulMatchTokens.Tangerine, contentColor = Color.White)
             ) {
                 Text(primaryText, fontWeight = FontWeight.Bold)
-            }
         }
     }
+}
 }
 
 @Composable
@@ -1516,12 +1543,18 @@ private fun PreviewSection(
                 }
             }
             if (expanded) {
-                content()
+                Column(
+                    modifier = Modifier.padding(start = 30.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    content()
+                }
             } else if (collapsedSummary.isNotBlank()) {
                 Text(
                     collapsedSummary,
                     color = SoulMatchTokens.Muted,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(start = 30.dp)
                 )
             }
         }
@@ -1529,15 +1562,59 @@ private fun PreviewSection(
 }
 
 @Composable
-private fun PreviewLine(label: String, value: String) {
-    if (value.isBlank()) return
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(label, color = SoulMatchTokens.Muted)
-        Text(value, color = SoulMatchTokens.Text, fontWeight = FontWeight.SemiBold)
+private fun PreviewTwoColumnGrid(items: List<Pair<String, String>>) {
+    items.chunked(2).forEach { rowItems ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            rowItems.forEach { (label, value) ->
+                PreviewValueCard(
+                    label = label,
+                    value = value,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            if (rowItems.size == 1) {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+        }
     }
+}
+
+@Composable
+private fun PreviewValueCard(label: String, value: String, modifier: Modifier = Modifier) {
+    if (value.isBlank()) return
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = Color(0xFFF7F7FB)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(label, color = SoulMatchTokens.Muted, style = MaterialTheme.typography.bodySmall)
+            Text(value, color = SoulMatchTokens.Text, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun PreviewStatusRow(label: String, status: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = SoulMatchTokens.Text)
+        Text(status, color = SoulMatchTokens.Error, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun PreviewLine(label: String, value: String) {
+    PreviewValueCard(label = label, value = value, modifier = Modifier.fillMaxWidth())
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)

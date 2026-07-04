@@ -6,7 +6,7 @@ import com.soulmatch.app.data.models.AgentProfileData
 private fun safeText(value: String?): String = value.orEmpty()
 private fun profileDraftRoute(step: Int): String = when {
     step >= 10 -> "dashboard"
-    step <= 0 -> "profile_intro"
+    step <= 0 -> "profile_wizard/1"
     else -> "profile_wizard/${step.coerceIn(1, 9)}"
 }
 
@@ -81,7 +81,7 @@ fun resolvePostLoginRoute(profile: ProfileData?): String {
     }
     val nextWizardStep = resolveWizardStep(profile)
     return when {
-        nextWizardStep != null && profile?.profileId.isNullOrBlank() -> "profile_intro"
+        nextWizardStep != null && profile?.profileId.isNullOrBlank() -> "profile_wizard/1"
         nextWizardStep != null -> "profile_wizard/$nextWizardStep"
         else -> "dashboard"
     }

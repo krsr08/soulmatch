@@ -145,13 +145,12 @@ class MyProfileViewModel @Inject constructor(
                         ?.takeIf { it.success }
                         ?.data
                         ?: PartnerPreferencesData(
-                            religion = resolvedProfile.religion,
-                            manglikPref = "any",
-                            educationLevels = listOf(resolvedProfile.educationLevel).filter { it.isNotBlank() },
-                            occupations = listOf(resolvedProfile.occupation).filter { it.isNotBlank() },
                             heightMinCm = resolvedProfile.heightCm?.minus(10),
                             heightMaxCm = resolvedProfile.heightCm?.plus(10),
-                            locations = listOf(resolvedProfile.workingCity, resolvedProfile.familyCity).filter { it.isNotBlank() }.distinct(),
+                            locations = resolvedProfile.locationPreferences,
+                            locationPreferences = resolvedProfile.locationPreferences,
+                            incomePreferences = resolvedProfile.incomePreferences,
+                            lifestylePreferences = resolvedProfile.lifestylePreferences,
                             dietPrefs = listOf(resolvedProfile.diet).filter { it.isNotBlank() },
                             maritalStatuses = listOf(resolvedProfile.maritalStatus).filter { it.isNotBlank() },
                             familyTypes = listOf(resolvedProfile.familyType).filter { it.isNotBlank() }
