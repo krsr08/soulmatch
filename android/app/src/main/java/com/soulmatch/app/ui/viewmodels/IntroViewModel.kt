@@ -36,7 +36,6 @@ class IntroViewModel @Inject constructor(
         viewModelScope.launch {
             prefs.saveMemberOnboardingSeen(true)
             prefs.saveWizardStep(1)
-            prefs.savePendingAuthRoute("profile_wizard/1")
             onDone()
         }
     }

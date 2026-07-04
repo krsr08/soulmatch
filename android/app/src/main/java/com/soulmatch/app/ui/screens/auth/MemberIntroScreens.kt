@@ -41,6 +41,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +63,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.soulmatch.app.R
 import com.soulmatch.app.ui.design.SoulMatchHeaderIconButton
 import com.soulmatch.app.ui.design.SoulMatchPrimaryButton
@@ -529,6 +533,27 @@ fun DecorativeStar(modifier: Modifier = Modifier) {
         tint = SoulMatchTokens.Tangerine,
         modifier = modifier.size(16.dp)
     )
+}
+
+@Composable
+fun rememberImeVisible(): Boolean {
+    val view = LocalView.current
+    var imeVisible by remember(view) { mutableStateOf(false) }
+
+    DisposableEffect(view) {
+        val listener = androidx.core.view.OnApplyWindowInsetsListener { _, insets ->
+            imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            insets
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(view, listener)
+        ViewCompat.requestApplyInsets(view)
+        imeVisible = ViewCompat.getRootWindowInsets(view)?.isVisible(WindowInsetsCompat.Type.ime()) == true
+        onDispose {
+            ViewCompat.setOnApplyWindowInsetsListener(view, null)
+        }
+    }
+
+    return imeVisible
 }
 
 @Composable
