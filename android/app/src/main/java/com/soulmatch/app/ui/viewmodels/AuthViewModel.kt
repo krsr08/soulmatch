@@ -250,6 +250,7 @@ class AuthViewModel @Inject constructor(
             val profile = runCatching {
                 profileApi.getMyProfile().body()?.takeIf { it.success }?.data
             }.getOrNull()
+            val savedProfileId = prefs.profileId.first().orEmpty()
             val storedWizardStep = prefs.wizardStep.first()
             if (!profile?.profileId.isNullOrBlank()) {
                 prefs.saveProfileId(profile?.profileId.orEmpty())
@@ -260,7 +261,11 @@ class AuthViewModel @Inject constructor(
                 else -> resolveWizardStep(profile) ?: storedWizardStep.coerceAtLeast(7)
             }
             prefs.saveWizardStep(resolvedWizardStep)
-            resolveMemberResumeRoute(profile, storedWizardStep, onboardingSeen = true)
+            if (profile == null && savedProfileId.isNotBlank()) {
+                "dashboard"
+            } else {
+                resolveMemberResumeRoute(profile, storedWizardStep, onboardingSeen = true)
+            }
         } else {
             val profile = runCatching {
                 profileApi.getMyProfile().body()?.takeIf { it.success }?.data

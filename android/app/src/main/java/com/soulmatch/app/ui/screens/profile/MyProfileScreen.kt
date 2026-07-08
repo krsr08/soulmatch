@@ -303,7 +303,11 @@ fun MyProfileScreen(
                             ProfileCompletionPromptCard(
                                 profile = data,
                                 checklist = checklist,
-                                onComplete = { editSection(checklist.firstOrNull { !it.isComplete }?.editStep ?: 1) }
+                                onComplete = if (profileCompletionScore(data, checklist) >= 100) {
+                                    null
+                                } else {
+                                    { editSection(checklist.firstOrNull { !it.isComplete }?.editStep ?: 1) }
+                                }
                             )
                         }
                         item {
@@ -464,7 +468,7 @@ fun PartnerPreferencesScreen(
                 item {
                     PremiumCard(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        containerColor = SurfaceWarm
+                        containerColor = Color.White
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             SectionTitle(
@@ -2138,7 +2142,7 @@ private fun PartnerPreferencesCard(
     var relocationOpen by remember(preferences.relocationOpen) { mutableStateOf(preferences.relocationOpen) }
     var selectedTab by remember { mutableStateOf("Basics") }
 
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = Color.White) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionTitle("Partner preferences", "These inputs now power Discover, match ranking, and future AI recommendations")
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {

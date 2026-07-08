@@ -95,6 +95,7 @@ class MyProfileViewModel @Inject constructor(
             _isLoading.value = true
             _loadMessage.value = null
             try {
+                val storedWizardStep = prefs.wizardStep.first()
                 val profileResponse = profileApi.getMyProfile()
                 val profileBody = profileResponse.body()
                 if (!profileResponse.isSuccessful || profileBody?.success != true) {
@@ -105,7 +106,17 @@ class MyProfileViewModel @Inject constructor(
                     return@launch
                 }
 
-                val resolvedProfile = profileBody.data?.safeProfileData()
+                val resolvedProfile = profileBody.data?.safeProfileData()?.let { profile ->
+                    if (
+                        storedWizardStep >= 10 &&
+                        profile.profileId.isNotBlank() &&
+                        profile.reviewStatus.equals("draft", ignoreCase = true)
+                    ) {
+                        profile.copy(reviewStatus = "under_review")
+                    } else {
+                        profile
+                    }
+                }
                 _profile.value = resolvedProfile
                 _checklist.value = buildChecklist(resolvedProfile)
                 if (!resolvedProfile?.profileId.isNullOrBlank()) {
@@ -542,6 +553,9 @@ class MyProfileViewModel @Inject constructor(
 
     private fun buildChecklist(profile: ProfileData?): List<ProfileChecklistItem> {
         val resolved = profile?.safeProfileData() ?: ProfileData()
+        val reviewLocked = safeText(resolved.reviewStatus).equals("submitted", true) ||
+            safeText(resolved.reviewStatus).equals("under_review", true) ||
+            safeText(resolved.reviewStatus).equals("approved", true)
         val hasHoroscopeDetails = safeText(resolved.rashi).isNotBlank() ||
             safeText(resolved.nakshatra).isNotBlank() ||
             safeText(resolved.birthCity).isNotBlank() ||
@@ -552,7 +566,7 @@ class MyProfileViewModel @Inject constructor(
             ProfileChecklistItem(
                 title = "Basic details",
                 description = "Name, DOB, gender, height, language, marital status, and current city",
-                isComplete = safeText(resolved.firstName).isNotBlank() &&
+                isComplete = reviewLocked || safeText(resolved.firstName).isNotBlank() &&
                     safeText(resolved.dob).isNotBlank() &&
                     safeText(resolved.gender).isNotBlank() &&
                     resolved.heightCm != null &&
@@ -564,14 +578,14 @@ class MyProfileViewModel @Inject constructor(
             ProfileChecklistItem(
                 title = "Religious and community",
                 description = "Religion and community",
-                isComplete = safeText(resolved.religion).isNotBlank() &&
+                isComplete = reviewLocked || safeText(resolved.religion).isNotBlank() &&
                     safeText(resolved.caste).isNotBlank(),
                 editStep = 2
             ),
             ProfileChecklistItem(
                 title = "Work and education",
                 description = "Education level, occupation, and annual income",
-                isComplete = safeText(resolved.educationLevel).isNotBlank() &&
+                isComplete = reviewLocked || safeText(resolved.educationLevel).isNotBlank() &&
                     safeText(resolved.occupation).isNotBlank() &&
                     safeText(resolved.annualIncome).isNotBlank(),
                 editStep = 3
@@ -579,7 +593,7 @@ class MyProfileViewModel @Inject constructor(
             ProfileChecklistItem(
                 title = "Family details",
                 description = "Parent occupations and family type",
-                isComplete = safeText(resolved.fatherOccupation).isNotBlank() &&
+                isComplete = reviewLocked || safeText(resolved.fatherOccupation).isNotBlank() &&
                     safeText(resolved.motherOccupation).isNotBlank() &&
                     safeText(resolved.familyType).isNotBlank(),
                 editStep = 4
@@ -587,7 +601,7 @@ class MyProfileViewModel @Inject constructor(
             ProfileChecklistItem(
                 title = "Lifestyle",
                 description = "Diet, smoking, and drinking",
-                isComplete = safeText(resolved.diet).isNotBlank() &&
+                isComplete = reviewLocked || safeText(resolved.diet).isNotBlank() &&
                     safeText(resolved.smoking).isNotBlank() &&
                     safeText(resolved.drinking).isNotBlank(),
                 editStep = 5
@@ -595,9 +609,9 @@ class MyProfileViewModel @Inject constructor(
             ProfileChecklistItem(
                 title = "Partner preferences",
                 description = "Match filters and recommendation inputs",
-                isComplete = resolved.isPartnerPrefSet,
+                isComplete = reviewLocked || resolved.isPartnerPrefSet,
                 editStep = 6,
-                statusLabel = if (resolved.isPartnerPrefSet) "Complete" else "Pending"
+                statusLabel = if (reviewLocked || resolved.isPartnerPrefSet) "Complete" else "Pending"
             )
         )
     }

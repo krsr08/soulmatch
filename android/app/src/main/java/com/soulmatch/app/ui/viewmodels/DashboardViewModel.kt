@@ -78,12 +78,20 @@ class DashboardViewModel @Inject constructor(
     fun loadProfile() {
         viewModelScope.launch {
             val canUseFallback = canUseDemoFallback()
+            val storedWizardStep = prefs.wizardStep.first()
             val response = runCatching { profileApi.getMyProfile() }.getOrNull()
             val profile = response
                 ?.body()
                 ?.takeIf { response.isSuccessful && it.success }
                 ?.data
             var resolvedProfile = (profile ?: if (canUseFallback) MarketFixtures.myProfile else _myProfile.value).safeDashboardProfile()
+            if (
+                storedWizardStep >= 10 &&
+                resolvedProfile.profileId.isNotBlank() &&
+                resolvedProfile.reviewStatus.equals("draft", ignoreCase = true)
+            ) {
+                resolvedProfile = resolvedProfile.copy(reviewStatus = "under_review")
+            }
             if (resolvedProfile.profileId.isNotBlank()) {
                 prefs.saveProfileId(resolvedProfile.profileId)
                 val photos = runCatching { profileApi.getPhotos(resolvedProfile.profileId) }

@@ -22,7 +22,14 @@ fun resolveMemberResumeRoute(
     if (safeText(safeProfile.reviewStatus).equals("rejected", true)) {
         return "profile_correction_required"
     }
-    if (safeText(safeProfile.reviewStatus).equals("submitted", true) || safeText(safeProfile.reviewStatus).equals("under_review", true)) {
+    if (storedWizardStep >= 10) {
+        return "dashboard"
+    }
+    if (
+        safeText(safeProfile.reviewStatus).equals("submitted", true) ||
+        safeText(safeProfile.reviewStatus).equals("under_review", true) ||
+        safeText(safeProfile.reviewStatus).equals("approved", true)
+    ) {
         return "dashboard"
     }
     val resolvedStep = resolveWizardStep(safeProfile)

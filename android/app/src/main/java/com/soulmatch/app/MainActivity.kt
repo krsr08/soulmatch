@@ -230,8 +230,11 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                         startDestination = "welcome"
                     }
                     else -> {
+                        val storedProfileId = userPreferences.profileId.first().orEmpty()
                         val storedWizardStep = userPreferences.wizardStep.first()
-                        startDestination = if (memberOnboardingSeen || storedWizardStep > 0) {
+                        startDestination = if (storedProfileId.isNotBlank() || storedWizardStep >= 10) {
+                            "dashboard"
+                        } else if (memberOnboardingSeen || storedWizardStep > 0) {
                             resolveMemberResumeRoute(null, storedWizardStep, memberOnboardingSeen)
                         } else {
                             "welcome"

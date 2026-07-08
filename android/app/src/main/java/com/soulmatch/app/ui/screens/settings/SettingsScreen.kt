@@ -51,19 +51,17 @@ import kotlinx.coroutines.delay
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit = {},
-    onViewProfile: ((String) -> Unit)? = null,
-    onOpenChat: ((String, String) -> Unit)? = null,
-    onSubscribe: (() -> Unit)? = null,
-    onEditSection: ((Int) -> Unit)? = null,
     onLogout: (() -> Unit)? = null,
+    onOpenProfile: (() -> Unit)? = null,
     onOpenPrivacy: (() -> Unit)? = null,
     onOpenNotifications: (() -> Unit)? = null,
+    onOpenBlockedUsers: (() -> Unit)? = null,
+    onOpenHelp: (() -> Unit)? = null,
+    onOpenTerms: (() -> Unit)? = null,
+    onOpenLegalPrivacy: (() -> Unit)? = null,
     onOpenPayment: (() -> Unit)? = null,
     onOpenDeleteAccount: (() -> Unit)? = null,
     onOpenLogout: (() -> Unit)? = null,
-    profileId: String = "",
-    chatId: String = "",
-    participantName: String = "",
     vm: SettingsViewModel = hiltViewModel()
 ) {
     val status by vm.status.collectAsStateWithLifecycle()
@@ -85,12 +83,6 @@ fun SettingsScreen(
     ) {
         SettingsTopBar(onBack = onBack, onOpenNotifications = onOpenNotifications)
         Text(
-            text = "Settings",
-            style = MaterialTheme.typography.headlineMedium.copy(fontFamily = FontFamily.Serif),
-            color = SoulMatchTokens.Text,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
             text = "Manage account, privacy, notifications, and support.",
             style = MaterialTheme.typography.bodySmall,
             color = SoulMatchTokens.Muted
@@ -100,7 +92,7 @@ fun SettingsScreen(
             icon = Icons.Filled.Person,
             title = "Account settings",
             detail = "Mobile, email, password",
-            onClick = { onEditSection?.invoke(0) ?: onViewProfile?.invoke(profileId) }
+            onClick = { onOpenProfile?.invoke() }
         )
         SettingsRow(
             icon = Icons.Filled.PrivacyTip,
@@ -118,25 +110,25 @@ fun SettingsScreen(
             icon = Icons.Filled.Block,
             title = "Blocked users",
             detail = "Manage blocked profiles",
-            onClick = onOpenPrivacy
+            onClick = onOpenBlockedUsers
         )
         SettingsRow(
             icon = Icons.Filled.Report,
             title = "Help and support",
             detail = "FAQ and tickets",
-            onClick = { onOpenChat?.invoke(chatId, participantName) }
+            onClick = onOpenHelp
         )
         SettingsRow(
             icon = Icons.Filled.Report,
             title = "Terms and conditions",
             detail = "SoulMatch usage terms",
-            onClick = null
+            onClick = onOpenTerms
         )
         SettingsRow(
             icon = Icons.Filled.Lock,
             title = "Privacy policy",
             detail = "How your data is protected",
-            onClick = null
+            onClick = onOpenLegalPrivacy
         )
         SettingsRow(
             icon = Icons.Filled.Delete,
@@ -173,15 +165,7 @@ private fun SettingsTopBar(
             contentDescription = "Back",
             onClick = onBack
         )
-        Text(
-            text = "Settings",
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.titleMedium,
-            color = SoulMatchTokens.Text,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Box(modifier = Modifier.weight(1f))
         SoulMatchIconButton(
             icon = Icons.Filled.Notifications,
             contentDescription = "Notifications",

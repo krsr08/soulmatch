@@ -73,6 +73,17 @@ internal fun ProfileReferenceHeader(
     onUploadPhoto: () -> Unit
 ) {
     val primaryPhoto = photos.firstOrNull { it.isPrimary }?.photoUrl ?: profile.primaryPhotoUrl
+    val identityLine = listOfNotBlank(
+        profile.occupation,
+        profile.workingCity,
+        profile.motherTongue
+    ).joinToString(" | ")
+    val detailLine = listOfNotBlank(
+        profile.religion,
+        formatHeight(profile.heightCm),
+        profile.maritalStatus
+    ).joinToString(" | ")
+
     PremiumCard(
         modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
         containerColor = Color.White,
@@ -105,10 +116,17 @@ internal fun ProfileReferenceHeader(
                     color = PrimaryDark,
                     fontWeight = FontWeight.ExtraBold
                 )
+                if (identityLine.isNotBlank()) {
+                    Text(
+                        identityLine,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = PrimaryDark,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
                 Text(
-                    listOfNotBlank(profile.religion, formatHeight(profile.heightCm), profile.familyCity).joinToString(" • ")
-                        .ifBlank { "Add basic profile details" },
-                    style = MaterialTheme.typography.bodyMedium,
+                    detailLine.ifBlank { "Add basic profile details" },
+                    style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
                 OutlinedButton(onClick = onUploadPhoto, shape = RoundedCornerShape(999.dp)) {
@@ -156,13 +174,13 @@ internal fun GoldBadgePromoCard(verified: Boolean, onClick: () -> Unit) {
 internal fun ProfileCompletionPromptCard(
     profile: ProfileData,
     checklist: List<ProfileChecklistItem>,
-    onComplete: () -> Unit
+    onComplete: (() -> Unit)?
 ) {
     val score = profileCompletionScore(profile, checklist)
     PremiumCard(
         modifier = Modifier
             .padding(horizontal = 14.dp)
-            .clickable(onClick = onComplete),
+            .then(if (onComplete != null) Modifier.clickable(onClick = onComplete) else Modifier),
         containerColor = Color.White,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
     ) {
@@ -189,9 +207,11 @@ internal fun ProfileCompletionPromptCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(if (score >= 100) "View details" else "Continue", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
-                    Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                if (onComplete != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Continue", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+                        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    }
                 }
             }
         }
@@ -202,7 +222,7 @@ internal fun ProfileCompletionPromptCard(
 internal fun ProfilePromptsCard(onAdd: () -> Unit) {
     PremiumCard(
         modifier = Modifier.padding(horizontal = 14.dp),
-        containerColor = SurfaceWarm,
+        containerColor = Color.White,
         contentPadding = PaddingValues(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -320,7 +340,7 @@ internal fun JanampatriPromptCard(onClick: () -> Unit) {
 internal fun InterestPromptCard(onClick: () -> Unit) {
     PremiumCard(
         modifier = Modifier.padding(horizontal = 14.dp),
-        containerColor = SurfaceWarm,
+        containerColor = Color.White,
         contentPadding = PaddingValues(18.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -356,21 +376,26 @@ internal fun MoreProfileActionsCard(
 ) {
     PremiumCard(
         modifier = Modifier.padding(horizontal = 14.dp),
-        containerColor = SurfaceSoft,
+        containerColor = Color.White,
         contentPadding = PaddingValues(16.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("More controls", style = MaterialTheme.typography.titleMedium, color = PrimaryDark, fontWeight = FontWeight.ExtraBold)
+            Text(
+                "Open trust checks, assist controls, settings, and viewer tools from one place.",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(onClick = onOpenTrust, modifier = Modifier.weight(1f)) {
                     Text(if (verificationVisible) "Verify" else "Trust")
                 }
-                OutlinedButton(onClick = onSubscribe, modifier = Modifier.weight(1f)) {
-                    Text("Upgrade")
-                }
                 OutlinedButton(onClick = onSettings, modifier = Modifier.weight(1f)) {
                     Text("Settings")
                 }
+            }
+            OutlinedButton(onClick = onSubscribe, modifier = Modifier.fillMaxWidth()) {
+                Text("Upgrade membership")
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Recent viewers: $viewerCount", modifier = Modifier.weight(1f), color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
@@ -386,6 +411,13 @@ internal fun MoreProfileActionsCard(
 }
 
 internal fun profileCompletionScore(profile: ProfileData, checklist: List<ProfileChecklistItem>): Int {
+    if (
+        profile.reviewStatus.equals("submitted", ignoreCase = true) ||
+        profile.reviewStatus.equals("under_review", ignoreCase = true) ||
+        profile.reviewStatus.equals("approved", ignoreCase = true)
+    ) {
+        return 100
+    }
     if (checklist.isEmpty()) return 0
     val sectionScore = ((checklist.count { it.isComplete }.toFloat() / checklist.size.toFloat()) * 100).roundToInt().coerceIn(0, 100)
     return if (sectionScore == 100) 100 else profile.completionScore.takeIf { it > 0 }?.coerceIn(0, 100) ?: sectionScore

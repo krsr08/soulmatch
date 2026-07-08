@@ -85,12 +85,6 @@ fun PrivacySettingsScreen(
 
     SettingsDetailScaffold(title = "Privacy", onBack = onBack, onAction = onOpenNotifications) {
         Text(
-            "Privacy settings",
-            style = MaterialTheme.typography.headlineMedium.copy(fontFamily = FontFamily.Serif),
-            color = SoulMatchTokens.Text,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
             "Choose what families and matches can see.",
             style = MaterialTheme.typography.bodySmall,
             color = SoulMatchTokens.Muted
@@ -138,12 +132,6 @@ fun NotificationSettingsScreen(
     }
 
     SettingsDetailScaffold(title = "Notifications", onBack = onBack) {
-        Text(
-            "Notification settings",
-            style = MaterialTheme.typography.headlineMedium.copy(fontFamily = FontFamily.Serif),
-            color = SoulMatchTokens.Text,
-            fontWeight = FontWeight.Bold
-        )
         Text("Control alerts from SoulMatch.", style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
         status?.let { StatusPill(it) }
         NotificationToggle("Match notifications", "New compatible profile suggestions", settings.pushEnabled) {
@@ -159,6 +147,74 @@ fun NotificationSettingsScreen(
             vm.setPushNotifications(it)
         }
         NotificationToggle("Safety alerts", "Important account and safety updates", true) {}
+    }
+}
+
+@Composable
+fun BlockedUsersScreen(
+    onBack: () -> Unit,
+    vm: SettingsViewModel = hiltViewModel()
+) {
+    val blockedMembers by vm.blockedMembers.collectAsStateWithLifecycle()
+    val status by vm.status.collectAsStateWithLifecycle()
+
+    LaunchedEffect(status) {
+        if (status != null) {
+            delay(1800)
+            vm.clearStatus()
+        }
+    }
+
+    SettingsDetailScaffold(title = "Blocked Users", onBack = onBack) {
+        Text(
+            "Blocked profiles will not message you, appear in recommendations, or see your activity.",
+            style = MaterialTheme.typography.bodySmall,
+            color = SoulMatchTokens.Muted
+        )
+        status?.let { StatusPill(it) }
+        if (blockedMembers.isEmpty()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = Color.White,
+                border = BorderStroke(1.dp, SoulMatchTokens.Border)
+            ) {
+                Text(
+                    "No blocked members right now.",
+                    modifier = Modifier.padding(14.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+            }
+        } else {
+            blockedMembers.forEach { member ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.White,
+                    border = BorderStroke(1.dp, SoulMatchTokens.Border)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.Report, contentDescription = null, tint = SoulMatchTokens.Tangerine, modifier = Modifier.size(18.dp))
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(member.name, style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Text, fontWeight = FontWeight.Bold)
+                            Text(member.detail, style = MaterialTheme.typography.labelSmall, color = SoulMatchTokens.Muted)
+                        }
+                        SoulMatchSecondaryButton(
+                            text = "Unblock",
+                            onClick = { vm.unblockMember(member.profileId) }
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

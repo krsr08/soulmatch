@@ -89,6 +89,7 @@ import com.soulmatch.app.ui.screens.settings.NotificationSettingsScreen
 import com.soulmatch.app.ui.screens.settings.PaymentScreen
 import com.soulmatch.app.ui.screens.settings.PrivacySettingsScreen
 import com.soulmatch.app.ui.screens.settings.SettingsScreen
+import com.soulmatch.app.ui.screens.settings.BlockedUsersScreen
 import com.soulmatch.app.ui.screens.success.SuccessStoriesScreen
 import com.soulmatch.app.ui.screens.subscription.SubscriptionHistoryScreen
 import com.soulmatch.app.ui.screens.subscription.SubscriptionScreen
@@ -684,8 +685,13 @@ fun AppNavigation(
             SettingsScreen(
                 onBack = { nav.popBackStack() },
                 onLogout = { nav.navigate("welcome") { popUpTo(0) { inclusive = true } } },
+                onOpenProfile = { nav.navigate("my_profile") },
                 onOpenPrivacy = { nav.navigate("privacy_settings") },
                 onOpenNotifications = { nav.navigate("notification_settings") },
+                onOpenBlockedUsers = { nav.navigate("blocked_users") },
+                onOpenHelp = { nav.navigate("help_support") },
+                onOpenTerms = { nav.navigate("legal/terms") },
+                onOpenLegalPrivacy = { nav.navigate("legal/privacy") },
                 onOpenPayment = { nav.navigate("payment") },
                 onOpenDeleteAccount = { nav.navigate("delete_account") },
                 onOpenLogout = { nav.navigate("logout_confirmation") }
@@ -699,6 +705,9 @@ fun AppNavigation(
         }
         composable("notification_settings") {
             NotificationSettingsScreen(onBack = { nav.popBackStack() })
+        }
+        composable("blocked_users") {
+            BlockedUsersScreen(onBack = { nav.popBackStack() })
         }
         composable("payment") {
             PaymentScreen(
