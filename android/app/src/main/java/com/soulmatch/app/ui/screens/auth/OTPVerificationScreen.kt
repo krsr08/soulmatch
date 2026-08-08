@@ -82,6 +82,7 @@ fun OTPVerificationScreen(
     var countdown by remember { mutableIntStateOf(30) }
     var canResend by remember { mutableStateOf(false) }
     var resendCycle by remember { mutableIntStateOf(0) }
+    var forceShowCta by remember { mutableStateOf(false) }
     val errorMessage = (state as? AuthUiState.Error)?.message.orEmpty()
     val otpValue = boxes.joinToString("")
 
@@ -109,6 +110,15 @@ fun OTPVerificationScreen(
     LaunchedEffect(Unit) {
         delay(200)
         focusers[0].requestFocus()
+    }
+
+    LaunchedEffect(otpValue) {
+        if (otpValue.length == 6) {
+            forceShowCta = true
+            closeOtpKeyboard(focusManager, keyboardController)
+        } else {
+            forceShowCta = false
+        }
     }
 
     fun verifyOtp() {
@@ -199,15 +209,16 @@ fun OTPVerificationScreen(
                             if (nextValue.length <= 1 && nextValue.all(Char::isDigit)) {
                                 if (nextValue.isEmpty() && boxes[index].isNotEmpty()) {
                                     boxes[index] = ""
+                                    forceShowCta = false
                                     if (errorMessage.isNotBlank()) vm.clearError()
                                 } else {
                                     boxes[index] = nextValue
+                                    if (boxes.joinToString("").length < 6) {
+                                        forceShowCta = false
+                                    }
                                     if (errorMessage.isNotBlank()) vm.clearError()
                                     if (nextValue.isNotEmpty() && index < 5) {
                                         focusers[index + 1].requestFocus()
-                                    }
-                                    if (boxes.joinToString("").length == 6) {
-                                        closeOtpKeyboard(focusManager, keyboardController)
                                     }
                                 }
                             }
@@ -286,7 +297,7 @@ fun OTPVerificationScreen(
             }
             Spacer(Modifier.weight(1f))
         }
-        if (!isKeyboardOpen) {
+        if (forceShowCta || !isKeyboardOpen) {
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

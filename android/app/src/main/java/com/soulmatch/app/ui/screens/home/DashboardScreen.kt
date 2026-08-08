@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -657,15 +658,14 @@ private fun HomeAdvancedFilterDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(112.dp)
                         .background(Color.White)
-                        .padding(start = 22.dp, end = 18.dp, top = 22.dp, bottom = 14.dp),
+                        .padding(start = 22.dp, end = 18.dp, top = 22.dp, bottom = 18.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
                             "Refine matches",
@@ -678,82 +678,94 @@ private fun HomeAdvancedFilterDialog(
                         )
                         Text(
                             "Choose filters that matter to your family.",
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = Color(0xFF6E7785),
                             maxLines = 2
                         )
                     }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(44.dp)
                     ) {
-                        OutlinedButton(
-                            onClick = {
-                                draft = HomeAdvancedFilters()
-                                onReset()
-                            },
-                            shape = RoundedCornerShape(999.dp),
-                            border = BorderStroke(1.dp, Color(0xFFD0D6DE)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = HomePrimary),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                            modifier = Modifier.height(38.dp)
-                        ) {
-                            Text("Reset", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.ExtraBold)
-                        }
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Icon(
-                                Icons.Filled.Close,
-                                contentDescription = "Close filters",
-                                tint = Color(0xFF9AA1AB),
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "Close filters",
+                            tint = Color(0xFF9AA1AB),
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
                 }
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp),
+                    color = Color(0xFFF0ECE8)
+                ) {}
                 Row(Modifier.weight(1f)) {
                     LazyColumn(
                         modifier = Modifier
-                            .width(146.dp)
+                            .width(142.dp)
                             .fillMaxSize()
-                            .background(Color(0xFFF4F2EF)),
-                        contentPadding = PaddingValues(top = 40.dp, bottom = 24.dp)
+                            .background(Color(0xFFFFFAF6)),
+                        contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
                     ) {
                         items(sections, key = { it.title }) { section ->
                             val selected = selectedTab == section.title
-                            Surface(
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(end = if (selected) 0.dp else 10.dp, top = 6.dp, bottom = 6.dp)
-                                    .defaultMinSize(minHeight = 52.dp)
-                                    .clickable { selectedTab = section.title },
-                                shape = if (selected) {
-                                    RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp)
-                                } else {
-                                    RoundedCornerShape(0.dp)
-                                },
-                                color = if (selected) Color.White else Color.Transparent,
-                                shadowElevation = if (selected) 3.dp else 0.dp
+                                    .clickable { selectedTab = section.title }
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    section.title,
-                                    modifier = Modifier.padding(start = 28.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
-                                    style = MaterialTheme.typography.titleMedium.copy(lineHeight = 22.sp),
-                                    color = if (selected) HomePrimary else Color(0xFF3B4655),
-                                    fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
+                                Box(
+                                    modifier = Modifier
+                                        .width(4.dp)
+                                        .height(48.dp)
+                                        .background(
+                                            if (selected) HomePrimary else Color.Transparent,
+                                            RoundedCornerShape(topEnd = 6.dp, bottomEnd = 6.dp)
+                                        )
                                 )
+                                Surface(
+                                    modifier = Modifier
+                                        .padding(start = 10.dp, end = 12.dp)
+                                        .weight(1f)
+                                        .defaultMinSize(minHeight = 48.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = if (selected) Color.White else Color.Transparent,
+                                    border = if (selected) BorderStroke(1.dp, Color(0xFFF2E3D8)) else null,
+                                    shadowElevation = if (selected) 2.dp else 0.dp
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        Text(
+                                            section.title,
+                                            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
+                                            color = if (selected) HomePrimary else Color(0xFF3B4655),
+                                            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(1.dp),
+                        color = Color(0xFFF0ECE8)
+                    ) {}
                     LazyColumn(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxSize(),
-                        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 42.dp, bottom = 24.dp),
+                            .fillMaxSize()
+                            .background(Color.White),
+                        contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
                         item {
@@ -794,10 +806,15 @@ private fun HomeAdvancedFilterDialog(
                         }
                     }
                 }
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp),
+                    color = Color(0xFFF0ECE8)
+                ) {}
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(96.dp)
                         .background(Color.White)
                         .padding(horizontal = 24.dp, vertical = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -981,7 +998,7 @@ private fun FilterChoiceSection(
                 fontWeight = FontWeight.ExtraBold,
                 lineHeight = 30.sp
             ),
-            color = HomePrimary,
+            color = Color(0xFF202A36),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
@@ -1009,23 +1026,37 @@ private fun RefineFilterOptionButton(
             .height(58.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(999.dp),
-        color = Color.White,
+        color = if (selected) Color(0xFFFFF4EA) else Color.White,
         border = BorderStroke(
             width = if (selected) 1.6.dp else 1.dp,
-            color = if (selected) HomePrimary else Color(0xFFD0D6DE)
+            color = if (selected) Color(0xFFFFC8A5) else Color(0xFFE7E1DB)
         )
     ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 18.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
                 label,
-                modifier = Modifier.padding(horizontal = 14.dp),
+                modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleMedium,
                 color = if (selected) HomePrimary else Color(0xFF202A36),
                 fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
-                textAlign = TextAlign.Center,
+                textAlign = TextAlign.Start,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            if (selected) {
+                Icon(
+                    Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = HomePrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }

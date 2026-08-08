@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -97,12 +98,13 @@ fun ProfileSideDrawer(
     }
     ModalNavigationDrawer(
         drawerState = drawerState,
+        scrimColor = Color.Transparent,
         drawerContent = {
             ModalDrawerSheet(
                 modifier = Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(0.86f),
-                drawerContainerColor = MaterialTheme.colorScheme.surface
+                drawerContainerColor = Color.White
             ) {
                 Column(
                     modifier = Modifier
@@ -117,6 +119,12 @@ fun ProfileSideDrawer(
                         isVerified = isVerified,
                         membershipLabel = membershipLabel
                     )
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp),
+                        color = Color(0xFFF0ECE8)
+                    ) {}
                     visibleActions.forEach { action ->
                         DrawerItem(action = action, onClick = { onDestinationSelected(action.route) })
                     }
