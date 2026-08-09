@@ -233,7 +233,11 @@ private fun DrawerItem(action: DrawerAction, onClick: () -> Unit) {
         selected = false,
         icon = { Icon(action.icon, contentDescription = null) },
         onClick = onClick,
-        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = MaterialTheme.colorScheme.surface)
+        colors = NavigationDrawerItemDefaults.colors(
+            unselectedContainerColor = Color.White,
+            unselectedIconColor = MaterialTheme.colorScheme.primary,
+            unselectedTextColor = MaterialTheme.colorScheme.onSurface
+        )
     )
 }
 

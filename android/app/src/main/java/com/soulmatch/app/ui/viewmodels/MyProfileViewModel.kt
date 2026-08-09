@@ -205,6 +205,7 @@ class MyProfileViewModel @Inject constructor(
     fun uploadPhotos(parts: List<MultipartBody.Part>) {
         if (parts.isEmpty()) return
         viewModelScope.launch {
+            prefs.saveWizardStep(7)
             val profileId = _profile.value?.profileId?.takeIf { it.isNotBlank() }
                 ?: prefs.profileId.first()?.takeIf { it.isNotBlank() }
                 ?: run {
@@ -232,6 +233,7 @@ class MyProfileViewModel @Inject constructor(
                 val response = profileApi.uploadPhotos(profileId, parts)
                 progressJob.cancel()
                 if (response.isSuccessful && response.body()?.success == true) {
+                    prefs.saveWizardStep(7)
                     _photoUploadProgress.value = 100
                     _photoUploadLabel.value = "Uploading gallery photo $targetSlot - 100%"
                     _status.value = if (parts.size == 1) "Photo uploaded." else "${parts.size} photos uploaded."

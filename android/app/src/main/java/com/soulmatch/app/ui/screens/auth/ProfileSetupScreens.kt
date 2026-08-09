@@ -119,6 +119,29 @@ private fun previewHeightLabel(heightCm: Int?): String {
     return "${feet} ft ${inches} in"
 }
 
+private fun previewDobLabel(value: String?): String {
+    val trimmed = value?.trim().orEmpty()
+    if (trimmed.isBlank()) return ""
+    val raw = trimmed.substringBefore('T').replace('/', '-')
+    return when {
+        Regex("""\d{2}-\d{2}-\d{4}""").matches(raw) -> raw
+        Regex("""\d{4}-\d{2}-\d{2}""").matches(raw) -> raw.split('-').let { "${it[2]}-${it[1]}-${it[0]}" }
+        else -> trimmed
+    }
+}
+
+private fun previewSummary(vararg values: String?): String =
+    values
+        .mapNotNull { it?.trim()?.takeIf(String::isNotBlank) }
+        .distinct()
+        .joinToString(", ")
+
+private fun siblingPreviewSummary(profile: ProfileData?): String {
+    val brothers = profile?.numBrothers?.let { "$it brother${if (it == 1) "" else "s"}" } ?: "0 brothers"
+    val sisters = profile?.numSisters?.let { "$it sister${if (it == 1) "" else "s"}" } ?: "0 sisters"
+    return previewSummary(brothers, sisters)
+}
+
 
 @Composable
 fun ProfileIntroScreen(
@@ -215,6 +238,7 @@ fun ProfilePhotoUploadScreen(
         PhotoHeroCard(
             primaryPhoto = photos.firstOrNull { it.isPrimary } ?: photos.firstOrNull(),
             onAdd = {
+                vm.saveWizardStep(7)
                 vm.clearStatus()
                 picker.launch("image/*")
             },
@@ -225,6 +249,7 @@ fun ProfilePhotoUploadScreen(
         PhotoUploadSlots(
             photos = photos,
             onAdd = {
+                vm.saveWizardStep(7)
                 vm.clearStatus()
                 picker.launch("image/*")
             },
@@ -406,7 +431,7 @@ fun ProfilePreviewReviewScreen(
         PreviewSection(
             title = "Basic details",
             editStep = 1,
-            collapsedSummary = listOf(profile?.fullName(), profile?.workingCity, profile?.motherTongue).filterNotNull().filter { it.isNotBlank() }.joinToString(" • "),
+            collapsedSummary = previewSummary(profile?.fullName(), profile?.workingCity, profile?.motherTongue),
             onEdit = onEditSection,
             defaultExpanded = true
         ) {
@@ -414,7 +439,7 @@ fun ProfilePreviewReviewScreen(
                 listOf(
                     "Full name" to profile?.fullName().orEmpty(),
                     "Gender" to profile?.gender.orEmpty(),
-                    "Date of birth" to profile?.dob.orEmpty(),
+                    "Date of birth" to previewDobLabel(profile?.dob),
                     "Height" to previewHeightLabel(profile?.heightCm),
                     "Marital status" to titleCase(profile?.maritalStatus.orEmpty().replace('_', ' ')),
                     "Mother tongue" to profile?.motherTongue.orEmpty(),
@@ -426,7 +451,7 @@ fun ProfilePreviewReviewScreen(
         PreviewSection(
             title = "Religious details",
             editStep = 2,
-            collapsedSummary = listOf(profile?.religion, profile?.caste, profile?.gotra).filterNotNull().filter { it.isNotBlank() }.joinToString(" • "),
+            collapsedSummary = previewSummary(profile?.religion, profile?.caste, profile?.gotra),
             onEdit = onEditSection
         ) {
             PreviewLine("Religion", profile?.religion.orEmpty())
@@ -437,7 +462,7 @@ fun ProfilePreviewReviewScreen(
         PreviewSection(
             title = "Education and career",
             editStep = 3,
-            collapsedSummary = listOf(profile?.educationLevel, profile?.occupation, profile?.annualIncome).filterNotNull().filter { it.isNotBlank() }.joinToString(" • "),
+            collapsedSummary = previewSummary(profile?.educationLevel, profile?.occupation, profile?.annualIncome),
             onEdit = onEditSection
         ) {
             PreviewLine("Education", profile?.educationLevel.orEmpty())
@@ -448,33 +473,30 @@ fun ProfilePreviewReviewScreen(
         PreviewSection(
             title = "Family details",
             editStep = 4,
-            collapsedSummary = listOf(profile?.familyType, profile?.familyStatus, profile?.fatherOccupation).filterNotNull().filter { it.isNotBlank() }.joinToString(" • "),
+            collapsedSummary = previewSummary(profile?.familyType, profile?.familyStatus, siblingPreviewSummary(profile)),
             onEdit = onEditSection
         ) {
             PreviewLine("Family type", profile?.familyType.orEmpty())
             PreviewLine("Family status", profile?.familyStatus.orEmpty())
             PreviewLine("Father occupation", profile?.fatherOccupation.orEmpty())
             PreviewLine("Mother occupation", profile?.motherOccupation.orEmpty())
+            PreviewLine("Brothers / sisters", siblingPreviewSummary(profile))
         }
         PreviewSection(
             title = "Lifestyle",
             editStep = 5,
-            collapsedSummary = listOf(profile?.diet, profile?.smoking, profile?.drinking).filterNotNull().filter { it.isNotBlank() }.joinToString(" • "),
+            collapsedSummary = previewSummary(titleCase(profile?.diet.orEmpty().replace('_', ' ')), titleCase(profile?.smoking.orEmpty().replace('_', ' ')), titleCase(profile?.drinking.orEmpty().replace('_', ' '))),
             onEdit = onEditSection
         ) {
-            PreviewLine("Diet", profile?.diet.orEmpty())
-            PreviewLine("Smoking", profile?.smoking.orEmpty())
-            PreviewLine("Drinking", profile?.drinking.orEmpty())
+            PreviewLine("Diet", titleCase(profile?.diet.orEmpty().replace('_', ' ')))
+            PreviewLine("Smoking", titleCase(profile?.smoking.orEmpty().replace('_', ' ')))
+            PreviewLine("Drinking", titleCase(profile?.drinking.orEmpty().replace('_', ' ')))
             PreviewLine("Hobbies", profile?.hobbies?.joinToString(", ").orEmpty())
         }
         PreviewSection(
             title = "Partner preferences",
             editStep = 6,
-            collapsedSummary = listOf(
-                preferences.religion,
-                preferences.locationPreferences.joinToString(", ").ifBlank { null },
-                preferences.educationLevels.joinToString(", ").ifBlank { null }
-            ).filterNotNull().filter { it.isNotBlank() }.joinToString(" • "),
+            collapsedSummary = previewSummary(preferences.religion, preferences.locationPreferences.joinToString(", ").ifBlank { null }, preferences.educationLevels.joinToString(", ").ifBlank { null }),
             onEdit = onEditSection
         ) {
             PreviewLine("Religion", preferences.religion.orEmpty())
@@ -1474,7 +1496,7 @@ private fun PreviewHeader(profile: ProfileData?, photos: List<ProfilePhoto>) {
                     color = SoulMatchTokens.Tangerine
                 )
                 Text(
-                    listOf(profile?.occupation, profile?.workingCity, profile?.motherTongue).filterNotNull().filter { it.isNotBlank() }.joinToString(" • "),
+                    previewSummary(profile?.occupation, profile?.workingCity, profile?.motherTongue),
                     color = SoulMatchTokens.Muted
                 )
                 Text(
