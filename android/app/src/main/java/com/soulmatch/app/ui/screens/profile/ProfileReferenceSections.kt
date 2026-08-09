@@ -15,9 +15,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.RemoveRedEye
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,12 +34,17 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -254,38 +263,115 @@ internal fun ReferenceInfoSection(
     singleColumn: Boolean = false,
     footer: (@Composable () -> Unit)? = null
 ) {
+    var expanded by rememberSaveable(title) { mutableStateOf(true) }
+    val collapsedSummary = items
+        .mapNotNull { field ->
+            field.value
+                .replace('\n', ',')
+                .trim()
+                .takeIf { it.isNotBlank() && !it.equals("Not Filled", ignoreCase = true) }
+        }
+        .distinct()
+        .take(3)
+        .joinToString(", ")
+
     PremiumCard(
         modifier = Modifier.padding(horizontal = 14.dp),
         containerColor = Color.White,
         contentPadding = PaddingValues(18.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(icon, contentDescription = null, tint = PrimaryDark, modifier = Modifier.size(28.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    Icons.Filled.KeyboardArrowDown,
+                    contentDescription = if (expanded) "Collapse $title" else "Expand $title",
+                    tint = PrimaryDark,
+                    modifier = Modifier
+                        .size(22.dp)
+                        .rotate(if (expanded) 0f else -90f)
+                )
+                Icon(icon, contentDescription = null, tint = PrimaryDark, modifier = Modifier.size(24.dp))
                 Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, color = PrimaryDark, fontWeight = FontWeight.ExtraBold)
                 IconButton(onClick = { onEdit(editStep) }) {
                     Icon(Icons.Filled.Edit, contentDescription = "Edit $title", tint = TextSecondary)
                 }
             }
-            if (singleColumn) {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    items.forEach { ReferenceFieldRow(it) }
-                }
-            } else {
-                items.chunked(2).forEach { rowItems ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-                        rowItems.forEach { field ->
-                            Box(modifier = Modifier.weight(1f)) {
-                                ReferenceFieldRow(field)
+            if (expanded) {
+                if (singleColumn) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        items.forEach { ReferenceFieldRow(it) }
+                    }
+                } else {
+                    items.chunked(2).forEach { rowItems ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+                            rowItems.forEach { field ->
+                                Box(modifier = Modifier.weight(1f)) {
+                                    ReferenceFieldRow(field)
+                                }
                             }
-                        }
-                        if (rowItems.size == 1) {
-                            Box(modifier = Modifier.weight(1f))
+                            if (rowItems.size == 1) {
+                                Box(modifier = Modifier.weight(1f))
+                            }
                         }
                     }
                 }
+                footer?.invoke()
+            } else if (collapsedSummary.isNotBlank()) {
+                Text(
+                    collapsedSummary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+            } else {
+                Text(
+                    "No details added yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
             }
-            footer?.invoke()
+        }
+    }
+}
+
+@Composable
+private fun MoreControlRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    trailing: @Composable () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Divider.copy(alpha = 0.8f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = SurfaceSoft,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                }
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, color = PrimaryDark, fontWeight = FontWeight.ExtraBold)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+            }
+            trailing()
         }
     }
 }
@@ -370,7 +456,7 @@ internal fun MoreProfileActionsCard(
     onToggleViewers: () -> Unit,
     onOpenTrust: () -> Unit,
     onOpenAssist: () -> Unit,
-    onToggleAssist: () -> Unit,
+    onToggleAssist: (Boolean) -> Unit,
     onSubscribe: () -> Unit,
     onSettings: () -> Unit
 ) {
@@ -386,25 +472,43 @@ internal fun MoreProfileActionsCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = TextSecondary
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(onClick = onOpenTrust, modifier = Modifier.weight(1f)) {
-                    Text(if (verificationVisible) "Verify" else "Trust")
+            MoreControlRow(
+                icon = Icons.Filled.Verified,
+                title = if (verificationVisible) "Profile verification" else "Trust details",
+                subtitle = if (verificationVisible) "Open verification and trust checks." else "Review trust status and verification details."
+            ) {
+                TextButton(onClick = onOpenTrust) { Text("Open") }
+            }
+            MoreControlRow(
+                icon = Icons.Filled.RemoveRedEye,
+                title = "Recent viewers",
+                subtitle = "$viewerCount viewer${if (viewerCount == 1) "" else "s"}"
+            ) {
+                Switch(checked = showViewers, onCheckedChange = { onToggleViewers() })
+            }
+            MoreControlRow(
+                icon = Icons.Filled.AutoAwesome,
+                title = "SoulMatch Assist",
+                subtitle = if (assistEnabled) "Assistance is enabled for your profile." else "Turn on assisted discovery and support."
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onOpenAssist) { Text("Details") }
+                    Switch(
+                        enabled = !isSavingAssist,
+                        checked = assistEnabled,
+                        onCheckedChange = onToggleAssist
+                    )
                 }
-                OutlinedButton(onClick = onSettings, modifier = Modifier.weight(1f)) {
-                    Text("Settings")
-                }
+            }
+            MoreControlRow(
+                icon = Icons.Filled.Settings,
+                title = "Settings",
+                subtitle = "Privacy, notifications, blocked users, and support."
+            ) {
+                TextButton(onClick = onSettings) { Text("Open") }
             }
             OutlinedButton(onClick = onSubscribe, modifier = Modifier.fillMaxWidth()) {
                 Text("Upgrade membership")
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Recent viewers: $viewerCount", modifier = Modifier.weight(1f), color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
-                Switch(checked = showViewers, onCheckedChange = { onToggleViewers() })
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("SoulMatch Assist", modifier = Modifier.weight(1f), color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
-                TextButton(onClick = onOpenAssist) { Text("Details") }
-                Switch(enabled = !isSavingAssist, checked = assistEnabled, onCheckedChange = { onToggleAssist() })
             }
         }
     }

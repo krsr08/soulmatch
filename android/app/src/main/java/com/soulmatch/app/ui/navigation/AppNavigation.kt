@@ -574,6 +574,7 @@ fun AppNavigation(
         composable("my_profile") {
             MyProfileScreen(
                 onBack = { nav.popBackStack() },
+                onViewProfile = { nav.navigate("profile/$it") },
                 onSubscribe = { nav.navigate("subscription") },
                 onEditSection = { step -> nav.navigate("profile_wizard/$step?returnToProfile=true") },
                 onOpenSettings = { nav.navigate("settings") },

@@ -98,7 +98,7 @@ fun ProfileSideDrawer(
     }
     ModalNavigationDrawer(
         drawerState = drawerState,
-        scrimColor = Color.Transparent,
+        scrimColor = Color.White.copy(alpha = 0.92f),
         drawerContent = {
             ModalDrawerSheet(
                 modifier = Modifier

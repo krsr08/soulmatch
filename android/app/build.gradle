@@ -30,8 +30,8 @@ android {
         applicationId "com.soulmatch.app"
         minSdk 26
         targetSdk 34
-        versionCode 36
-        versionName "1.0.35"
+        versionCode 37
+        versionName "1.0.36"
         manifestPlaceholders = [usesCleartextTraffic: "false"]
 
         // Your local.properties logic is correct! 

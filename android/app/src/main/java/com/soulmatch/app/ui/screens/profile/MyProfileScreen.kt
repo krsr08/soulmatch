@@ -410,7 +410,7 @@ fun MyProfileScreen(
                                 onToggleViewers = { showRecentViewers = !showRecentViewers },
                                 onOpenTrust = openTrustDetails,
                                 onOpenAssist = openAssist,
-                                onToggleAssist = { toggleAssist(!assistStatus.isOptedIn) },
+                                onToggleAssist = toggleAssist,
                                 onSubscribe = openSubscription,
                                 onSettings = openSettings
                             )
