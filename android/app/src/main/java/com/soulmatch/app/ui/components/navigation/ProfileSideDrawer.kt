@@ -3,6 +3,7 @@ package com.soulmatch.app.ui.components.navigation
 // Member profile side drawer and route constants shared by dashboard/profile navigation.
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -98,16 +99,18 @@ fun ProfileSideDrawer(
     }
     ModalNavigationDrawer(
         drawerState = drawerState,
-        scrimColor = Color.White.copy(alpha = 0.92f),
+        scrimColor = Color.White,
         drawerContent = {
             ModalDrawerSheet(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .fillMaxWidth(0.86f),
+                    .fillMaxWidth(0.86f)
+                    .background(Color.White),
                 drawerContainerColor = Color.White
             ) {
                 Column(
                     modifier = Modifier
+                        .background(Color.White)
                         .padding(18.dp)
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -143,8 +146,8 @@ private fun DrawerHeader(
     isVerified: Boolean,
     membershipLabel: String
 ) {
-    val memberPillColor = if (isVerified) Color(0xFFFFE6EF) else Color(0xFFF5F3F1)
-    val memberPillBorder = if (isVerified) Color(0xFFF0B5CB) else Color(0xFFE0DCDA)
+    val memberPillColor = Color.White
+    val memberPillBorder = Color(0xFFE9E3DD)
     val memberPillText = if (isVerified) MaterialTheme.colorScheme.primary else Color(0xFF6F6864)
     Row(
         modifier = Modifier
@@ -157,8 +160,8 @@ private fun DrawerHeader(
             Surface(
                 modifier = Modifier.size(82.dp),
                 shape = RoundedCornerShape(999.dp),
-                color = Color(0xFFFFF1F6),
-                border = BorderStroke(5.dp, Color(0xFFF4C3D5))
+                color = Color.White,
+                border = BorderStroke(2.dp, Color(0xFFE9E3DD))
             ) {
                 MemberPhoto(
                     photoUrl = profilePhotoUrl,

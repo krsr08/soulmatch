@@ -6,6 +6,7 @@ import android.webkit.MimeTypeMap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -63,6 +64,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -226,8 +228,15 @@ fun MyProfileScreen(
     }
 
     Scaffold(
+        containerColor = Color.White,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White,
+                    navigationIconContentColor = PrimaryDark,
+                    actionIconContentColor = PrimaryDark,
+                    titleContentColor = PrimaryDark
+                ),
                 title = {
                     Text(
                         "My Profile",
@@ -256,10 +265,11 @@ fun MyProfileScreen(
             )
         }
     ) { padding ->
-        PremiumScreen(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .background(Color.White)
         ) {
             if (loading && profile == null) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
