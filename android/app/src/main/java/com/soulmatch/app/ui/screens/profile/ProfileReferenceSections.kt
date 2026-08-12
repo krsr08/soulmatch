@@ -57,10 +57,10 @@ import com.soulmatch.app.ui.components.premium.ChipTone
 import com.soulmatch.app.ui.components.premium.PremiumCard
 import com.soulmatch.app.ui.components.premium.SignalChip
 import com.soulmatch.app.ui.components.premium.SignalChips
+import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.PrimaryDark
 import com.soulmatch.app.ui.theme.SurfaceSoft
-import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.titleCase
 import com.soulmatch.app.ui.viewmodels.ProfileChecklistItem
@@ -95,7 +95,7 @@ internal fun ProfileReferenceHeader(
 
     PremiumCard(
         modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-        containerColor = Color.White,
+        containerColor = SoulMatchTokens.Card,
         contentPadding = PaddingValues(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -153,7 +153,7 @@ internal fun GoldBadgePromoCard(verified: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .padding(horizontal = 14.dp)
             .clickable(onClick = onClick),
-        containerColor = Color.White,
+        containerColor = SoulMatchTokens.Card,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -190,7 +190,7 @@ internal fun ProfileCompletionPromptCard(
         modifier = Modifier
             .padding(horizontal = 14.dp)
             .then(if (onComplete != null) Modifier.clickable(onClick = onComplete) else Modifier),
-        containerColor = Color.White,
+        containerColor = SoulMatchTokens.Card,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -231,11 +231,11 @@ internal fun ProfileCompletionPromptCard(
 internal fun ProfilePromptsCard(onAdd: () -> Unit) {
     PremiumCard(
         modifier = Modifier.padding(horizontal = 14.dp),
-        containerColor = Color.White,
+        containerColor = SoulMatchTokens.Card,
         contentPadding = PaddingValues(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Surface(shape = RoundedCornerShape(14.dp), color = Color.White) {
+            Surface(shape = RoundedCornerShape(14.dp), color = SoulMatchTokens.Ivory) {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(12.dp).size(24.dp))
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -277,7 +277,7 @@ internal fun ReferenceInfoSection(
 
     PremiumCard(
         modifier = Modifier.padding(horizontal = 14.dp),
-        containerColor = Color.White,
+        containerColor = SoulMatchTokens.Card,
         contentPadding = PaddingValues(18.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -348,7 +348,7 @@ private fun MoreControlRow(
 ) {
     Surface(
         shape = RoundedCornerShape(16.dp),
-        color = Color.White,
+        color = SoulMatchTokens.Card,
         border = BorderStroke(1.dp, Divider.copy(alpha = 0.8f))
     ) {
         Row(
@@ -360,7 +360,7 @@ private fun MoreControlRow(
         ) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = SurfaceSoft,
+                color = SoulMatchTokens.Ivory,
                 modifier = Modifier.size(40.dp)
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
@@ -401,7 +401,7 @@ internal fun JanampatriPromptCard(onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp),
-        color = Color(0xFFFFF5E7)
+        color = SoulMatchTokens.TangerineSoft
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -426,7 +426,7 @@ internal fun JanampatriPromptCard(onClick: () -> Unit) {
 internal fun InterestPromptCard(onClick: () -> Unit) {
     PremiumCard(
         modifier = Modifier.padding(horizontal = 14.dp),
-        containerColor = Color.White,
+        containerColor = SoulMatchTokens.Card,
         contentPadding = PaddingValues(18.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -462,7 +462,7 @@ internal fun MoreProfileActionsCard(
 ) {
     PremiumCard(
         modifier = Modifier.padding(horizontal = 14.dp),
-        containerColor = Color.White,
+        containerColor = SoulMatchTokens.Card,
         contentPadding = PaddingValues(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -636,3 +636,4 @@ private fun formatDate(value: String?): String {
         }
     }
 }
+

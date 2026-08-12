@@ -116,6 +116,7 @@ import com.soulmatch.app.ui.components.premium.SectionTitle
 import com.soulmatch.app.ui.components.premium.SignalChip
 import com.soulmatch.app.ui.components.premium.SignalChips
 import com.soulmatch.app.ui.components.premium.UpgradePlanGate
+import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.Error
 import com.soulmatch.app.ui.theme.ErrorSoft
@@ -478,7 +479,7 @@ fun PartnerPreferencesScreen(
                 item {
                     PremiumCard(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                        containerColor = Color.White
+                        containerColor = SoulMatchTokens.Card
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             SectionTitle(
@@ -2152,7 +2153,7 @@ private fun PartnerPreferencesCard(
     var relocationOpen by remember(preferences.relocationOpen) { mutableStateOf(preferences.relocationOpen) }
     var selectedTab by remember { mutableStateOf("Basics") }
 
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = Color.White) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionTitle("Partner preferences", "These inputs now power Discover, match ranking, and future AI recommendations")
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {

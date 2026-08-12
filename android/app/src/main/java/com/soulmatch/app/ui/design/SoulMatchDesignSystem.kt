@@ -40,20 +40,20 @@ import androidx.compose.ui.unit.sp
 
 object SoulMatchTokens {
     val Bg = Color(0xFFFFFFFF)
-    val Card = Color(0xFFFFFFFF)
-    val Border = Color(0xFFF3F4F6)
+    val Card = Color(0xFFFFF8F5)
+    val Border = Color(0xFFE5E5E5)
     val Text = Color(0xFF1A1A1A)
-    val Muted = Color(0xFF888888)
-    val Tangerine = Color(0xFFFF5C00)
-    val TangerineSoft = Color(0xFFFFF1E8)
-    val Gold = Color(0xFFFF8533)
+    val Muted = Color(0xFF767676)
+    val Tangerine = Color(0xFFD94E28)
+    val TangerineSoft = Color(0xFFFFF0EB)
+    val Gold = Color(0xFFE87455)
     val GoldSoft = Color(0xFFFFD5BD)
-    val Ivory = Color(0xFFF7F8FA)
+    val Ivory = Color(0xFFFFFFFF)
     val Success = Color(0xFF218764)
     val Error = Color(0xFFD24B5D)
 
     val ScreenPadding = 18.dp
-    val CardRadius = 12.dp
+    val CardRadius = 16.dp
     val PillRadius = 999.dp
     val ControlHeight = 60.dp
     val CompactControlHeight = 48.dp

@@ -254,7 +254,7 @@ fun ProfileDetailScreen(
                             }
                         } else if (!canChat) {
                             item {
-                                PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Ivory) {
+                                PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
                                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Text("Chat opens after mutual acceptance", style = MaterialTheme.typography.titleSmall, color = SoulMatchTokens.Tangerine, fontWeight = FontWeight.Bold)
                                         Text("Your membership is active. Send interest first; chat becomes available when both sides accept.", style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
@@ -476,7 +476,7 @@ private fun PrimaryActionPanel(
     onAddFamilyReview: () -> Unit,
     onShare: () -> Unit
 ) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp), containerColor = Color.White) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp), containerColor = SoulMatchTokens.Card) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
@@ -581,7 +581,7 @@ private fun ContactDetailsSection(
         profile.contactAccessStatus.equals("owner", ignoreCase = true)
     val ownerMasked = profile.contactAccessStatus.equals("owner_masked", ignoreCase = true) ||
         profile.contactPrivacy.equals("masked", ignoreCase = true)
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = Color.White) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitle("Contact details", "Phone and email stay masked until access is allowed")
             DetailGrid(
@@ -592,7 +592,7 @@ private fun ContactDetailsSection(
             )
             when {
                 ownerMasked -> {
-                    Surface(shape = RoundedCornerShape(SoulMatchTokens.CardRadius), color = SoulMatchTokens.Ivory, border = BorderStroke(1.dp, SoulMatchTokens.Border)) {
+                    Surface(shape = RoundedCornerShape(SoulMatchTokens.CardRadius), color = Color.White, border = BorderStroke(1.dp, SoulMatchTokens.Border)) {
                         Row(
                             modifier = Modifier.padding(12.dp),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -658,7 +658,7 @@ private fun formatHeightLabel(heightCm: Int): String {
 
 @Composable
 private fun ProfileOverview(profile: ProfileData, compatibility: CompatibilityData) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = Color.White) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitle("Overview", "Why this profile is worth a closer look")
             CompatibilityBar(score = compatibility.overallScore)
@@ -694,7 +694,7 @@ private fun PartnerPreferenceSection(preferences: PartnerPreferencesData?) {
             "Timeline" to (pref.timeline ?: "Flexible")
         )
     }
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = Color.White) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitle("Partner preferences", "What this member is looking for")
             DetailGrid(rows = rows)
@@ -715,7 +715,7 @@ private fun preferenceIncomeRange(preferences: PartnerPreferencesData): String {
 
 @Composable
 private fun TrustProfileSection(profile: ProfileData) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = Color.White) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionTitle("Trust profile", "A concise view of trust, seriousness, and profile privacy")
             CompatibilityBar(score = profile.trustScore.coerceIn(0, 100))
@@ -734,7 +734,7 @@ private fun TrustProfileSection(profile: ProfileData) {
 
 @Composable
 private fun DetailSection(title: String, subtitle: String, rows: List<Pair<String, String>>) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = Color.White) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitle(title, subtitle)
             DetailGrid(rows = rows)

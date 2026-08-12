@@ -92,7 +92,7 @@ fun PremiumHeader(
 @Composable
 fun PremiumCard(
     modifier: Modifier = Modifier,
-    containerColor: Color = MaterialTheme.colorScheme.surface,
+    containerColor: Color = SoulMatchTokens.Card,
     contentPadding: PaddingValues = PaddingValues(18.dp),
     fillWidth: Boolean = true,
     content: @Composable () -> Unit
@@ -164,7 +164,7 @@ fun SignalChip(
         ChipTone.Success -> SuccessSoft to Success
         ChipTone.Info -> InfoSoft to Info
         ChipTone.Gold -> WarningSoft to Warning
-        ChipTone.Neutral -> MaterialTheme.colorScheme.surface to SoulMatchTokens.Muted
+        ChipTone.Neutral -> SoulMatchTokens.Card to SoulMatchTokens.Muted
     }
     AssistChip(
         onClick = {},
@@ -194,7 +194,7 @@ fun FilterChoiceChip(
         colors = FilterChipDefaults.filterChipColors(
             selectedContainerColor = SoulMatchTokens.TangerineSoft,
             selectedLabelColor = SoulMatchTokens.Tangerine,
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = SoulMatchTokens.Card,
             labelColor = MaterialTheme.colorScheme.onSurfaceVariant
         )
     )

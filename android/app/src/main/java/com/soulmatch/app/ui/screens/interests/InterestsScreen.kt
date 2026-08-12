@@ -485,7 +485,7 @@ private fun ViewerRow(viewer: ViewerData, onOpen: () -> Unit) {
 
 @Composable
 private fun EmptyStateCard(message: String, detail: String) {
-    PremiumCard(modifier = Modifier.padding(16.dp), containerColor = Color.White) {
+    PremiumCard(modifier = Modifier.padding(16.dp), containerColor = SoulMatchTokens.Card) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(message, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(detail, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
@@ -501,7 +501,7 @@ private fun ManagementProfileRow(
     dateLabel: String,
     danger: Boolean = false
 ) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), containerColor = if (danger) ErrorSoft else Color.White, contentPadding = PaddingValues(8.dp)) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), containerColor = if (danger) ErrorSoft else SoulMatchTokens.Card, contentPadding = PaddingValues(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, Divider), modifier = Modifier.size(52.dp)) {
                 Box(contentAlignment = Alignment.Center) {
@@ -530,7 +530,7 @@ private fun ManagementProfileRow(
 @Composable
 private fun ReportedActivityRow(concern: ReportedConcern) {
     val profile = managementProfileItem(concern.profileId)
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), containerColor = Color.White, contentPadding = PaddingValues(8.dp)) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), containerColor = SoulMatchTokens.Card, contentPadding = PaddingValues(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
             Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, Divider), modifier = Modifier.size(52.dp)) {
                 Box(contentAlignment = Alignment.Center) {
