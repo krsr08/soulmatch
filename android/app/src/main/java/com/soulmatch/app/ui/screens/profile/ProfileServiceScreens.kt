@@ -73,6 +73,7 @@ import com.soulmatch.app.ui.components.premium.MetricPill
 import com.soulmatch.app.ui.components.premium.PremiumCard
 import com.soulmatch.app.ui.components.premium.PremiumHeader
 import com.soulmatch.app.ui.components.premium.PremiumScreen
+import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.components.status.ProfileStrengthAdvisor
 import com.soulmatch.app.ui.components.premium.SectionTitle
 import com.soulmatch.app.ui.theme.Divider
@@ -944,7 +945,7 @@ fun SafetyCenterScreen(
                 }
                 if (profile != null && profileStrength < 100) {
                     item {
-                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
                             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                                 SectionTitle(verificationCard.title, verificationCard.body)
                                 Button(
@@ -1068,7 +1069,7 @@ fun SafetyCenterDetailScreen(
                 }
                 if (article.body.isNotBlank()) {
                     item {
-                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
                             Text(article.body, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                         }
                     }
@@ -1275,7 +1276,7 @@ private fun SafetyTopicTile(
     Surface(
         modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surface,
+        color = SoulMatchTokens.Ivory,
         border = BorderStroke(1.dp, Divider.copy(alpha = 0.7f))
     ) {
         Column(
@@ -1318,7 +1319,7 @@ private fun SafetyResourceRow(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface,
+        color = SoulMatchTokens.Ivory,
         border = BorderStroke(1.dp, Divider)
     ) {
         Row(
@@ -1515,7 +1516,7 @@ private fun FeatureListCard(
     subtitle: String,
     features: List<FeaturePoint>
 ) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surface) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionTitle(title, subtitle)
             features.forEach { feature ->
@@ -1622,7 +1623,7 @@ private fun DrawerActionButton(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface,
+        color = SoulMatchTokens.Ivory,
         border = BorderStroke(1.dp, Divider)
     ) {
         Row(

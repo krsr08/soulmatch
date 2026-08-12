@@ -42,10 +42,10 @@ import com.soulmatch.app.ui.components.premium.PremiumHeader
 import com.soulmatch.app.ui.components.premium.PremiumScreen
 import com.soulmatch.app.ui.components.premium.SectionTitle
 import com.soulmatch.app.ui.components.premium.SignalChips
+import com.soulmatch.app.ui.design.SoulMatchTokens
 import com.soulmatch.app.ui.theme.Divider
 import com.soulmatch.app.ui.theme.Success
 import com.soulmatch.app.ui.theme.SuccessSoft
-import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
 
 private const val SupportEmail = "support@soulmatch.app"
@@ -117,7 +117,7 @@ fun SuccessStoriesScreen(
                 item {
                     PremiumCard(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        containerColor = SurfaceWarm
+                        containerColor = SoulMatchTokens.Ivory
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             SectionTitle(
@@ -163,7 +163,7 @@ private fun YearArchiveCard(year: String, onClick: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        containerColor = SurfaceWarm
+        containerColor = SoulMatchTokens.Ivory
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -183,12 +183,12 @@ private fun YearArchiveCard(year: String, onClick: () -> Unit) {
 private fun SuccessStoryCard(story: SuccessStory) {
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        containerColor = SurfaceWarm
+        containerColor = SoulMatchTokens.Ivory
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Surface(
                 shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surface,
+                color = SoulMatchTokens.Ivory,
                 border = BorderStroke(1.dp, Divider)
             ) {
                 Icon(
@@ -218,7 +218,7 @@ private fun SuccessStoryCard(story: SuccessStory) {
             SignalChips(labels = story.highlights, tone = ChipTone.Success)
             Surface(
                 shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surface,
+                color = SoulMatchTokens.Ivory,
                 border = BorderStroke(1.dp, Divider)
             ) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
