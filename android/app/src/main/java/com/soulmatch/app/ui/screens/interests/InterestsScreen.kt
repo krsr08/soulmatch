@@ -37,6 +37,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -45,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,14 +70,12 @@ import com.soulmatch.app.ui.theme.Error
 import com.soulmatch.app.ui.theme.ErrorSoft
 import com.soulmatch.app.ui.theme.PrimaryDark
 import com.soulmatch.app.ui.theme.Success
-import com.soulmatch.app.ui.theme.SuccessSoft
-import com.soulmatch.app.ui.theme.SurfaceSoft
-import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.formatDate
 import com.soulmatch.app.ui.formatDateMillis
 import com.soulmatch.app.ui.titleCase
 import com.soulmatch.app.ui.viewmodels.InterestsViewModel
+import com.soulmatch.app.ui.design.SoulMatchTokens
 
 private data class InterestActivityItem(
     val item: InterestListItem,
@@ -114,7 +114,6 @@ fun InterestsScreen(
     val openChat: (String, String) -> Unit = onOpenChat ?: { _, _ -> }
     val accepted = remember(received, sent) { buildInterestBucket(received, sent, "accepted") }
     val declined = remember(received, sent) { buildInterestBucket(received, sent, "declined") }
-    val tabs = listOf("Received", "Sent", "Accepted", "Declined", "Shortlist", "Visitors", "Hidden", "Blocked", "Reported")
     val hiddenProfiles = remember(interactions.hiddenProfileIds) {
         interactions.hiddenProfileIds.map(::managementProfileItem)
     }
@@ -124,10 +123,28 @@ fun InterestsScreen(
     val reportedConcerns = remember(interactions.reportedConcerns) {
         interactions.reportedConcerns.values.sortedByDescending { it.updatedMillis }
     }
+    val tabCounts = listOf(
+        received.count { it.status.equals("pending", true) },
+        sent.size,
+        accepted.size,
+        declined.size,
+        shortlisted.size,
+        viewers.size,
+        hiddenProfiles.size,
+        blockedProfiles.size,
+        reportedConcerns.size
+    )
+    val tabs = listOf("Received", "Sent", "Accepted", "Declined", "Shortlist", "Visitors", "Hidden", "Blocked", "Reported")
 
     Scaffold(
+        containerColor = Color.White,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White,
+                    navigationIconContentColor = PrimaryDark,
+                    titleContentColor = PrimaryDark
+                ),
                 title = { Text("Activity", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -143,17 +160,23 @@ fun InterestsScreen(
                 .padding(padding)
         ) {
             Column(Modifier.fillMaxSize()) {
-                ActivitySummary(
-                    received = received.count { it.status.equals("pending", true) },
-                    sent = sent.size,
-                    accepted = accepted.size,
-                    shortlisted = shortlisted.size,
-                    visitors = viewers.size,
-                    onOpenTab = { tab = it }
-                )
-                ScrollableTabRow(selectedTabIndex = tab, edgePadding = 16.dp, containerColor = MaterialTheme.colorScheme.background) {
+                ScrollableTabRow(
+                    selectedTabIndex = tab,
+                    edgePadding = 16.dp,
+                    containerColor = Color.White,
+                    contentColor = SoulMatchTokens.Tangerine
+                ) {
                     tabs.forEachIndexed { index, label ->
-                        Tab(selected = tab == index, onClick = { tab = index }, text = { Text(label) })
+                        Tab(
+                            selected = tab == index,
+                            onClick = { tab = index },
+                            text = {
+                                Text(
+                                    "$label (${tabCounts[index]})",
+                                    color = if (tab == index) SoulMatchTokens.Tangerine else TextSecondary
+                                )
+                            }
+                        )
                     }
                 }
                 if (loading && received.isEmpty() && sent.isEmpty() && shortlisted.isEmpty() && viewers.isEmpty()) {
@@ -329,60 +352,6 @@ private fun activityTabIndex(tab: String): Int {
 }
 
 @Composable
-private fun ActivitySummary(
-    received: Int,
-    sent: Int,
-    accepted: Int,
-    shortlisted: Int,
-    visitors: Int,
-    onOpenTab: (Int) -> Unit
-) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), containerColor = MaterialTheme.colorScheme.surface) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                ActivityStatTile("Received", received.toString(), modifier = Modifier.weight(1f), background = SurfaceWarm, onClick = { onOpenTab(0) })
-                ActivityStatTile("Sent interests", sent.toString(), modifier = Modifier.weight(1f), background = SurfaceSoft, onClick = { onOpenTab(1) })
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                ActivityStatTile("Accepted", accepted.toString(), modifier = Modifier.weight(1f), content = Success, background = SuccessSoft, onClick = { onOpenTab(2) })
-                ActivityStatTile("Shortlist", shortlisted.toString(), modifier = Modifier.weight(1f), background = SurfaceWarm, onClick = { onOpenTab(4) })
-                ActivityStatTile("Visitors", visitors.toString(), modifier = Modifier.weight(1f), background = SurfaceSoft, onClick = { onOpenTab(5) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun ActivityStatTile(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    content: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary,
-    background: androidx.compose.ui.graphics.Color,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = modifier
-            .height(76.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = background,
-        border = BorderStroke(1.dp, Divider)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 10.dp, vertical = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = content)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = TextSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-@Composable
 private fun InterestRow(
     title: String,
     subtitle: String,
@@ -516,7 +485,7 @@ private fun ViewerRow(viewer: ViewerData, onOpen: () -> Unit) {
 
 @Composable
 private fun EmptyStateCard(message: String, detail: String) {
-    PremiumCard(modifier = Modifier.padding(16.dp), containerColor = SurfaceWarm) {
+    PremiumCard(modifier = Modifier.padding(16.dp), containerColor = Color.White) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(message, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(detail, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
@@ -532,7 +501,7 @@ private fun ManagementProfileRow(
     dateLabel: String,
     danger: Boolean = false
 ) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), containerColor = if (danger) ErrorSoft else SurfaceWarm, contentPadding = PaddingValues(8.dp)) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), containerColor = if (danger) ErrorSoft else Color.White, contentPadding = PaddingValues(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, Divider), modifier = Modifier.size(52.dp)) {
                 Box(contentAlignment = Alignment.Center) {
@@ -561,7 +530,7 @@ private fun ManagementProfileRow(
 @Composable
 private fun ReportedActivityRow(concern: ReportedConcern) {
     val profile = managementProfileItem(concern.profileId)
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), containerColor = SurfaceWarm, contentPadding = PaddingValues(8.dp)) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), containerColor = Color.White, contentPadding = PaddingValues(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
             Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, Divider), modifier = Modifier.size(52.dp)) {
                 Box(contentAlignment = Alignment.Center) {

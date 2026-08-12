@@ -45,6 +45,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -128,8 +129,15 @@ fun ProfileDetailScreen(
     }
 
     Scaffold(
+        containerColor = Color.White,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White,
+                    navigationIconContentColor = SoulMatchTokens.Text,
+                    actionIconContentColor = SoulMatchTokens.Text,
+                    titleContentColor = SoulMatchTokens.Text
+                ),
                 title = { Text(profile?.fullName() ?: "Profile", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -468,7 +476,7 @@ private fun PrimaryActionPanel(
     onAddFamilyReview: () -> Unit,
     onShare: () -> Unit
 ) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp), containerColor = SoulMatchTokens.Card) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp), containerColor = Color.White) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
@@ -573,7 +581,7 @@ private fun ContactDetailsSection(
         profile.contactAccessStatus.equals("owner", ignoreCase = true)
     val ownerMasked = profile.contactAccessStatus.equals("owner_masked", ignoreCase = true) ||
         profile.contactPrivacy.equals("masked", ignoreCase = true)
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = Color.White) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitle("Contact details", "Phone and email stay masked until access is allowed")
             DetailGrid(
@@ -650,7 +658,7 @@ private fun formatHeightLabel(heightCm: Int): String {
 
 @Composable
 private fun ProfileOverview(profile: ProfileData, compatibility: CompatibilityData) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.TangerineSoft) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = Color.White) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitle("Overview", "Why this profile is worth a closer look")
             CompatibilityBar(score = compatibility.overallScore)
@@ -686,7 +694,7 @@ private fun PartnerPreferenceSection(preferences: PartnerPreferencesData?) {
             "Timeline" to (pref.timeline ?: "Flexible")
         )
     }
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = Color.White) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitle("Partner preferences", "What this member is looking for")
             DetailGrid(rows = rows)
@@ -707,7 +715,7 @@ private fun preferenceIncomeRange(preferences: PartnerPreferencesData): String {
 
 @Composable
 private fun TrustProfileSection(profile: ProfileData) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.TangerineSoft) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = Color.White) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionTitle("Trust profile", "A concise view of trust, seriousness, and profile privacy")
             CompatibilityBar(score = profile.trustScore.coerceIn(0, 100))
@@ -726,7 +734,7 @@ private fun TrustProfileSection(profile: ProfileData) {
 
 @Composable
 private fun DetailSection(title: String, subtitle: String, rows: List<Pair<String, String>>) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = Color.White) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitle(title, subtitle)
             DetailGrid(rows = rows)
