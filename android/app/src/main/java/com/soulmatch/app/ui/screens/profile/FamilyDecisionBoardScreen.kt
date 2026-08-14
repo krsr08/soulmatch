@@ -104,7 +104,7 @@ fun FamilyDecisionBoardScreen(
                 }
                 if (!status.isNullOrBlank()) {
                     item {
-                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surface) {
                             Text(status ?: "", style = MaterialTheme.typography.bodyMedium, color = PrimaryDark, fontWeight = FontWeight.SemiBold)
                         }
                     }
@@ -120,7 +120,7 @@ fun FamilyDecisionBoardScreen(
                     }
                 } else if (decisions.isEmpty()) {
                     item {
-                        PremiumCard(modifier = Modifier.padding(16.dp), containerColor = SurfaceWarm) {
+                        PremiumCard(modifier = Modifier.padding(16.dp), containerColor = MaterialTheme.colorScheme.surface) {
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(42.dp))
                                 Text("No profiles added yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -147,9 +147,9 @@ fun FamilyDecisionBoardScreen(
 private fun FamilyBoardSummary(decisions: List<FamilyDecisionData>) {
     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            MetricPill("Review", decisions.count { it.status == "family_review" || it.status == "considering" }.toString(), Modifier.weight(1f), background = SurfaceSoft)
-            MetricPill("Calls", decisions.count { it.status == "call_scheduled" || it.status == "spoken" }.toString(), Modifier.weight(1f), background = SurfaceWarm)
-            MetricPill("Accepted", decisions.count { it.status == "accepted" }.toString(), Modifier.weight(1f), background = SuccessSoft, accent = Success)
+            MetricPill("Review", decisions.count { it.status == "family_review" || it.status == "considering" }.toString(), Modifier.weight(1f), background = MaterialTheme.colorScheme.surface)
+            MetricPill("Calls", decisions.count { it.status == "call_scheduled" || it.status == "spoken" }.toString(), Modifier.weight(1f), background = MaterialTheme.colorScheme.surface)
+            MetricPill("Accepted", decisions.count { it.status == "accepted" }.toString(), Modifier.weight(1f), background = MaterialTheme.colorScheme.surface, accent = Success)
         }
     }
 }
@@ -204,7 +204,7 @@ private fun FamilyDecisionRow(
             if (decision.comments.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     decision.comments.take(2).forEach { comment ->
-                        Surface(shape = RoundedCornerShape(14.dp), color = SurfaceSoft, border = BorderStroke(1.dp, Divider)) {
+                        Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, Divider)) {
                             Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text("Family vote: ${titleCase(comment.vote)}", style = MaterialTheme.typography.labelSmall, color = PrimaryDark, fontWeight = FontWeight.Bold)
                                 if (comment.comment.isNotBlank()) {

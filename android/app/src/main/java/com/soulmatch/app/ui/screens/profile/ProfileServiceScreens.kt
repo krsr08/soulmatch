@@ -171,7 +171,7 @@ fun SoulMatchAssistScreen(
                     AssistStatsRow(stats = assist.agentStats, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp))
                 }
                 item {
-                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surface) {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             SectionTitle("Control your assistance preference", "Enable SoulMatch Assistance if you want agent discovery and offline support options saved to your profile.")
                             Row(
@@ -312,7 +312,7 @@ fun SoulMatchAssistScreen(
                 }
                 if (showAgentSelection) {
                     item {
-                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surface) {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 SectionTitle(
                                     "Share your profile with agents",
@@ -398,7 +398,7 @@ fun SoulMatchAssistScreen(
                 }
                 if (assist.agents.isEmpty()) {
                     item {
-                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceSoft) {
+                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surface) {
                             Text("No active agents are available right now. Please check again shortly.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                         }
                     }
@@ -516,8 +516,8 @@ private fun AssistStatsRow(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        AssistStatCard("Active", stats.activeCount.toString(), Modifier.weight(1f), MaterialTheme.colorScheme.primary, SurfaceSoft)
-        AssistStatCard("Verified", stats.verifiedCount.toString(), Modifier.weight(1f), Success, SuccessSoft)
+        AssistStatCard("Active", stats.activeCount.toString(), Modifier.weight(1f), MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.surface)
+        AssistStatCard("Verified", stats.verifiedCount.toString(), Modifier.weight(1f), Success, MaterialTheme.colorScheme.surface)
         AssistStatCard("Unverified", stats.unverifiedCount.toString(), Modifier.weight(1f), TextSecondary, MaterialTheme.colorScheme.surface)
     }
 }
@@ -562,7 +562,7 @@ private fun AdvisorDirectoryCard(
         .ifBlank { "Location shared after contact" }
     PremiumCard(
         modifier = modifier,
-        containerColor = if (isHighlighted) SurfaceWarm else MaterialTheme.colorScheme.surface
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
@@ -733,7 +733,7 @@ fun SpotlightScreen(
                     }
                 }
                 item {
-                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surface) {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             SectionTitle("Choose spotlight duration", "Pick the push window that matches how aggressively you want to be discovered.")
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -827,7 +827,7 @@ fun AstrologyServicesScreen(
                     )
                 }
                 item {
-                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surface) {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             SectionTitle("Current horoscope details", "Keep this complete before families ask for astro alignment.")
                             astroSignals.forEach { (label, value) ->

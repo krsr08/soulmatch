@@ -429,7 +429,7 @@ fun MyProfileScreen(
                         if (showRecentViewers) {
                             if (viewers.isEmpty()) {
                                 item {
-                                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), containerColor = SurfaceSoft) {
+                                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), containerColor = MaterialTheme.colorScheme.surface) {
                                         Text("No recent viewers yet.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                                     }
                                 }
@@ -664,7 +664,7 @@ private fun EmptyProfileState(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            PremiumCard(containerColor = SurfaceWarm) {
+            PremiumCard(containerColor = MaterialTheme.colorScheme.surface) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Your profile needs attention", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(message, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
@@ -891,7 +891,7 @@ private fun MembershipActiveCard(subscription: SubscriptionData) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = SuccessSoft,
+        color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, Success.copy(alpha = 0.24f))
     ) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1248,10 +1248,10 @@ private fun TrustChecklistStatusRow(
         TrustEntryState.Missing -> TextSecondary
     }
     val background = when (entry.state) {
-        TrustEntryState.Verified -> SuccessSoft
-        TrustEntryState.Pending -> SurfaceWarm
+        TrustEntryState.Verified -> MaterialTheme.colorScheme.surface
+        TrustEntryState.Pending -> MaterialTheme.colorScheme.surface
         TrustEntryState.Warning -> ErrorSoft
-        TrustEntryState.Missing -> SurfaceSoft
+        TrustEntryState.Missing -> MaterialTheme.colorScheme.surface
     }
     PremiumCard(
         modifier = Modifier
@@ -1518,10 +1518,10 @@ private fun VerificationStatusCard(
         else -> "Request admin review to activate the verified badge on your profile."
     }
     val statusColor = when (state) {
-        ProfileVerificationState.Verified -> SuccessSoft
-        ProfileVerificationState.Pending -> SurfaceWarm
+        ProfileVerificationState.Verified -> MaterialTheme.colorScheme.surface
+        ProfileVerificationState.Pending -> MaterialTheme.colorScheme.surface
         ProfileVerificationState.Rejected -> ErrorSoft
-        ProfileVerificationState.NotRequested -> SurfaceSoft
+        ProfileVerificationState.NotRequested -> MaterialTheme.colorScheme.surface
     }
     val iconTint = when (state) {
         ProfileVerificationState.Verified -> Success
@@ -1641,7 +1641,7 @@ private fun PhotoGalleryCard(
         }
         Surface(
             shape = RoundedCornerShape(14.dp),
-            color = SurfaceWarm,
+            color = MaterialTheme.colorScheme.surface,
             border = BorderStroke(1.dp, Divider.copy(alpha = 0.7f))
         ) {
             Text(
@@ -1800,7 +1800,7 @@ private fun TrustDetailsCard(
             Surface(
                 modifier = Modifier.clickable(onClick = onOpenTrustDetails),
                 shape = RoundedCornerShape(18.dp),
-                color = SurfaceWarm,
+                color = MaterialTheme.colorScheme.surface,
                 border = BorderStroke(1.dp, Divider)
             ) {
                 Text(
@@ -1821,7 +1821,7 @@ private fun VerifiedProfileCard(
 ) {
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        containerColor = SurfaceWarm
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1944,7 +1944,7 @@ private fun PhotoAccessRequestRow(
     onApprove: () -> Unit,
     onDecline: () -> Unit
 ) {
-    Surface(shape = RoundedCornerShape(16.dp), color = if (showActions) SurfaceWarm else SurfaceSoft, border = BorderStroke(1.dp, Divider)) {
+    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, Divider)) {
         Column(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -2389,7 +2389,7 @@ private fun TrustMetricTile(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
-        color = SurfaceWarm,
+        color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, Divider.copy(alpha = 0.7f))
     ) {
         Column(
@@ -2505,7 +2505,7 @@ private fun SoulMatchAssistProfileCard(
     val enabled = assistStatus.isOptedIn
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        containerColor = SurfaceWarm
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(
@@ -2626,7 +2626,7 @@ private fun SoulMatchAssistSummaryCard(
         assistStatus.isOptedIn -> "SoulMatch Assist is enabled for your profile."
         else -> "Opt in if you want family-aware advisor support, curated shortlists, and guided follow-up."
     }
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SurfaceWarm) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surface) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionTitle("SoulMatch Assist", summary)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
@@ -2719,7 +2719,7 @@ private fun ChecklistRow(item: ProfileChecklistItem, onEdit: () -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = if (item.isComplete) SuccessSoft else SurfaceSoft,
+                color = MaterialTheme.colorScheme.surface,
                 modifier = Modifier.size(56.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
