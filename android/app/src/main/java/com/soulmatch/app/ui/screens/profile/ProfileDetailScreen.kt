@@ -237,7 +237,7 @@ fun ProfileDetailScreen(
                         }
                         if (!actionNotice.isNullOrBlank()) {
                             item {
-                                PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.TangerineSoft) {
+                                PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
                                     Text(actionNotice ?: "", style = MaterialTheme.typography.bodyMedium, color = SoulMatchTokens.Tangerine, fontWeight = FontWeight.SemiBold)
                                 }
                             }

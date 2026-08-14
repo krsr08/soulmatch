@@ -945,7 +945,7 @@ fun SafetyCenterScreen(
                 }
                 if (profile != null && profileStrength < 100) {
                     item {
-                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Ivory) {
+                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
                             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                                 SectionTitle(verificationCard.title, verificationCard.body)
                                 Button(
@@ -968,7 +968,7 @@ fun SafetyCenterScreen(
                     }
                 }
                 item {
-                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Ivory) {
+                    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
                         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                             SectionTitle("Safety overview", "Your current safety controls and actions.")
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
@@ -1069,14 +1069,14 @@ fun SafetyCenterDetailScreen(
                 }
                 if (article.body.isNotBlank()) {
                     item {
-                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Ivory) {
+                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
                             Text(article.body, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                         }
                     }
                 }
                 if (article.bullets.isNotEmpty()) {
                     item {
-                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Ivory) {
+                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 article.bullets.forEach { bullet ->
                                     SafetyBulletRow(bullet)
@@ -1087,7 +1087,7 @@ fun SafetyCenterDetailScreen(
                 }
                 if (article.contacts.isNotEmpty()) {
                     item {
-                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Ivory) {
+                        PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 SectionTitle("Official contacts", "Use these channels for cyber crime or urgent safety reporting.")
                                 article.contacts.forEach { contact ->
@@ -1208,7 +1208,7 @@ private fun SafetyGuidanceTabs(
         )
     )
     var selectedIndex by remember { mutableIntStateOf(0) }
-    PremiumCard(modifier = modifier, containerColor = SoulMatchTokens.Ivory) {
+    PremiumCard(modifier = modifier, containerColor = SoulMatchTokens.Card) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1276,7 +1276,7 @@ private fun SafetyTopicTile(
     Surface(
         modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(18.dp),
-        color = SoulMatchTokens.Ivory,
+        color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, Divider.copy(alpha = 0.7f))
     ) {
         Column(
@@ -1319,7 +1319,7 @@ private fun SafetyResourceRow(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        color = SoulMatchTokens.Ivory,
+        color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, Divider)
     ) {
         Row(
@@ -1623,7 +1623,7 @@ private fun DrawerActionButton(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        color = SoulMatchTokens.Ivory,
+        color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, Divider)
     ) {
         Row(

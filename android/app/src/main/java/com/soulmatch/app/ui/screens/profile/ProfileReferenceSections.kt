@@ -401,7 +401,8 @@ internal fun JanampatriPromptCard(onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(10.dp),
-        color = SoulMatchTokens.TangerineSoft
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, SoulMatchTokens.Border)
     ) {
         Row(
             modifier = Modifier.padding(14.dp),

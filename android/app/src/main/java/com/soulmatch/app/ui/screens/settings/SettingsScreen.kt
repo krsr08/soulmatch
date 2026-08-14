@@ -231,8 +231,8 @@ private fun SettingsStatus(text: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        color = SoulMatchTokens.TangerineSoft,
-        border = BorderStroke(1.dp, SoulMatchTokens.GoldSoft)
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, SoulMatchTokens.Border)
     ) {
         Text(
             text = text,

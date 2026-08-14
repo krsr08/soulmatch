@@ -57,7 +57,7 @@ import java.util.Locale
 
 private val NotificationsBackground = SoulMatchTokens.Bg
 private val NotificationsSurface = SoulMatchTokens.Card
-private val NotificationsUnread = SoulMatchTokens.TangerineSoft
+private val NotificationsUnread = SoulMatchTokens.Card
 private val NotificationsPrimary = SoulMatchTokens.Tangerine
 private val NotificationsText = SoulMatchTokens.Text
 private val NotificationsMuted = SoulMatchTokens.Muted

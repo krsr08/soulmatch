@@ -117,7 +117,7 @@ fun SuccessStoriesScreen(
                 item {
                     PremiumCard(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        containerColor = SoulMatchTokens.Ivory
+                        containerColor = SoulMatchTokens.Card
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             SectionTitle(
@@ -163,7 +163,7 @@ private fun YearArchiveCard(year: String, onClick: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        containerColor = SoulMatchTokens.Ivory
+        containerColor = SoulMatchTokens.Card
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -183,12 +183,12 @@ private fun YearArchiveCard(year: String, onClick: () -> Unit) {
 private fun SuccessStoryCard(story: SuccessStory) {
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        containerColor = SoulMatchTokens.Ivory
+        containerColor = SoulMatchTokens.Card
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Surface(
                 shape = MaterialTheme.shapes.medium,
-                color = SoulMatchTokens.Ivory,
+                color = MaterialTheme.colorScheme.surface,
                 border = BorderStroke(1.dp, Divider)
             ) {
                 Icon(
@@ -218,7 +218,7 @@ private fun SuccessStoryCard(story: SuccessStory) {
             SignalChips(labels = story.highlights, tone = ChipTone.Success)
             Surface(
                 shape = MaterialTheme.shapes.medium,
-                color = SoulMatchTokens.Ivory,
+                color = MaterialTheme.colorScheme.surface,
                 border = BorderStroke(1.dp, Divider)
             ) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

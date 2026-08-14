@@ -217,7 +217,7 @@ fun SearchScreen(
                 }
                 if (!loading && results.isEmpty()) {
                     item {
-                        PremiumCard(modifier = Modifier.padding(16.dp), containerColor = SoulMatchTokens.TangerineSoft) {
+                        PremiumCard(modifier = Modifier.padding(16.dp), containerColor = SoulMatchTokens.Card) {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("No profiles matched this exact filter", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Text("Widen age, city, religion, or diet preferences to bring in more active members.", style = MaterialTheme.typography.bodyMedium, color = SoulMatchTokens.Muted)
@@ -466,7 +466,7 @@ private fun SearchFilterPanel(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                color = SoulMatchTokens.TangerineSoft,
+                color = MaterialTheme.colorScheme.surface,
                 border = BorderStroke(1.dp, SoulMatchTokens.Border)
             ) {
                 Text(
@@ -534,7 +534,7 @@ private fun ToggleCard(
     Surface(
         modifier = modifier.height(104.dp),
         shape = RoundedCornerShape(18.dp),
-        color = if (selected) SoulMatchTokens.TangerineSoft else MaterialTheme.colorScheme.surface,
+        color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, if (selected) SoulMatchTokens.Tangerine else SoulMatchTokens.Border),
         onClick = onClick
     ) {

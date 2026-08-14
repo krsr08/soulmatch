@@ -151,7 +151,7 @@ fun BestMatchesScreen(
                     }
                     if (rankedMatches.isEmpty()) {
                         item {
-                            PremiumCard(modifier = Modifier.padding(16.dp), containerColor = SoulMatchTokens.TangerineSoft) {
+                            PremiumCard(modifier = Modifier.padding(16.dp), containerColor = SoulMatchTokens.Card) {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text("No profiles in this filter", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                     Text(
@@ -244,7 +244,7 @@ private fun BestMatchesControlPanel(
 
 @Composable
 private fun MatchFilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
-    val background = if (selected) SoulMatchTokens.TangerineSoft else MaterialTheme.colorScheme.surface
+    val background = MaterialTheme.colorScheme.surface
     val content = if (selected) SoulMatchTokens.Tangerine else SoulMatchTokens.Muted
     Surface(
         modifier = Modifier.clickable(onClick = onClick),

@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.sp
 
 object SoulMatchTokens {
     val Bg = Color(0xFFFFFFFF)
-    val Card = Color(0xFFFFF8F5)
+    val Card = Color(0xFFFFFFFF)
     val Border = Color(0xFFE5E5E5)
     val Text = Color(0xFF1A1A1A)
     val Muted = Color(0xFF767676)

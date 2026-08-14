@@ -364,7 +364,7 @@ private fun AccessModeNotice(monetization: MonetizationRuntimeData) {
     if (monetization.isSubscriptionMode()) return
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        containerColor = if (monetization.isFreeAccessMode()) Color(0xFFEFFAF5) else Color(0xFFFFF4E7),
+        containerColor = MaterialTheme.colorScheme.surface,
         contentPadding = PaddingValues(14.dp)
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -556,7 +556,7 @@ private fun MembershipHero(
 ) {
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-        containerColor = SurfaceWarm,
+        containerColor = MaterialTheme.colorScheme.surface,
         contentPadding = PaddingValues(18.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -649,7 +649,7 @@ private fun CurrentMembershipCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        containerColor = SurfaceWarm
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),

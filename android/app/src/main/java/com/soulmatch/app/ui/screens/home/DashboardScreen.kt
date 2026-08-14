@@ -1026,7 +1026,7 @@ private fun RefineFilterOptionButton(
             .height(58.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(999.dp),
-        color = if (selected) Color(0xFFFFF4EA) else Color.White,
+        color = Color.White,
         border = BorderStroke(
             width = if (selected) 1.6.dp else 1.dp,
             color = if (selected) Color(0xFFFFC8A5) else Color(0xFFE7E1DB)
@@ -1092,7 +1092,7 @@ private fun ProfileStrengthCard(score: Int, detail: String, onClick: () -> Unit)
             .padding(horizontal = 20.dp, vertical = 12.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBF8)),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
         border = BorderStroke(1.dp, SoftBorder.copy(alpha = 0.36f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -1529,7 +1529,7 @@ private fun HomeScamAwarenessInsertCard(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF4D9)),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
         border = BorderStroke(1.dp, Color(0xFFF7E0AD)),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
@@ -1928,7 +1928,7 @@ private fun PartnerPreferenceReminderBanner(
 ) {
     PremiumCard(
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-        containerColor = if (isConfigured) Color(0xFFF8F5EC) else Color(0xFFFFF0F3),
+        containerColor = Color.White,
         contentPadding = PaddingValues(14.dp)
     ) {
         Row(
@@ -2976,7 +2976,7 @@ private fun PendingInvitationCard(
             .width(272.dp)
             .clickable(onClick = onOpen),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBF8)),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
         border = BorderStroke(1.dp, SoftBorder.copy(alpha = 0.34f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {

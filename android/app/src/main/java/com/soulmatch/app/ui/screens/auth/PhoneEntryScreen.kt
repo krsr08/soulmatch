@@ -51,7 +51,6 @@ import com.soulmatch.app.ui.theme.PrimaryDark
 import com.soulmatch.app.ui.theme.Success
 import com.soulmatch.app.ui.theme.SuccessSoft
 import com.soulmatch.app.ui.theme.SurfaceSoft
-import com.soulmatch.app.ui.theme.SurfaceWarm
 import com.soulmatch.app.ui.theme.TextSecondary
 import com.soulmatch.app.ui.viewmodels.AuthUiState
 import com.soulmatch.app.ui.viewmodels.AuthViewModel
@@ -99,7 +98,7 @@ fun PhoneEntryScreen(
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                PremiumCard(containerColor = SoulMatchTokens.TangerineSoft) {
+                PremiumCard(containerColor = SoulMatchTokens.Card) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
                             when {
