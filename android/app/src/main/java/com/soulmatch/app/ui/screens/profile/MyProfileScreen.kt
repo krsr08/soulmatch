@@ -824,7 +824,7 @@ private fun ProfileStrengthOverviewCard(
                     .height(8.dp)
                     .clip(RoundedCornerShape(999.dp)),
                 color = MaterialTheme.colorScheme.primary,
-                trackColor = SurfaceSoft
+                trackColor = MaterialTheme.colorScheme.surface
             )
             Text(
                 next?.let { "Add your ${it.title.lowercase(Locale.getDefault())} to reach 100% and get better match recommendations." }
@@ -871,7 +871,7 @@ private fun QuickStatCard(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
-        color = SurfaceSoft,
+        color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, Divider.copy(alpha = 0.6f))
     ) {
         Column(
@@ -1667,7 +1667,7 @@ private fun ProfilePhotoSquare(
     Surface(
         modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(18.dp),
-        color = SurfaceSoft,
+        color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, Divider)
     ) {
         if (localUri != null) {
@@ -1740,7 +1740,7 @@ private fun PhotoAccessRequestsCard(
                 subtitle = if (pending.isEmpty()) "Members who request your private photo will appear here." else "${pending.size} member(s) waiting for your approval"
             )
             if (pending.isEmpty() && recent.isEmpty()) {
-                Surface(shape = RoundedCornerShape(16.dp), color = SurfaceSoft, border = BorderStroke(1.dp, Divider)) {
+                Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, Divider)) {
                     Text(
                         "No photo access requests yet.",
                         modifier = Modifier.padding(14.dp),
@@ -2319,12 +2319,12 @@ private fun PartnerPreferencesCard(
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MetricPill("Age", "$ageMin-$ageMax", modifier = Modifier.weight(1f), background = SurfaceSoft)
-                MetricPill("Cities", preferenceLabel(locationsText), modifier = Modifier.weight(1f), background = SurfaceSoft)
+                MetricPill("Age", "$ageMin-$ageMax", modifier = Modifier.weight(1f), background = MaterialTheme.colorScheme.surface)
+                MetricPill("Cities", preferenceLabel(locationsText), modifier = Modifier.weight(1f), background = MaterialTheme.colorScheme.surface)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MetricPill("Education", preferenceLabel(educationText), modifier = Modifier.weight(1f), background = SurfaceSoft)
-                MetricPill("Manglik", titleCase(manglikPref), modifier = Modifier.weight(1f), background = SurfaceSoft)
+                MetricPill("Education", preferenceLabel(educationText), modifier = Modifier.weight(1f), background = MaterialTheme.colorScheme.surface)
+                MetricPill("Manglik", titleCase(manglikPref), modifier = Modifier.weight(1f), background = MaterialTheme.colorScheme.surface)
             }
             Button(
                 onClick = {
@@ -2634,13 +2634,13 @@ private fun SoulMatchAssistSummaryCard(
                     "Mode",
                     titleCase((if (assistStatus.isOptedIn) assistStatus.supportLevel else "self_service").replace('_', ' ')),
                     modifier = Modifier.weight(1f),
-                    background = SurfaceSoft
+                    background = MaterialTheme.colorScheme.surface
                 )
                 MetricPill(
                     "Status",
                     titleCase(assistStatus.requestStatus.replace('_', ' ')),
                     modifier = Modifier.weight(1f),
-                    background = SurfaceSoft
+                    background = MaterialTheme.colorScheme.surface
                 )
             }
             if (assistStatus.location.city.isNotBlank() || assistStatus.location.pincode.isNotBlank()) {

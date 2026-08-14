@@ -664,7 +664,7 @@ private fun AgentMetric(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(8.dp),
-        color = SurfaceSoft,
+        color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, Divider.copy(alpha = 0.5f))
     ) {
         Column(
@@ -1154,7 +1154,7 @@ private fun SafetyMetricButton(
     Surface(
         modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(14.dp),
-        color = SurfaceSoft,
+        color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, Divider)
     ) {
         Column(
@@ -1522,7 +1522,7 @@ private fun FeatureListCard(
             features.forEach { feature ->
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = SurfaceSoft,
+                    color = MaterialTheme.colorScheme.surface,
                     border = BorderStroke(1.dp, Divider)
                 ) {
                     Row(
@@ -1551,7 +1551,7 @@ private fun StatusInfoCard(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null
 ) {
-    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = toneColor) {
+    PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = MaterialTheme.colorScheme.surface) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = contentColor)
             Text(detail, style = MaterialTheme.typography.bodySmall, color = contentColor)
@@ -1590,7 +1590,7 @@ private fun DetailRow(
 ) {
     Surface(
         shape = RoundedCornerShape(14.dp),
-        color = if (highlighted) SuccessSoft else SurfaceSoft,
+        color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, Divider)
     ) {
         Row(
@@ -1635,7 +1635,7 @@ private fun DrawerActionButton(
         ) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = SurfaceSoft,
+                color = MaterialTheme.colorScheme.surface,
                 modifier = Modifier.size(42.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
