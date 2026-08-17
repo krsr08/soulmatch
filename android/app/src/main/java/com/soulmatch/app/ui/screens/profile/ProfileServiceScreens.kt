@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -1519,7 +1520,7 @@ private fun FeatureListCard(
     PremiumCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), containerColor = SoulMatchTokens.Card) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SectionTitle(title, subtitle)
-            features.forEach { feature ->
+            features.forEachIndexed { index, feature ->
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.surface,
@@ -1536,6 +1537,14 @@ private fun FeatureListCard(
                             Text(feature.detail, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         }
                     }
+                }
+                if (index != features.lastIndex) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp),
+                        color = Divider.copy(alpha = 0.7f)
+                    ) {}
                 }
             }
         }
@@ -1556,7 +1565,11 @@ private fun StatusInfoCard(
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = contentColor)
             Text(detail, style = MaterialTheme.typography.bodySmall, color = contentColor)
             if (!actionLabel.isNullOrBlank() && onAction != null) {
-                OutlinedButton(onClick = onAction) {
+                OutlinedButton(
+                    onClick = onAction,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(999.dp)
+                ) {
                     Text(actionLabel)
                 }
             }
@@ -1577,8 +1590,8 @@ private fun TwoMetricRow(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        MetricPill(label = leftLabel, value = leftValue, modifier = Modifier.weight(1f))
-        MetricPill(label = rightLabel, value = rightValue, modifier = Modifier.weight(1f))
+        MetricPill(label = leftLabel, value = leftValue, modifier = Modifier.weight(1f), background = MaterialTheme.colorScheme.surface)
+        MetricPill(label = rightLabel, value = rightValue, modifier = Modifier.weight(1f), background = MaterialTheme.colorScheme.surface)
     }
 }
 
@@ -1601,12 +1614,23 @@ private fun DetailRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(label, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-            Text(
-                value,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = if (highlighted) Success else MaterialTheme.colorScheme.onSurface
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    value,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (highlighted) Success else MaterialTheme.colorScheme.onSurface
+                )
+                Icon(
+                    Icons.Filled.ChevronRight,
+                    contentDescription = null,
+                    tint = if (highlighted) Success else TextSecondary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }

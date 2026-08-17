@@ -20,11 +20,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -63,25 +63,25 @@ fun ProfileCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(horizontal = 16.dp, vertical = 6.dp)
             .clickable { onViewProfile(profile.profileId) },
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, Divider.copy(alpha = 0.72f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            val photoWidth = (maxWidth * 0.32f).coerceIn(104.dp, 124.dp)
+            val photoWidth = (maxWidth * 0.34f).coerceIn(116.dp, 136.dp)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.Top
             ) {
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(7.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -100,8 +100,8 @@ fun ProfileCard(
                             Icon(
                                 imageVector = Icons.Filled.Verified,
                                 contentDescription = "Verified",
-                                tint = Success,
-                                modifier = Modifier.size(18.dp)
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
@@ -130,12 +130,7 @@ fun ProfileCard(
                         matchScore = profile.compatibilityScore,
                         trustScore = profile.trustScore
                     )
-                    Text(
-                        text = resolveRecentActivity(profile.lastActiveLabel),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = PrimaryDark,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    ActivityDotLabel(resolveRecentActivity(profile.lastActiveLabel))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         ProfileOwnerTag(profile.profileCreatedBy)
                     }
@@ -144,8 +139,9 @@ fun ProfileCard(
                 Box(
                     modifier = Modifier
                         .width(photoWidth)
-                        .height(136.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .height(148.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color(0xFFFFFBF8))
                 ) {
                     MemberPhoto(
                         photoUrl = profile.primaryPhoto,
@@ -155,17 +151,32 @@ fun ProfileCard(
                             .then(if (profile.isPhotoPrivate) Modifier.blur(12.dp) else Modifier)
                     )
                     if (profile.isPhotoPrivate && profile.primaryPhoto.isNullOrBlank()) {
-                        Surface(
+                        Column(
                             modifier = Modifier.align(Alignment.Center),
-                            shape = RoundedCornerShape(999.dp),
-                            color = Color.White.copy(alpha = 0.86f),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.72f))
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            Surface(
+                                shape = RoundedCornerShape(999.dp),
+                                color = Color.White,
+                                border = BorderStroke(1.dp, Divider.copy(alpha = 0.8f))
+                            ) {
+                                Box(
+                                    modifier = Modifier.size(44.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Filled.CameraAlt,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
                             Text(
                                 "Request photo",
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = PrimaryDark,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.ExtraBold,
                                 maxLines = 1
                             )
@@ -191,7 +202,7 @@ fun ProfileCard(
                     Row(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(8.dp),
+                            .padding(10.dp),
                         horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         PhotoCornerAction(
@@ -240,14 +251,14 @@ private fun MatchTrustTagRow(matchScore: Int, trustScore: Int) {
 private fun ProfileMetricTag(label: String) {
     Surface(
         shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+        color = Color(0xFFFFF5F0),
+        border = BorderStroke(1.dp, Color(0xFFF7DDD0))
     ) {
         Text(
             text = label,
             modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
             style = MaterialTheme.typography.labelSmall,
-            color = PrimaryDark,
+            color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.ExtraBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -265,15 +276,37 @@ private fun ProfileOwnerTag(profileCreatedBy: String, modifier: Modifier = Modif
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+        color = Color(0xFFFFF5F0),
+        border = BorderStroke(1.dp, Color(0xFFF7DDD0))
     ) {
         Text(
             text = "Created by $owner",
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelSmall,
-            color = PrimaryDark,
+            color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun ActivityDotLabel(label: String) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(MaterialTheme.colorScheme.primary)
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -282,7 +315,7 @@ private fun ProfileOwnerTag(profileCreatedBy: String, modifier: Modifier = Modif
 
 private fun resolveRecentActivity(lastActiveLabel: String): String =
     if (lastActiveLabel.isBlank()) {
-        "Active recently"
+        "Active Recently"
     } else {
         "Active $lastActiveLabel"
     }

@@ -31,13 +31,20 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
@@ -47,9 +54,17 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.Wc
+import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.LocationCity
 import androidx.compose.material.icons.outlined.MailOutline
+import androidx.compose.material.icons.outlined.MonetizationOn
+import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.Work
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -81,6 +96,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.semantics.contentDescription
@@ -186,6 +202,7 @@ private data class HomeFilterOptions(
 )
 
 private data class HomeFilterSectionSpec(
+    val icon: ImageVector,
     val title: String,
     val options: List<String>,
     val value: (HomeAdvancedFilters) -> String,
@@ -652,9 +669,19 @@ private fun HomeAdvancedFilterDialog(
     ) {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = Color.White
+            color = Color(0x33000000)
         ) {
-            Column(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(top = 52.dp)
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                    color = Color.White
+                ) {
+                    Column(Modifier.fillMaxSize()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -663,14 +690,36 @@ private fun HomeAdvancedFilterDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
+                    Row(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Surface(
+                            modifier = Modifier.size(56.dp),
+                            shape = RoundedCornerShape(999.dp),
+                            color = Color.White,
+                            border = BorderStroke(1.dp, Color(0xFFE6E0DA))
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize().clickable(onClick = onDismiss),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = Color(0xFF4A4A4A),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                         Text(
                             "Refine matches",
                             style = MaterialTheme.typography.titleLarge.copy(
-                                fontFamily = FontFamily.Serif,
                                 fontWeight = FontWeight.ExtraBold,
                                 lineHeight = 28.sp
                             ),
@@ -683,15 +732,18 @@ private fun HomeAdvancedFilterDialog(
                             maxLines = 2
                         )
                     }
+                    }
                     IconButton(
                         onClick = onDismiss,
-                        modifier = Modifier.size(44.dp)
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(Color.White, RoundedCornerShape(999.dp))
                     ) {
                         Icon(
                             Icons.Filled.Close,
                             contentDescription = "Close filters",
                             tint = Color(0xFF9AA1AB),
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(26.dp)
                         )
                     }
                 }
@@ -704,9 +756,9 @@ private fun HomeAdvancedFilterDialog(
                 Row(Modifier.weight(1f)) {
                     LazyColumn(
                         modifier = Modifier
-                            .width(142.dp)
+                            .width(154.dp)
                             .fillMaxSize()
-                            .background(Color(0xFFFFFAF6)),
+                            .background(Color.White),
                         contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
                     ) {
                         items(sections, key = { it.title }) { section ->
@@ -733,22 +785,33 @@ private fun HomeAdvancedFilterDialog(
                                         .weight(1f)
                                         .defaultMinSize(minHeight = 48.dp),
                                     shape = RoundedCornerShape(14.dp),
-                                    color = if (selected) Color.White else Color.Transparent,
-                                    border = if (selected) BorderStroke(1.dp, Color(0xFFF2E3D8)) else null,
-                                    shadowElevation = if (selected) 2.dp else 0.dp
+                                    color = if (selected) Color(0xFFFFF4EC) else Color.Transparent,
+                                    border = null,
+                                    shadowElevation = 0.dp
                                 ) {
                                     Box(
                                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                                         contentAlignment = Alignment.CenterStart
                                     ) {
-                                        Text(
-                                            section.title,
-                                            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
-                                            color = if (selected) HomePrimary else Color(0xFF3B4655),
-                                            fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                section.icon,
+                                                contentDescription = null,
+                                                tint = if (selected) HomePrimary else Color(0xFF6E7785),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Text(
+                                                section.title,
+                                                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
+                                                color = if (selected) HomePrimary else Color(0xFF3B4655),
+                                                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -853,6 +916,8 @@ private fun HomeAdvancedFilterDialog(
                     }
                 }
             }
+                }
+            }
         }
     }
 }
@@ -866,114 +931,133 @@ private fun homeFilterSections(options: HomeFilterOptions): List<HomeFilterSecti
 
     return listOf(
         HomeFilterSectionSpec(
+            icon = Icons.Outlined.Groups,
             title = "Type of Matches",
             options = listOf("All", "Viewed", "Verified", "Just Joined", "Nearby"),
             value = { it.typeOfMatches },
             update = { filters, value -> filters.copy(typeOfMatches = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Filled.AutoAwesome,
             title = "Religion",
             options = withAll(options.religions),
             value = { it.religion },
             update = { filters, value -> filters.copy(religion = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Outlined.AccessTime,
             title = "Online Status",
             options = listOf("All", "Online", "Recently Active", "Inactive"),
             value = { it.onlineStatus },
             update = { filters, value -> filters.copy(onlineStatus = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Filled.Groups,
             title = "Family Based Out Of",
             options = withAll(options.familyBases),
             value = { it.familyBasedOutOf },
             update = { filters, value -> filters.copy(familyBasedOutOf = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Filled.Edit,
             title = "Profile Posted By",
             options = listOf("All", "Self", "Agent", "Admin"),
             value = { it.profilePostedBy },
             update = { filters, value -> filters.copy(profilePostedBy = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Filled.MonitorHeart,
             title = "Activity on Site",
             options = listOf("All", "Today", "This Week", "This Month"),
             value = { it.activityOnSite },
             update = { filters, value -> filters.copy(activityOnSite = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Filled.Public,
             title = "Country",
             options = listOf("All", "India", "Abroad"),
             value = { it.country },
             update = { filters, value -> filters.copy(country = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Outlined.LocationCity,
             title = "City",
             options = withAll(options.cities),
             value = { it.city },
             update = { filters, value -> filters.copy(city = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Outlined.MonetizationOn,
             title = "Income",
             options = withAll(options.incomes, listOf("< 3 Lpa", "3-5 Lpa", "5-10 Lpa", "10-20 Lpa", "20+ Lpa")),
             value = { it.income },
             update = { filters, value -> filters.copy(income = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Outlined.School,
             title = "Education",
             options = withAll(options.educationLevels, listOf("Graduate", "Post Graduate", "Doctorate", "Professional")),
             value = { it.educationLevel },
             update = { filters, value -> filters.copy(educationLevel = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Outlined.Work,
             title = "Employed In",
             options = listOf("All", "Government", "Private", "Business", "Self-employed", "Not working"),
             value = { it.employedIn },
             update = { filters, value -> filters.copy(employedIn = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Filled.WorkspacePremium,
             title = "Occupation",
             options = withAll(options.occupations),
             value = { it.occupation },
             update = { filters, value -> filters.copy(occupation = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Filled.PhotoLibrary,
             title = "Photo",
             options = listOf("All", "Visible Photos", "Request Photo"),
             value = { it.photo },
             update = { filters, value -> filters.copy(photo = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Filled.Wc,
             title = "Height",
             options = listOf("All", "Below 5 ft", "5 ft - 5 ft 5 in", "5 ft 6 in - 6 ft", "Above 6 ft"),
             value = { it.heightBand },
             update = { filters, value -> filters.copy(heightBand = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Filled.Verified,
             title = "Age",
             options = listOf("All", "21-25", "26-30", "31-35", "36-40", "41+"),
             value = { it.ageBand },
             update = { filters, value -> filters.copy(ageBand = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Filled.FavoriteBorder,
             title = "Marital Status",
             options = listOf("All", "Never Married", "Divorced", "Widowed"),
             value = { it.maritalStatus },
             update = { filters, value -> filters.copy(maritalStatus = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Filled.Star,
             title = "Horoscope",
             options = listOf("All", "Available", "Not Available"),
             value = { it.horoscope },
             update = { filters, value -> filters.copy(horoscope = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Filled.Star,
             title = "Manglik",
             options = listOf("All", "Manglik", "Non-Manglik"),
             value = { it.manglik },
             update = { filters, value -> filters.copy(manglik = value) }
         ),
         HomeFilterSectionSpec(
+            icon = Icons.Filled.Favorite,
             title = "Diet",
             options = withAll(options.diets, listOf("Vegetarian", "Non vegetarian", "Eggetarian", "Vegan")),
             value = { it.diet },
@@ -1023,9 +1107,9 @@ private fun RefineFilterOptionButton(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(84.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(999.dp),
+        shape = RoundedCornerShape(18.dp),
         color = Color.White,
         border = BorderStroke(
             width = if (selected) 1.6.dp else 1.dp,
@@ -1039,16 +1123,38 @@ private fun RefineFilterOptionButton(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                label,
+            Row(
                 modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleMedium,
-                color = if (selected) HomePrimary else Color(0xFF202A36),
-                fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
-                textAlign = TextAlign.Start,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(28.dp),
+                    shape = RoundedCornerShape(999.dp),
+                    color = Color.White,
+                    border = BorderStroke(1.4.dp, if (selected) HomePrimary else Color(0xFFD9DDE3))
+                ) {
+                    if (selected) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .background(HomePrimary, RoundedCornerShape(999.dp))
+                            )
+                        }
+                    }
+                }
+                Text(
+                    label,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (selected) HomePrimary else Color(0xFF202A36),
+                    fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
+                    textAlign = TextAlign.Start,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             if (selected) {
                 Icon(
                     Icons.Filled.Check,

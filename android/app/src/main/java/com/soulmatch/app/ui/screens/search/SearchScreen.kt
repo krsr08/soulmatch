@@ -8,10 +8,12 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -182,7 +184,7 @@ fun SearchScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         SectionTitle(title = "Results", subtitle = "Sorted by compatibility and activity", modifier = Modifier.weight(1f))
-                        MetricPill(label = "Profiles", value = results.size.toString(), background = SoulMatchTokens.Ivory)
+                        MetricPill(label = "Profiles", value = results.size.toString(), background = MaterialTheme.colorScheme.surface)
                     }
                 }
                 if (loading && results.isEmpty()) {
@@ -252,9 +254,19 @@ private fun SearchSummaryPanel(
                     Text("Filters", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text("$resultCount profiles match your current choices", style = MaterialTheme.typography.bodySmall, color = SoulMatchTokens.Muted)
                 }
-                Button(onClick = onToggle, modifier = Modifier.height(40.dp)) {
-                    Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.padding(end = 4.dp))
-                    Text(if (expanded) "Close" else "Filters")
+                Button(
+                    onClick = onToggle,
+                    modifier = Modifier.height(52.dp),
+                    shape = RoundedCornerShape(999.dp),
+                    contentPadding = PaddingValues(horizontal = 22.dp, vertical = 0.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = androidx.compose.ui.graphics.Color.White
+                    )
+                ) {
+                    Icon(Icons.Filled.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text(if (expanded) "Close" else "Filters", fontWeight = FontWeight.ExtraBold)
                 }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

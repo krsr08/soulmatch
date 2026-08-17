@@ -234,9 +234,9 @@ fun MyProfileScreen(
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.White,
-                    navigationIconContentColor = PrimaryDark,
-                    actionIconContentColor = PrimaryDark,
-                    titleContentColor = PrimaryDark
+                    navigationIconContentColor = MaterialTheme.colorScheme.primary,
+                    actionIconContentColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.primary
                 ),
                 title = {
                     Text(

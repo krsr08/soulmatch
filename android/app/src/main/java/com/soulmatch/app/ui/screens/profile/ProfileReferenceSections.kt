@@ -122,7 +122,7 @@ internal fun ProfileReferenceHeader(
                 Text(
                     profile.fullName().ifBlank { "Complete your name" },
                     style = MaterialTheme.typography.titleLarge,
-                    color = PrimaryDark,
+                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.ExtraBold
                 )
                 if (identityLine.isNotBlank()) {
@@ -291,12 +291,12 @@ internal fun ReferenceInfoSection(
                 Icon(
                     Icons.Filled.KeyboardArrowDown,
                     contentDescription = if (expanded) "Collapse $title" else "Expand $title",
-                    tint = PrimaryDark,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .size(22.dp)
                         .rotate(if (expanded) 0f else -90f)
                 )
-                Icon(icon, contentDescription = null, tint = PrimaryDark, modifier = Modifier.size(24.dp))
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                 Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, color = PrimaryDark, fontWeight = FontWeight.ExtraBold)
                 IconButton(onClick = { onEdit(editStep) }) {
                     Icon(Icons.Filled.Edit, contentDescription = "Edit $title", tint = TextSecondary)
